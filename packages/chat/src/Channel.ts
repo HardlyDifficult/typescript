@@ -1,11 +1,11 @@
-import type { Platform, ReactionCallback, PostMessageOptions, MessageData } from './types.js';
+import type { Platform, ReactionCallback, MessageData } from './types.js';
 import { Message, type ReactionAdder } from './Message.js';
 
 /**
  * Interface for platform-specific channel operations
  */
 export interface ChannelOperations extends ReactionAdder {
-  postMessage(channelId: string, text: string, options?: PostMessageOptions): Promise<MessageData>;
+  postMessage(channelId: string, text: string): Promise<MessageData>;
   subscribeToReactions(channelId: string, callback: ReactionCallback): () => void;
 }
 
@@ -35,11 +35,10 @@ export class Channel {
   /**
    * Post a message to this channel
    * @param text - Message content
-   * @param options - Optional message settings
    * @returns Message object with chainable reaction methods
    */
-  postMessage(text: string, options?: PostMessageOptions): Message {
-    const messagePromise = this.operations.postMessage(this.id, text, options);
+  postMessage(text: string): Message {
+    const messagePromise = this.operations.postMessage(this.id, text);
 
     // Create a Message that will resolve once the post completes
     const pendingMessage = new PendingMessage(messagePromise, this.operations);
@@ -105,12 +104,12 @@ class PendingMessage extends Message {
   }
 
   /**
-   * Override addReaction to wait for post to complete first
+   * Override addReactions to wait for post to complete first
    */
-  addReaction(emoji: string): Message {
+  override addReactions(emojis: string[]): Message {
     // Chain after the post completes
     this.postPromise.then(() => {
-      super.addReaction(emoji);
+      super.addReactions(emojis);
     });
     return this;
   }
@@ -131,14 +130,5 @@ class PendingMessage extends Message {
       }
       throw err;
     }
-  }
-
-  /**
-   * Wait for post and all reactions to complete
-   */
-  override async wait(): Promise<this> {
-    await this.postPromise;
-    await super.wait();
-    return this;
   }
 }

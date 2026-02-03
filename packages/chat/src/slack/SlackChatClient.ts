@@ -1,13 +1,12 @@
 import { App } from '@slack/bolt';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import {
+import type {
+  SlackConfig,
+  MessageData,
+  ReactionCallback,
+  ReactionEvent,
   User,
-  type SlackConfig,
-  type MessageData,
-  type PostMessageOptions,
-  type ReactionCallback,
-  type ReactionEvent,
 } from '../types.js';
 
 /**
@@ -20,9 +19,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   constructor(config: SlackConfig) {
     super(config);
 
+    const token = config.token ?? process.env.SLACK_BOT_TOKEN;
+    const appToken = config.appToken ?? process.env.SLACK_APP_TOKEN;
+
     this.app = new App({
-      token: config.token,
-      appToken: config.appToken,
+      token,
+      appToken,
       socketMode: config.socketMode ?? true,
     });
 
@@ -35,9 +37,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         return;
       }
 
+      const user: User = { id: event.user, username: undefined };
+
       const reactionEvent: ReactionEvent = {
         emoji: event.reaction,
-        user: new User(event.user, undefined),
+        user,
         messageId: event.item.ts,
         channelId: channelId,
         timestamp: new Date(parseFloat(event.event_ts) * 1000),
@@ -57,16 +61,8 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Connect to Slack and return a channel object
    */
   async connect(channelId: string): Promise<Channel> {
-    this.state = 'connecting';
-
-    try {
-      await this.app.start();
-      this.state = 'connected';
-      return new Channel(channelId, 'slack', this);
-    } catch (err) {
-      this.state = 'error';
-      throw err;
-    }
+    await this.app.start();
+    return new Channel(channelId, 'slack', this);
   }
 
   /**
@@ -74,7 +70,6 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    */
   async disconnect(): Promise<void> {
     await this.app.stop();
-    this.state = 'disconnected';
     this.reactionCallbacks.clear();
   }
 
@@ -84,14 +79,10 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     text: string,
-    options?: PostMessageOptions
   ): Promise<MessageData> {
-    this.ensureConnected();
-
     const result = await this.app.client.chat.postMessage({
       channel: channelId,
       text: text,
-      thread_ts: options?.threadId,
     });
 
     return {
@@ -109,8 +100,6 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     emoji: string
   ): Promise<void> {
-    this.ensureConnected();
-
     // Strip colons from emoji name (e.g., ":thumbsup:" -> "thumbsup")
     const emojiName = emoji.replace(/^:|:$/g, '');
 

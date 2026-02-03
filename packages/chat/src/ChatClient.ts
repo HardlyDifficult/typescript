@@ -1,4 +1,4 @@
-import type { ChatConfig, ConnectionState } from './types.js';
+import type { ChatConfig } from './types.js';
 import type { Channel } from './Channel.js';
 
 /**
@@ -6,8 +6,6 @@ import type { Channel } from './Channel.js';
  * Provides a unified API for Discord and Slack
  */
 export abstract class ChatClient {
-  protected state: ConnectionState = 'disconnected';
-
   constructor(protected readonly config: ChatConfig) {}
 
   /**
@@ -21,20 +19,4 @@ export abstract class ChatClient {
    * Disconnect from the chat platform
    */
   abstract disconnect(): Promise<void>;
-
-  /**
-   * Get current connection state
-   */
-  getState(): ConnectionState {
-    return this.state;
-  }
-
-  /**
-   * Ensure client is connected before operations
-   */
-  protected ensureConnected(): void {
-    if (this.state !== 'connected') {
-      throw new Error('Client is not connected. Call connect() first.');
-    }
-  }
 }

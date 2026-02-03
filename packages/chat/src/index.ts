@@ -1,14 +1,12 @@
 // Types
 export {
-  User,
+  type User,
   type DiscordConfig,
   type SlackConfig,
   type ChatConfig,
   type Platform,
   type ReactionEvent,
   type ReactionCallback,
-  type PostMessageOptions,
-  type ConnectionState,
 } from './types.js';
 
 // Core classes
@@ -31,26 +29,18 @@ import { SlackChatClient } from './slack/index.js';
  *
  * @example
  * ```typescript
- * // Discord
- * const client = createChatClient({
- *   type: 'discord',
- *   token: process.env.DISCORD_TOKEN!,
- *   guildId: process.env.DISCORD_GUILD_ID!,
- * });
+ * // Discord (uses env vars by default)
+ * const client = createChatClient({ type: 'discord' });
  *
- * // Slack
- * const client = createChatClient({
- *   type: 'slack',
- *   token: process.env.SLACK_BOT_TOKEN!,
- *   appToken: process.env.SLACK_APP_TOKEN!,
- * });
+ * // Slack (uses env vars by default)
+ * const client = createChatClient({ type: 'slack' });
  *
  * // Usage
  * const channel = await client.connect(channelId);
  * await channel.postMessage('Vote: 1, 2, or 3').addReactions(['1️⃣', '2️⃣', '3️⃣']);
  *
  * channel.onReaction((event) => {
- *   console.log(`${event.user} voted ${event.emoji}`);
+ *   console.log(`${event.user.username ?? event.user.id} voted ${event.emoji}`);
  * });
  * ```
  */

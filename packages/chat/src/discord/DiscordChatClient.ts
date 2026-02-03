@@ -12,11 +12,10 @@ import { Channel, type ChannelOperations } from '../Channel.js';
 import type {
   DiscordConfig,
   ReactionCallback,
-  PostMessageOptions,
   MessageData,
   ReactionEvent,
+  User,
 } from '../types.js';
-import { User } from '../types.js';
 
 /**
  * Discord chat client implementation using discord.js
@@ -24,9 +23,14 @@ import { User } from '../types.js';
 export class DiscordChatClient extends ChatClient implements ChannelOperations {
   private client: Client;
   private reactionListeners: Map<string, Set<ReactionCallback>> = new Map();
+  private readonly token: string;
+  private readonly guildId: string;
 
   constructor(config: DiscordConfig) {
     super(config);
+    this.token = config.token ?? process.env.DISCORD_TOKEN ?? '';
+    this.guildId = config.guildId ?? process.env.DISCORD_GUILD_ID ?? '';
+
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -63,7 +67,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
         return;
       }
 
-      const reactionUser = new User(user.id, user.username ?? undefined);
+      const reactionUser: User = { id: user.id, username: user.username ?? undefined };
 
       const event: ReactionEvent = {
         emoji: reaction.emoji.name ?? reaction.emoji.id ?? '',
@@ -89,25 +93,15 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @returns Channel object for interacting with the channel
    */
   async connect(channelId: string): Promise<Channel> {
-    this.state = 'connecting';
+    await this.client.login(this.token);
 
-    try {
-      const config = this.config as DiscordConfig;
-      await this.client.login(config.token);
+    const discordChannel = await this.client.channels.fetch(channelId);
 
-      const discordChannel = await this.client.channels.fetch(channelId);
-
-      if (!discordChannel || !(discordChannel instanceof TextChannel)) {
-        throw new Error(`Channel ${channelId} not found or is not a text channel`);
-      }
-
-      this.state = 'connected';
-
-      return new Channel(channelId, 'discord', this);
-    } catch (error) {
-      this.state = 'error';
-      throw error;
+    if (!discordChannel || !(discordChannel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
+
+    return new Channel(channelId, 'discord', this);
   }
 
   /**
@@ -116,39 +110,25 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async disconnect(): Promise<void> {
     this.reactionListeners.clear();
     await this.client.destroy();
-    this.state = 'disconnected';
   }
 
   /**
    * Post a message to a Discord channel
    * @param channelId - Channel to post to
    * @param text - Message content
-   * @param options - Optional message settings
    * @returns Message data with ID
    */
   async postMessage(
     channelId: string,
     text: string,
-    options?: PostMessageOptions,
   ): Promise<MessageData> {
-    this.ensureConnected();
-
     const channel = await this.client.channels.fetch(channelId);
 
     if (!channel || !(channel instanceof TextChannel)) {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
-    const messageOptions: { content: string; reply?: { messageReference: string } } = {
-      content: text,
-    };
-
-    // Handle thread replies if threadId is provided
-    if (options?.threadId) {
-      messageOptions.reply = { messageReference: options.threadId };
-    }
-
-    const message = await channel.send(messageOptions);
+    const message = await channel.send({ content: text });
 
     return {
       id: message.id,
@@ -164,8 +144,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param emoji - Emoji to add
    */
   async addReaction(messageId: string, channelId: string, emoji: string): Promise<void> {
-    this.ensureConnected();
-
     const channel = await this.client.channels.fetch(channelId);
 
     if (!channel || !(channel instanceof TextChannel)) {

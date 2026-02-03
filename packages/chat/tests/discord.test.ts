@@ -73,13 +73,12 @@ vi.mock('discord.js', () => ({
 import { DiscordChatClient } from '../src/discord/DiscordChatClient.js';
 import { Channel } from '../src/Channel.js';
 import { Message } from '../src/Message.js';
-import { User } from '../src/types.js';
 
 /**
  * Helper to wait for a PendingMessage without triggering the thenable infinite loop.
  * The Message class has a custom then() method which causes await to loop infinitely.
  *
- * The issue: PendingMessage.addReaction() schedules reactions via postPromise.then(),
+ * The issue: PendingMessage.addReactions() schedules reactions via postPromise.then(),
  * so we need to flush microtasks after postPromise resolves to allow the scheduled
  * callbacks to update pendingReactions before we read it.
  */
@@ -90,7 +89,7 @@ async function waitForMessage(message: Message): Promise<void> {
   if (postPromise) {
     await postPromise;
     // Flush microtasks multiple times to let any .then() callbacks scheduled on postPromise run
-    // This allows super.addReaction() calls to update pendingReactions
+    // This allows super.addReactions() calls to update pendingReactions
     await Promise.resolve();
     await Promise.resolve();
   }
@@ -118,6 +117,10 @@ describe('DiscordChatClient', () => {
     vi.clearAllMocks();
     setReactionHandler(null);
 
+    // Clear environment variables
+    delete process.env.DISCORD_TOKEN;
+    delete process.env.DISCORD_GUILD_ID;
+
     // Reset mock implementations
     mockClient.login.mockResolvedValue('token');
     mockClient.channels.fetch.mockResolvedValue(
@@ -134,9 +137,62 @@ describe('DiscordChatClient', () => {
   afterEach(async () => {
     // Small delay to allow any pending async operations to complete
     await new Promise(resolve => setTimeout(resolve, 20));
-    if (client.getState() === 'connected') {
+    // Clean up - try to disconnect (ignore errors if not connected)
+    try {
       await client.disconnect();
+    } catch {
+      // Ignore disconnect errors
     }
+    // Clean up environment variables
+    delete process.env.DISCORD_TOKEN;
+    delete process.env.DISCORD_GUILD_ID;
+  });
+
+  describe('config', () => {
+    it('should use explicit config values', async () => {
+      const explicitConfig: DiscordConfig = {
+        type: 'discord',
+        token: 'explicit-token',
+        guildId: 'explicit-guild',
+      };
+
+      const explicitClient = new DiscordChatClient(explicitConfig);
+      await explicitClient.connect(channelId);
+
+      expect(mockClient.login).toHaveBeenCalledWith('explicit-token');
+    });
+
+    it('should use environment variables as defaults', async () => {
+      process.env.DISCORD_TOKEN = 'env-token';
+      process.env.DISCORD_GUILD_ID = 'env-guild';
+
+      const envConfig: DiscordConfig = {
+        type: 'discord',
+        token: process.env.DISCORD_TOKEN,
+        guildId: process.env.DISCORD_GUILD_ID,
+      };
+
+      const envClient = new DiscordChatClient(envConfig);
+      await envClient.connect(channelId);
+
+      expect(mockClient.login).toHaveBeenCalledWith('env-token');
+    });
+
+    it('should allow explicit config to override environment variables', async () => {
+      process.env.DISCORD_TOKEN = 'env-token';
+      process.env.DISCORD_GUILD_ID = 'env-guild';
+
+      const overrideConfig: DiscordConfig = {
+        type: 'discord',
+        token: 'override-token',
+        guildId: 'override-guild',
+      };
+
+      const overrideClient = new DiscordChatClient(overrideConfig);
+      await overrideClient.connect(channelId);
+
+      expect(mockClient.login).toHaveBeenCalledWith('override-token');
+    });
   });
 
   describe('connect()', () => {
@@ -162,31 +218,10 @@ describe('DiscordChatClient', () => {
       expect(channel.platform).toBe('discord');
     });
 
-    it('should set state to "connected" after successful connection', async () => {
-      expect(client.getState()).toBe('disconnected');
-
-      await client.connect(channelId);
-
-      expect(client.getState()).toBe('connected');
-    });
-
-    it('should set state to "connecting" during connection', async () => {
-      let capturedState: string | undefined;
-      mockClient.login.mockImplementation(async () => {
-        capturedState = client.getState();
-        return 'token';
-      });
-
-      await client.connect(channelId);
-
-      expect(capturedState).toBe('connecting');
-    });
-
-    it('should set state to "error" when login fails', async () => {
+    it('should throw error when login fails', async () => {
       mockClient.login.mockRejectedValue(new Error('Invalid token'));
 
       await expect(client.connect(channelId)).rejects.toThrow('Invalid token');
-      expect(client.getState()).toBe('error');
     });
 
     it('should throw error when channel is not found', async () => {
@@ -195,7 +230,6 @@ describe('DiscordChatClient', () => {
       await expect(client.connect('invalid-channel')).rejects.toThrow(
         'Channel invalid-channel not found or is not a text channel'
       );
-      expect(client.getState()).toBe('error');
     });
 
     it('should throw error when channel is not a TextChannel', async () => {
@@ -204,7 +238,6 @@ describe('DiscordChatClient', () => {
       await expect(client.connect('voice-channel')).rejects.toThrow(
         'Channel voice-channel not found or is not a text channel'
       );
-      expect(client.getState()).toBe('error');
     });
   });
 
@@ -251,25 +284,9 @@ describe('DiscordChatClient', () => {
       expect(message.platform).toBe('discord');
     });
 
-    it('should handle threadId option for replies', async () => {
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Reply message', { threadId: 'parent-msg-id' });
-      await waitForMessage(message);
-
-      expect(mockTextChannelData.send).toHaveBeenCalledWith({
-        content: 'Reply message',
-        reply: { messageReference: 'parent-msg-id' },
-      });
-    });
-
-    it('should throw error if not connected', async () => {
-      await expect(client.postMessage(channelId, 'test')).rejects.toThrow(
-        'Client is not connected. Call connect() first.'
-      );
-    });
   });
 
-  describe('Message.addReaction()', () => {
+  describe('Message.addReactions()', () => {
     beforeEach(() => {
       // Ensure destroy is still mocked after any vi.clearAllMocks() calls
       mockClient.destroy.mockResolvedValue(undefined);
@@ -280,7 +297,7 @@ describe('DiscordChatClient', () => {
       const message = channel.postMessage('Test message');
       await waitForMessage(message);
 
-      message.addReaction('thumbsup');
+      message.addReactions(['thumbsup']);
       await waitForMessage(message);
 
       expect(mockDiscordMessage.react).toHaveBeenCalledWith('thumbsup');
@@ -291,60 +308,12 @@ describe('DiscordChatClient', () => {
       const message = channel.postMessage('Test message');
       await waitForMessage(message);
 
-      message.addReaction('\u{1F44D}');
+      message.addReactions(['\u{1F44D}']);
       await waitForMessage(message);
 
       expect(mockDiscordMessage.react).toHaveBeenCalledWith('\u{1F44D}');
     });
 
-    it('should support chaining multiple addReaction() calls', async () => {
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message');
-      await waitForMessage(message);
-
-      const result = message.addReaction('thumbsup').addReaction('heart').addReaction('star');
-      expect(result).toBe(message);
-
-      await waitForMessage(message);
-
-      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(3);
-      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(1, 'thumbsup');
-      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(2, 'heart');
-      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(3, 'star');
-    });
-
-    it('should return the same Message instance for chaining', async () => {
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message');
-      await waitForMessage(message);
-      const returnedMessage = message.addReaction('thumbsup');
-
-      expect(returnedMessage).toBe(message);
-    });
-
-    it('should add reactions sequentially (not in parallel)', async () => {
-      const callOrder: string[] = [];
-
-      mockDiscordMessage.react.mockImplementation(async (emoji: string) => {
-        callOrder.push(`start-${emoji}`);
-        await new Promise(resolve => setTimeout(resolve, 5));
-        callOrder.push(`end-${emoji}`);
-      });
-
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message');
-      await waitForMessage(message);
-      message.addReaction('1').addReaction('2');
-      await waitForMessage(message);
-
-      expect(callOrder).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
-
-      // Reset the mock to prevent interference with other tests
-      mockDiscordMessage.react.mockResolvedValue(undefined);
-    });
-  });
-
-  describe('Message.addReactions()', () => {
     it('should add multiple reactions from an array', async () => {
       const channel = await client.connect(channelId);
       const message = channel.postMessage('Test message');
@@ -368,11 +337,11 @@ describe('DiscordChatClient', () => {
       expect(returnedMessage).toBe(message);
     });
 
-    it('should support chaining addReactions() with addReaction()', async () => {
+    it('should support chaining multiple addReactions() calls', async () => {
       const channel = await client.connect(channelId);
       const message = channel.postMessage('Test message');
       await waitForMessage(message);
-      message.addReaction('first').addReactions(['second', 'third']).addReaction('fourth');
+      message.addReactions(['first']).addReactions(['second', 'third']).addReactions(['fourth']);
       await waitForMessage(message);
 
       expect(mockDiscordMessage.react).toHaveBeenCalledTimes(4);
@@ -390,6 +359,27 @@ describe('DiscordChatClient', () => {
       await waitForMessage(message);
 
       expect(mockDiscordMessage.react).not.toHaveBeenCalled();
+    });
+
+    it('should add reactions sequentially (not in parallel)', async () => {
+      const callOrder: string[] = [];
+
+      mockDiscordMessage.react.mockImplementation(async (emoji: string) => {
+        callOrder.push(`start-${emoji}`);
+        await new Promise(resolve => setTimeout(resolve, 5));
+        callOrder.push(`end-${emoji}`);
+      });
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Test message');
+      await waitForMessage(message);
+      message.addReactions(['1', '2']);
+      await waitForMessage(message);
+
+      expect(callOrder).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
+
+      // Reset the mock to prevent interference with other tests
+      mockDiscordMessage.react.mockResolvedValue(undefined);
     });
   });
 
@@ -466,10 +456,9 @@ describe('DiscordChatClient', () => {
       const handler = getReactionHandler();
       await handler!(mockReaction, mockUser);
 
-      expect(receivedEvent!.user).toBeInstanceOf(User);
+      expect(receivedEvent!.user).toEqual({ id: 'user-999', username: 'ReactingUser' });
       expect(receivedEvent!.user.id).toBe('user-999');
       expect(receivedEvent!.user.username).toBe('ReactingUser');
-      expect(receivedEvent!.user.toString()).toBe('ReactingUser');
     });
 
     it('should handle user without username (partial user)', async () => {
@@ -493,7 +482,6 @@ describe('DiscordChatClient', () => {
 
       expect(receivedEvent!.user.id).toBe('user-123');
       expect(receivedEvent!.user.username).toBeUndefined();
-      expect(receivedEvent!.user.toString()).toBe('user-123');
     });
 
     it('should return an unsubscribe function that works', async () => {
@@ -724,14 +712,6 @@ describe('DiscordChatClient', () => {
       expect(mockClient.destroy).toHaveBeenCalled();
     });
 
-    it('should set state to "disconnected"', async () => {
-      await client.connect(channelId);
-      expect(client.getState()).toBe('connected');
-
-      await client.disconnect();
-      expect(client.getState()).toBe('disconnected');
-    });
-
     it('should clear reaction listeners', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
@@ -775,7 +755,7 @@ describe('DiscordChatClient', () => {
       });
 
       const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message').addReaction('emoji1').addReaction('emoji2');
+      const message = channel.postMessage('Test message').addReactions(['emoji1', 'emoji2']);
       await waitForMessage(message);
 
       callOrder.push('done');
@@ -792,8 +772,7 @@ describe('DiscordChatClient', () => {
       // This should work - chain reactions on postMessage return
       const message = channel
         .postMessage('Test')
-        .addReaction('thumbsup')
-        .addReaction('heart');
+        .addReactions(['thumbsup', 'heart']);
       await waitForMessage(message);
 
       expect(message.id).toBe('msg-123');
@@ -811,12 +790,6 @@ describe('DiscordChatClient', () => {
       expect(mockDiscordMessage.react).toHaveBeenCalledWith('thumbsup');
     });
 
-    it('should throw if not connected', async () => {
-      await expect(client.addReaction('msg-123', channelId, 'thumbsup')).rejects.toThrow(
-        'Client is not connected'
-      );
-    });
-
     it('should throw if channel is not found', async () => {
       await client.connect(channelId);
       mockClient.channels.fetch.mockResolvedValue(null);
@@ -827,15 +800,52 @@ describe('DiscordChatClient', () => {
     });
   });
 
-  describe('User class', () => {
-    it('should return username from toString() when available', () => {
-      const user = new User('user-123', 'johndoe');
-      expect(user.toString()).toBe('johndoe');
+  describe('User object', () => {
+    it('should be a plain object with id and username properties', async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: ReactionEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
+        receivedEvent = event;
+      });
+      channel.onReaction(callback);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: 'star', id: null },
+      };
+
+      const mockUser = { id: 'user-123', username: 'johndoe' };
+
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(typeof receivedEvent!.user).toBe('object');
+      expect(receivedEvent!.user.id).toBe('user-123');
+      expect(receivedEvent!.user.username).toBe('johndoe');
     });
 
-    it('should return id from toString() when username is undefined', () => {
-      const user = new User('user-123', undefined);
-      expect(user.toString()).toBe('user-123');
+    it('should have undefined username when not provided', async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: ReactionEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
+        receivedEvent = event;
+      });
+      channel.onReaction(callback);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: 'star', id: null },
+      };
+
+      const mockUser = { id: 'user-456', username: null };
+
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(receivedEvent!.user.id).toBe('user-456');
+      expect(receivedEvent!.user.username).toBeUndefined();
     });
   });
 

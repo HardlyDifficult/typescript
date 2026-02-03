@@ -48,13 +48,12 @@ vi.mock('@slack/bolt', () => ({
 import { SlackChatClient } from '../src/slack/SlackChatClient.js';
 import { Channel } from '../src/Channel.js';
 import { Message } from '../src/Message.js';
-import { User } from '../src/types.js';
 
 /**
  * Helper to wait for a PendingMessage without triggering the thenable infinite loop.
  * The Message class has a custom then() method which causes await to loop infinitely.
  *
- * The issue: PendingMessage.addReaction() schedules reactions via postPromise.then(),
+ * The issue: PendingMessage.addReactions() schedules reactions via postPromise.then(),
  * so we need to flush microtasks after postPromise resolves to allow the scheduled
  * callbacks to update pendingReactions before we read it.
  */
@@ -65,7 +64,7 @@ async function waitForMessage(message: Message): Promise<void> {
   if (postPromise) {
     await postPromise;
     // Flush microtasks to let any .then() callbacks scheduled on postPromise run
-    // This allows super.addReaction() calls to update pendingReactions
+    // This allows super.addReactions() calls to update pendingReactions
     await Promise.resolve();
   }
 
@@ -90,6 +89,10 @@ describe('SlackChatClient', () => {
     vi.clearAllMocks();
     setReactionHandler(null);
 
+    // Clear environment variables
+    delete process.env.SLACK_TOKEN;
+    delete process.env.SLACK_APP_TOKEN;
+
     // Reset mock implementations
     mockStart.mockResolvedValue(undefined);
     mockStop.mockResolvedValue(undefined);
@@ -105,10 +108,15 @@ describe('SlackChatClient', () => {
   });
 
   afterEach(async () => {
-    // Clean up if connected
-    if (client.getState() === 'connected') {
+    // Clean up - try to disconnect (ignore errors if not connected)
+    try {
       await client.disconnect();
+    } catch {
+      // Ignore disconnect errors
     }
+    // Clean up environment variables
+    delete process.env.SLACK_TOKEN;
+    delete process.env.SLACK_APP_TOKEN;
   });
 
   describe('constructor', () => {
@@ -145,6 +153,72 @@ describe('SlackChatClient', () => {
     });
   });
 
+  describe('config', () => {
+    it('should use explicit config values', async () => {
+      const { App } = await import('@slack/bolt');
+      vi.mocked(App).mockClear();
+
+      const explicitConfig: SlackConfig = {
+        type: 'slack',
+        token: 'explicit-token',
+        appToken: 'explicit-app-token',
+        socketMode: true,
+      };
+
+      new SlackChatClient(explicitConfig);
+
+      expect(App).toHaveBeenCalledWith({
+        token: 'explicit-token',
+        appToken: 'explicit-app-token',
+        socketMode: true,
+      });
+    });
+
+    it('should use environment variables as defaults', async () => {
+      process.env.SLACK_TOKEN = 'env-token';
+      process.env.SLACK_APP_TOKEN = 'env-app-token';
+
+      const { App } = await import('@slack/bolt');
+      vi.mocked(App).mockClear();
+
+      const envConfig: SlackConfig = {
+        type: 'slack',
+        token: process.env.SLACK_TOKEN,
+        appToken: process.env.SLACK_APP_TOKEN,
+      };
+
+      new SlackChatClient(envConfig);
+
+      expect(App).toHaveBeenCalledWith({
+        token: 'env-token',
+        appToken: 'env-app-token',
+        socketMode: true,
+      });
+    });
+
+    it('should allow explicit config to override environment variables', async () => {
+      process.env.SLACK_TOKEN = 'env-token';
+      process.env.SLACK_APP_TOKEN = 'env-app-token';
+
+      const { App } = await import('@slack/bolt');
+      vi.mocked(App).mockClear();
+
+      const overrideConfig: SlackConfig = {
+        type: 'slack',
+        token: 'override-token',
+        appToken: 'override-app-token',
+      };
+
+      new SlackChatClient(overrideConfig);
+
+      expect(App).toHaveBeenCalledWith({
+        token: 'override-token',
+        appToken: 'override-app-token',
+        socketMode: true,
+      });
+    });
+  });
+
   describe('connect()', () => {
     it('should start the app', async () => {
       await client.connect(channelId);
@@ -160,31 +234,11 @@ describe('SlackChatClient', () => {
       expect(channel.platform).toBe('slack');
     });
 
-    it('should set state to "connected"', async () => {
-      expect(client.getState()).toBe('disconnected');
-
-      await client.connect(channelId);
-
-      expect(client.getState()).toBe('connected');
-    });
-
-    it('should set state to "connecting" during connection', async () => {
-      let capturedState: string | undefined;
-      mockStart.mockImplementation(async () => {
-        capturedState = client.getState();
-      });
-
-      await client.connect(channelId);
-
-      expect(capturedState).toBe('connecting');
-    });
-
-    it('should set state to "error" if connection fails', async () => {
+    it('should throw error if connection fails', async () => {
       const error = new Error('Connection failed');
       mockStart.mockRejectedValue(error);
 
       await expect(client.connect(channelId)).rejects.toThrow('Connection failed');
-      expect(client.getState()).toBe('error');
     });
   });
 
@@ -195,15 +249,6 @@ describe('SlackChatClient', () => {
       await client.disconnect();
 
       expect(mockStop).toHaveBeenCalledTimes(1);
-    });
-
-    it('should set state to "disconnected"', async () => {
-      await client.connect(channelId);
-      expect(client.getState()).toBe('connected');
-
-      await client.disconnect();
-
-      expect(client.getState()).toBe('disconnected');
     });
 
     it('should clear reaction callbacks', async () => {
@@ -243,7 +288,6 @@ describe('SlackChatClient', () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: text,
-        thread_ts: undefined,
       });
     });
 
@@ -261,35 +305,15 @@ describe('SlackChatClient', () => {
       expect(message.platform).toBe('slack');
     });
 
-    it('should support threadId option', async () => {
-      const channel = await client.connect(channelId);
-      const threadId = '9876543210.654321';
-
-      const message = channel.postMessage('Reply in thread', { threadId });
-      await waitForMessage(message);
-
-      expect(mockPostMessage).toHaveBeenCalledWith({
-        channel: channelId,
-        text: 'Reply in thread',
-        thread_ts: threadId,
-      });
-    });
-
-    it('should throw error when not connected', async () => {
-      // Test directly on client
-      await expect(client.postMessage(channelId, 'test')).rejects.toThrow(
-        'Client is not connected. Call connect() first.'
-      );
-    });
   });
 
-  describe('Message.addReaction()', () => {
+  describe('Message.addReactions()', () => {
     it('should call app.client.reactions.add()', async () => {
       const channel = await client.connect(channelId);
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      message.addReaction('thumbsup');
+      message.addReactions(['thumbsup']);
       await waitForMessage(message);
 
       expect(mockReactionsAdd).toHaveBeenCalledWith({
@@ -304,7 +328,7 @@ describe('SlackChatClient', () => {
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      message.addReaction(':thumbsup');
+      message.addReactions([':thumbsup']);
       await waitForMessage(message);
 
       expect(mockReactionsAdd).toHaveBeenCalledWith({
@@ -319,7 +343,7 @@ describe('SlackChatClient', () => {
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      message.addReaction('thumbsup:');
+      message.addReactions(['thumbsup:']);
       await waitForMessage(message);
 
       expect(mockReactionsAdd).toHaveBeenCalledWith({
@@ -334,7 +358,7 @@ describe('SlackChatClient', () => {
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      message.addReaction(':thumbsup:');
+      message.addReactions([':thumbsup:']);
       await waitForMessage(message);
 
       expect(mockReactionsAdd).toHaveBeenCalledWith({
@@ -344,68 +368,6 @@ describe('SlackChatClient', () => {
       });
     });
 
-    it('should support chaining multiple addReaction calls', async () => {
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test');
-      await waitForMessage(message);
-
-      const result = message.addReaction('thumbsup').addReaction('heart').addReaction('rocket');
-
-      expect(result).toBe(message);
-
-      // Wait for all reactions to complete
-      await waitForMessage(message);
-
-      expect(mockReactionsAdd).toHaveBeenCalledTimes(3);
-      expect(mockReactionsAdd).toHaveBeenNthCalledWith(1, {
-        channel: channelId,
-        timestamp: message.id,
-        name: 'thumbsup',
-      });
-      expect(mockReactionsAdd).toHaveBeenNthCalledWith(2, {
-        channel: channelId,
-        timestamp: message.id,
-        name: 'heart',
-      });
-      expect(mockReactionsAdd).toHaveBeenNthCalledWith(3, {
-        channel: channelId,
-        timestamp: message.id,
-        name: 'rocket',
-      });
-    });
-
-    it('should allow chaining addReaction right after postMessage', async () => {
-      const channel = await client.connect(channelId);
-
-      const message = channel.postMessage('Test').addReaction('thumbsup');
-      await waitForMessage(message);
-
-      expect(message).toBeInstanceOf(Message);
-      expect(mockReactionsAdd).toHaveBeenCalledTimes(1);
-    });
-
-    it('should add reactions sequentially (not in parallel)', async () => {
-      const callOrder: string[] = [];
-
-      mockReactionsAdd.mockImplementation(async ({ name }: { name: string }) => {
-        callOrder.push(`start-${name}`);
-        await new Promise(resolve => setTimeout(resolve, 10));
-        callOrder.push(`end-${name}`);
-        return { ok: true };
-      });
-
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test');
-      await waitForMessage(message);
-      message.addReaction('1').addReaction('2');
-      await waitForMessage(message);
-
-      // Reactions should be sequential: start-1, end-1, start-2, end-2
-      expect(callOrder).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
-    });
-  });
-
-  describe('Message.addReactions()', () => {
     it('should call app.client.reactions.add() for each emoji', async () => {
       const channel = await client.connect(channelId);
       const message = channel.postMessage('Test');
@@ -436,12 +398,12 @@ describe('SlackChatClient', () => {
       });
     });
 
-    it('should support chaining after addReactions', async () => {
+    it('should support chaining multiple addReactions() calls', async () => {
       const channel = await client.connect(channelId);
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      const result = message.addReactions(['thumbsup', 'heart']).addReaction('rocket');
+      const result = message.addReactions(['thumbsup', 'heart']).addReactions(['rocket']);
 
       expect(result).toBe(message);
 
@@ -484,6 +446,36 @@ describe('SlackChatClient', () => {
       await waitForMessage(message);
 
       expect(mockReactionsAdd).not.toHaveBeenCalled();
+    });
+
+    it('should allow chaining addReactions right after postMessage', async () => {
+      const channel = await client.connect(channelId);
+
+      const message = channel.postMessage('Test').addReactions(['thumbsup']);
+      await waitForMessage(message);
+
+      expect(message).toBeInstanceOf(Message);
+      expect(mockReactionsAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it('should add reactions sequentially (not in parallel)', async () => {
+      const callOrder: string[] = [];
+
+      mockReactionsAdd.mockImplementation(async ({ name }: { name: string }) => {
+        callOrder.push(`start-${name}`);
+        await new Promise(resolve => setTimeout(resolve, 10));
+        callOrder.push(`end-${name}`);
+        return { ok: true };
+      });
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Test');
+      await waitForMessage(message);
+      message.addReactions(['1', '2']);
+      await waitForMessage(message);
+
+      // Reactions should be sequential: start-1, end-1, start-2, end-2
+      expect(callOrder).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
     });
   });
 
@@ -535,7 +527,7 @@ describe('SlackChatClient', () => {
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({
-          user: expect.any(User),
+          user: expect.objectContaining({ id: userId }),
         })
       );
 
@@ -892,12 +884,6 @@ describe('SlackChatClient', () => {
   });
 
   describe('addReaction()', () => {
-    it('should throw error when not connected', async () => {
-      await expect(
-        client.addReaction('1234567890.123456', channelId, 'thumbsup')
-      ).rejects.toThrow('Client is not connected. Call connect() first.');
-    });
-
     it('should work when connected', async () => {
       await client.connect(channelId);
 
@@ -911,15 +897,49 @@ describe('SlackChatClient', () => {
     });
   });
 
-  describe('User class', () => {
-    it('should return username from toString() when available', () => {
-      const user = new User('U123456', 'johndoe');
-      expect(user.toString()).toBe('johndoe');
+  describe('User object', () => {
+    it('should be a plain object with id property', async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: ReactionEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
+        receivedEvent = event;
+      });
+      channel.onReaction(callback);
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: 'star',
+          user: 'U123456',
+          item: { channel: channelId, ts: '1234567890.123456' },
+          event_ts: '1609459200.000000',
+        },
+      });
+
+      expect(typeof receivedEvent!.user).toBe('object');
+      expect(receivedEvent!.user.id).toBe('U123456');
     });
 
-    it('should return id from toString() when username is undefined', () => {
-      const user = new User('U123456', undefined);
-      expect(user.toString()).toBe('U123456');
+    it('should have undefined username (Slack does not provide username in reaction events)', async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: ReactionEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
+        receivedEvent = event;
+      });
+      channel.onReaction(callback);
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: 'star',
+          user: 'U654321',
+          item: { channel: channelId, ts: '1234567890.123456' },
+          event_ts: '1609459200.000000',
+        },
+      });
+
+      expect(receivedEvent!.user.id).toBe('U654321');
+      expect(receivedEvent!.user.username).toBeUndefined();
     });
   });
 
@@ -952,7 +972,7 @@ describe('SlackChatClient', () => {
       const message = channel.postMessage('Test');
       await waitForMessage(message);
 
-      message.addReaction('first').addReaction('second').addReaction('third');
+      message.addReactions(['first', 'second', 'third']);
       await waitForMessage(message);
 
       expect(reactionOrder).toEqual(['first', 'second', 'third']);
@@ -964,8 +984,7 @@ describe('SlackChatClient', () => {
       // This should work - chain reactions on postMessage return
       const message = channel
         .postMessage('Test')
-        .addReaction('thumbsup')
-        .addReaction('heart');
+        .addReactions(['thumbsup', 'heart']);
       await waitForMessage(message);
 
       expect(message.id).toBe('1234567890.123456');

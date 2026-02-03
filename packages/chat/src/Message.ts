@@ -26,25 +26,15 @@ export class Message {
   }
 
   /**
-   * Add a single emoji reaction to this message
-   * @param emoji - Emoji to add (name or unicode)
-   * @returns this for chaining
-   */
-  addReaction(emoji: string): Message {
-    this.pendingReactions = this.pendingReactions.then(() =>
-      this.reactionAdder.addReaction(this.id, this.channelId, emoji)
-    );
-    return this;
-  }
-
-  /**
    * Add multiple emoji reactions to this message
    * @param emojis - Array of emojis to add
    * @returns this for chaining
    */
   addReactions(emojis: string[]): Message {
     for (const emoji of emojis) {
-      this.addReaction(emoji);
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.reactionAdder.addReaction(this.id, this.channelId, emoji)
+      );
     }
     return this;
   }
@@ -61,13 +51,5 @@ export class Message {
       return onFulfilled(this);
     }
     return this as unknown as T;
-  }
-
-  /**
-   * Wait for all pending reactions to complete
-   */
-  async wait(): Promise<this> {
-    await this.pendingReactions;
-    return this;
   }
 }

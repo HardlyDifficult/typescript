@@ -3,8 +3,8 @@
  */
 export interface DiscordConfig {
   type: 'discord';
-  token: string;
-  guildId: string;
+  token?: string; // defaults to process.env.DISCORD_TOKEN
+  guildId?: string; // defaults to process.env.DISCORD_GUILD_ID
 }
 
 /**
@@ -12,8 +12,8 @@ export interface DiscordConfig {
  */
 export interface SlackConfig {
   type: 'slack';
-  token: string;
-  appToken: string;
+  token?: string; // defaults to process.env.SLACK_BOT_TOKEN
+  appToken?: string; // defaults to process.env.SLACK_APP_TOKEN
   socketMode?: boolean;
 }
 
@@ -27,15 +27,9 @@ export type Platform = 'discord' | 'slack';
 /**
  * User who performed an action (e.g., added a reaction)
  */
-export class User {
-  constructor(
-    public readonly id: string,
-    public readonly username: string | undefined,
-  ) {}
-
-  toString(): string {
-    return this.username ?? this.id;
-  }
+export interface User {
+  id: string;
+  username?: string;
 }
 
 /**
@@ -58,18 +52,6 @@ export interface ReactionEvent {
  * Callback function type for reaction events
  */
 export type ReactionCallback = (event: ReactionEvent) => void | Promise<void>;
-
-/**
- * Options for posting a message
- */
-export interface PostMessageOptions {
-  threadId?: string;
-}
-
-/**
- * Connection state of the client
- */
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 /**
  * Internal message data passed between classes
