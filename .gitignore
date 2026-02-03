@@ -3,6 +3,7 @@ dist/
 coverage/
 .turbo/
 *.log
+package-lock.json
 .env
 .env.*
 !.env.example
