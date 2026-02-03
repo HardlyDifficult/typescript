@@ -2,7 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SlackConfig, ReactionEvent } from '../src/types.js';
 
 // Use vi.hoisted to ensure mocks are defined before module loading
-const { mockApp, mockPostMessage, mockReactionsAdd, mockStart, mockStop, mockEvent, getReactionHandler, setReactionHandler } = vi.hoisted(() => {
+const {
+  mockApp,
+  mockPostMessage,
+  mockReactionsAdd,
+  mockStart,
+  mockStop,
+  mockEvent,
+  getReactionHandler,
+  setReactionHandler,
+} = vi.hoisted(() => {
   let reactionAddedHandler: ((args: { event: any }) => Promise<void>) | null = null;
 
   const mockPostMessage = vi.fn();
@@ -304,7 +313,6 @@ describe('SlackChatClient', () => {
       expect(message.channelId).toBe(channelId);
       expect(message.platform).toBe('slack');
     });
-
   });
 
   describe('Message.addReactions()', () => {
@@ -463,7 +471,7 @@ describe('SlackChatClient', () => {
 
       mockReactionsAdd.mockImplementation(async ({ name }: { name: string }) => {
         callOrder.push(`start-${name}`);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
         callOrder.push(`end-${name}`);
         return { ok: true };
       });
@@ -528,7 +536,7 @@ describe('SlackChatClient', () => {
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({
           user: expect.objectContaining({ id: userId }),
-        })
+        }),
       );
 
       const callArg = callback.mock.calls[0][0] as ReactionEvent;
@@ -982,9 +990,7 @@ describe('SlackChatClient', () => {
       const channel = await client.connect(channelId);
 
       // This should work - chain reactions on postMessage return
-      const message = channel
-        .postMessage('Test')
-        .addReactions(['thumbsup', 'heart']);
+      const message = channel.postMessage('Test').addReactions(['thumbsup', 'heart']);
       await waitForMessage(message);
 
       expect(message.id).toBe('1234567890.123456');

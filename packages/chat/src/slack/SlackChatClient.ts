@@ -1,20 +1,14 @@
 import { App } from '@slack/bolt';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import type {
-  SlackConfig,
-  MessageData,
-  ReactionCallback,
-  ReactionEvent,
-  User,
-} from '../types.js';
+import type { SlackConfig, MessageData, ReactionCallback, ReactionEvent, User } from '../types.js';
 
 /**
  * Slack chat client implementation using @slack/bolt
  */
 export class SlackChatClient extends ChatClient implements ChannelOperations {
   private app: App;
-  private reactionCallbacks: Map<string, Set<ReactionCallback>> = new Map();
+  private reactionCallbacks = new Map<string, Set<ReactionCallback>>();
 
   constructor(config: SlackConfig) {
     super(config);
@@ -76,17 +70,17 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Post a message to a Slack channel
    */
-  async postMessage(
-    channelId: string,
-    text: string,
-  ): Promise<MessageData> {
+  async postMessage(channelId: string, text: string): Promise<MessageData> {
     const result = await this.app.client.chat.postMessage({
       channel: channelId,
       text: text,
     });
 
+    if (result.ts === undefined) {
+      throw new Error('Slack API did not return a message timestamp');
+    }
     return {
-      id: result.ts!,
+      id: result.ts,
       channelId: channelId,
       platform: 'slack',
     };
@@ -95,11 +89,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Add a reaction to a message
    */
-  async addReaction(
-    messageId: string,
-    channelId: string,
-    emoji: string
-  ): Promise<void> {
+  async addReaction(messageId: string, channelId: string, emoji: string): Promise<void> {
     // Strip colons from emoji name (e.g., ":thumbsup:" -> "thumbsup")
     const emojiName = emoji.replace(/^:|:$/g, '');
 
@@ -113,10 +103,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Subscribe to reaction events for a specific channel
    */
-  subscribeToReactions(
-    channelId: string,
-    callback: ReactionCallback
-  ): () => void {
+  subscribeToReactions(channelId: string, callback: ReactionCallback): () => void {
     let callbacks = this.reactionCallbacks.get(channelId);
     if (!callbacks) {
       callbacks = new Set();

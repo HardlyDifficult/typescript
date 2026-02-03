@@ -22,7 +22,7 @@ import type {
  */
 export class DiscordChatClient extends ChatClient implements ChannelOperations {
   private client: Client;
-  private reactionListeners: Map<string, Set<ReactionCallback>> = new Map();
+  private reactionListeners = new Map<string, Set<ReactionCallback>>();
   private readonly token: string;
   private readonly guildId: string;
 
@@ -46,45 +46,50 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * Set up the global reaction listener that routes events to channel-specific callbacks
    */
   private setupReactionListener(): void {
-    this.client.on('messageReactionAdd', async (
-      reaction: MessageReaction | PartialMessageReaction,
-      user: DiscordUser | PartialUser,
-    ) => {
-      // Handle partial reactions
-      if (reaction.partial) {
-        try {
-          await reaction.fetch();
-        } catch (error) {
-          console.error('Failed to fetch partial reaction:', error);
-          return;
-        }
-      }
+    this.client.on(
+      'messageReactionAdd',
+      (
+        reaction: MessageReaction | PartialMessageReaction,
+        user: DiscordUser | PartialUser,
+      ): void => {
+        void (async (): Promise<void> => {
+          // Handle partial reactions
+          if (reaction.partial) {
+            try {
+              await reaction.fetch();
+            } catch (error) {
+              console.error('Failed to fetch partial reaction:', error);
+              return;
+            }
+          }
 
-      const channelId = reaction.message.channelId;
-      const callbacks = this.reactionListeners.get(channelId);
+          const channelId = reaction.message.channelId;
+          const callbacks = this.reactionListeners.get(channelId);
 
-      if (!callbacks || callbacks.size === 0) {
-        return;
-      }
+          if (!callbacks || callbacks.size === 0) {
+            return;
+          }
 
-      const reactionUser: User = { id: user.id, username: user.username ?? undefined };
+          const reactionUser: User = { id: user.id, username: user.username ?? undefined };
 
-      const event: ReactionEvent = {
-        emoji: reaction.emoji.name ?? reaction.emoji.id ?? '',
-        user: reactionUser,
-        messageId: reaction.message.id,
-        channelId: channelId,
-        timestamp: new Date(),
-      };
+          const event: ReactionEvent = {
+            emoji: reaction.emoji.name ?? reaction.emoji.id ?? '',
+            user: reactionUser,
+            messageId: reaction.message.id,
+            channelId: channelId,
+            timestamp: new Date(),
+          };
 
-      for (const callback of callbacks) {
-        try {
-          await callback(event);
-        } catch (error) {
-          console.error('Reaction callback error:', error);
-        }
-      }
-    });
+          for (const callback of callbacks) {
+            try {
+              await callback(event);
+            } catch (error) {
+              console.error('Reaction callback error:', error);
+            }
+          }
+        })();
+      },
+    );
   }
 
   /**
@@ -118,10 +123,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param text - Message content
    * @returns Message data with ID
    */
-  async postMessage(
-    channelId: string,
-    text: string,
-  ): Promise<MessageData> {
+  async postMessage(channelId: string, text: string): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
 
     if (!channel || !(channel instanceof TextChannel)) {
@@ -165,7 +167,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.reactionListeners.set(channelId, new Set());
     }
 
-    const callbacks = this.reactionListeners.get(channelId)!;
+    const callbacks = this.reactionListeners.get(channelId);
+    if (!callbacks) {
+      throw new Error(`Callbacks not found for channel ${channelId}`);
+    }
     callbacks.add(callback);
 
     return () => {

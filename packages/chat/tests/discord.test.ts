@@ -10,7 +10,7 @@ const {
   getReactionHandler,
   setReactionHandler,
 } = vi.hoisted(() => {
-  let reactionHandler: ((reaction: unknown, user: unknown) => Promise<void>) | null = null;
+  let reactionHandler: ((reaction: unknown, user: unknown) => void) | null = null;
 
   const mockDiscordMessage = {
     id: 'msg-123',
@@ -124,7 +124,7 @@ describe('DiscordChatClient', () => {
     // Reset mock implementations
     mockClient.login.mockResolvedValue('token');
     mockClient.channels.fetch.mockResolvedValue(
-      Object.assign(new MockTextChannel(), mockTextChannelData)
+      Object.assign(new MockTextChannel(), mockTextChannelData),
     );
     mockTextChannelData.send.mockResolvedValue(mockDiscordMessage);
     mockTextChannelData.messages.fetch.mockResolvedValue(mockDiscordMessage);
@@ -136,7 +136,7 @@ describe('DiscordChatClient', () => {
 
   afterEach(async () => {
     // Small delay to allow any pending async operations to complete
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     // Clean up - try to disconnect (ignore errors if not connected)
     try {
       await client.disconnect();
@@ -228,7 +228,7 @@ describe('DiscordChatClient', () => {
       mockClient.channels.fetch.mockResolvedValue(null);
 
       await expect(client.connect('invalid-channel')).rejects.toThrow(
-        'Channel invalid-channel not found or is not a text channel'
+        'Channel invalid-channel not found or is not a text channel',
       );
     });
 
@@ -236,7 +236,7 @@ describe('DiscordChatClient', () => {
       mockClient.channels.fetch.mockResolvedValue({ type: 'GUILD_VOICE' });
 
       await expect(client.connect('voice-channel')).rejects.toThrow(
-        'Channel voice-channel not found or is not a text channel'
+        'Channel voice-channel not found or is not a text channel',
       );
     });
   });
@@ -283,7 +283,6 @@ describe('DiscordChatClient', () => {
 
       expect(message.platform).toBe('discord');
     });
-
   });
 
   describe('Message.addReactions()', () => {
@@ -366,7 +365,7 @@ describe('DiscordChatClient', () => {
 
       mockDiscordMessage.react.mockImplementation(async (emoji: string) => {
         callOrder.push(`start-${emoji}`);
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
         callOrder.push(`end-${emoji}`);
       });
 
@@ -594,10 +593,13 @@ describe('DiscordChatClient', () => {
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
+      handler!(mockReaction, mockUser);
 
-      expect(fetchMock).toHaveBeenCalled();
-      expect(callback).toHaveBeenCalledTimes(1);
+      // Wait for async IIFE to complete
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+        expect(callback).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('should handle errors when fetching partial reactions', async () => {
@@ -617,11 +619,17 @@ describe('DiscordChatClient', () => {
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
+      handler!(mockReaction, mockUser);
 
-      expect(fetchMock).toHaveBeenCalled();
+      // Wait for async IIFE to complete
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to fetch partial reaction:',
+          expect.any(Error),
+        );
+      });
       expect(callback).not.toHaveBeenCalled();
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to fetch partial reaction:', expect.any(Error));
 
       consoleErrorSpy.mockRestore();
     });
@@ -694,11 +702,14 @@ describe('DiscordChatClient', () => {
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
+      handler!(mockReaction, mockUser);
 
-      expect(errorCallback).toHaveBeenCalledTimes(1);
-      expect(normalCallback).toHaveBeenCalledTimes(1);
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      // Wait for async IIFE to complete
+      await vi.waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledTimes(1);
+        expect(normalCallback).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalled();
+      });
 
       consoleErrorSpy.mockRestore();
     });
@@ -751,7 +762,7 @@ describe('DiscordChatClient', () => {
 
       mockDiscordMessage.react.mockImplementation(async () => {
         callOrder.push('react');
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await new Promise((resolve) => setTimeout(resolve, 5));
       });
 
       const channel = await client.connect(channelId);
@@ -770,9 +781,7 @@ describe('DiscordChatClient', () => {
       const channel = await client.connect(channelId);
 
       // This should work - chain reactions on postMessage return
-      const message = channel
-        .postMessage('Test')
-        .addReactions(['thumbsup', 'heart']);
+      const message = channel.postMessage('Test').addReactions(['thumbsup', 'heart']);
       await waitForMessage(message);
 
       expect(message.id).toBe('msg-123');
@@ -795,7 +804,7 @@ describe('DiscordChatClient', () => {
       mockClient.channels.fetch.mockResolvedValue(null);
 
       await expect(client.addReaction('msg-123', channelId, 'thumbsup')).rejects.toThrow(
-        'Channel channel-456 not found or is not a text channel'
+        'Channel channel-456 not found or is not a text channel',
       );
     });
   });

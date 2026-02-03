@@ -17,7 +17,7 @@ export class Channel {
   public readonly platform: Platform;
 
   private operations: ChannelOperations;
-  private reactionCallbacks: Set<ReactionCallback> = new Set();
+  private reactionCallbacks = new Set<ReactionCallback>();
   private unsubscribeFromPlatform: (() => void) | null = null;
 
   constructor(id: string, platform: Platform, operations: ChannelOperations) {
@@ -26,9 +26,8 @@ export class Channel {
     this.operations = operations;
 
     // Subscribe to platform reactions and forward to our callbacks
-    this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
-      id,
-      (event) => this.emitReaction(event),
+    this.unsubscribeFromPlatform = this.operations.subscribeToReactions(id, (event) =>
+      this.emitReaction(event),
     );
   }
 
@@ -62,9 +61,9 @@ export class Channel {
    */
   private async emitReaction(event: Parameters<ReactionCallback>[0]): Promise<void> {
     const promises = Array.from(this.reactionCallbacks).map((cb) =>
-      Promise.resolve(cb(event)).catch((err) => {
+      Promise.resolve(cb(event)).catch((err: unknown) => {
         console.error('Reaction callback error:', err);
-      })
+      }),
     );
     await Promise.all(promises);
   }
@@ -94,7 +93,7 @@ class PendingMessage extends Message {
     this.postPromise = postPromise;
 
     // Update our data when the post resolves
-    this.postPromise.then((data) => {
+    void this.postPromise.then((data) => {
       this.resolvedData = data;
       // Update the readonly properties via Object.defineProperty
       Object.defineProperty(this, 'id', { value: data.id });
@@ -106,9 +105,9 @@ class PendingMessage extends Message {
   /**
    * Override addReactions to wait for post to complete first
    */
-  override addReactions(emojis: string[]): Message {
+  override addReactions(emojis: string[]): this {
     // Chain after the post completes
-    this.postPromise.then(() => {
+    void this.postPromise.then(() => {
       super.addReactions(emojis);
     });
     return this;
@@ -123,7 +122,7 @@ class PendingMessage extends Message {
   ): Promise<T> {
     try {
       await this.postPromise;
-      return super.then(onFulfilled, onRejected);
+      return await super.then(onFulfilled, onRejected);
     } catch (err) {
       if (onRejected) {
         return onRejected(err);

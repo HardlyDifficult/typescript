@@ -30,10 +30,10 @@ export class Message {
    * @param emojis - Array of emojis to add
    * @returns this for chaining
    */
-  addReactions(emojis: string[]): Message {
+  addReactions(emojis: string[]): this {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.reactionAdder.addReaction(this.id, this.channelId, emoji)
+        this.reactionAdder.addReaction(this.id, this.channelId, emoji),
       );
     }
     return this;
@@ -44,7 +44,7 @@ export class Message {
    */
   async then<T>(
     onFulfilled?: ((value: Message) => T | PromiseLike<T>) | null,
-    onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null,
+    _onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null,
   ): Promise<T> {
     await this.pendingReactions;
     if (onFulfilled) {
