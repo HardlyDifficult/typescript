@@ -152,7 +152,19 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
     if (isDocument(content)) {
       const embed = toDiscordEmbed(content.getBlocks());
-      messageOptions = { embeds: [embed] };
+      // Check if embed has any content - Discord rejects empty embeds
+      const hasEmbedContent =
+        embed.title !== undefined ||
+        embed.description !== undefined ||
+        embed.footer !== undefined ||
+        embed.image !== undefined;
+
+      if (hasEmbedContent) {
+        messageOptions = { embeds: [embed] };
+      } else {
+        // Fallback to empty content for documents with no visible blocks
+        messageOptions = { content: '\u200B' };
+      }
     } else {
       messageOptions = { content };
     }

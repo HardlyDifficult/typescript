@@ -58,18 +58,22 @@ export class Message {
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
 
     // Return a Message that will be updated when the reply completes
-    // TODO: This should return a PendingMessage once Channel.ts is updated
+    // Note: Using same pattern as PendingMessage - could be refactored to share code
     const replyMessage = new Message(
       { id: '', channelId: this.channelId, platform: this.platform },
       this.operations,
     );
 
     // Update the message data when the promise resolves
-    void replyPromise.then((data) => {
-      Object.defineProperty(replyMessage, 'id', { value: data.id });
-      Object.defineProperty(replyMessage, 'channelId', { value: data.channelId });
-      Object.defineProperty(replyMessage, 'platform', { value: data.platform });
-    });
+    void replyPromise
+      .then((data) => {
+        Object.defineProperty(replyMessage, 'id', { value: data.id });
+        Object.defineProperty(replyMessage, 'channelId', { value: data.channelId });
+        Object.defineProperty(replyMessage, 'platform', { value: data.platform });
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to post reply:', error);
+      });
 
     return replyMessage;
   }

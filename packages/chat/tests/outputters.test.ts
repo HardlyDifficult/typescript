@@ -190,6 +190,25 @@ describe('toSlackBlocks', () => {
     });
   });
 
+  it('should use default alt text for image when alt is empty string', () => {
+    const blocks: Block[] = [
+      {
+        type: 'image',
+        url: 'https://example.com/image.png',
+        alt: '',
+      },
+    ];
+
+    const result = toSlackBlocks(blocks);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      type: 'image',
+      image_url: 'https://example.com/image.png',
+      alt_text: 'image',
+    });
+  });
+
   it('should chunk text blocks longer than 2900 characters', () => {
     const longText = 'a'.repeat(3000);
     const blocks: Block[] = [
