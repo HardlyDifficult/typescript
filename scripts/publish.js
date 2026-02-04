@@ -152,6 +152,9 @@ function getLastTag(packageName) {
 
 /**
  * Update a package's dependencies to use newly published versions.
+ * Handles both:
+ * - file:../packageName references (transforms to real version)
+ * - version numbers that need updating
  */
 function updateInternalDependencies(pkg, publishedVersions) {
   const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8'));
@@ -161,7 +164,17 @@ function updateInternalDependencies(pkg, publishedVersions) {
     if (!packageJson[depType]) continue;
 
     for (const [depName, currentVersion] of Object.entries(packageJson[depType])) {
-      if (publishedVersions.has(depName)) {
+      // Check if this is a file: reference to a monorepo package
+      if (typeof currentVersion === 'string' && currentVersion.startsWith('file:')) {
+        if (publishedVersions.has(depName)) {
+          const newVersion = publishedVersions.get(depName);
+          console.log(`  Transforming ${depName}: ${currentVersion} → ${newVersion}`);
+          packageJson[depType][depName] = newVersion;
+          updated = true;
+        }
+      }
+      // Check if this is a version that needs updating
+      else if (publishedVersions.has(depName)) {
         const newVersion = publishedVersions.get(depName);
         if (currentVersion !== newVersion) {
           console.log(`  Updating ${depName}: ${currentVersion} → ${newVersion}`);
