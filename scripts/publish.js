@@ -127,13 +127,14 @@ async function main() {
       console.log(`Successfully published ${pkg.name}@${newVersion}`);
 
       // Create and push git tag
+      // Note: We only push the tag, not the version bump commit, because
+      // branch protection rules prevent direct pushes to main.
+      // The tag tracks the published version.
       const safeName = pkg.name.replace('@', '').replace('/', '-');
       const tagName = `${safeName}-v${newVersion}`;
-      exec(`git add ${pkg.relativePath}/package.json`);
-      exec(`git commit -m "chore: release ${pkg.name}@${newVersion}"`);
       exec(`git tag ${tagName}`);
-      exec(`git push origin HEAD --tags`);
-      console.log(`Created tag: ${tagName}`);
+      exec(`git push origin ${tagName}`);
+      console.log(`Created and pushed tag: ${tagName}`);
     } catch (error) {
       console.error(`Failed to publish ${pkg.name}:`, error.message);
       process.exit(1);
