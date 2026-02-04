@@ -1,0 +1,32 @@
+{
+  "name": "typescript-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@10.9.4",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "eslint --config .config/eslint.config.js packages/",
+    "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
+    "format": "prettier --config .config/prettier.config.js --write \"packages/**/*.ts\"",
+    "format:check": "prettier --config .config/prettier.config.js --check \"packages/**/*.ts\"",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.28.0",
+    "@types/node": "20.19.31",
+    "eslint": "9.28.0",
+    "prettier": "3.5.3",
+    "turbo": "2.8.2",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.33.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
