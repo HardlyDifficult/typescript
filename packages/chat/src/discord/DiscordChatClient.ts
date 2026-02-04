@@ -9,7 +9,14 @@ import {
 } from 'discord.js';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import type { DiscordConfig, MessageData, ReactionCallback, ReactionEvent, User, MessageContent } from '../types.js';
+import type {
+  DiscordConfig,
+  MessageData,
+  ReactionCallback,
+  ReactionEvent,
+  User,
+  MessageContent,
+} from '../types.js';
 import { toDiscordEmbed, type DiscordEmbed } from '../outputters/discord.js';
 import type { Document } from '@hardlydifficult/documentGenerator';
 
@@ -130,14 +137,18 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string }
+    options?: { threadTs?: string },
   ): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
-    let messageOptions: { content?: string; embeds?: DiscordEmbed[]; messageReference?: { messageId: string } };
+    let messageOptions: {
+      content?: string;
+      embeds?: DiscordEmbed[];
+      messageReference?: { messageId: string };
+    };
 
     if (isDocument(content)) {
       const embed = toDiscordEmbed(content.getBlocks());
@@ -166,7 +177,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param channelId - Channel containing the message
    * @param content - New message content (string or Document)
    */
-  async updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void> {
+  async updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent,
+  ): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
@@ -205,7 +220,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param content - Message content (string or Document)
    * @returns Message data with ID
    */
-  async postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData> {
+  async postReply(
+    channelId: string,
+    threadTs: string,
+    content: MessageContent,
+  ): Promise<MessageData> {
     return this.postMessage(channelId, content, { threadTs });
   }
 

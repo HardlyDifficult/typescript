@@ -140,10 +140,7 @@ describe('Document', () => {
 
   describe('getBlocks()', () => {
     it('returns all added blocks', () => {
-      const document = doc()
-        .header('Header')
-        .text('Text')
-        .list(['Item']);
+      const document = doc().header('Header').text('Text').list(['Item']);
 
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(3);

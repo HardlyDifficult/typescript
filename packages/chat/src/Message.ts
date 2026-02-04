@@ -56,21 +56,21 @@ export class Message {
   postReply(content: MessageContent): Message {
     // Create pending promise for the reply
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
-    
+
     // Return a Message that will be updated when the reply completes
     // TODO: This should return a PendingMessage once Channel.ts is updated
     const replyMessage = new Message(
       { id: '', channelId: this.channelId, platform: this.platform },
       this.operations,
     );
-    
+
     // Update the message data when the promise resolves
     void replyPromise.then((data) => {
       Object.defineProperty(replyMessage, 'id', { value: data.id });
       Object.defineProperty(replyMessage, 'channelId', { value: data.channelId });
       Object.defineProperty(replyMessage, 'platform', { value: data.platform });
     });
-    
+
     return replyMessage;
   }
 
@@ -91,7 +91,7 @@ export class Message {
 
   /**
    * Wait for all pending reactions to complete.
-   * 
+   *
    * This makes Message a thenable, allowing: `await msg` after adding reactions.
    * Note: Always provide a callback or use `.waitForReactions()` to avoid
    * infinite recursion when awaiting.

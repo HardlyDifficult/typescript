@@ -4,51 +4,37 @@ import type { Block } from '../src/index.js';
 
 describe('toMarkdown', () => {
   it('converts header block', () => {
-    const blocks: Block[] = [
-      { type: 'header', text: 'Test Header' },
-    ];
+    const blocks: Block[] = [{ type: 'header', text: 'Test Header' }];
     expect(toMarkdown(blocks)).toBe('# Test Header\n\n');
   });
 
   it('converts text block', () => {
-    const blocks: Block[] = [
-      { type: 'text', content: 'Test content' },
-    ];
+    const blocks: Block[] = [{ type: 'text', content: 'Test content' }];
     expect(toMarkdown(blocks)).toBe('Test content\n\n');
   });
 
   it('converts list block', () => {
-    const blocks: Block[] = [
-      { type: 'list', items: ['Item 1', 'Item 2', 'Item 3'] },
-    ];
+    const blocks: Block[] = [{ type: 'list', items: ['Item 1', 'Item 2', 'Item 3'] }];
     expect(toMarkdown(blocks)).toBe('- Item 1\n- Item 2\n- Item 3\n\n');
   });
 
   it('converts divider block', () => {
-    const blocks: Block[] = [
-      { type: 'divider' },
-    ];
+    const blocks: Block[] = [{ type: 'divider' }];
     expect(toMarkdown(blocks)).toBe('---\n\n');
   });
 
   it('converts context block', () => {
-    const blocks: Block[] = [
-      { type: 'context', text: 'Context text' },
-    ];
+    const blocks: Block[] = [{ type: 'context', text: 'Context text' }];
     expect(toMarkdown(blocks)).toBe('*Context text*\n\n');
   });
 
   it('converts link block', () => {
-    const blocks: Block[] = [
-      { type: 'link', text: 'Link Text', url: 'https://example.com' },
-    ];
+    const blocks: Block[] = [{ type: 'link', text: 'Link Text', url: 'https://example.com' }];
     expect(toMarkdown(blocks)).toBe('[Link Text](https://example.com)\n\n');
   });
 
   it('converts single-line code block', () => {
-    const blocks: Block[] = [
-      { type: 'code', content: 'const x = 1;', multiline: false },
-    ];
+    const blocks: Block[] = [{ type: 'code', content: 'const x = 1;', multiline: false }];
     expect(toMarkdown(blocks)).toBe('`const x = 1;`\n\n');
   });
 
@@ -67,10 +53,10 @@ describe('toMarkdown', () => {
   });
 
   it('converts image block without alt text (uses url)', () => {
-    const blocks: Block[] = [
-      { type: 'image', url: 'https://example.com/image.png' },
-    ];
-    expect(toMarkdown(blocks)).toBe('![https://example.com/image.png](https://example.com/image.png)\n\n');
+    const blocks: Block[] = [{ type: 'image', url: 'https://example.com/image.png' }];
+    expect(toMarkdown(blocks)).toBe(
+      '![https://example.com/image.png](https://example.com/image.png)\n\n',
+    );
   });
 
   it('converts multiple blocks', () => {
@@ -87,13 +73,13 @@ describe('toMarkdown', () => {
     const result = toMarkdown(blocks);
     expect(result).toBe(
       '# Title\n\n' +
-      'Content\n\n' +
-      '- Item 1\n- Item 2\n\n' +
-      '---\n\n' +
-      '*Context*\n\n' +
-      '[Link](https://example.com)\n\n' +
-      '`code`\n\n' +
-      '![Image](https://example.com/img.png)\n\n'
+        'Content\n\n' +
+        '- Item 1\n- Item 2\n\n' +
+        '---\n\n' +
+        '*Context*\n\n' +
+        '[Link](https://example.com)\n\n' +
+        '`code`\n\n' +
+        '![Image](https://example.com/img.png)\n\n',
     );
   });
 
@@ -104,72 +90,52 @@ describe('toMarkdown', () => {
 
 describe('toPlainText', () => {
   it('converts header block', () => {
-    const blocks: Block[] = [
-      { type: 'header', text: 'Test Header' },
-    ];
+    const blocks: Block[] = [{ type: 'header', text: 'Test Header' }];
     expect(toPlainText(blocks)).toBe('TEST HEADER\n\n');
   });
 
   it('converts text block', () => {
-    const blocks: Block[] = [
-      { type: 'text', content: 'Test content' },
-    ];
+    const blocks: Block[] = [{ type: 'text', content: 'Test content' }];
     expect(toPlainText(blocks)).toBe('Test content\n\n');
   });
 
   it('converts text block with markdown formatting (strips formatting)', () => {
-    const blocks: Block[] = [
-      { type: 'text', content: '**bold** and *italic*' },
-    ];
+    const blocks: Block[] = [{ type: 'text', content: '**bold** and *italic*' }];
     expect(toPlainText(blocks)).toBe('bold and italic\n\n');
   });
 
   it('converts list block', () => {
-    const blocks: Block[] = [
-      { type: 'list', items: ['Item 1', 'Item 2', 'Item 3'] },
-    ];
+    const blocks: Block[] = [{ type: 'list', items: ['Item 1', 'Item 2', 'Item 3'] }];
     expect(toPlainText(blocks)).toBe('• Item 1\n• Item 2\n• Item 3\n\n');
   });
 
   it('converts list block with markdown formatting (strips formatting)', () => {
-    const blocks: Block[] = [
-      { type: 'list', items: ['**Bold** item', '*Italic* item'] },
-    ];
+    const blocks: Block[] = [{ type: 'list', items: ['**Bold** item', '*Italic* item'] }];
     expect(toPlainText(blocks)).toBe('• Bold item\n• Italic item\n\n');
   });
 
   it('converts divider block', () => {
-    const blocks: Block[] = [
-      { type: 'divider' },
-    ];
+    const blocks: Block[] = [{ type: 'divider' }];
     expect(toPlainText(blocks)).toBe('────────────────\n\n');
   });
 
   it('converts context block', () => {
-    const blocks: Block[] = [
-      { type: 'context', text: 'Context text' },
-    ];
+    const blocks: Block[] = [{ type: 'context', text: 'Context text' }];
     expect(toPlainText(blocks)).toBe('Context text\n\n');
   });
 
   it('converts context block with markdown formatting (strips formatting)', () => {
-    const blocks: Block[] = [
-      { type: 'context', text: '**Bold** context' },
-    ];
+    const blocks: Block[] = [{ type: 'context', text: '**Bold** context' }];
     expect(toPlainText(blocks)).toBe('Bold context\n\n');
   });
 
   it('converts link block', () => {
-    const blocks: Block[] = [
-      { type: 'link', text: 'Link Text', url: 'https://example.com' },
-    ];
+    const blocks: Block[] = [{ type: 'link', text: 'Link Text', url: 'https://example.com' }];
     expect(toPlainText(blocks)).toBe('Link Text (https://example.com)\n\n');
   });
 
   it('converts code block', () => {
-    const blocks: Block[] = [
-      { type: 'code', content: 'const x = 1;', multiline: false },
-    ];
+    const blocks: Block[] = [{ type: 'code', content: 'const x = 1;', multiline: false }];
     expect(toPlainText(blocks)).toBe('const x = 1;\n\n');
   });
 
@@ -188,9 +154,7 @@ describe('toPlainText', () => {
   });
 
   it('converts image block without alt text (uses url)', () => {
-    const blocks: Block[] = [
-      { type: 'image', url: 'https://example.com/image.png' },
-    ];
+    const blocks: Block[] = [{ type: 'image', url: 'https://example.com/image.png' }];
     expect(toPlainText(blocks)).toBe('[Image: https://example.com/image.png]\n\n');
   });
 
@@ -208,13 +172,13 @@ describe('toPlainText', () => {
     const result = toPlainText(blocks);
     expect(result).toBe(
       'DOCUMENT TITLE\n\n' +
-      'This is bold text\n\n' +
-      '• First item\n• Second item\n\n' +
-      '────────────────\n\n' +
-      'Important context\n\n' +
-      'Visit Site (https://example.com)\n\n' +
-      'function test() {\n  return true;\n}\n\n' +
-      '[Image: Example Image]\n\n'
+        'This is bold text\n\n' +
+        '• First item\n• Second item\n\n' +
+        '────────────────\n\n' +
+        'Important context\n\n' +
+        'Visit Site (https://example.com)\n\n' +
+        'function test() {\n  return true;\n}\n\n' +
+        '[Image: Example Image]\n\n',
     );
   });
 

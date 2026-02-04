@@ -1,4 +1,14 @@
-import type { Block, HeaderBlock, TextBlock, ListBlock, DividerBlock, ContextBlock, LinkBlock, CodeBlock, ImageBlock } from './types.js';
+import type {
+  Block,
+  HeaderBlock,
+  TextBlock,
+  ListBlock,
+  DividerBlock,
+  ContextBlock,
+  LinkBlock,
+  CodeBlock,
+  ImageBlock,
+} from './types.js';
 import { toMarkdown as outputMarkdown } from './outputters/markdown.js';
 import { toPlainText as outputPlainText } from './outputters/plainText.js';
 

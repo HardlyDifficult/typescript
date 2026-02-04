@@ -1,7 +1,14 @@
 import { App } from '@slack/bolt';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import type { SlackConfig, MessageData, ReactionCallback, ReactionEvent, User, MessageContent } from '../types.js';
+import type {
+  SlackConfig,
+  MessageData,
+  ReactionCallback,
+  ReactionEvent,
+  User,
+  MessageContent,
+} from '../types.js';
 import { toSlackBlocks, type SlackBlock } from '../outputters/slack.js';
 import type { Document } from '@hardlydifficult/documentGenerator';
 
@@ -82,7 +89,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string }
+    options?: { threadTs?: string },
   ): Promise<MessageData> {
     let text: string;
     let blocks: SlackBlock[] | undefined;
@@ -114,7 +121,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Update a message in a Slack channel
    */
-  async updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void> {
+  async updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent,
+  ): Promise<void> {
     let text: string;
     let blocks: SlackBlock[] | undefined;
 
@@ -146,7 +157,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Post a reply in a thread
    */
-  async postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData> {
+  async postReply(
+    channelId: string,
+    threadTs: string,
+    content: MessageContent,
+  ): Promise<MessageData> {
     return this.postMessage(channelId, content, { threadTs });
   }
 

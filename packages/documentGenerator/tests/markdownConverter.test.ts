@@ -16,7 +16,9 @@ describe('convertMarkdown', () => {
     });
 
     it('handles mixed formatting', () => {
-      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'markdown')).toBe('**bold** and *italic* and ~~strike~~');
+      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'markdown')).toBe(
+        '**bold** and *italic* and ~~strike~~',
+      );
     });
   });
 
@@ -34,7 +36,9 @@ describe('convertMarkdown', () => {
     });
 
     it('handles mixed formatting', () => {
-      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'slack')).toBe('*bold* and _italic_ and ~strike~');
+      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'slack')).toBe(
+        '*bold* and _italic_ and ~strike~',
+      );
     });
   });
 
@@ -52,7 +56,9 @@ describe('convertMarkdown', () => {
     });
 
     it('handles mixed formatting', () => {
-      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'discord')).toBe('**bold** and *italic* and ~~strike~~');
+      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'discord')).toBe(
+        '**bold** and *italic* and ~~strike~~',
+      );
     });
   });
 
@@ -70,7 +76,9 @@ describe('convertMarkdown', () => {
     });
 
     it('strips mixed formatting', () => {
-      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'plaintext')).toBe('bold and italic and strike');
+      expect(convertMarkdown('**bold** and *italic* and ~~strike~~', 'plaintext')).toBe(
+        'bold and italic and strike',
+      );
     });
   });
 
@@ -96,7 +104,9 @@ describe('convertMarkdown', () => {
     });
 
     it('handles multiple bold sections', () => {
-      expect(convertMarkdown('**first** and **second**', 'markdown')).toBe('**first** and **second**');
+      expect(convertMarkdown('**first** and **second**', 'markdown')).toBe(
+        '**first** and **second**',
+      );
       expect(convertMarkdown('**first** and **second**', 'slack')).toBe('*first* and *second*');
     });
 
@@ -121,7 +131,9 @@ describe('stripMarkdown', () => {
   });
 
   it('removes all formatting from mixed text', () => {
-    expect(stripMarkdown('**bold** and *italic* and ~~strike~~')).toBe('bold and italic and strike');
+    expect(stripMarkdown('**bold** and *italic* and ~~strike~~')).toBe(
+      'bold and italic and strike',
+    );
   });
 
   it('preserves plain text', () => {

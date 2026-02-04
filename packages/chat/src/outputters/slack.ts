@@ -78,7 +78,7 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
       case 'text': {
         // Convert markdown to Slack format
         const slackText = convertMarkdown(block.content, 'slack');
-        
+
         // Chunk if necessary
         const chunks = chunkText(slackText);
         for (const chunk of chunks) {
@@ -95,9 +95,9 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
 
       case 'list': {
         // Convert list items to Slack markdown format
-        const listText = block.items.map(item => `• ${item}`).join('\n');
+        const listText = block.items.map((item) => `• ${item}`).join('\n');
         const slackText = convertMarkdown(listText, 'slack');
-        
+
         // Chunk if necessary
         const chunks = chunkText(slackText);
         for (const chunk of chunks) {
@@ -154,7 +154,7 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         } else {
           codeText = `\`${block.content}\``;
         }
-        
+
         slackBlocks.push({
           type: 'section',
           text: {

@@ -5,7 +5,11 @@ import { Message, type MessageOperations } from './Message.js';
  * Interface for platform-specific channel operations
  */
 export interface ChannelOperations {
-  postMessage(channelId: string, content: MessageContent, options?: { threadTs?: string }): Promise<MessageData>;
+  postMessage(
+    channelId: string,
+    content: MessageContent,
+    options?: { threadTs?: string },
+  ): Promise<MessageData>;
   updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;

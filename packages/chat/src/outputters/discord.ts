@@ -37,7 +37,7 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
         break;
 
       case 'list': {
-        const listItems = block.items.map(item => `• ${item}`).join('\n');
+        const listItems = block.items.map((item) => `• ${item}`).join('\n');
         descriptionParts.push(listItems);
         break;
       }
