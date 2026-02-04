@@ -16,13 +16,13 @@ export function convertMarkdown(text: string, platform: Platform): string {
   }
 
   let result = text;
-  const placeholders: Map<string, string> = new Map();
+  const placeholders = new Map<string, string>();
   let placeholderIndex = 0;
 
   // Process bold first: **text** (before italic to avoid matching ** as italic)
   // Use placeholder to prevent italic regex from matching converted bold
-  result = result.replace(/\*\*(.+?)\*\*/g, (match, content) => {
-    const placeholder = `__BOLD_PLACEHOLDER_${placeholderIndex++}__`;
+  result = result.replace(/\*\*(.+?)\*\*/g, (_match, content: string) => {
+    const placeholder = `__BOLD_PLACEHOLDER_${String(placeholderIndex++)}__`;
     let replacement: string;
     switch (platform) {
       case 'markdown':
@@ -41,7 +41,7 @@ export function convertMarkdown(text: string, platform: Platform): string {
 
   // Process italic: *text* (but not **text**)
   // Use negative lookbehind/lookahead to ensure single asterisk
-  result = result.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, (_, content) => {
+  result = result.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, (_match: string, content: string) => {
     switch (platform) {
       case 'markdown':
       case 'discord':
@@ -54,7 +54,7 @@ export function convertMarkdown(text: string, platform: Platform): string {
   });
 
   // Process strikethrough: ~~text~~
-  result = result.replace(/~~(.+?)~~/g, (_, content) => {
+  result = result.replace(/~~(.+?)~~/g, (_match: string, content: string) => {
     switch (platform) {
       case 'markdown':
       case 'discord':

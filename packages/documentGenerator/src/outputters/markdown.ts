@@ -27,9 +27,10 @@ export function toMarkdown(blocks: Block[]): string {
         }
         return `\`${block.content}\`\n\n`;
       
-      case 'image':
+      case 'image': {
         const alt = block.alt ?? block.url;
         return `![${alt}](${block.url})\n\n`;
+      }
       
       default:
         return '';

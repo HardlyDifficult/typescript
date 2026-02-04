@@ -10,7 +10,7 @@ import {
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
 import type { DiscordConfig, MessageData, ReactionCallback, ReactionEvent, User, MessageContent } from '../types.js';
-import { toDiscordEmbed } from '../outputters/discord.js';
+import { toDiscordEmbed, type DiscordEmbed } from '../outputters/discord.js';
 import type { Document } from '@hardlydifficult/documentGenerator';
 
 /**
@@ -137,7 +137,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
-    let messageOptions: { content?: string; embeds?: any[]; messageReference?: { messageId: string } };
+    let messageOptions: { content?: string; embeds?: DiscordEmbed[]; messageReference?: { messageId: string } };
 
     if (isDocument(content)) {
       const embed = toDiscordEmbed(content.getBlocks());
@@ -147,7 +147,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
 
     // If threadTs is provided, use it as a reply reference
-    if (options?.threadTs) {
+    if (options?.threadTs !== undefined && options.threadTs !== '') {
       messageOptions.messageReference = { messageId: options.threadTs };
     }
 

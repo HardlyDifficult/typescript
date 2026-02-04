@@ -25,9 +25,10 @@ export function toPlainText(blocks: Block[]): string {
       case 'code':
         return `${block.content}\n\n`;
       
-      case 'image':
+      case 'image': {
         const alt = block.alt ?? block.url;
         return `[Image: ${alt}]\n\n`;
+      }
       
       default:
         return '';

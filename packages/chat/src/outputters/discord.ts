@@ -36,10 +36,11 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
         descriptionParts.push(block.content);
         break;
 
-      case 'list':
+      case 'list': {
         const listItems = block.items.map(item => `• ${item}`).join('\n');
         descriptionParts.push(listItems);
         break;
+      }
 
       case 'divider':
         descriptionParts.push('───────────');

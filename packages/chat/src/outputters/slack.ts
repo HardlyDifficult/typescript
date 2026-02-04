@@ -169,7 +169,7 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         slackBlocks.push({
           type: 'image',
           image_url: block.url,
-          alt_text: block.alt || 'image',
+          alt_text: block.alt !== undefined && block.alt !== '' ? block.alt : 'image',
         });
         break;
       }
