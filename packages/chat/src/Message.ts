@@ -95,7 +95,11 @@ export class Message {
 export class ReplyMessage extends Message {
   private replyPromise: Promise<MessageData>;
 
-  constructor(replyPromise: Promise<MessageData>, operations: MessageOperations, platform: Platform) {
+  constructor(
+    replyPromise: Promise<MessageData>,
+    operations: MessageOperations,
+    platform: Platform,
+  ) {
     // Initialize with placeholder data
     super({ id: '', channelId: '', platform }, operations);
     this.replyPromise = replyPromise;

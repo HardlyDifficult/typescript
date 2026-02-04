@@ -115,7 +115,11 @@ export class Channel {
 class PendingMessage extends Message {
   private postPromise: Promise<MessageData>;
 
-  constructor(postPromise: Promise<MessageData>, operations: MessageOperations, platform: Platform) {
+  constructor(
+    postPromise: Promise<MessageData>,
+    operations: MessageOperations,
+    platform: Platform,
+  ) {
     // Initialize with placeholder data using the correct platform
     super({ id: '', channelId: '', platform }, operations);
     this.postPromise = postPromise;
