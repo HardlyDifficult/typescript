@@ -16,7 +16,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hardlydifficult/documentGenerator": "file:../documentGenerator",
+    "@hardlydifficult/documentGenerator": "1.0.0",
     "@slack/bolt": "3.22.0",
     "discord.js": "14.25.1"
   },
