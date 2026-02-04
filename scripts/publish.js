@@ -3,10 +3,14 @@
 /**
  * Publishes packages that have changed since the last publish.
  * Auto-increments the patch version for each changed package.
+ *
+ * Handles inter-package dependencies:
+ * - Detects dependency order and publishes dependencies first
+ * - Auto-updates dependency versions before publishing dependent packages
  */
 
 import { execSync } from 'child_process';
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const PACKAGES_DIR = 'packages';
@@ -45,8 +49,12 @@ function getPackages() {
       packages.push({
         name: packageJson.name,
         path: packagePath,
+        packageJsonPath,
         relativePath: `${PACKAGES_DIR}/${entry}`,
         version: packageJson.version,
+        dependencies: packageJson.dependencies || {},
+        devDependencies: packageJson.devDependencies || {},
+        peerDependencies: packageJson.peerDependencies || {},
       });
     } catch {
       // Skip if no package.json
@@ -56,12 +64,66 @@ function getPackages() {
   return packages;
 }
 
-function getLastPublishedVersion(packageName) {
-  try {
-    return exec(`npm view ${packageName} version`, { ignoreError: true });
-  } catch {
-    return null;
+/**
+ * Sort packages so dependencies are published first.
+ * Uses topological sort based on inter-package dependencies.
+ */
+function sortByDependencyOrder(packages) {
+  const packageNames = new Set(packages.map((p) => p.name));
+  const graph = new Map();
+  const inDegree = new Map();
+
+  // Initialize
+  for (const pkg of packages) {
+    graph.set(pkg.name, []);
+    inDegree.set(pkg.name, 0);
   }
+
+  // Build dependency graph (only for packages in this monorepo)
+  for (const pkg of packages) {
+    const allDeps = {
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+      ...pkg.peerDependencies,
+    };
+
+    for (const dep of Object.keys(allDeps)) {
+      if (packageNames.has(dep)) {
+        // dep must be published before pkg
+        graph.get(dep).push(pkg.name);
+        inDegree.set(pkg.name, inDegree.get(pkg.name) + 1);
+      }
+    }
+  }
+
+  // Kahn's algorithm for topological sort
+  const queue = [];
+  for (const [name, degree] of inDegree) {
+    if (degree === 0) {
+      queue.push(name);
+    }
+  }
+
+  const sorted = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    sorted.push(current);
+
+    for (const dependent of graph.get(current)) {
+      inDegree.set(dependent, inDegree.get(dependent) - 1);
+      if (inDegree.get(dependent) === 0) {
+        queue.push(dependent);
+      }
+    }
+  }
+
+  if (sorted.length !== packages.length) {
+    throw new Error('Circular dependency detected between packages');
+  }
+
+  // Return packages in sorted order
+  const packageMap = new Map(packages.map((p) => [p.name, p]));
+  return sorted.map((name) => packageMap.get(name));
 }
 
 function hasChanges(packagePath, lastTag) {
@@ -88,6 +150,37 @@ function getLastTag(packageName) {
   }
 }
 
+/**
+ * Update a package's dependencies to use newly published versions.
+ */
+function updateInternalDependencies(pkg, publishedVersions) {
+  const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8'));
+  let updated = false;
+
+  for (const depType of ['dependencies', 'devDependencies', 'peerDependencies']) {
+    if (!packageJson[depType]) continue;
+
+    for (const [depName, currentVersion] of Object.entries(packageJson[depType])) {
+      if (publishedVersions.has(depName)) {
+        const newVersion = publishedVersions.get(depName);
+        if (currentVersion !== newVersion) {
+          console.log(`  Updating ${depName}: ${currentVersion} → ${newVersion}`);
+          packageJson[depType][depName] = newVersion;
+          updated = true;
+        }
+      }
+    }
+  }
+
+  if (updated) {
+    writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    // Also update the in-memory version
+    pkg.version = packageJson.version;
+  }
+
+  return updated;
+}
+
 async function main() {
   const packages = getPackages();
 
@@ -96,29 +189,46 @@ async function main() {
     return;
   }
 
-  console.log(`Found ${packages.length} package(s): ${packages.map((p) => p.name).join(', ')}`);
+  // Sort packages so dependencies are published first
+  const sortedPackages = sortByDependencyOrder(packages);
 
-  for (const pkg of packages) {
+  console.log(`Found ${packages.length} package(s) (in publish order):`);
+  sortedPackages.forEach((p, i) => console.log(`  ${i + 1}. ${p.name}`));
+
+  // Track versions we've published this run
+  const publishedVersions = new Map();
+
+  for (const pkg of sortedPackages) {
     console.log(`\n--- Processing ${pkg.name} ---`);
 
     const lastTag = getLastTag(pkg.name);
     const changed = hasChanges(pkg.relativePath, lastTag);
 
-    if (!changed) {
+    // Check if any of its internal dependencies were just published
+    const depsUpdated = updateInternalDependencies(pkg, publishedVersions);
+
+    if (!changed && !depsUpdated) {
       console.log(`No changes since last publish (${lastTag}). Skipping.`);
       continue;
     }
 
-    console.log(lastTag ? `Changes detected since ${lastTag}.` : 'No previous tag found. Publishing initial version.');
+    if (depsUpdated && !changed) {
+      console.log('Internal dependencies updated. Publishing new version.');
+    } else {
+      console.log(lastTag ? `Changes detected since ${lastTag}.` : 'No previous tag found. Publishing initial version.');
+    }
 
     // Increment version
     console.log('Incrementing patch version...');
     exec(`npm version patch --no-git-tag-version`, { cwd: pkg.path });
 
     // Read new version
-    const updatedPackageJson = JSON.parse(readFileSync(join(pkg.path, 'package.json'), 'utf-8'));
+    const updatedPackageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8'));
     const newVersion = updatedPackageJson.version;
     console.log(`New version: ${newVersion}`);
+
+    // Track this version for dependent packages
+    publishedVersions.set(pkg.name, newVersion);
 
     // Publish
     console.log('Publishing to npm...');
@@ -127,9 +237,6 @@ async function main() {
       console.log(`Successfully published ${pkg.name}@${newVersion}`);
 
       // Create and push git tag
-      // Note: We only push the tag, not the version bump commit, because
-      // branch protection rules prevent direct pushes to main.
-      // The tag tracks the published version.
       const safeName = pkg.name.replace('@', '').replace('/', '-');
       const tagName = `${safeName}-v${newVersion}`;
       exec(`git tag ${tagName}`);
