@@ -8,6 +8,10 @@ Focused, opinionated, easy-to-use npm packages.
 |---------|-------------|
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
 
+## GitHub Actions Setup
+
+Add an `NPM_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with an [npm automation token](https://www.npmjs.com/settings/~/tokens).
+
 ## Development
 
 ```bash
