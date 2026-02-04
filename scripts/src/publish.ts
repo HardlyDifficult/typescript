@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env npx tsx
 
 /**
  * Publishes packages that have changed since the last publish.
@@ -7,18 +7,45 @@
  * Handles inter-package dependencies:
  * - Detects dependency order and publishes dependencies first
  * - Auto-updates dependency versions before publishing dependent packages
+ * - Transforms file: references to real versions at publish time
  */
 
-import { execSync } from 'child_process';
+import { execSync, type ExecSyncOptions } from 'child_process';
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const PACKAGES_DIR = 'packages';
 
-function exec(command, options = {}) {
+interface ExecOptions extends ExecSyncOptions {
+  ignoreError?: boolean;
+}
+
+interface PackageJson {
+  name: string;
+  version: string;
+  private?: boolean;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+}
+
+interface Package {
+  name: string;
+  path: string;
+  packageJsonPath: string;
+  relativePath: string;
+  version: string;
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  peerDependencies: Record<string, string>;
+}
+
+function exec(command: string, options: ExecOptions = {}): string {
   console.log(`$ ${command}`);
   try {
-    return execSync(command, { encoding: 'utf-8', stdio: 'pipe', ...options }).trim();
+    const { ignoreError, ...execOptions } = options;
+    const result = execSync(command, { encoding: 'utf-8', stdio: 'pipe', ...execOptions });
+    return typeof result === 'string' ? result.trim() : '';
   } catch (error) {
     if (options.ignoreError) {
       return '';
@@ -27,10 +54,10 @@ function exec(command, options = {}) {
   }
 }
 
-function getPackages() {
+function getPackages(): Package[] {
   const packagesPath = join(process.cwd(), PACKAGES_DIR);
   const entries = readdirSync(packagesPath);
-  const packages = [];
+  const packages: Package[] = [];
 
   for (const entry of entries) {
     const packagePath = join(packagesPath, entry);
@@ -42,7 +69,7 @@ function getPackages() {
 
     const packageJsonPath = join(packagePath, 'package.json');
     try {
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
       if (packageJson.private) {
         continue;
       }
@@ -52,9 +79,9 @@ function getPackages() {
         packageJsonPath,
         relativePath: `${PACKAGES_DIR}/${entry}`,
         version: packageJson.version,
-        dependencies: packageJson.dependencies || {},
-        devDependencies: packageJson.devDependencies || {},
-        peerDependencies: packageJson.peerDependencies || {},
+        dependencies: packageJson.dependencies ?? {},
+        devDependencies: packageJson.devDependencies ?? {},
+        peerDependencies: packageJson.peerDependencies ?? {},
       });
     } catch {
       // Skip if no package.json
@@ -68,10 +95,10 @@ function getPackages() {
  * Sort packages so dependencies are published first.
  * Uses topological sort based on inter-package dependencies.
  */
-function sortByDependencyOrder(packages) {
+function sortByDependencyOrder(packages: Package[]): Package[] {
   const packageNames = new Set(packages.map((p) => p.name));
-  const graph = new Map();
-  const inDegree = new Map();
+  const graph = new Map<string, string[]>();
+  const inDegree = new Map<string, number>();
 
   // Initialize
   for (const pkg of packages) {
@@ -81,7 +108,7 @@ function sortByDependencyOrder(packages) {
 
   // Build dependency graph (only for packages in this monorepo)
   for (const pkg of packages) {
-    const allDeps = {
+    const allDeps: Record<string, string> = {
       ...pkg.dependencies,
       ...pkg.devDependencies,
       ...pkg.peerDependencies,
@@ -90,29 +117,43 @@ function sortByDependencyOrder(packages) {
     for (const dep of Object.keys(allDeps)) {
       if (packageNames.has(dep)) {
         // dep must be published before pkg
-        graph.get(dep).push(pkg.name);
-        inDegree.set(pkg.name, inDegree.get(pkg.name) + 1);
+        const dependents = graph.get(dep);
+        if (dependents) {
+          dependents.push(pkg.name);
+        }
+        const currentDegree = inDegree.get(pkg.name);
+        if (currentDegree !== undefined) {
+          inDegree.set(pkg.name, currentDegree + 1);
+        }
       }
     }
   }
 
   // Kahn's algorithm for topological sort
-  const queue = [];
+  const queue: string[] = [];
   for (const [name, degree] of inDegree) {
     if (degree === 0) {
       queue.push(name);
     }
   }
 
-  const sorted = [];
+  const sorted: string[] = [];
   while (queue.length > 0) {
     const current = queue.shift();
+    if (!current) break;
     sorted.push(current);
 
-    for (const dependent of graph.get(current)) {
-      inDegree.set(dependent, inDegree.get(dependent) - 1);
-      if (inDegree.get(dependent) === 0) {
-        queue.push(dependent);
+    const dependents = graph.get(current);
+    if (dependents) {
+      for (const dependent of dependents) {
+        const currentDegree = inDegree.get(dependent);
+        if (currentDegree !== undefined) {
+          const newDegree = currentDegree - 1;
+          inDegree.set(dependent, newDegree);
+          if (newDegree === 0) {
+            queue.push(dependent);
+          }
+        }
       }
     }
   }
@@ -123,28 +164,32 @@ function sortByDependencyOrder(packages) {
 
   // Return packages in sorted order
   const packageMap = new Map(packages.map((p) => [p.name, p]));
-  return sorted.map((name) => packageMap.get(name));
+  return sorted
+    .map((name) => packageMap.get(name))
+    .filter((pkg): pkg is Package => pkg !== undefined);
 }
 
-function hasChanges(packagePath, lastTag) {
+function hasChanges(packagePath: string, lastTag: string | null): boolean {
   if (!lastTag) {
     return true;
   }
 
   try {
-    const diff = exec(`git diff --name-only ${lastTag} HEAD -- ${packagePath}`, { ignoreError: true });
+    const diff = exec(`git diff --name-only ${lastTag} HEAD -- ${packagePath}`, {
+      ignoreError: true,
+    });
     return diff.length > 0;
   } catch {
     return true;
   }
 }
 
-function getLastTag(packageName) {
+function getLastTag(packageName: string): string | null {
   try {
     const safeName = packageName.replace('@', '').replace('/', '-');
     const tags = exec(`git tag -l "${safeName}-v*" --sort=-v:refname`, { ignoreError: true });
     const tagList = tags.split('\n').filter(Boolean);
-    return tagList[0] || null;
+    return tagList[0] ?? null;
   } catch {
     return null;
   }
@@ -156,29 +201,32 @@ function getLastTag(packageName) {
  * - file:../packageName references (transforms to real version)
  * - version numbers that need updating
  */
-function updateInternalDependencies(pkg, publishedVersions) {
-  const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8'));
+function updateInternalDependencies(pkg: Package, publishedVersions: Map<string, string>): boolean {
+  const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
   let updated = false;
 
-  for (const depType of ['dependencies', 'devDependencies', 'peerDependencies']) {
-    if (!packageJson[depType]) continue;
+  const depTypes = ['dependencies', 'devDependencies', 'peerDependencies'] as const;
 
-    for (const [depName, currentVersion] of Object.entries(packageJson[depType])) {
+  for (const depType of depTypes) {
+    const deps = packageJson[depType];
+    if (!deps) continue;
+
+    for (const [depName, currentVersion] of Object.entries(deps)) {
       // Check if this is a file: reference to a monorepo package
-      if (typeof currentVersion === 'string' && currentVersion.startsWith('file:')) {
-        if (publishedVersions.has(depName)) {
-          const newVersion = publishedVersions.get(depName);
+      if (currentVersion.startsWith('file:')) {
+        const newVersion = publishedVersions.get(depName);
+        if (newVersion) {
           console.log(`  Transforming ${depName}: ${currentVersion} → ${newVersion}`);
-          packageJson[depType][depName] = newVersion;
+          deps[depName] = newVersion;
           updated = true;
         }
       }
       // Check if this is a version that needs updating
-      else if (publishedVersions.has(depName)) {
+      else {
         const newVersion = publishedVersions.get(depName);
-        if (currentVersion !== newVersion) {
+        if (newVersion && currentVersion !== newVersion) {
           console.log(`  Updating ${depName}: ${currentVersion} → ${newVersion}`);
-          packageJson[depType][depName] = newVersion;
+          deps[depName] = newVersion;
           updated = true;
         }
       }
@@ -194,7 +242,7 @@ function updateInternalDependencies(pkg, publishedVersions) {
   return updated;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const packages = getPackages();
 
   if (packages.length === 0) {
@@ -206,10 +254,10 @@ async function main() {
   const sortedPackages = sortByDependencyOrder(packages);
 
   console.log(`Found ${packages.length} package(s) (in publish order):`);
-  sortedPackages.forEach((p, i) => console.log(`  ${i + 1}. ${p.name}`));
+  sortedPackages.forEach((p, i) => console.log(`  ${String(i + 1)}. ${p.name}`));
 
   // Track versions we've published this run
-  const publishedVersions = new Map();
+  const publishedVersions = new Map<string, string>();
 
   for (const pkg of sortedPackages) {
     console.log(`\n--- Processing ${pkg.name} ---`);
@@ -228,7 +276,11 @@ async function main() {
     if (depsUpdated && !changed) {
       console.log('Internal dependencies updated. Publishing new version.');
     } else {
-      console.log(lastTag ? `Changes detected since ${lastTag}.` : 'No previous tag found. Publishing initial version.');
+      console.log(
+        lastTag
+          ? `Changes detected since ${lastTag}.`
+          : 'No previous tag found. Publishing initial version.',
+      );
     }
 
     // Increment version
@@ -236,7 +288,7 @@ async function main() {
     exec(`npm version patch --no-git-tag-version`, { cwd: pkg.path });
 
     // Read new version
-    const updatedPackageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8'));
+    const updatedPackageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
     const newVersion = updatedPackageJson.version;
     console.log(`New version: ${newVersion}`);
 
@@ -256,7 +308,8 @@ async function main() {
       exec(`git push origin ${tagName}`);
       console.log(`Created and pushed tag: ${tagName}`);
     } catch (error) {
-      console.error(`Failed to publish ${pkg.name}:`, error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to publish ${pkg.name}:`, message);
       process.exit(1);
     }
   }
@@ -264,7 +317,7 @@ async function main() {
   console.log('\nDone!');
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error('Publish failed:', error);
   process.exit(1);
 });
