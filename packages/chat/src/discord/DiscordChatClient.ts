@@ -170,7 +170,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
 
     // If threadTs is provided, use it as a reply reference
-    if (options?.threadTs !== undefined && options.threadTs !== '') {
+    if (options?.threadTs) {
       messageOptions.messageReference = { messageId: options.threadTs };
     }
 

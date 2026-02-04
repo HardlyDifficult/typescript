@@ -15,11 +15,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Check for unpinned dependencies
-        run: npx tsx scripts/src/check-pinned-deps.ts
-
       - name: Install dependencies
         run: npm install
+
+      - name: Check for unpinned dependencies
+        run: npx tsx scripts/src/check-pinned-deps.ts
 
       - name: Build
         run: npm run build

@@ -235,8 +235,6 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
 
   if (updated) {
     writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-    // Also update the in-memory version
-    pkg.version = packageJson.version;
   }
 
   return updated;

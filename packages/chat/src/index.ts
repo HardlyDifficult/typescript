@@ -15,7 +15,7 @@ export {
 // Core classes
 export { ChatClient } from './ChatClient.js';
 export { Channel, type ChannelOperations } from './Channel.js';
-export { Message, type MessageOperations } from './Message.js';
+export { Message, ReplyMessage, type MessageOperations } from './Message.js';
 
 // Platform implementations
 export { DiscordChatClient } from './discord/index.js';

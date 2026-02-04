@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, type Mock } from 'vitest';
-import { Message } from '../src/Message.js';
+import { Message, ReplyMessage } from '../src/Message.js';
 import type { MessageOperations } from '../src/Message.js';
 
 describe('Message', () => {
@@ -28,7 +28,7 @@ describe('Message', () => {
       expect(reply).toBeInstanceOf(Message);
     });
 
-    it('should return a Message instance', () => {
+    it('should return a ReplyMessage instance', async () => {
       const mockOperations = createMockOperations();
       const msg = new Message(
         { id: 'msg-1', channelId: 'ch-1', platform: 'slack' },
@@ -37,9 +37,15 @@ describe('Message', () => {
 
       const reply = msg.postReply('Reply content');
 
+      expect(reply).toBeInstanceOf(ReplyMessage);
       expect(reply).toBeInstanceOf(Message);
-      expect(reply.channelId).toBe('ch-1');
+      // Platform is inherited from parent immediately
       expect(reply.platform).toBe('slack');
+
+      // After awaiting, the data is populated from the response
+      await reply.wait();
+      expect(reply.id).toBe('reply-123');
+      expect(reply.channelId).toBe('ch-1');
     });
 
     it('should update reply message data when promise resolves', async () => {
@@ -80,6 +86,37 @@ describe('Message', () => {
       msg.postReply(document);
 
       expect(mockOperations.postReply).toHaveBeenCalledWith('ch-1', 'msg-1', document);
+    });
+
+    it('should propagate errors when awaited via wait()', async () => {
+      const mockOperations = createMockOperations();
+      const error = new Error('Reply failed');
+      (mockOperations.postReply as Mock).mockRejectedValue(error);
+
+      const msg = new Message(
+        { id: 'msg-1', channelId: 'ch-1', platform: 'slack' },
+        mockOperations,
+      );
+
+      const reply = msg.postReply('Reply content');
+
+      await expect(reply.wait()).rejects.toThrow('Reply failed');
+    });
+
+    it('should allow error handling via catch', async () => {
+      const mockOperations = createMockOperations();
+      const error = new Error('Reply failed');
+      (mockOperations.postReply as Mock).mockRejectedValue(error);
+
+      const msg = new Message(
+        { id: 'msg-1', channelId: 'ch-1', platform: 'slack' },
+        mockOperations,
+      );
+
+      const reply = msg.postReply('Reply content');
+      const result = await reply.wait().catch((err: Error) => `caught: ${err.message}`);
+
+      expect(result).toBe('caught: Reply failed');
     });
   });
 

@@ -48,7 +48,11 @@ export class Channel {
     const messagePromise = this.operations.postMessage(this.id, content, options);
 
     // Create a Message that will resolve once the post completes
-    const pendingMessage = new PendingMessage(messagePromise, this.createMessageOperations());
+    const pendingMessage = new PendingMessage(
+      messagePromise,
+      this.createMessageOperations(),
+      this.platform,
+    );
     return pendingMessage;
   }
 
@@ -105,53 +109,66 @@ export class Channel {
 }
 
 /**
- * A Message that is still being posted - supports the same chainable API
+ * A Message that is still being posted.
+ * Use `.wait()` to await completion and handle errors.
  */
 class PendingMessage extends Message {
   private postPromise: Promise<MessageData>;
-  private resolvedData: MessageData | null = null;
 
-  constructor(postPromise: Promise<MessageData>, operations: MessageOperations) {
-    // Initialize with placeholder data
-    super({ id: '', channelId: '', platform: 'discord' }, operations);
+  constructor(postPromise: Promise<MessageData>, operations: MessageOperations, platform: Platform) {
+    // Initialize with placeholder data using the correct platform
+    super({ id: '', channelId: '', platform }, operations);
     this.postPromise = postPromise;
 
     // Update our data when the post resolves
-    void this.postPromise.then((data) => {
-      this.resolvedData = data;
-      // Update the readonly properties via Object.defineProperty
-      Object.defineProperty(this, 'id', { value: data.id });
-      Object.defineProperty(this, 'channelId', { value: data.channelId });
-      Object.defineProperty(this, 'platform', { value: data.platform });
-    });
+    this.postPromise
+      .then((data) => {
+        // Update the readonly properties via Object.defineProperty
+        Object.defineProperty(this, 'id', { value: data.id });
+        Object.defineProperty(this, 'channelId', { value: data.channelId });
+        Object.defineProperty(this, 'platform', { value: data.platform });
+      })
+      .catch(() => {
+        // Errors handled via wait()
+      });
   }
 
   /**
    * Override addReactions to wait for post to complete first
    */
   override addReactions(emojis: string[]): this {
-    // Chain after the post completes
-    void this.postPromise.then(() => {
-      super.addReactions(emojis);
-    });
+    // Chain after the post completes, capturing current pendingReactions
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.postPromise.then(() => currentPendingReactions);
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.addReaction(this.id, this.channelId, emoji),
+      );
+    }
     return this;
   }
 
   /**
-   * Wait for post and all reactions to complete
+   * Wait for post to complete.
+   * Throws if the post fails - allows callers to handle errors.
+   *
+   * @example
+   * ```typescript
+   * const msg = channel.postMessage('Hello');
+   * await msg.wait(); // throws if post fails
+   * console.log(msg.id); // now available
+   * ```
    */
-  override async then<T>(
-    onFulfilled?: ((value: Message) => T | PromiseLike<T>) | null,
-    onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null,
-  ): Promise<T> {
-    try {
-      await this.postPromise;
-      return await super.then(onFulfilled, onRejected);
-    } catch (err) {
-      if (onRejected) {
-        return onRejected(err);
-      }
-      throw err;
-    }
+  async wait(): Promise<this> {
+    await this.postPromise;
+    return this;
+  }
+
+  /**
+   * Wait for post and all pending reactions to complete.
+   */
+  override async waitForReactions(): Promise<void> {
+    await this.postPromise;
+    await this.pendingReactions;
   }
 }

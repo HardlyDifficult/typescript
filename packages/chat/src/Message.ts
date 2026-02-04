@@ -24,8 +24,8 @@ export class Message {
   public readonly channelId: string;
   public readonly platform: Platform;
 
-  private pendingReactions: Promise<void> = Promise.resolve();
-  private operations: MessageOperations;
+  protected pendingReactions: Promise<void> = Promise.resolve();
+  protected operations: MessageOperations;
 
   constructor(data: MessageData, operations: MessageOperations) {
     this.id = data.id;
@@ -51,31 +51,11 @@ export class Message {
   /**
    * Post a reply in this message's thread
    * @param content - Reply content (string or Document)
-   * @returns Promise that resolves to the reply Message
+   * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  postReply(content: MessageContent): Message {
-    // Create pending promise for the reply
+  postReply(content: MessageContent): ReplyMessage {
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
-
-    // Return a Message that will be updated when the reply completes
-    // Note: Using same pattern as PendingMessage - could be refactored to share code
-    const replyMessage = new Message(
-      { id: '', channelId: this.channelId, platform: this.platform },
-      this.operations,
-    );
-
-    // Update the message data when the promise resolves
-    void replyPromise
-      .then((data) => {
-        Object.defineProperty(replyMessage, 'id', { value: data.id });
-        Object.defineProperty(replyMessage, 'channelId', { value: data.channelId });
-        Object.defineProperty(replyMessage, 'platform', { value: data.platform });
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to post reply:', error);
-      });
-
-    return replyMessage;
+    return new ReplyMessage(replyPromise, this.operations, this.platform);
   }
 
   /**
@@ -96,25 +76,78 @@ export class Message {
   /**
    * Wait for all pending reactions to complete.
    *
-   * This makes Message a thenable, allowing: `await msg` after adding reactions.
-   * Note: Always provide a callback or use `.waitForReactions()` to avoid
-   * infinite recursion when awaiting.
+   * @example
+   * ```typescript
+   * const msg = await channel.postMessage('Vote!');
+   * msg.addReactions(['👍', '👎']);
+   * await msg.waitForReactions();
+   * ```
    */
-  then<T>(
-    onFulfilled?: ((value: Message) => T | PromiseLike<T>) | null,
-    onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null,
-  ): Promise<T> {
-    return this.pendingReactions.then(
-      () => (onFulfilled ? onFulfilled(this) : (undefined as T)),
-      onRejected,
-    );
+  async waitForReactions(): Promise<void> {
+    await this.pendingReactions;
+  }
+}
+
+/**
+ * A reply message that is still being posted.
+ * Use `.wait()` to await completion and handle errors.
+ */
+export class ReplyMessage extends Message {
+  private replyPromise: Promise<MessageData>;
+
+  constructor(replyPromise: Promise<MessageData>, operations: MessageOperations, platform: Platform) {
+    // Initialize with placeholder data
+    super({ id: '', channelId: '', platform }, operations);
+    this.replyPromise = replyPromise;
+
+    // Update our data when the reply completes
+    this.replyPromise
+      .then((data) => {
+        Object.defineProperty(this, 'id', { value: data.id });
+        Object.defineProperty(this, 'channelId', { value: data.channelId });
+        Object.defineProperty(this, 'platform', { value: data.platform });
+      })
+      .catch(() => {
+        // Errors handled via wait()
+      });
   }
 
   /**
-   * Wait for all pending reactions to complete.
-   * Use this instead of `await msg` to avoid thenable behavior.
+   * Override addReactions to wait for reply to complete first
    */
-  async waitForReactions(): Promise<void> {
+  override addReactions(emojis: string[]): this {
+    // Chain reactions after the reply completes, capturing current pendingReactions
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.replyPromise.then(() => currentPendingReactions);
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.addReaction(this.id, this.channelId, emoji),
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Wait for reply to complete.
+   * Throws if the reply fails - allows callers to handle errors.
+   *
+   * @example
+   * ```typescript
+   * const reply = msg.postReply('text');
+   * await reply.wait(); // throws if reply fails
+   * console.log(reply.id); // now available
+   * ```
+   */
+  async wait(): Promise<this> {
+    await this.replyPromise;
+    return this;
+  }
+
+  /**
+   * Wait for reply and all pending reactions to complete.
+   */
+  override async waitForReactions(): Promise<void> {
+    await this.replyPromise;
     await this.pendingReactions;
   }
 }
