@@ -7,16 +7,23 @@ export {
   type Platform,
   type ReactionEvent,
   type ReactionCallback,
+  type MessageContent,
+  type PostMessageOptions,
+  type Document,
 } from './types.js';
 
 // Core classes
 export { ChatClient } from './ChatClient.js';
-export { Channel } from './Channel.js';
-export { Message } from './Message.js';
+export { Channel, type ChannelOperations } from './Channel.js';
+export { Message, type MessageOperations } from './Message.js';
 
 // Platform implementations
 export { DiscordChatClient } from './discord/index.js';
 export { SlackChatClient } from './slack/index.js';
+
+// Outputters (for direct use if needed)
+export { toSlackBlocks, type SlackBlock, type SlackTextObject } from './outputters/slack.js';
+export { toDiscordEmbed, type DiscordEmbed, type DiscordEmbedField } from './outputters/discord.js';
 
 // Factory
 import type { ChatConfig } from './types.js';

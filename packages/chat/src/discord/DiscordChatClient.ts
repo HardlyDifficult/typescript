@@ -9,13 +9,16 @@ import {
 } from 'discord.js';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import type {
-  DiscordConfig,
-  ReactionCallback,
-  MessageData,
-  ReactionEvent,
-  User,
-} from '../types.js';
+import type { DiscordConfig, MessageData, ReactionCallback, ReactionEvent, User, MessageContent } from '../types.js';
+import { toDiscordEmbed } from '../outputters/discord.js';
+import type { Document } from '@hardlydifficult/documentGenerator';
+
+/**
+ * Helper function to check if content is a Document
+ */
+function isDocument(content: MessageContent): content is Document {
+  return typeof content !== 'string' && 'getBlocks' in content;
+}
 
 /**
  * Discord chat client implementation using discord.js
@@ -120,23 +123,90 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   /**
    * Post a message to a Discord channel
    * @param channelId - Channel to post to
-   * @param text - Message content
+   * @param content - Message content (string or Document)
+   * @param options - Optional options including threadTs for replies
    * @returns Message data with ID
    */
-  async postMessage(channelId: string, text: string): Promise<MessageData> {
+  async postMessage(
+    channelId: string,
+    content: MessageContent,
+    options?: { threadTs?: string }
+  ): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
-
     if (!channel || !(channel instanceof TextChannel)) {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
-    const message = await channel.send({ content: text });
+    let messageOptions: { content?: string; embeds?: any[]; messageReference?: { messageId: string } };
+
+    if (isDocument(content)) {
+      const embed = toDiscordEmbed(content.getBlocks());
+      messageOptions = { embeds: [embed] };
+    } else {
+      messageOptions = { content };
+    }
+
+    // If threadTs is provided, use it as a reply reference
+    if (options?.threadTs) {
+      messageOptions.messageReference = { messageId: options.threadTs };
+    }
+
+    const message = await channel.send(messageOptions);
 
     return {
       id: message.id,
       channelId: channelId,
       platform: 'discord',
     };
+  }
+
+  /**
+   * Update a message in a Discord channel
+   * @param messageId - ID of the message to update
+   * @param channelId - Channel containing the message
+   * @param content - New message content (string or Document)
+   */
+  async updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    const message = await channel.messages.fetch(messageId);
+
+    if (isDocument(content)) {
+      const embed = toDiscordEmbed(content.getBlocks());
+      await message.edit({ embeds: [embed] });
+    } else {
+      // Clear embeds when switching to text
+      await message.edit({ content, embeds: [] });
+    }
+  }
+
+  /**
+   * Delete a message from a Discord channel
+   * @param messageId - ID of the message to delete
+   * @param channelId - Channel containing the message
+   */
+  async deleteMessage(messageId: string, channelId: string): Promise<void> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    const message = await channel.messages.fetch(messageId);
+    await message.delete();
+  }
+
+  /**
+   * Post a reply in a thread
+   * @param channelId - Channel to post to
+   * @param threadTs - Thread message ID to reply to
+   * @param content - Message content (string or Document)
+   * @returns Message data with ID
+   */
+  async postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData> {
+    return this.postMessage(channelId, content, { threadTs });
   }
 
   /**

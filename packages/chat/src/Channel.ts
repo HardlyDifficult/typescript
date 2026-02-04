@@ -1,11 +1,14 @@
-import type { Platform, ReactionCallback, MessageData } from './types.js';
-import { Message, type ReactionAdder } from './Message.js';
+import type { Platform, ReactionCallback, MessageData, MessageContent } from './types.js';
+import { Message, type MessageOperations } from './Message.js';
 
 /**
  * Interface for platform-specific channel operations
  */
-export interface ChannelOperations extends ReactionAdder {
-  postMessage(channelId: string, text: string): Promise<MessageData>;
+export interface ChannelOperations {
+  postMessage(channelId: string, content: MessageContent, options?: { threadTs?: string }): Promise<MessageData>;
+  updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
+  deleteMessage(messageId: string, channelId: string): Promise<void>;
+  addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;
   subscribeToReactions(channelId: string, callback: ReactionCallback): () => void;
 }
 
@@ -33,14 +36,15 @@ export class Channel {
 
   /**
    * Post a message to this channel
-   * @param text - Message content
+   * @param content - Message content (string or Document)
+   * @param options - Optional message options (e.g., threadTs for threading)
    * @returns Message object with chainable reaction methods
    */
-  postMessage(text: string): Message {
-    const messagePromise = this.operations.postMessage(this.id, text);
+  postMessage(content: MessageContent, options?: { threadTs?: string }): Message {
+    const messagePromise = this.operations.postMessage(this.id, content, options);
 
     // Create a Message that will resolve once the post completes
-    const pendingMessage = new PendingMessage(messagePromise, this.operations);
+    const pendingMessage = new PendingMessage(messagePromise, this.createMessageOperations());
     return pendingMessage;
   }
 
@@ -69,6 +73,22 @@ export class Channel {
   }
 
   /**
+   * Create MessageOperations from ChannelOperations
+   */
+  private createMessageOperations(): MessageOperations {
+    return {
+      addReaction: (messageId: string, channelId: string, emoji: string) =>
+        this.operations.addReaction(messageId, channelId, emoji),
+      updateMessage: (messageId: string, channelId: string, content: MessageContent) =>
+        this.operations.updateMessage(messageId, channelId, content),
+      deleteMessage: (messageId: string, channelId: string) =>
+        this.operations.deleteMessage(messageId, channelId),
+      postReply: async (channelId: string, threadTs: string, content: MessageContent) =>
+        this.operations.postMessage(channelId, content, { threadTs }),
+    };
+  }
+
+  /**
    * Disconnect from this channel (cleanup)
    */
   disconnect(): void {
@@ -87,9 +107,9 @@ class PendingMessage extends Message {
   private postPromise: Promise<MessageData>;
   private resolvedData: MessageData | null = null;
 
-  constructor(postPromise: Promise<MessageData>, reactionAdder: ReactionAdder) {
+  constructor(postPromise: Promise<MessageData>, operations: MessageOperations) {
     // Initialize with placeholder data
-    super({ id: '', channelId: '', platform: 'discord' }, reactionAdder);
+    super({ id: '', channelId: '', platform: 'discord' }, operations);
     this.postPromise = postPromise;
 
     // Update our data when the post resolves

@@ -1,3 +1,9 @@
+// Import Document type from documentGenerator
+import type { Document } from '@hardlydifficult/documentGenerator';
+
+// Re-export Document for convenience
+export type { Document };
+
 /**
  * Configuration for Discord client
  */
@@ -60,4 +66,16 @@ export interface MessageData {
   id: string;
   channelId: string;
   platform: Platform;
+}
+
+/**
+ * Message content can be string or Document
+ */
+export type MessageContent = string | Document;
+
+/**
+ * Options for posting messages with thread support
+ */
+export interface PostMessageOptions {
+  threadTs?: string;
 }

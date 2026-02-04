@@ -1,17 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { SlackConfig, ReactionEvent } from '../src/types.js';
 
-// Use vi.hoisted to ensure mocks are defined before module loading
+// Define mocks at module level - Vitest hoists vi.mock() calls automatically
+// Use vi.hoisted() to ensure mocks are available before mock setup
 const {
-  mockApp,
   mockPostMessage,
   mockReactionsAdd,
   mockStart,
   mockStop,
   mockEvent,
+  mockApp,
   getReactionHandler,
   setReactionHandler,
 } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let reactionAddedHandler: ((args: { event: any }) => Promise<void>) | null = null;
 
   const mockPostMessage = vi.fn();
@@ -34,17 +36,20 @@ const {
     },
   };
 
+  const getReactionHandler = () => reactionAddedHandler;
+  const setReactionHandler = (handler: typeof reactionAddedHandler) => {
+    reactionAddedHandler = handler;
+  };
+
   return {
-    mockApp,
     mockPostMessage,
     mockReactionsAdd,
     mockStart,
     mockStop,
     mockEvent,
-    getReactionHandler: () => reactionAddedHandler,
-    setReactionHandler: (handler: typeof reactionAddedHandler) => {
-      reactionAddedHandler = handler;
-    },
+    mockApp,
+    getReactionHandler,
+    setReactionHandler,
   };
 });
 

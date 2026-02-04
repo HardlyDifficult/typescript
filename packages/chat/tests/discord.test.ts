@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DiscordConfig, ReactionEvent } from '../src/types.js';
 
-// Use vi.hoisted to ensure mocks are defined before module loading
+// Use vi.hoisted to define mocks that are used in vi.mock()
 const {
-  mockClient,
-  mockTextChannelData,
   mockDiscordMessage,
+  mockTextChannelData,
+  mockClient,
   MockTextChannel,
   getReactionHandler,
   setReactionHandler,
@@ -26,6 +26,13 @@ const {
     },
   };
 
+  // Mock TextChannel class for instanceof checks
+  class MockTextChannel {
+    id = 'channel-456';
+    send = mockTextChannelData.send;
+    messages = mockTextChannelData.messages;
+  }
+
   const mockClient = {
     login: vi.fn(),
     channels: {
@@ -39,17 +46,10 @@ const {
     destroy: vi.fn(),
   };
 
-  // Mock TextChannel class for instanceof checks
-  class MockTextChannel {
-    id = 'channel-456';
-    send = mockTextChannelData.send;
-    messages = mockTextChannelData.messages;
-  }
-
   return {
-    mockClient,
-    mockTextChannelData,
     mockDiscordMessage,
+    mockTextChannelData,
+    mockClient,
     MockTextChannel,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
@@ -102,6 +102,31 @@ async function waitForMessage(message: Message): Promise<void> {
 
   // Final flush to ensure any cleanup callbacks have run
   await Promise.resolve();
+}
+
+/**
+ * Simple polling helper to wait for a condition (Vitest equivalent of waitFor).
+ * Polls every 10ms until the condition passes or timeout (default 1000ms).
+ */
+async function waitFor(
+  condition: () => void,
+  timeout: number = 1000,
+  interval: number = 10,
+): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    try {
+      condition();
+      return;
+    } catch (error) {
+      if (Date.now() - startTime >= timeout) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+  // Final attempt - if it fails, the error will be thrown
+  condition();
 }
 
 describe('DiscordChatClient', () => {
@@ -596,7 +621,7 @@ describe('DiscordChatClient', () => {
       handler!(mockReaction, mockUser);
 
       // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(fetchMock).toHaveBeenCalled();
         expect(callback).toHaveBeenCalledTimes(1);
       });
@@ -622,7 +647,7 @@ describe('DiscordChatClient', () => {
       handler!(mockReaction, mockUser);
 
       // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(fetchMock).toHaveBeenCalled();
         expect(consoleErrorSpy).toHaveBeenCalledWith(
           'Failed to fetch partial reaction:',
@@ -705,7 +730,7 @@ describe('DiscordChatClient', () => {
       handler!(mockReaction, mockUser);
 
       // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(errorCallback).toHaveBeenCalledTimes(1);
         expect(normalCallback).toHaveBeenCalledTimes(1);
         expect(consoleErrorSpy).toHaveBeenCalled();

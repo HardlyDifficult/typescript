@@ -5,13 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Use forks pool for better isolation and cleanup
     pool: 'forks',
-    testTimeout: 10000,
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/index.ts'],
-    },
+    // Properly isolate tests
+    isolate: true,
+    // Pass through for ESM
+    passWithNoTests: false,
   },
 });

@@ -1,0 +1,130 @@
+# @hardlydifficult/documentGenerator
+
+Platform-agnostic document builder with chainable API. Build rich documents once, output to multiple formats.
+
+## Installation
+
+```bash
+npm install @hardlydifficult/documentGenerator
+```
+
+## Quick Start
+
+```typescript
+import { doc, toMarkdown, toPlainText } from '@hardlydifficult/documentGenerator';
+
+const document = doc()
+  .header('Weekly Report')
+  .text('Summary of this week's **key highlights**.')
+  .list(['Completed feature A', 'Fixed bug B', 'Started project C'])
+  .divider()
+  .link('View details', 'https://example.com')
+  .context('Generated on 2025-01-15');
+
+// Output as markdown
+console.log(toMarkdown(document.getBlocks()));
+
+// Output as plain text
+console.log(toPlainText(document.getBlocks()));
+```
+
+## API
+
+### `doc()` / `new Document()`
+
+Create a new document builder. All methods are chainable.
+
+### Chainable Methods
+
+| Method | Description |
+|--------|-------------|
+| `.header(text)` | Add a header/title |
+| `.text(content)` | Add text paragraph (supports **bold**, *italic*, ~~strike~~) |
+| `.list(items)` | Add a bulleted list |
+| `.divider()` | Add a horizontal divider |
+| `.context(text)` | Add footer/context text |
+| `.link(text, url)` | Add a hyperlink |
+| `.code(content)` | Add code (auto-detects inline vs multiline) |
+| `.image(url, alt?)` | Add an image |
+
+### `document.getBlocks(): Block[]`
+
+Get the internal block representation for custom processing.
+
+## Inline Markdown Support
+
+Text blocks support standard inline markdown that gets auto-converted per platform:
+
+```typescript
+doc().text('This has **bold**, *italic*, and ~~strikethrough~~ text.');
+```
+
+- Standard markdown: `**bold**`, `*italic*`, `~~strike~~`
+- Slack: Converted to `*bold*`, `_italic_`, `~strike~`
+- Discord: Uses standard markdown (no conversion needed)
+- Plain text: Formatting stripped
+
+**Note:** Use `.code()` and `.link()` methods for code and links—not markdown syntax.
+
+## Code Blocks
+
+The `.code()` method auto-detects format:
+
+```typescript
+// Single line → inline code
+doc().code('const x = 1');  // → `const x = 1`
+
+// Multiline → code block
+doc().code('const x = 1;\nconst y = 2;');
+// → ```
+//   const x = 1;
+//   const y = 2;
+//   ```
+```
+
+## Outputters
+
+### `toMarkdown(blocks): string`
+
+Convert to standard markdown format.
+
+### `toPlainText(blocks): string`
+
+Convert to plain text, stripping all formatting.
+
+## Block Types
+
+Internal block types for custom processing:
+
+```typescript
+type Block =
+  | { type: 'header'; text: string }
+  | { type: 'text'; content: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'divider' }
+  | { type: 'context'; text: string }
+  | { type: 'link'; text: string; url: string }
+  | { type: 'code'; content: string; multiline: boolean }
+  | { type: 'image'; url: string; alt?: string };
+```
+
+## Integration with @hardlydifficult/chat
+
+Documents integrate seamlessly with the chat package for Slack and Discord:
+
+```typescript
+import { doc } from '@hardlydifficult/documentGenerator';
+import { createChatClient } from '@hardlydifficult/chat';
+
+const client = createChatClient({ type: 'slack' });
+const channel = await client.connect(channelId);
+
+const report = doc()
+  .header('Daily Metrics')
+  .text('Here are today's **key numbers**:')
+  .list(['Users: 1,234', 'Revenue: $5,678', 'Errors: 0'])
+  .context('Generated automatically');
+
+// Automatically converted to Slack Block Kit
+await channel.postMessage(report);
+```

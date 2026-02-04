@@ -1,7 +1,16 @@
 import { App } from '@slack/bolt';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
-import type { SlackConfig, MessageData, ReactionCallback, ReactionEvent, User } from '../types.js';
+import type { SlackConfig, MessageData, ReactionCallback, ReactionEvent, User, MessageContent } from '../types.js';
+import { toSlackBlocks, type SlackBlock } from '../outputters/slack.js';
+import type { Document } from '@hardlydifficult/documentGenerator';
+
+/**
+ * Helper function to check if content is a Document
+ */
+function isDocument(content: MessageContent): content is Document {
+  return typeof content !== 'string' && 'getBlocks' in content;
+}
 
 /**
  * Slack chat client implementation using @slack/bolt
@@ -70,10 +79,26 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Post a message to a Slack channel
    */
-  async postMessage(channelId: string, text: string): Promise<MessageData> {
+  async postMessage(
+    channelId: string,
+    content: MessageContent,
+    options?: { threadTs?: string }
+  ): Promise<MessageData> {
+    let text: string;
+    let blocks: SlackBlock[] | undefined;
+
+    if (isDocument(content)) {
+      blocks = toSlackBlocks(content.getBlocks());
+      text = content.toPlainText().trim() || 'Message'; // fallback text for accessibility
+    } else {
+      text = content;
+    }
+
     const result = await this.app.client.chat.postMessage({
       channel: channelId,
-      text: text,
+      text,
+      blocks,
+      thread_ts: options?.threadTs,
     });
 
     if (result.ts === undefined) {
@@ -84,6 +109,45 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       channelId: channelId,
       platform: 'slack',
     };
+  }
+
+  /**
+   * Update a message in a Slack channel
+   */
+  async updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void> {
+    let text: string;
+    let blocks: SlackBlock[] | undefined;
+
+    if (isDocument(content)) {
+      blocks = toSlackBlocks(content.getBlocks());
+      text = content.toPlainText().trim() || 'Message';
+    } else {
+      text = content;
+    }
+
+    await this.app.client.chat.update({
+      channel: channelId,
+      ts: messageId,
+      text,
+      blocks,
+    });
+  }
+
+  /**
+   * Delete a message from a Slack channel
+   */
+  async deleteMessage(messageId: string, channelId: string): Promise<void> {
+    await this.app.client.chat.delete({
+      channel: channelId,
+      ts: messageId,
+    });
+  }
+
+  /**
+   * Post a reply in a thread
+   */
+  async postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData> {
+    return this.postMessage(channelId, content, { threadTs });
   }
 
   /**
