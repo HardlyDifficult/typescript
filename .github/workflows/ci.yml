@@ -22,7 +22,7 @@ jobs:
         run: npm run build
 
       - name: Check for unpinned dependencies
-        run: npx --no check-pinned-deps
+        run: node packages/ciScripts/dist/check-pinned-deps.js
 
       - name: Lint
         run: npm run lint
