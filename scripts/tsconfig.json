@@ -7,8 +7,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false
+    "rootDir": "src"
   },
   "include": ["src/**/*.ts"]
 }
