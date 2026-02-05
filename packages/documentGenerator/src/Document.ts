@@ -39,19 +39,19 @@ export class Document {
    * ```
    */
   constructor(options?: DocumentOptions) {
-    if (options) {
-      if (options.header) {
+    if (options !== undefined) {
+      if (options.header !== undefined && options.header !== '') {
         this.header(options.header);
       }
-      if (options.sections) {
+      if (options.sections !== undefined) {
         for (const section of options.sections) {
-          if (section.title) {
+          if (section.title !== undefined && section.title !== '') {
             this.section(section.title);
           }
           this.text(section.content);
         }
       }
-      if (options.context) {
+      if (options.context !== undefined) {
         this.divider();
         this.keyValue(options.context);
       }
@@ -62,7 +62,9 @@ export class Document {
    * Truncate text to a maximum length with ellipsis.
    */
   static truncate(text: string, maxLength: number): string {
-    if (text.length <= maxLength) return text;
+    if (text.length <= maxLength) {
+      return text;
+    }
     return `${text.slice(0, maxLength - 3)}...`;
   }
 
@@ -180,13 +182,15 @@ export class Document {
     const { style = 'plain', separator = ':', bold = true } = options;
 
     const entries = Object.entries(data).filter(([, v]) => v !== undefined);
-    if (entries.length === 0) return this;
+    if (entries.length === 0) {
+      return this;
+    }
 
     const lines = entries.map(([key, value], i) => {
       const formattedKey = bold ? `**${key}**` : key;
       const prefix =
-        style === 'bullet' ? '• ' : style === 'numbered' ? `${i + 1}. ` : '';
-      return `${prefix}${formattedKey}${separator} ${value}`;
+        style === 'bullet' ? '• ' : style === 'numbered' ? `${String(i + 1)}. ` : '';
+      return `${prefix}${formattedKey}${separator} ${String(value)}`;
     });
 
     return this.text(lines.join('\n'));
@@ -208,18 +212,20 @@ export class Document {
   truncatedList<T>(items: T[], options: TruncatedListOptions<T> = {}): this {
     const {
       limit = 10,
-      format = (item: T) => String(item),
-      moreText = (n: number) => `_... and ${n} more_`,
+      format = (item: T): string => String(item),
+      moreText = (n: number): string => `_... and ${String(n)} more_`,
       ordered = false,
     } = options;
 
-    if (items.length === 0) return this;
+    if (items.length === 0) {
+      return this;
+    }
 
     const visible = items.slice(0, limit);
     const remaining = items.length - limit;
 
     const lines = visible.map((item, i) => {
-      const prefix = ordered ? `${i + 1}. ` : '• ';
+      const prefix = ordered ? `${String(i + 1)}. ` : '• ';
       return `${prefix}${format(item, i)}`;
     });
 
@@ -243,11 +249,14 @@ export class Document {
   timestamp(options: TimestampOptions = {}): this {
     const { date = new Date(), emoji = true, prefix } = options;
     const iso = date.toISOString();
-    const text = prefix
-      ? `${prefix} ${iso}`
-      : emoji
-        ? `🕐 ${iso}`
-        : iso;
+    let text: string;
+    if (prefix !== undefined && prefix !== '') {
+      text = `${prefix} ${iso}`;
+    } else if (emoji) {
+      text = `🕐 ${iso}`;
+    } else {
+      text = iso;
+    }
     return this.context(text);
   }
 
@@ -297,7 +306,9 @@ export class Document {
     items: T[],
     callback: (doc: this, item: T, index: number) => void
   ): this {
-    items.forEach((item, i) => callback(this, item, i));
+    items.forEach((item, i) => {
+      callback(this, item, i);
+    });
     return this;
   }
 
