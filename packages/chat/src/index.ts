@@ -9,8 +9,7 @@ export {
   type ReactionCallback,
   type MessageContent,
   type PostMessageOptions,
-  type Document,
-  doc,
+  Document,
 } from './types';
 
 // Core classes

@@ -34,13 +34,13 @@ await channel
 Post rich, formatted messages using the `@hardlydifficult/document-generator` package:
 
 ```typescript
-import { doc } from '@hardlydifficult/document-generator';
+import { Document } from '@hardlydifficult/document-generator';
 import { createChatClient } from '@hardlydifficult/chat';
 
 const client = createChatClient({ type: 'slack' });
 const channel = await client.connect(channelId);
 
-const report = doc()
+const report = new Document()
   .header("Daily Report")
   .text("Here are today's **highlights**:")
   .list(["Feature A completed", "Bug B fixed", "99.9% uptime"])
@@ -59,7 +59,7 @@ await channel.postMessage(report);
 ```typescript
 const msg = await channel.postMessage('Initial content');
 await msg.update('Updated content');
-await msg.update(doc().header('New Header').text('New body'));
+await msg.update(new Document().header('New Header').text('New body'));
 ```
 
 ### Delete Messages
@@ -74,7 +74,7 @@ await msg.delete();
 ```typescript
 const msg = await channel.postMessage('Main message');
 msg.postReply('This is a thread reply');
-msg.postReply(doc().text('Rich reply with **formatting**'));
+msg.postReply(new Document().text('Rich reply with **formatting**'));
 ```
 
 ### Reactions
@@ -179,7 +179,7 @@ Disconnect from the platform.
 
 ```typescript
 import { createChatClient } from "@hardlydifficult/chat";
-import { doc } from "@hardlydifficult/document-generator";
+import { Document } from "@hardlydifficult/document-generator";
 
 const client = createChatClient({ type: "discord" });
 const channel = await client.connect(process.env.CHANNEL_ID);
@@ -188,7 +188,7 @@ const options = ["Pizza", "Burgers", "Salad"];
 const emojis = ["1️⃣", "2️⃣", "3️⃣"];
 const votes: Record<string, string> = {};
 
-const pollDoc = doc()
+const pollDoc = new Document()
   .header("🗳️ Lunch Poll")
   .text("What should we order?")
   .list(options.map((o, i) => `${emojis[i]} ${o}`));

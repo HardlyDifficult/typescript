@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { doc, Document } from '../src/index.js';
+import { Document } from '../src/index.js';
 
 describe('Document', () => {
-  describe('doc()', () => {
+  describe('constructor', () => {
     it('creates a Document instance', () => {
-      const document = doc();
+      const document = new Document();
       expect(document).toBeInstanceOf(Document);
     });
   });
 
   describe('chainable methods', () => {
     it('header() adds a header block and returns this', () => {
-      const document = doc().header('Test Header');
+      const document = new Document().header('Test Header');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -22,7 +22,7 @@ describe('Document', () => {
     });
 
     it('text() adds a text block and returns this', () => {
-      const document = doc().text('Test content');
+      const document = new Document().text('Test content');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -34,7 +34,7 @@ describe('Document', () => {
 
     it('list() adds a list block and returns this', () => {
       const items = ['Item 1', 'Item 2', 'Item 3'];
-      const document = doc().list(items);
+      const document = new Document().list(items);
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -45,7 +45,7 @@ describe('Document', () => {
     });
 
     it('divider() adds a divider block and returns this', () => {
-      const document = doc().divider();
+      const document = new Document().divider();
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -55,7 +55,7 @@ describe('Document', () => {
     });
 
     it('context() adds a context block and returns this', () => {
-      const document = doc().context('Context text');
+      const document = new Document().context('Context text');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -66,7 +66,7 @@ describe('Document', () => {
     });
 
     it('link() adds a link block and returns this', () => {
-      const document = doc().link('Link Text', 'https://example.com');
+      const document = new Document().link('Link Text', 'https://example.com');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -78,7 +78,7 @@ describe('Document', () => {
     });
 
     it('code() adds a code block and returns this', () => {
-      const document = doc().code('const x = 1;');
+      const document = new Document().code('const x = 1;');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -90,7 +90,7 @@ describe('Document', () => {
     });
 
     it('image() adds an image block and returns this', () => {
-      const document = doc().image('https://example.com/image.png', 'Alt text');
+      const document = new Document().image('https://example.com/image.png', 'Alt text');
       expect(document).toBeInstanceOf(Document);
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(1);
@@ -102,7 +102,7 @@ describe('Document', () => {
     });
 
     it('image() without alt adds an image block with undefined alt', () => {
-      const document = doc().image('https://example.com/image.png');
+      const document = new Document().image('https://example.com/image.png');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'image',
@@ -114,7 +114,7 @@ describe('Document', () => {
 
   describe('method chaining', () => {
     it('methods are chainable', () => {
-      const document = doc()
+      const document = new Document()
         .header('Title')
         .text('Content')
         .list(['Item 1', 'Item 2'])
@@ -140,7 +140,7 @@ describe('Document', () => {
 
   describe('getBlocks()', () => {
     it('returns all added blocks', () => {
-      const document = doc().header('Header').text('Text').list(['Item']);
+      const document = new Document().header('Header').text('Text').list(['Item']);
 
       const blocks = document.getBlocks();
       expect(blocks).toHaveLength(3);
@@ -150,7 +150,7 @@ describe('Document', () => {
     });
 
     it('returns empty array for new document', () => {
-      const document = doc();
+      const document = new Document();
       const blocks = document.getBlocks();
       expect(blocks).toEqual([]);
     });
@@ -158,7 +158,7 @@ describe('Document', () => {
 
   describe('code() multiline detection', () => {
     it('detects single line code as multiline: false', () => {
-      const document = doc().code('const x = 1;');
+      const document = new Document().code('const x = 1;');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'code',
@@ -168,7 +168,7 @@ describe('Document', () => {
     });
 
     it('detects multiline code as multiline: true when content contains \\n', () => {
-      const document = doc().code('const x = 1;\nconst y = 2;');
+      const document = new Document().code('const x = 1;\nconst y = 2;');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'code',
@@ -178,7 +178,7 @@ describe('Document', () => {
     });
 
     it('detects multiline code with multiple lines', () => {
-      const document = doc().code('function test() {\n  return true;\n}');
+      const document = new Document().code('function test() {\n  return true;\n}');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'code',
@@ -188,7 +188,7 @@ describe('Document', () => {
     });
 
     it('detects multiline code with leading newline', () => {
-      const document = doc().code('\nconst x = 1;');
+      const document = new Document().code('\nconst x = 1;');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'code',
@@ -198,7 +198,7 @@ describe('Document', () => {
     });
 
     it('detects multiline code with trailing newline', () => {
-      const document = doc().code('const x = 1;\n');
+      const document = new Document().code('const x = 1;\n');
       const blocks = document.getBlocks();
       expect(blocks[0]).toEqual({
         type: 'code',
