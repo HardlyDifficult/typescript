@@ -199,12 +199,28 @@ function getLastTag(packageName: string): string | null {
 }
 
 /**
- * Extract version number from a tag name.
- * E.g., "hardlydifficult-chat-v1.0.1" -> "1.0.1"
+ * Get the latest patch version of a package from npm for a given major.minor.
+ * Returns the full version string (e.g., "1.1.5") or null if no versions exist for that major.minor.
  */
-function getVersionFromTag(tag: string): string | null {
-  const match = /-v(\d+\.\d+\.\d+)$/.exec(tag);
-  return match?.[1] ?? null;
+function getLatestNpmPatchVersion(packageName: string, majorMinor: string): string | null {
+  try {
+    // Get all versions from npm and filter to the major.minor we want
+    const allVersions = exec(`npm view ${packageName} versions --json`, { ignoreError: false });
+    const versions = JSON.parse(allVersions) as string[];
+
+    // Filter to versions matching our major.minor and find the highest patch
+    const matchingVersions = versions
+      .filter((v) => v.startsWith(`${majorMinor}.`))
+      .map((v) => {
+        const parts = v.split('.');
+        return { full: v, patch: parseInt(parts[2] ?? '0', 10) };
+      })
+      .sort((a, b) => b.patch - a.patch);
+
+    return matchingVersions[0]?.full ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -318,33 +334,36 @@ function main(): void {
       );
     }
 
-    // Sync package.json version with last published tag before incrementing.
-    // This ensures we increment from the last published version, not the
-    // version currently in package.json (which may be out of sync if version
-    // bumps weren't committed back to the repo).
-    if (lastTag !== null && lastTag !== '') {
-      const tagVersion = getVersionFromTag(lastTag);
-      if (tagVersion !== null) {
-        const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
-        if (packageJson.version !== tagVersion) {
-          // eslint-disable-next-line no-console
-          console.log(`Syncing version from tag: ${packageJson.version} → ${tagVersion}`);
-          packageJson.version = tagVersion;
-          writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-        }
-      }
+    // Get the major.minor version from package.json - this is controlled by developers.
+    // Then auto-determine the patch version based on what's already published to npm.
+    const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
+    const versionParts = packageJson.version.split('.');
+    const major = versionParts[0] ?? '0';
+    const minor = versionParts[1] ?? '0';
+    const majorMinor = `${major}.${minor}`;
+
+    // Check npm for the latest patch version of this major.minor
+    const latestNpmVersion = getLatestNpmPatchVersion(pkg.name, majorMinor);
+
+    let newVersion: string;
+    if (latestNpmVersion !== null) {
+      // Increment patch from the latest npm version
+      const npmParts = latestNpmVersion.split('.');
+      const nextPatch = parseInt(npmParts[2] ?? '0', 10) + 1;
+      newVersion = `${majorMinor}.${String(nextPatch)}`;
+      // eslint-disable-next-line no-console
+      console.log(`Latest npm version for ${majorMinor}.x: ${latestNpmVersion}`);
+    } else {
+      // No versions exist for this major.minor, start at .0
+      newVersion = `${majorMinor}.0`;
+      // eslint-disable-next-line no-console
+      console.log(`No existing versions for ${majorMinor}.x on npm.`);
     }
 
-    // Increment version
-    // eslint-disable-next-line no-console
-    console.log('Incrementing patch version...');
-    exec(`npm version patch --no-git-tag-version`, { cwd: pkg.path });
+    // Update package.json with the new version
+    packageJson.version = newVersion;
+    writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 
-    // Read new version
-    const updatedPackageJson = JSON.parse(
-      readFileSync(pkg.packageJsonPath, 'utf-8'),
-    ) as PackageJson;
-    const newVersion = updatedPackageJson.version;
     // eslint-disable-next-line no-console
     console.log(`New version: ${newVersion}`);
 
