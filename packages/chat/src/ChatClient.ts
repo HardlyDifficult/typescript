@@ -1,5 +1,5 @@
-import type { ChatConfig } from './types.js';
-import type { Channel } from './Channel.js';
+import type { ChatConfig } from './types';
+import type { Channel } from './Channel';
 
 /**
  * Abstract base class for chat platform clients

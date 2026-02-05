@@ -1,5 +1,5 @@
-import type { Platform, ReactionCallback, MessageData, MessageContent } from './types.js';
-import { Message, type MessageOperations } from './Message.js';
+import type { Platform, ReactionCallback, MessageData, MessageContent } from './types';
+import { Message, type MessageOperations } from './Message';
 
 /**
  * Interface for platform-specific channel operations

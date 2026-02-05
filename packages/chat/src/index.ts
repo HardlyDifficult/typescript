@@ -1,4 +1,4 @@
-// Types
+// Types and utilities
 export {
   type User,
   type DiscordConfig,
@@ -10,22 +10,23 @@ export {
   type MessageContent,
   type PostMessageOptions,
   type Document,
-} from './types.js';
+  doc,
+} from './types';
 
 // Core classes
-export { ChatClient } from './ChatClient.js';
-export { Channel, type ChannelOperations } from './Channel.js';
-export { Message, ReplyMessage, type MessageOperations } from './Message.js';
+export { ChatClient } from './ChatClient';
+export { Channel, type ChannelOperations } from './Channel';
+export { Message, ReplyMessage, type MessageOperations } from './Message';
 
 // Platform implementations
-export { DiscordChatClient } from './discord/index.js';
-export { SlackChatClient } from './slack/index.js';
+export { DiscordChatClient } from './discord/index';
+export { SlackChatClient } from './slack/index';
 
 // Factory
-import type { ChatConfig } from './types.js';
-import { ChatClient } from './ChatClient.js';
-import { DiscordChatClient } from './discord/index.js';
-import { SlackChatClient } from './slack/index.js';
+import type { ChatConfig } from './types';
+import { ChatClient } from './ChatClient';
+import { DiscordChatClient } from './discord/index';
+import { SlackChatClient } from './slack/index';
 
 /**
  * Factory function to create a chat client based on config type

@@ -1,4 +1,4 @@
-import type { MessageData, MessageContent, Platform, ReactionCallback } from './types.js';
+import type { MessageData, MessageContent, Platform, ReactionCallback } from './types';
 
 /**
  * Interface for the platform-specific reaction adder
