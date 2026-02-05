@@ -1,5 +1,5 @@
-// Main classes and factory
-export { Document, doc } from './Document.js';
+// Main class
+export { Document } from './Document.js';
 
 // Types
 export type {

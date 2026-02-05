@@ -1,7 +1,4 @@
-// Re-export doc and Document from documentGenerator
-// Import Document type for local use in MessageContent
 import type { Document } from '@hardlydifficult/document-generator';
-export { doc, type Document } from '@hardlydifficult/document-generator';
 
 /**
  * Configuration for Discord client

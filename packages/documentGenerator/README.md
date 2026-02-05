@@ -11,9 +11,9 @@ npm install @hardlydifficult/document-generator
 ## Quick Start
 
 ```typescript
-import { doc, toMarkdown, toPlainText } from '@hardlydifficult/document-generator';
+import { Document, toMarkdown, toPlainText } from '@hardlydifficult/document-generator';
 
-const document = doc()
+const document = new Document()
   .header("Weekly Report")
   .text("Summary of this week's **key highlights**.")
   .list(["Completed feature A", "Fixed bug B", "Started project C"])
@@ -30,7 +30,7 @@ console.log(toPlainText(document.getBlocks()));
 
 ## API
 
-### `doc()` / `new Document()`
+### `new Document()`
 
 Create a new document builder. All methods are chainable.
 
@@ -56,7 +56,7 @@ Get the internal block representation for custom processing.
 Text blocks support standard inline markdown that gets auto-converted per platform:
 
 ```typescript
-doc().text('This has **bold**, *italic*, and ~~strikethrough~~ text.');
+new Document().text('This has **bold**, *italic*, and ~~strikethrough~~ text.');
 ```
 
 - Standard markdown: `**bold**`, `*italic*`, `~~strike~~`
@@ -72,10 +72,10 @@ The `.code()` method auto-detects format:
 
 ```typescript
 // Single line → inline code
-doc().code('const x = 1');  // → `const x = 1`
+new Document().code('const x = 1');  // → `const x = 1`
 
 // Multiline → code block
-doc().code('const x = 1;\nconst y = 2;');
+new Document().code('const x = 1;\nconst y = 2;');
 // → ```
 //   const x = 1;
 //   const y = 2;
@@ -113,13 +113,13 @@ type Block =
 Documents integrate seamlessly with the chat package for Slack and Discord:
 
 ```typescript
-import { doc } from '@hardlydifficult/document-generator';
+import { Document } from '@hardlydifficult/document-generator';
 import { createChatClient } from '@hardlydifficult/chat';
 
 const client = createChatClient({ type: 'slack' });
 const channel = await client.connect(channelId);
 
-const report = doc()
+const report = new Document()
   .header("Daily Metrics")
   .text("Here are today's **key numbers**:")
   .list(["Users: 1,234", "Revenue: $5,678", "Errors: 0"])

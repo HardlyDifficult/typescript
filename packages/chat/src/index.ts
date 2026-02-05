@@ -1,4 +1,4 @@
-// Types and utilities
+// Types
 export {
   type User,
   type DiscordConfig,
@@ -9,8 +9,6 @@ export {
   type ReactionCallback,
   type MessageContent,
   type PostMessageOptions,
-  type Document,
-  doc,
 } from './types';
 
 // Core classes

@@ -102,7 +102,3 @@ export class Document {
     return outputPlainText(this.blocks);
   }
 }
-
-export function doc(): Document {
-  return new Document();
-}
