@@ -34,15 +34,20 @@ export class StateTracker<T = number> {
   private readonly stateDirectory: string;
 
   /**
-   * Sanitize the key to prevent path traversal attacks.
+   * Sanitize the key to prevent path traversal and unsafe filenames.
+   * Only allow alphanumeric characters, hyphens, and underscores.
    */
   private static sanitizeKey(key: string): string {
     const trimmed = key.trim();
     if (trimmed === '') {
       throw new Error('StateTracker key must be a non-empty string');
     }
-    if (trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..')) {
-      throw new Error('StateTracker key contains invalid path characters');
+    // Whitelist: only allow [A-Za-z0-9_-] to avoid path traversal and
+    // filesystem-specific special characters (including null bytes).
+    if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+      throw new Error(
+        'StateTracker key contains invalid characters (only alphanumeric, hyphens, and underscores allowed)',
+      );
     }
     return trimmed;
   }
@@ -127,7 +132,10 @@ export class StateTracker<T = number> {
         [this.propertyName]: value,
         lastUpdated: new Date().toISOString(),
       };
-      fs.writeFileSync(this.filePath, JSON.stringify(state, null, 2), 'utf-8');
+      // Atomic write: write to temp file then rename
+      const tempFilePath = `${this.filePath}.tmp`;
+      fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), 'utf-8');
+      fs.renameSync(tempFilePath, this.filePath);
       if (this.verbose) {
         // eslint-disable-next-line no-console
         console.log(`Saved state ${this.key}: ${this.propertyName}=${String(value)}`);

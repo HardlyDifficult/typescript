@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { StateTracker } from '../src/StateTracker.js';
+import { StateTracker } from '../src/StateTracker';
 
 describe('StateTracker', () => {
   let testDir: string;
@@ -29,15 +29,22 @@ describe('StateTracker', () => {
       expect(fs.existsSync(stateDir)).toBe(true);
     });
 
-    it('should reject keys with path traversal characters', () => {
+    it('should reject keys with invalid characters', () => {
       expect(() => new StateTracker({ key: '../evil', stateDirectory: testDir })).toThrow(
-        'invalid path characters',
+        'invalid characters',
       );
       expect(() => new StateTracker({ key: 'foo/bar', stateDirectory: testDir })).toThrow(
-        'invalid path characters',
+        'invalid characters',
       );
       expect(() => new StateTracker({ key: 'foo\\bar', stateDirectory: testDir })).toThrow(
-        'invalid path characters',
+        'invalid characters',
+      );
+      // Also reject special characters
+      expect(() => new StateTracker({ key: 'foo.bar', stateDirectory: testDir })).toThrow(
+        'invalid characters',
+      );
+      expect(() => new StateTracker({ key: 'foo@bar', stateDirectory: testDir })).toThrow(
+        'invalid characters',
       );
     });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Throttle } from '../src/Throttle.js';
+import { Throttle } from '../src/Throttle';
 
 describe('Throttle', () => {
   beforeEach(() => {
@@ -8,6 +8,17 @@ describe('Throttle', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe('constructor', () => {
+    it('should reject non-positive minimumDelayMs', () => {
+      expect(() => new Throttle({ minimumDelayMs: 0 })).toThrow(
+        'minimumDelayMs must be a positive number',
+      );
+      expect(() => new Throttle({ minimumDelayMs: -100 })).toThrow(
+        'minimumDelayMs must be a positive number',
+      );
+    });
   });
 
   describe('run', () => {

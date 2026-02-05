@@ -20,6 +20,9 @@ export class Throttle {
   private readonly onSleep?: (ms: number) => void;
 
   constructor(options: ThrottleOptions) {
+    if (options.minimumDelayMs <= 0) {
+      throw new Error('Throttle minimumDelayMs must be a positive number');
+    }
     this.minimumDelayMs = options.minimumDelayMs;
     this.onSleep = options.onSleep;
   }

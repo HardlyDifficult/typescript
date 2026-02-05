@@ -1,6 +1,2 @@
-export { StateTracker, type StateTrackerOptions } from './StateTracker.js';
-export {
-  SyncStateTracker,
-  type SyncState,
-  type SyncStateTrackerOptions,
-} from './SyncStateTracker.js';
+export { StateTracker, type StateTrackerOptions } from './StateTracker';
+export { SyncStateTracker, type SyncState, type SyncStateTrackerOptions } from './SyncStateTracker';

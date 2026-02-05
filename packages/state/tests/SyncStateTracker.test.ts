@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { SyncStateTracker } from '../src/SyncStateTracker.js';
+import { SyncStateTracker } from '../src/SyncStateTracker';
 
 describe('SyncStateTracker', () => {
   let testDir: string;
