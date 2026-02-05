@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { DiscordConfig, ReactionEvent } from '../src/types.js';
+import type { DiscordConfig, ReactionEvent, MessageEvent } from '../src/types.js';
 
 // Use vi.hoisted to define mocks that are used in vi.mock()
 const {
@@ -7,22 +7,45 @@ const {
   mockTextChannelData,
   mockClient,
   MockTextChannel,
+  MockAttachmentBuilder,
   getReactionHandler,
   setReactionHandler,
+  getMessageHandler,
+  setMessageHandler,
+  getShardHandler,
+  clearShardHandlers,
 } = vi.hoisted(() => {
   let reactionHandler: ((reaction: unknown, user: unknown) => void) | null = null;
+  let messageHandler: ((message: unknown) => void) | null = null;
+  const shardHandlers: Record<string, ((...args: unknown[]) => void)[]> = {};
+
+  const mockThread = {
+    id: 'thread-001',
+    name: 'Test Thread',
+  };
 
   const mockDiscordMessage = {
     id: 'msg-123',
     channelId: 'channel-456',
     react: vi.fn(),
+    startThread: vi.fn().mockResolvedValue(mockThread),
   };
 
   const mockTextChannelData = {
     id: 'channel-456',
     send: vi.fn(),
+    sendTyping: vi.fn().mockResolvedValue(undefined),
+    bulkDelete: vi.fn().mockResolvedValue(new Map([['msg-1', {}], ['msg-2', {}]])),
     messages: {
       fetch: vi.fn(),
+    },
+    threads: {
+      fetchActive: vi.fn().mockResolvedValue({
+        threads: new Map([['thread-1', { id: 'thread-1' }]]),
+      }),
+      fetchArchived: vi.fn().mockResolvedValue({
+        threads: new Map([['thread-2', { id: 'thread-2' }]]),
+      }),
     },
   };
 
@@ -30,7 +53,19 @@ const {
   class MockTextChannel {
     id = 'channel-456';
     send = mockTextChannelData.send;
+    sendTyping = mockTextChannelData.sendTyping;
+    bulkDelete = mockTextChannelData.bulkDelete;
     messages = mockTextChannelData.messages;
+    threads = mockTextChannelData.threads;
+  }
+
+  class MockAttachmentBuilder {
+    attachment: unknown;
+    name: string;
+    constructor(content: unknown, options?: { name?: string }) {
+      this.attachment = content;
+      this.name = options?.name ?? '';
+    }
   }
 
   const mockClient = {
@@ -38,12 +73,20 @@ const {
     channels: {
       fetch: vi.fn(),
     },
-    on: vi.fn((event: string, handler: typeof reactionHandler) => {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       if (event === 'messageReactionAdd') {
-        reactionHandler = handler;
+        reactionHandler = handler as typeof reactionHandler;
+      } else if (event === 'messageCreate') {
+        messageHandler = handler as typeof messageHandler;
+      } else {
+        if (!shardHandlers[event]) {
+          shardHandlers[event] = [];
+        }
+        shardHandlers[event].push(handler);
       }
     }),
     destroy: vi.fn(),
+    user: { id: 'bot-user-id' },
   };
 
   return {
@@ -51,9 +94,20 @@ const {
     mockTextChannelData,
     mockClient,
     MockTextChannel,
+    MockAttachmentBuilder,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
       reactionHandler = handler;
+    },
+    getMessageHandler: () => messageHandler,
+    setMessageHandler: (handler: typeof messageHandler) => {
+      messageHandler = handler;
+    },
+    getShardHandler: (event: string) => shardHandlers[event] ?? [],
+    clearShardHandlers: () => {
+      for (const key of Object.keys(shardHandlers)) {
+        delete shardHandlers[key];
+      }
     },
   };
 });
@@ -65,8 +119,10 @@ vi.mock('discord.js', () => ({
     Guilds: 1,
     GuildMessages: 2,
     GuildMessageReactions: 3,
+    MessageContent: 4,
   },
   TextChannel: MockTextChannel,
+  AttachmentBuilder: MockAttachmentBuilder,
 }));
 
 // Import after mocking
@@ -140,6 +196,8 @@ describe('DiscordChatClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setReactionHandler(null);
+    setMessageHandler(null);
+    clearShardHandlers();
 
     // Clear environment variables
     delete process.env.DISCORD_TOKEN;
@@ -153,6 +211,15 @@ describe('DiscordChatClient', () => {
     mockTextChannelData.send.mockResolvedValue(mockDiscordMessage);
     mockTextChannelData.messages.fetch.mockResolvedValue(mockDiscordMessage);
     mockDiscordMessage.react.mockResolvedValue(undefined);
+    mockDiscordMessage.startThread.mockResolvedValue({ id: 'thread-001', name: 'Test Thread' });
+    mockTextChannelData.sendTyping.mockResolvedValue(undefined);
+    mockTextChannelData.bulkDelete.mockResolvedValue(new Map([['msg-1', {}], ['msg-2', {}]]));
+    mockTextChannelData.threads.fetchActive.mockResolvedValue({
+      threads: new Map([['thread-1', { id: 'thread-1' }]]),
+    });
+    mockTextChannelData.threads.fetchArchived.mockResolvedValue({
+      threads: new Map([['thread-2', { id: 'thread-2' }]]),
+    });
     mockClient.destroy.mockResolvedValue(undefined);
 
     client = new DiscordChatClient(config);
@@ -869,6 +936,359 @@ describe('DiscordChatClient', () => {
       expect(reactions).toHaveLength(1);
       expect(reactions[0].emoji).toBe('2\uFE0F\u20E3');
       expect(reactions[0].user.username).toBe('Voter');
+    });
+  });
+
+  describe('Channel.onMessage()', () => {
+    it('should call callback when a message is received in the channel', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const mockMessage = {
+        id: 'msg-new-1',
+        channelId: channelId,
+        content: 'Hello there',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      expect(handler).not.toBeNull();
+      await handler!(mockMessage);
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('should provide correct MessageEvent data', async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: MessageEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: MessageEvent) => {
+        receivedEvent = event;
+      });
+      channel.onMessage(callback);
+
+      const mockMessage = {
+        id: 'msg-new-1',
+        channelId: channelId,
+        content: 'Hello there',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date('2025-01-01'),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(receivedEvent).not.toBeNull();
+      expect(receivedEvent!.id).toBe('msg-new-1');
+      expect(receivedEvent!.content).toBe('Hello there');
+      expect(receivedEvent!.author).toEqual({ id: 'user-001', username: 'TestUser' });
+      expect(receivedEvent!.channelId).toBe(channelId);
+      expect(receivedEvent!.timestamp).toEqual(new Date('2025-01-01'));
+    });
+
+    it('should ignore messages from the bot itself', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const mockMessage = {
+        id: 'msg-bot-1',
+        channelId: channelId,
+        content: 'Bot message',
+        author: { id: 'bot-user-id', username: 'Bot' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should not call callback for messages in different channels', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const mockMessage = {
+        id: 'msg-other-1',
+        channelId: 'different-channel',
+        content: 'Wrong channel',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should support unsubscribing from messages', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const unsubscribe = channel.onMessage(callback);
+
+      const mockMessage = {
+        id: 'msg-new-1',
+        channelId: channelId,
+        content: 'First message',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      unsubscribe();
+
+      await handler!(mockMessage);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it('should support multiple message callbacks', async () => {
+      const channel = await client.connect(channelId);
+      const callback1 = vi.fn();
+      const callback2 = vi.fn();
+      channel.onMessage(callback1);
+      channel.onMessage(callback2);
+
+      const mockMessage = {
+        id: 'msg-new-1',
+        channelId: channelId,
+        content: 'Hello',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(callback1).toHaveBeenCalledTimes(1);
+      expect(callback2).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle callback errors gracefully', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const channel = await client.connect(channelId);
+      const errorCallback = vi.fn().mockRejectedValue(new Error('Callback error'));
+      const normalCallback = vi.fn();
+      channel.onMessage(errorCallback);
+      channel.onMessage(normalCallback);
+
+      const mockMessage = {
+        id: 'msg-new-1',
+        channelId: channelId,
+        content: 'Hello',
+        author: { id: 'user-001', username: 'TestUser' },
+        createdAt: new Date(),
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      await waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledTimes(1);
+        expect(normalCallback).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Message callback error:', expect.any(Error));
+      });
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('MessageContent intent', () => {
+    it('should include MessageContent in gateway intents', async () => {
+      // Import the mocked Client constructor
+      const discordJs = await import('discord.js');
+      const ClientMock = vi.mocked(discordJs.Client);
+
+      // The Client was constructed in beforeEach when creating DiscordChatClient
+      expect(ClientMock).toHaveBeenCalled();
+      const callArgs = ClientMock.mock.calls[0][0] as { intents: number[] };
+      expect(callArgs.intents).toContain(4); // GatewayIntentBits.MessageContent = 4
+    });
+  });
+
+  describe('Channel.sendTyping()', () => {
+    it('should call sendTyping on the Discord channel', async () => {
+      const channel = await client.connect(channelId);
+      await channel.sendTyping();
+
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('File attachments', () => {
+    it('should post a message with file attachments', async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Here is a report', {
+        files: [{ content: Buffer.from('file content'), name: 'report.md' }],
+      });
+      await waitForMessage(message);
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.content).toBe('Here is a report');
+      expect(sendArgs.files).toHaveLength(1);
+      expect(sendArgs.files[0]).toBeInstanceOf(MockAttachmentBuilder);
+    });
+
+    it('should handle string file content by converting to Buffer', async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Report', {
+        files: [{ content: 'string content', name: 'report.txt' }],
+      });
+      await waitForMessage(message);
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.files).toHaveLength(1);
+    });
+
+    it('should support multiple file attachments', async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Multiple files', {
+        files: [
+          { content: Buffer.from('file 1'), name: 'file1.txt' },
+          { content: Buffer.from('file 2'), name: 'file2.txt' },
+        ],
+      });
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.files).toHaveLength(2);
+    });
+  });
+
+  describe('Message.startThread()', () => {
+    it('should create a thread from a message', async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Start thread here');
+      await waitForMessage(message);
+
+      const thread = await message.startThread('My Thread');
+
+      expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
+        name: 'My Thread',
+        autoArchiveDuration: undefined,
+      });
+      expect(thread.id).toBe('thread-001');
+      expect(thread.platform).toBe('discord');
+    });
+
+    it('should support autoArchiveDuration option', async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage('Thread with options');
+      await waitForMessage(message);
+
+      await message.startThread('Timed Thread', { autoArchiveDuration: 1440 });
+
+      expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
+        name: 'Timed Thread',
+        autoArchiveDuration: 1440,
+      });
+    });
+  });
+
+  describe('Channel.bulkDelete()', () => {
+    it('should delete messages in bulk', async () => {
+      const channel = await client.connect(channelId);
+      const count = await channel.bulkDelete(10);
+
+      expect(mockTextChannelData.bulkDelete).toHaveBeenCalledWith(10, true);
+      expect(count).toBe(2); // Mock returns Map with 2 entries
+    });
+  });
+
+  describe('Channel.getThreads()', () => {
+    it('should return active and archived threads', async () => {
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+
+      expect(mockTextChannelData.threads.fetchActive).toHaveBeenCalled();
+      expect(mockTextChannelData.threads.fetchArchived).toHaveBeenCalled();
+      expect(threads).toHaveLength(2);
+      expect(threads[0].id).toBe('thread-1');
+      expect(threads[1].id).toBe('thread-2');
+      expect(threads[0].platform).toBe('discord');
+    });
+  });
+
+  describe('Connection resilience', () => {
+    it('should register onDisconnect callback', async () => {
+      const callback = vi.fn();
+      const unsubscribe = client.onDisconnect(callback);
+
+      expect(typeof unsubscribe).toBe('function');
+    });
+
+    it('should register onError callback', async () => {
+      const callback = vi.fn();
+      const unsubscribe = client.onError(callback);
+
+      expect(typeof unsubscribe).toBe('function');
+    });
+
+    it('should call disconnect callback on shard disconnect', async () => {
+      await client.connect(channelId);
+      const callback = vi.fn();
+      client.onDisconnect(callback);
+
+      const handlers = getShardHandler('shardDisconnect');
+      expect(handlers.length).toBeGreaterThan(0);
+
+      // Use the last registered handler (from the current client instance)
+      handlers[handlers.length - 1]({}, 0);
+
+      await waitFor(() => {
+        expect(callback).toHaveBeenCalledWith('Shard 0 disconnected');
+      });
+    });
+
+    it('should call error callback on shard error', async () => {
+      await client.connect(channelId);
+      const callback = vi.fn();
+      client.onError(callback);
+
+      const handlers = getShardHandler('shardError');
+      expect(handlers.length).toBeGreaterThan(0);
+
+      const testError = new Error('Connection lost');
+      handlers[handlers.length - 1](testError, 0);
+
+      await waitFor(() => {
+        expect(callback).toHaveBeenCalledWith(testError);
+      });
+    });
+
+    it('should unsubscribe disconnect callbacks', async () => {
+      const callback = vi.fn();
+      const unsubscribe = client.onDisconnect(callback);
+      unsubscribe();
+
+      const handlers = getShardHandler('shardDisconnect');
+      if (handlers.length > 0) {
+        handlers[handlers.length - 1]({}, 0);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should unsubscribe error callbacks', async () => {
+      const callback = vi.fn();
+      const unsubscribe = client.onError(callback);
+      unsubscribe();
+
+      const handlers = getShardHandler('shardError');
+      if (handlers.length > 0) {
+        handlers[handlers.length - 1](new Error('test'), 0);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 });

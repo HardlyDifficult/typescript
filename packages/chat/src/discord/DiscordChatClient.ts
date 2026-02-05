@@ -6,6 +6,9 @@ import {
   type User as DiscordUser,
   type PartialMessageReaction,
   type PartialUser,
+  type Message as DiscordMessage,
+  type PartialMessage,
+  AttachmentBuilder,
 } from 'discord.js';
 import { ChatClient } from '../ChatClient.js';
 import { Channel, type ChannelOperations } from '../Channel.js';
@@ -14,8 +17,15 @@ import type {
   MessageData,
   ReactionCallback,
   ReactionEvent,
+  MessageCallback,
+  MessageEvent,
   User,
   MessageContent,
+  FileAttachment,
+  ThreadData,
+  StartThreadOptions,
+  DisconnectCallback,
+  ErrorCallback,
 } from '../types.js';
 import { toDiscordEmbed, type DiscordEmbed } from '../outputters/discord.js';
 import { isDocument } from '../utils.js';
@@ -26,23 +36,31 @@ import { isDocument } from '../utils.js';
 export class DiscordChatClient extends ChatClient implements ChannelOperations {
   private client: Client;
   private reactionListeners = new Map<string, Set<ReactionCallback>>();
+  private messageListeners = new Map<string, Set<MessageCallback>>();
+  private disconnectCallbacks = new Set<DisconnectCallback>();
+  private errorCallbacks = new Set<ErrorCallback>();
   private readonly token: string;
   private readonly guildId: string;
+  private reconnecting = false;
+  private channelIds = new Set<string>();
 
   constructor(config: DiscordConfig) {
     super(config);
     this.token = config.token ?? process.env.DISCORD_TOKEN ?? '';
     this.guildId = config.guildId ?? process.env.DISCORD_GUILD_ID ?? '';
 
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMessageReactions,
-      ],
-    });
+    const intents = [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMessageReactions,
+      GatewayIntentBits.MessageContent,
+    ];
+
+    this.client = new Client({ intents });
 
     this.setupReactionListener();
+    this.setupMessageListener();
+    this.setupConnectionResilience();
   }
 
   /**
@@ -96,6 +114,121 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Set up the global message listener that routes events to channel-specific callbacks
+   */
+  private setupMessageListener(): void {
+    this.client.on(
+      'messageCreate',
+      (message: DiscordMessage | PartialMessage): void => {
+        void (async (): Promise<void> => {
+          // Ignore messages from the bot itself
+          if (message.author?.id === this.client.user?.id) {
+            return;
+          }
+
+          const channelId = message.channelId;
+          const callbacks = this.messageListeners.get(channelId);
+
+          if (!callbacks || callbacks.size === 0) {
+            return;
+          }
+
+          const author: User = {
+            id: message.author?.id ?? '',
+            username: message.author?.username ?? undefined,
+          };
+
+          const event: MessageEvent = {
+            id: message.id,
+            content: message.content ?? '',
+            author,
+            channelId,
+            timestamp: message.createdAt ?? new Date(),
+          };
+
+          for (const callback of callbacks) {
+            try {
+              await callback(event);
+            } catch (error) {
+              console.error('Message callback error:', error);
+            }
+          }
+        })();
+      },
+    );
+  }
+
+  /**
+   * Set up connection resilience with auto-reconnect
+   */
+  private setupConnectionResilience(): void {
+    this.client.on('shardDisconnect', (_event, shardId) => {
+      const reason = `Shard ${shardId} disconnected`;
+      for (const callback of this.disconnectCallbacks) {
+        void Promise.resolve(callback(reason)).catch((err: unknown) => {
+          console.error('Disconnect callback error:', err);
+        });
+      }
+      void this.attemptReconnect();
+    });
+
+    this.client.on('shardError', (error, shardId) => {
+      const wrappedError =
+        error instanceof Error ? error : new Error(`Shard ${shardId} error: ${String(error)}`);
+      for (const callback of this.errorCallbacks) {
+        void Promise.resolve(callback(wrappedError)).catch((err: unknown) => {
+          console.error('Error callback error:', err);
+        });
+      }
+    });
+
+    this.client.on('shardReconnecting', () => {
+      // discord.js handles reconnection internally; we track state
+      this.reconnecting = true;
+    });
+
+    this.client.on('shardReady', () => {
+      this.reconnecting = false;
+    });
+  }
+
+  /**
+   * Attempt to reconnect with exponential backoff
+   */
+  private async attemptReconnect(): Promise<void> {
+    if (this.reconnecting) {
+      return;
+    }
+    this.reconnecting = true;
+
+    const maxRetries = 5;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      try {
+        await this.client.login(this.token);
+        this.reconnecting = false;
+        return;
+      } catch (error) {
+        console.error(`Reconnection attempt ${attempt + 1} failed:`, error);
+        if (attempt === maxRetries - 1) {
+          this.reconnecting = false;
+          const reconnectError =
+            error instanceof Error
+              ? error
+              : new Error(`Reconnection failed after ${maxRetries} attempts`);
+          for (const callback of this.errorCallbacks) {
+            void Promise.resolve(callback(reconnectError)).catch((err: unknown) => {
+              console.error('Error callback error:', err);
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Connect to Discord and return a channel object
    * @param channelId - Discord channel ID
    * @returns Channel object for interacting with the channel
@@ -109,6 +242,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
+    this.channelIds.add(channelId);
     return new Channel(channelId, 'discord', this);
   }
 
@@ -117,6 +251,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    */
   async disconnect(): Promise<void> {
     this.reactionListeners.clear();
+    this.messageListeners.clear();
+    this.disconnectCallbacks.clear();
+    this.errorCallbacks.clear();
+    this.channelIds.clear();
     await this.client.destroy();
   }
 
@@ -130,7 +268,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string },
+    options?: { threadTs?: string; files?: FileAttachment[] },
   ): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
@@ -141,6 +279,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       content?: string;
       embeds?: DiscordEmbed[];
       messageReference?: { messageId: string };
+      files?: AttachmentBuilder[];
     };
 
     if (isDocument(content)) {
@@ -165,6 +304,17 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     // If threadTs is provided (non-empty), use it as a reply reference
     if (options?.threadTs !== undefined && options.threadTs !== '') {
       messageOptions.messageReference = { messageId: options.threadTs };
+    }
+
+    // Add file attachments
+    if (options?.files && options.files.length > 0) {
+      messageOptions.files = options.files.map(
+        (file) =>
+          new AttachmentBuilder(
+            typeof file.content === 'string' ? Buffer.from(file.content) : file.content,
+            { name: file.name },
+          ),
+      );
     }
 
     const message = await channel.send(messageOptions);
@@ -257,6 +407,141 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       if (callbacks.size === 0) {
         this.reactionListeners.delete(channelId);
       }
+    };
+  }
+
+  /**
+   * Subscribe to incoming message events on a channel
+   * @param channelId - Channel to monitor
+   * @param callback - Function to call when messages are received
+   * @returns Unsubscribe function
+   */
+  subscribeToMessages(channelId: string, callback: MessageCallback): () => void {
+    if (!this.messageListeners.has(channelId)) {
+      this.messageListeners.set(channelId, new Set());
+    }
+
+    const callbacks = this.messageListeners.get(channelId)!;
+    callbacks.add(callback);
+
+    return () => {
+      callbacks.delete(callback);
+      if (callbacks.size === 0) {
+        this.messageListeners.delete(channelId);
+      }
+    };
+  }
+
+  /**
+   * Send a typing indicator in a Discord channel
+   * @param channelId - Channel to send typing indicator in
+   */
+  async sendTyping(channelId: string): Promise<void> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    await channel.sendTyping();
+  }
+
+  /**
+   * Create a thread from a message
+   * @param messageId - Message to create thread from
+   * @param channelId - Channel containing the message
+   * @param name - Thread name
+   * @param options - Optional thread options
+   * @returns Thread data
+   */
+  async startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    options?: StartThreadOptions,
+  ): Promise<ThreadData> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    const message = await channel.messages.fetch(messageId);
+    const thread = await message.startThread({
+      name,
+      autoArchiveDuration: options?.autoArchiveDuration as 60 | 1440 | 4320 | 10080 | undefined,
+    });
+
+    return {
+      id: thread.id,
+      channelId: channelId,
+      platform: 'discord',
+    };
+  }
+
+  /**
+   * Bulk delete messages in a Discord channel
+   * @param channelId - Channel to delete messages from
+   * @param count - Number of recent messages to delete (max 100)
+   * @returns Number of messages actually deleted
+   */
+  async bulkDelete(channelId: string, count: number): Promise<number> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    const deleted = await channel.bulkDelete(count, true);
+    return deleted.size;
+  }
+
+  /**
+   * Get all threads (active and archived) in a Discord channel
+   * @param channelId - Channel to get threads from
+   * @returns Array of thread data
+   */
+  async getThreads(channelId: string): Promise<ThreadData[]> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+    }
+
+    const threads: ThreadData[] = [];
+
+    // Fetch active threads
+    const activeThreads = await channel.threads.fetchActive();
+    for (const [threadId] of activeThreads.threads) {
+      threads.push({ id: threadId, channelId, platform: 'discord' });
+    }
+
+    // Fetch archived threads
+    const archivedThreads = await channel.threads.fetchArchived();
+    for (const [threadId] of archivedThreads.threads) {
+      threads.push({ id: threadId, channelId, platform: 'discord' });
+    }
+
+    return threads;
+  }
+
+  /**
+   * Register a callback for disconnect events
+   * @param callback - Function to call when disconnected
+   * @returns Unsubscribe function
+   */
+  onDisconnect(callback: DisconnectCallback): () => void {
+    this.disconnectCallbacks.add(callback);
+    return () => {
+      this.disconnectCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Register a callback for error events
+   * @param callback - Function to call when an error occurs
+   * @returns Unsubscribe function
+   */
+  onError(callback: ErrorCallback): () => void {
+    this.errorCallbacks.add(callback);
+    return () => {
+      this.errorCallbacks.delete(callback);
     };
   }
 }

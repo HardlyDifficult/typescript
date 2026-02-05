@@ -1,4 +1,15 @@
-import type { Platform, ReactionCallback, MessageData, MessageContent } from './types';
+import type {
+  Platform,
+  ReactionCallback,
+  MessageCallback,
+  MessageData,
+  MessageContent,
+  FileAttachment,
+  ThreadData,
+  StartThreadOptions,
+  DisconnectCallback,
+  ErrorCallback,
+} from './types';
 import { Message, type MessageOperations } from './Message';
 
 /**
@@ -8,12 +19,24 @@ export interface ChannelOperations {
   postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string },
+    options?: { threadTs?: string; files?: FileAttachment[] },
   ): Promise<MessageData>;
   updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;
   subscribeToReactions(channelId: string, callback: ReactionCallback): () => void;
+  subscribeToMessages(channelId: string, callback: MessageCallback): () => void;
+  sendTyping(channelId: string): Promise<void>;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    options?: StartThreadOptions,
+  ): Promise<ThreadData>;
+  bulkDelete(channelId: string, count: number): Promise<number>;
+  getThreads(channelId: string): Promise<ThreadData[]>;
+  onDisconnect(callback: DisconnectCallback): () => void;
+  onError(callback: ErrorCallback): () => void;
 }
 
 /**
@@ -41,10 +64,13 @@ export class Channel {
   /**
    * Post a message to this channel
    * @param content - Message content (string or Document)
-   * @param options - Optional message options (e.g., threadTs for threading)
+   * @param options - Optional message options (e.g., threadTs for threading, files for attachments)
    * @returns Message object with chainable reaction methods
    */
-  postMessage(content: MessageContent, options?: { threadTs?: string }): Message {
+  postMessage(
+    content: MessageContent,
+    options?: { threadTs?: string; files?: FileAttachment[] },
+  ): Message {
     const messagePromise = this.operations.postMessage(this.id, content, options);
 
     // Create a Message that will resolve once the post completes
@@ -107,7 +133,46 @@ export class Channel {
         this.operations.postMessage(channelId, content, { threadTs }),
       subscribeToReactions: (messageId: string, callback: ReactionCallback) =>
         this.subscribeToMessageReactions(messageId, callback),
+      startThread: (
+        messageId: string,
+        channelId: string,
+        name: string,
+        options?: StartThreadOptions,
+      ) => this.operations.startThread(messageId, channelId, name, options),
     };
+  }
+
+  /**
+   * Subscribe to incoming messages in this channel
+   * @param callback - Function called when a new message is received
+   * @returns Unsubscribe function
+   */
+  onMessage(callback: MessageCallback): () => void {
+    return this.operations.subscribeToMessages(this.id, callback);
+  }
+
+  /**
+   * Send a typing indicator in this channel
+   */
+  async sendTyping(): Promise<void> {
+    await this.operations.sendTyping(this.id);
+  }
+
+  /**
+   * Bulk delete messages in this channel
+   * @param count - Number of recent messages to delete
+   * @returns Number of messages actually deleted
+   */
+  async bulkDelete(count: number): Promise<number> {
+    return this.operations.bulkDelete(this.id, count);
+  }
+
+  /**
+   * Get all threads in this channel (active and archived)
+   * @returns Array of thread data
+   */
+  async getThreads(): Promise<ThreadData[]> {
+    return this.operations.getThreads(this.id);
   }
 
   /**

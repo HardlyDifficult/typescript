@@ -1,4 +1,11 @@
-import type { MessageData, MessageContent, Platform, ReactionCallback } from './types';
+import type {
+  MessageData,
+  MessageContent,
+  Platform,
+  ReactionCallback,
+  ThreadData,
+  StartThreadOptions,
+} from './types';
 
 /**
  * Interface for the platform-specific reaction adder
@@ -15,6 +22,12 @@ export interface MessageOperations extends ReactionAdder {
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData>;
   subscribeToReactions(messageId: string, callback: ReactionCallback): () => void;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    options?: StartThreadOptions,
+  ): Promise<ThreadData>;
 }
 
 /**
@@ -89,6 +102,19 @@ export class Message {
   postReply(content: MessageContent): ReplyMessage {
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
     return new ReplyMessage(replyPromise, this.operations, this.platform);
+  }
+
+  /**
+   * Create a thread from this message
+   * @param name - Thread name
+   * @param options - Optional thread options
+   * @returns Channel-like object for posting into the thread
+   */
+  async startThread(
+    name: string,
+    options?: StartThreadOptions,
+  ): Promise<ThreadData> {
+    return this.operations.startThread(this.id, this.channelId, name, options);
   }
 
   /**
