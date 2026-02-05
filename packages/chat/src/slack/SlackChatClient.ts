@@ -10,14 +10,7 @@ import type {
   MessageContent,
 } from '../types.js';
 import { toSlackBlocks, type SlackBlock } from '../outputters/slack.js';
-import type { Document } from '@hardlydifficult/documentGenerator';
-
-/**
- * Helper function to check if content is a Document
- */
-function isDocument(content: MessageContent): content is Document {
-  return typeof content !== 'string' && 'getBlocks' in content;
-}
+import { isDocument } from '../utils.js';
 
 /**
  * Slack chat client implementation using @slack/bolt
@@ -152,17 +145,6 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       channel: channelId,
       ts: messageId,
     });
-  }
-
-  /**
-   * Post a reply in a thread
-   */
-  async postReply(
-    channelId: string,
-    threadTs: string,
-    content: MessageContent,
-  ): Promise<MessageData> {
-    return this.postMessage(channelId, content, { threadTs });
   }
 
   /**

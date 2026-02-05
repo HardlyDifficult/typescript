@@ -18,14 +18,7 @@ import type {
   MessageContent,
 } from '../types.js';
 import { toDiscordEmbed, type DiscordEmbed } from '../outputters/discord.js';
-import type { Document } from '@hardlydifficult/documentGenerator';
-
-/**
- * Helper function to check if content is a Document
- */
-function isDocument(content: MessageContent): content is Document {
-  return typeof content !== 'string' && 'getBlocks' in content;
-}
+import { isDocument } from '../utils.js';
 
 /**
  * Discord chat client implementation using discord.js
@@ -223,21 +216,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
     const message = await channel.messages.fetch(messageId);
     await message.delete();
-  }
-
-  /**
-   * Post a reply in a thread
-   * @param channelId - Channel to post to
-   * @param threadTs - Thread message ID to reply to
-   * @param content - Message content (string or Document)
-   * @returns Message data with ID
-   */
-  async postReply(
-    channelId: string,
-    threadTs: string,
-    content: MessageContent,
-  ): Promise<MessageData> {
-    return this.postMessage(channelId, content, { threadTs });
   }
 
   /**
