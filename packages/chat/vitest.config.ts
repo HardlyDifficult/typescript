@@ -11,7 +11,7 @@ export default defineConfig({
     passWithNoTests: false,
     // Shorter teardown timeout
     teardownTimeout: 500,
-    // Force exit after completion
+    // Maximum time for test lifecycle hooks (beforeEach, afterEach, etc.)
     hookTimeout: 5000,
   },
 });

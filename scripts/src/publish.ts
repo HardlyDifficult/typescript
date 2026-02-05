@@ -203,6 +203,9 @@ function getLastTag(packageName: string): string | null {
  * Handles both:
  * - file:../packageName references (transforms to real version)
  * - version numbers that need updating
+ *
+ * Note: peerDependencies are excluded from file: transformations since they
+ * should use version ranges for compatibility, not exact versions.
  */
 function updateInternalDependencies(pkg: Package, publishedVersions: Map<string, string>): boolean {
   const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
@@ -219,6 +222,15 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
     for (const [depName, currentVersion] of Object.entries(deps)) {
       // Check if this is a file: reference to a monorepo package
       if (currentVersion.startsWith('file:')) {
+        // Skip file: transformations for peerDependencies - they should use
+        // version ranges for compatibility, not exact versions
+        if (depType === 'peerDependencies') {
+          console.warn(
+            `  Warning: ${depName} in peerDependencies uses file: reference. ` +
+              `Consider using a version range instead.`,
+          );
+          continue;
+        }
         const newVersion = publishedVersions.get(depName);
         if (newVersion !== undefined && newVersion !== '') {
           // eslint-disable-next-line no-console
