@@ -28,20 +28,11 @@ export class Throttle {
   }
 
   /**
-   * Execute a task with throttling.
+   * Wait until the minimum delay has elapsed since the last operation.
    *
-   * If called too soon after the previous execution, this will delay
-   * until the minimum delay has elapsed.
-   *
-   * @param task - The async task to execute
-   * @returns The result of the task
+   * Call this before each operation to ensure rate limiting.
    */
-  async run<T>(task: () => Promise<T>): Promise<T> {
-    await this.delayIfNeeded();
-    return task();
-  }
-
-  private async delayIfNeeded(): Promise<void> {
+  async wait(): Promise<void> {
     const now = Date.now();
     const target = Math.max(now, this.lastTimestamp + this.minimumDelayMs);
     const delay = target - now;

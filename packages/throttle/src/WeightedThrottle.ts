@@ -1,4 +1,4 @@
-import { StateTracker } from '@hardlydifficult/state';
+import { StateTracker } from '@hardlydifficult/state-tracker';
 
 /**
  * Information passed to the onSleep callback.

@@ -13,7 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hardlydifficult/state": "file:../state"
+    "@hardlydifficult/state-tracker": "file:../state-tracker"
   },
   "devDependencies": {
     "@types/node": "20.19.31",
@@ -21,7 +21,7 @@
     "vitest": "1.6.1"
   },
   "peerDependencies": {
-    "@hardlydifficult/state": ">=1.0.0"
+    "@hardlydifficult/state-tracker": ">=1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

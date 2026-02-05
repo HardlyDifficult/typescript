@@ -5,7 +5,7 @@ Rate limiting utilities with optional state persistence.
 ## Installation
 
 ```bash
-npm install @hardlydifficult/throttle @hardlydifficult/state
+npm install @hardlydifficult/throttle @hardlydifficult/state-tracker
 ```
 
 ## Usage
@@ -22,9 +22,12 @@ const throttle = new Throttle({
   onSleep: (ms) => console.log(`Waiting ${ms}ms`),
 });
 
-// Execute tasks with throttling
-const result1 = await throttle.run(() => fetch('/api/data'));
-const result2 = await throttle.run(() => fetch('/api/more')); // Waits if needed
+// Wait before each operation
+await throttle.wait();
+await fetch('/api/data');
+
+await throttle.wait(); // Waits if needed
+await fetch('/api/more');
 ```
 
 ### WeightedThrottle
@@ -59,4 +62,4 @@ for (const batch of batches) {
 
 ## Peer Dependencies
 
-This package requires `@hardlydifficult/state` for the `WeightedThrottle` persistence feature.
+This package requires `@hardlydifficult/state-tracker` for the `WeightedThrottle` persistence feature.

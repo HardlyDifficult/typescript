@@ -8,6 +8,8 @@ Focused, opinionated, easy-to-use npm packages.
 |---------|-------------|
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
 | [@hardlydifficult/document-generator](./packages/documentGenerator) | Platform-agnostic document builder |
+| [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
+| [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 
 ## GitHub Actions Setup
 
