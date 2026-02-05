@@ -1,6 +1,6 @@
 # @hardlydifficult/document-generator
 
-Platform-agnostic document builder with chainable API. Build rich documents once, output to multiple formats.
+Platform-agnostic document builder with chainable API.
 
 ## Installation
 
