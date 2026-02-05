@@ -41,13 +41,14 @@ interface Package {
 }
 
 function exec(command: string, options: ExecOptions = {}): string {
+  // eslint-disable-next-line no-console
   console.log(`$ ${command}`);
   try {
-    const { ignoreError, ...execOptions } = options;
+    const { ignoreError: _ignoreError, ...execOptions } = options;
     const result = execSync(command, { encoding: 'utf-8', stdio: 'pipe', ...execOptions });
     return typeof result === 'string' ? result.trim() : '';
   } catch (error) {
-    if (options.ignoreError) {
+    if (options.ignoreError === true) {
       return '';
     }
     throw error;
@@ -70,7 +71,7 @@ function getPackages(): Package[] {
     const packageJsonPath = join(packagePath, 'package.json');
     try {
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
-      if (packageJson.private) {
+      if (packageJson.private === true) {
         continue;
       }
       packages.push({
@@ -140,7 +141,7 @@ function sortByDependencyOrder(packages: Package[]): Package[] {
   const sorted: string[] = [];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (!current) {
+    if (current === undefined) {
       break;
     }
     sorted.push(current);
@@ -172,7 +173,7 @@ function sortByDependencyOrder(packages: Package[]): Package[] {
 }
 
 function hasChanges(packagePath: string, lastTag: string | null): boolean {
-  if (!lastTag) {
+  if (lastTag === null || lastTag === '') {
     return true;
   }
 
@@ -219,7 +220,8 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
       // Check if this is a file: reference to a monorepo package
       if (currentVersion.startsWith('file:')) {
         const newVersion = publishedVersions.get(depName);
-        if (newVersion) {
+        if (newVersion !== undefined && newVersion !== '') {
+          // eslint-disable-next-line no-console
           console.log(`  Transforming ${depName}: ${currentVersion} → ${newVersion}`);
           deps[depName] = newVersion;
           updated = true;
@@ -228,7 +230,8 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
       // Check if this is a version that needs updating
       else {
         const newVersion = publishedVersions.get(depName);
-        if (newVersion && currentVersion !== newVersion) {
+        if (newVersion !== undefined && newVersion !== '' && currentVersion !== newVersion) {
+          // eslint-disable-next-line no-console
           console.log(`  Updating ${depName}: ${currentVersion} → ${newVersion}`);
           deps[depName] = newVersion;
           updated = true;
@@ -244,10 +247,11 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
   return updated;
 }
 
-async function main(): Promise<void> {
+function main(): void {
   const packages = getPackages();
 
   if (packages.length === 0) {
+    // eslint-disable-next-line no-console
     console.log('No publishable packages found.');
     return;
   }
@@ -255,8 +259,10 @@ async function main(): Promise<void> {
   // Sort packages so dependencies are published first
   const sortedPackages = sortByDependencyOrder(packages);
 
-  console.log(`Found ${packages.length} package(s) (in publish order):`);
+  // eslint-disable-next-line no-console
+  console.log(`Found ${String(packages.length)} package(s) (in publish order):`);
   sortedPackages.forEach((p, i) => {
+    // eslint-disable-next-line no-console
     console.log(`  ${String(i + 1)}. ${p.name}`);
   });
 
@@ -264,6 +270,7 @@ async function main(): Promise<void> {
   const publishedVersions = new Map<string, string>();
 
   for (const pkg of sortedPackages) {
+    // eslint-disable-next-line no-console
     console.log(`\n--- Processing ${pkg.name} ---`);
 
     const lastTag = getLastTag(pkg.name);
@@ -273,21 +280,25 @@ async function main(): Promise<void> {
     const depsUpdated = updateInternalDependencies(pkg, publishedVersions);
 
     if (!changed && !depsUpdated) {
-      console.log(`No changes since last publish (${lastTag}). Skipping.`);
+      // eslint-disable-next-line no-console
+      console.log(`No changes since last publish (${lastTag ?? 'none'}). Skipping.`);
       continue;
     }
 
     if (depsUpdated && !changed) {
+      // eslint-disable-next-line no-console
       console.log('Internal dependencies updated. Publishing new version.');
     } else {
+      // eslint-disable-next-line no-console
       console.log(
-        lastTag
+        lastTag !== null && lastTag !== ''
           ? `Changes detected since ${lastTag}.`
           : 'No previous tag found. Publishing initial version.',
       );
     }
 
     // Increment version
+    // eslint-disable-next-line no-console
     console.log('Incrementing patch version...');
     exec(`npm version patch --no-git-tag-version`, { cwd: pkg.path });
 
@@ -296,15 +307,18 @@ async function main(): Promise<void> {
       readFileSync(pkg.packageJsonPath, 'utf-8'),
     ) as PackageJson;
     const newVersion = updatedPackageJson.version;
+    // eslint-disable-next-line no-console
     console.log(`New version: ${newVersion}`);
 
     // Track this version for dependent packages
     publishedVersions.set(pkg.name, newVersion);
 
     // Publish
+    // eslint-disable-next-line no-console
     console.log('Publishing to npm...');
     try {
       exec(`npm publish --access public`, { cwd: pkg.path });
+      // eslint-disable-next-line no-console
       console.log(`Successfully published ${pkg.name}@${newVersion}`);
 
       // Create and push git tag
@@ -312,6 +326,7 @@ async function main(): Promise<void> {
       const tagName = `${safeName}-v${newVersion}`;
       exec(`git tag ${tagName}`);
       exec(`git push origin ${tagName}`);
+      // eslint-disable-next-line no-console
       console.log(`Created and pushed tag: ${tagName}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -320,10 +335,13 @@ async function main(): Promise<void> {
     }
   }
 
+  // eslint-disable-next-line no-console
   console.log('\nDone!');
 }
 
-main().catch((error: unknown) => {
+try {
+  main();
+} catch (error: unknown) {
   console.error('Publish failed:', error);
   process.exit(1);
-});
+}
