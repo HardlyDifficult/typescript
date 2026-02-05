@@ -21,9 +21,7 @@ describe('WeightedThrottle', () => {
 
   describe('constructor', () => {
     it('should throw for non-positive unitsPerSecond', () => {
-      expect(() => new WeightedThrottle({ unitsPerSecond: 0 })).toThrow(
-        'positive unitsPerSecond',
-      );
+      expect(() => new WeightedThrottle({ unitsPerSecond: 0 })).toThrow('positive unitsPerSecond');
       expect(() => new WeightedThrottle({ unitsPerSecond: -10 })).toThrow(
         'positive unitsPerSecond',
       );
@@ -85,7 +83,7 @@ describe('WeightedThrottle', () => {
 
       // Second call
       const promise = throttle.wait(25);
-      
+
       expect(onSleep).toHaveBeenCalledWith(
         expect.any(Number),
         expect.objectContaining({
