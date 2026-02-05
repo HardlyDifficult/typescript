@@ -14,12 +14,12 @@ npm install @hardlydifficult/documentGenerator
 import { doc, toMarkdown, toPlainText } from '@hardlydifficult/documentGenerator';
 
 const document = doc()
-  .header('Weekly Report')
-  .text('Summary of this week's **key highlights**.')
-  .list(['Completed feature A', 'Fixed bug B', 'Started project C'])
+  .header("Weekly Report")
+  .text("Summary of this week's **key highlights**.")
+  .list(["Completed feature A", "Fixed bug B", "Started project C"])
   .divider()
-  .link('View details', 'https://example.com')
-  .context('Generated on 2025-01-15');
+  .link("View details", "https://example.com")
+  .context("Generated on 2025-01-15");
 
 // Output as markdown
 console.log(toMarkdown(document.getBlocks()));
@@ -120,10 +120,10 @@ const client = createChatClient({ type: 'slack' });
 const channel = await client.connect(channelId);
 
 const report = doc()
-  .header('Daily Metrics')
-  .text('Here are today's **key numbers**:')
-  .list(['Users: 1,234', 'Revenue: $5,678', 'Errors: 0'])
-  .context('Generated automatically');
+  .header("Daily Metrics")
+  .text("Here are today's **key numbers**:")
+  .list(["Users: 1,234", "Revenue: $5,678", "Errors: 0"])
+  .context("Generated automatically");
 
 // Automatically converted to Slack Block Kit
 await channel.postMessage(report);

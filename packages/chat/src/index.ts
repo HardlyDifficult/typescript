@@ -21,10 +21,6 @@ export { Message, ReplyMessage, type MessageOperations } from './Message.js';
 export { DiscordChatClient } from './discord/index.js';
 export { SlackChatClient } from './slack/index.js';
 
-// Outputters (for direct use if needed)
-export { toSlackBlocks, type SlackBlock, type SlackTextObject } from './outputters/slack.js';
-export { toDiscordEmbed, type DiscordEmbed, type DiscordEmbedField } from './outputters/discord.js';
-
 // Factory
 import type { ChatConfig } from './types.js';
 import { ChatClient } from './ChatClient.js';

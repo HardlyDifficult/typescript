@@ -60,7 +60,9 @@ function checkPackageJson(filePath: string): DependencyError[] {
 
   for (const field of DEPENDENCY_FIELDS) {
     const deps = pkg[field];
-    if (!deps) continue;
+    if (!deps) {
+      continue;
+    }
 
     for (const [name, version] of Object.entries(deps)) {
       if (UNPINNED_PATTERN.test(version)) {

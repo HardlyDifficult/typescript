@@ -24,7 +24,7 @@ export class Channel {
   public readonly platform: Platform;
 
   private operations: ChannelOperations;
-  private reactionCallbacks = new Set<ReactionCallback>();
+  private messageReactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private unsubscribeFromPlatform: (() => void) | null = null;
 
   constructor(id: string, platform: Platform, operations: ChannelOperations) {
@@ -32,7 +32,7 @@ export class Channel {
     this.platform = platform;
     this.operations = operations;
 
-    // Subscribe to platform reactions and forward to our callbacks
+    // Subscribe to platform reactions and forward to message-specific callbacks
     this.unsubscribeFromPlatform = this.operations.subscribeToReactions(id, (event) =>
       this.emitReaction(event),
     );
@@ -57,27 +57,39 @@ export class Channel {
   }
 
   /**
-   * Register a callback for reaction events on this channel
-   * @param callback - Function called when users add reactions
-   * @returns Unsubscribe function
-   */
-  onReaction(callback: ReactionCallback): () => void {
-    this.reactionCallbacks.add(callback);
-    return () => {
-      this.reactionCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * Emit a reaction event to all registered callbacks
+   * Emit a reaction event to registered message-specific callbacks
    */
   private async emitReaction(event: Parameters<ReactionCallback>[0]): Promise<void> {
-    const promises = Array.from(this.reactionCallbacks).map((cb) =>
+    const callbacks = this.messageReactionCallbacks.get(event.messageId);
+    if (!callbacks) {
+      return;
+    }
+    const promises = Array.from(callbacks).map((cb) =>
       Promise.resolve(cb(event)).catch((err: unknown) => {
         console.error('Reaction callback error:', err);
       }),
     );
     await Promise.all(promises);
+  }
+
+  /**
+   * Subscribe to reactions for a specific message
+   * @internal Used by Message.onReaction
+   */
+  private subscribeToMessageReactions(messageId: string, callback: ReactionCallback): () => void {
+    let callbacks = this.messageReactionCallbacks.get(messageId);
+    if (!callbacks) {
+      callbacks = new Set();
+      this.messageReactionCallbacks.set(messageId, callbacks);
+    }
+    callbacks.add(callback);
+
+    return () => {
+      callbacks.delete(callback);
+      if (callbacks.size === 0) {
+        this.messageReactionCallbacks.delete(messageId);
+      }
+    };
   }
 
   /**
@@ -93,6 +105,8 @@ export class Channel {
         this.operations.deleteMessage(messageId, channelId),
       postReply: async (channelId: string, threadTs: string, content: MessageContent) =>
         this.operations.postMessage(channelId, content, { threadTs }),
+      subscribeToReactions: (messageId: string, callback: ReactionCallback) =>
+        this.subscribeToMessageReactions(messageId, callback),
     };
   }
 
@@ -104,7 +118,7 @@ export class Channel {
       this.unsubscribeFromPlatform();
       this.unsubscribeFromPlatform = null;
     }
-    this.reactionCallbacks.clear();
+    this.messageReactionCallbacks.clear();
   }
 }
 
@@ -114,6 +128,7 @@ export class Channel {
  */
 class PendingMessage extends Message {
   private postPromise: Promise<MessageData>;
+  private deferredReactionCallbacks: ReactionCallback[] = [];
 
   constructor(
     postPromise: Promise<MessageData>,
@@ -124,13 +139,19 @@ class PendingMessage extends Message {
     super({ id: '', channelId: '', platform }, operations);
     this.postPromise = postPromise;
 
-    // Update our data when the post resolves
+    // Update our data when the post resolves and subscribe any deferred listeners
     this.postPromise
       .then((data) => {
         // Update the readonly properties via Object.defineProperty
         Object.defineProperty(this, 'id', { value: data.id });
         Object.defineProperty(this, 'channelId', { value: data.channelId });
         Object.defineProperty(this, 'platform', { value: data.platform });
+
+        // Subscribe deferred reaction callbacks now that we have the message ID
+        for (const callback of this.deferredReactionCallbacks) {
+          const unsubscribe = this.operations.subscribeToReactions(data.id, callback);
+          this.reactionUnsubscribers.push(unsubscribe);
+        }
       })
       .catch(() => {
         // Errors handled via wait()
@@ -149,6 +170,14 @@ class PendingMessage extends Message {
         this.operations.addReaction(this.id, this.channelId, emoji),
       );
     }
+    return this;
+  }
+
+  /**
+   * Override onReaction to defer subscription until post completes
+   */
+  override onReaction(callback: ReactionCallback): this {
+    this.deferredReactionCallbacks.push(callback);
     return this;
   }
 

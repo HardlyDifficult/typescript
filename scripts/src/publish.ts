@@ -140,7 +140,9 @@ function sortByDependencyOrder(packages: Package[]): Package[] {
   const sorted: string[] = [];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (!current) break;
+    if (!current) {
+      break;
+    }
     sorted.push(current);
 
     const dependents = graph.get(current);
@@ -209,7 +211,9 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
 
   for (const depType of depTypes) {
     const deps = packageJson[depType];
-    if (!deps) continue;
+    if (!deps) {
+      continue;
+    }
 
     for (const [depName, currentVersion] of Object.entries(deps)) {
       // Check if this is a file: reference to a monorepo package
@@ -252,7 +256,9 @@ async function main(): Promise<void> {
   const sortedPackages = sortByDependencyOrder(packages);
 
   console.log(`Found ${packages.length} package(s) (in publish order):`);
-  sortedPackages.forEach((p, i) => console.log(`  ${String(i + 1)}. ${p.name}`));
+  sortedPackages.forEach((p, i) => {
+    console.log(`  ${String(i + 1)}. ${p.name}`);
+  });
 
   // Track versions we've published this run
   const publishedVersions = new Map<string, string>();
@@ -286,7 +292,9 @@ async function main(): Promise<void> {
     exec(`npm version patch --no-git-tag-version`, { cwd: pkg.path });
 
     // Read new version
-    const updatedPackageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
+    const updatedPackageJson = JSON.parse(
+      readFileSync(pkg.packageJsonPath, 'utf-8'),
+    ) as PackageJson;
     const newVersion = updatedPackageJson.version;
     console.log(`New version: ${newVersion}`);
 

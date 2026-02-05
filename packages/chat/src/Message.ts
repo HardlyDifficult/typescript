@@ -1,4 +1,4 @@
-import type { MessageData, MessageContent, Platform } from './types.js';
+import type { MessageData, MessageContent, Platform, ReactionCallback } from './types.js';
 
 /**
  * Interface for the platform-specific reaction adder
@@ -14,6 +14,7 @@ export interface MessageOperations extends ReactionAdder {
   updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData>;
+  subscribeToReactions(messageId: string, callback: ReactionCallback): () => void;
 }
 
 /**
@@ -26,6 +27,7 @@ export class Message {
 
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
+  protected reactionUnsubscribers: (() => void)[] = [];
 
   constructor(data: MessageData, operations: MessageOperations) {
     this.id = data.id;
@@ -46,6 +48,37 @@ export class Message {
       );
     }
     return this;
+  }
+
+  /**
+   * Listen for reactions on this message
+   * @param callback - Function called when users add reactions to this message
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * await channel
+   *   .postMessage("Vote: (1) Pizza, (2) Burgers, (3) Salad")
+   *   .addReactions(["1️⃣", "2️⃣", "3️⃣"])
+   *   .onReaction((event) => {
+   *     console.log(`${event.user.username} voted ${event.emoji}`);
+   *   });
+   * ```
+   */
+  onReaction(callback: ReactionCallback): this {
+    const unsubscribe = this.operations.subscribeToReactions(this.id, callback);
+    this.reactionUnsubscribers.push(unsubscribe);
+    return this;
+  }
+
+  /**
+   * Stop listening for reactions on this message
+   */
+  offReaction(): void {
+    for (const unsub of this.reactionUnsubscribers) {
+      unsub();
+    }
+    this.reactionUnsubscribers = [];
   }
 
   /**
@@ -94,6 +127,7 @@ export class Message {
  */
 export class ReplyMessage extends Message {
   private replyPromise: Promise<MessageData>;
+  private deferredReactionCallbacks: ReactionCallback[] = [];
 
   constructor(
     replyPromise: Promise<MessageData>,
@@ -104,12 +138,18 @@ export class ReplyMessage extends Message {
     super({ id: '', channelId: '', platform }, operations);
     this.replyPromise = replyPromise;
 
-    // Update our data when the reply completes
+    // Update our data when the reply completes and subscribe any deferred listeners
     this.replyPromise
       .then((data) => {
         Object.defineProperty(this, 'id', { value: data.id });
         Object.defineProperty(this, 'channelId', { value: data.channelId });
         Object.defineProperty(this, 'platform', { value: data.platform });
+
+        // Subscribe deferred reaction callbacks now that we have the message ID
+        for (const callback of this.deferredReactionCallbacks) {
+          const unsubscribe = this.operations.subscribeToReactions(data.id, callback);
+          this.reactionUnsubscribers.push(unsubscribe);
+        }
       })
       .catch(() => {
         // Errors handled via wait()
@@ -128,6 +168,14 @@ export class ReplyMessage extends Message {
         this.operations.addReaction(this.id, this.channelId, emoji),
       );
     }
+    return this;
+  }
+
+  /**
+   * Override onReaction to defer subscription until reply completes
+   */
+  override onReaction(callback: ReactionCallback): this {
+    this.deferredReactionCallbacks.push(callback);
     return this;
   }
 

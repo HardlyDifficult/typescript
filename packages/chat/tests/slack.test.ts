@@ -492,29 +492,19 @@ describe('SlackChatClient', () => {
     });
   });
 
-  describe('Channel.onReaction()', () => {
-    it('should register callbacks', async () => {
+  describe('Message.onReaction()', () => {
+    it('should call callback when reaction is added to message', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
-      channel.onReaction(callback);
-
-      // Verify callback is registered by checking handler exists
-      expect(getReactionHandler()).not.toBeNull();
-    });
-
-    it('should call callback when reaction_added event is emitted', async () => {
-      const channel = await client.connect(channelId);
-      const callback = vi.fn();
-      channel.onReaction(callback);
-
-      // Simulate a reaction_added event
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -522,10 +512,31 @@ describe('SlackChatClient', () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
+    it('should not call callback for reactions on different messages', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
+
+      // Simulate a reaction on a DIFFERENT message
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: 'thumbsup',
+          user: 'U123456',
+          item: { channel: channelId, ts: 'different-message-ts' },
+          event_ts: '1609459200.000000',
+        },
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
     it('should provide correct User object with id', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const userId = 'U987654321';
       const handler = getReactionHandler();
@@ -533,7 +544,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'heart',
           user: userId,
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -552,14 +563,15 @@ describe('SlackChatClient', () => {
     it('should provide correct emoji in the event', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'rocket',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -571,34 +583,35 @@ describe('SlackChatClient', () => {
     it('should provide correct messageId in the event', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
-      const messageTs = '9999999999.999999';
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: messageTs },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
 
       const callArg = callback.mock.calls[0][0] as ReactionEvent;
-      expect(callArg.messageId).toBe(messageTs);
+      expect(callArg.messageId).toBe(message.id);
     });
 
     it('should provide correct channelId in the event', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -610,7 +623,8 @@ describe('SlackChatClient', () => {
     it('should provide correct timestamp in the event', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const eventTs = '1609459200.123456';
       const handler = getReactionHandler();
@@ -618,7 +632,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: eventTs,
         },
       });
@@ -627,10 +641,11 @@ describe('SlackChatClient', () => {
       expect(callArg.timestamp).toEqual(new Date(parseFloat(eventTs) * 1000));
     });
 
-    it('should return unsubscribe function that works', async () => {
+    it('should allow offReaction to stop listening', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      const unsubscribe = channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
 
@@ -639,22 +654,22 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
 
-      // Unsubscribe
-      unsubscribe();
+      // Stop listening
+      message.offReaction();
 
       // Second event should NOT trigger callback
       await handler!({
         event: {
           reaction: 'heart',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -662,73 +677,25 @@ describe('SlackChatClient', () => {
       expect(callback).toHaveBeenCalledTimes(1); // Still 1, not 2
     });
 
-    it('should support multiple callbacks', async () => {
+    it('should support multiple callbacks on same message', async () => {
       const channel = await client.connect(channelId);
       const callback1 = vi.fn();
       const callback2 = vi.fn();
-      const callback3 = vi.fn();
-
-      channel.onReaction(callback1);
-      channel.onReaction(callback2);
-      channel.onReaction(callback3);
+      const message = channel.postMessage('Test').onReaction(callback1).onReaction(callback2);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
 
       expect(callback1).toHaveBeenCalledTimes(1);
       expect(callback2).toHaveBeenCalledTimes(1);
-      expect(callback3).toHaveBeenCalledTimes(1);
-    });
-
-    it('should only unsubscribe the specific callback', async () => {
-      const channel = await client.connect(channelId);
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      const unsubscribe1 = channel.onReaction(callback1);
-      channel.onReaction(callback2);
-
-      // Unsubscribe only callback1
-      unsubscribe1();
-
-      const handler = getReactionHandler();
-      await handler!({
-        event: {
-          reaction: 'thumbsup',
-          user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
-          event_ts: '1609459200.000000',
-        },
-      });
-
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalledTimes(1);
-    });
-
-    it('should not call callbacks for different channels', async () => {
-      const channel = await client.connect(channelId);
-      const callback = vi.fn();
-      channel.onReaction(callback);
-
-      // Event for a different channel
-      const handler = getReactionHandler();
-      await handler!({
-        event: {
-          reaction: 'thumbsup',
-          user: 'U123456',
-          item: { channel: 'C_DIFFERENT_CHANNEL', ts: '1234567890.123456' },
-          event_ts: '1609459200.000000',
-        },
-      });
-
-      expect(callback).not.toHaveBeenCalled();
     });
 
     it('should handle async callbacks', async () => {
@@ -740,14 +707,15 @@ describe('SlackChatClient', () => {
         results.push(1);
       });
 
-      channel.onReaction(asyncCallback);
+      const message = channel.postMessage('Test').onReaction(asyncCallback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -758,43 +726,68 @@ describe('SlackChatClient', () => {
 
     it('should handle callback errors gracefully', async () => {
       const channel = await client.connect(channelId);
-      // Use an async callback that rejects - the implementation catches rejected promises
-      // (Note: sync throws are caught inside Promise.resolve() but propagate during map)
       const errorCallback = vi.fn().mockImplementation(async () => {
         throw new Error('Callback error');
       });
       const normalCallback = vi.fn();
 
-      // Spy on console.error to verify it's called
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      channel.onReaction(errorCallback);
-      channel.onReaction(normalCallback);
+      const message = channel
+        .postMessage('Test')
+        .onReaction(errorCallback)
+        .onReaction(normalCallback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
 
-      // Both callbacks should have been called
       expect(errorCallback).toHaveBeenCalledTimes(1);
       expect(normalCallback).toHaveBeenCalledTimes(1);
       expect(consoleErrorSpy).toHaveBeenCalled();
 
       consoleErrorSpy.mockRestore();
     });
+
+    it('should be chainable with addReactions', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+
+      const message = channel
+        .postMessage('Vote!')
+        .addReactions(['thumbsup', 'thumbsdown'])
+        .onReaction(callback);
+      await waitForMessage(message);
+
+      expect(mockReactionsAdd).toHaveBeenCalledTimes(2);
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: 'thumbsup',
+          user: 'U123456',
+          item: { channel: channelId, ts: message.id },
+          event_ts: '1609459200.000000',
+        },
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Channel.disconnect()', () => {
-    it('should clear reaction callbacks when channel is disconnected', async () => {
+    it('should clear message reaction callbacks when channel is disconnected', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       // Disconnect the channel
       channel.disconnect();
@@ -805,7 +798,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -819,7 +812,9 @@ describe('SlackChatClient', () => {
     it('should add callback to reaction callbacks map', async () => {
       await client.connect(channelId);
       const callback = vi.fn();
+      const messageId = '1234567890.123456';
 
+      // Subscribe at channel level - gets ALL reactions in the channel
       client.subscribeToReactions(channelId, callback);
 
       // Trigger event to verify callback was registered
@@ -828,7 +823,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: messageId },
           event_ts: '1609459200.000000',
         },
       });
@@ -839,6 +834,7 @@ describe('SlackChatClient', () => {
     it('should return unsubscribe function', async () => {
       await client.connect(channelId);
       const callback = vi.fn();
+      const messageId = '1234567890.123456';
 
       const unsubscribe = client.subscribeToReactions(channelId, callback);
       unsubscribe();
@@ -848,7 +844,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: messageId },
           event_ts: '1609459200.000000',
         },
       });
@@ -858,11 +854,13 @@ describe('SlackChatClient', () => {
 
     it('should support multiple subscriptions to different channels', async () => {
       await client.connect(channelId);
-      const channel1Id = 'C1111111111';
-      const channel2Id = 'C2222222222';
+      const channel1Id = 'C111111111';
+      const channel2Id = 'C222222222';
+      const messageId = '1234567890.123456';
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
+      // Subscribe to different channels
       client.subscribeToReactions(channel1Id, callback1);
       client.subscribeToReactions(channel2Id, callback2);
 
@@ -873,7 +871,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'thumbsup',
           user: 'U123456',
-          item: { channel: channel1Id, ts: '1234567890.123456' },
+          item: { channel: channel1Id, ts: messageId },
           event_ts: '1609459200.000000',
         },
       });
@@ -886,7 +884,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'heart',
           user: 'U123456',
-          item: { channel: channel2Id, ts: '1234567890.123456' },
+          item: { channel: channel2Id, ts: messageId },
           event_ts: '1609459200.000000',
         },
       });
@@ -917,14 +915,15 @@ describe('SlackChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'star',
           user: 'U123456',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -939,14 +938,15 @@ describe('SlackChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const handler = getReactionHandler();
       await handler!({
         event: {
           reaction: 'star',
           user: 'U654321',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });
@@ -1007,15 +1007,16 @@ describe('SlackChatClient', () => {
     it('should support posting a message with reactions and listening for reactions', async () => {
       const channel = await client.connect(channelId);
 
-      // Set up reaction listener
+      // Set up reaction listener on message
       const reactions: ReactionEvent[] = [];
-      channel.onReaction((event) => {
-        reactions.push(event);
-      });
 
-      // Post a message with reactions
-      const message = channel.postMessage('Pick a number:');
-      message.addReactions(['one', 'two', 'three']);
+      // Post a message with reactions and listener
+      const message = channel
+        .postMessage('Pick a number:')
+        .addReactions(['one', 'two', 'three'])
+        .onReaction((event) => {
+          reactions.push(event);
+        });
       await waitForMessage(message);
 
       expect(mockPostMessage).toHaveBeenCalledTimes(1);
@@ -1027,7 +1028,7 @@ describe('SlackChatClient', () => {
         event: {
           reaction: 'two',
           user: 'U_VOTER',
-          item: { channel: channelId, ts: '1234567890.123456' },
+          item: { channel: channelId, ts: message.id },
           event_ts: '1609459200.000000',
         },
       });

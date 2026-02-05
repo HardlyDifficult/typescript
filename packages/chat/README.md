@@ -11,23 +11,22 @@ npm install @hardlydifficult/chat
 ## Quick Start
 
 ```typescript
-import { createChatClient } from '@hardlydifficult/chat';
+import { createChatClient } from "@hardlydifficult/chat";
 
 // Uses DISCORD_TOKEN and DISCORD_GUILD_ID env vars
-const client = createChatClient({ type: 'discord' });
+const client = createChatClient({ type: "discord" });
 
 // Or for Slack: uses SLACK_BOT_TOKEN and SLACK_APP_TOKEN env vars
-const client = createChatClient({ type: 'slack' });
+const client = createChatClient({ type: "slack" });
 
 const channel = await client.connect(channelId);
 
 await channel
-  .postMessage('Vote: (1) Pizza, (2) Burgers, (3) Salad')
-  .addReactions(['1️⃣', '2️⃣', '3️⃣']);
-
-channel.onReaction((event) => {
-  console.log(`${event.user.username} voted ${event.emoji}`);
-});
+  .postMessage("Vote: (1) Pizza, (2) Burgers, (3) Salad")
+  .addReactions(["1️⃣", "2️⃣", "3️⃣"])
+  .onReaction((event) => {
+    console.log(`${event.user.username} voted ${event.emoji}`);
+  });
 ```
 
 ## Rich Documents
@@ -42,12 +41,12 @@ const client = createChatClient({ type: 'slack' });
 const channel = await client.connect(channelId);
 
 const report = doc()
-  .header('Daily Report')
-  .text('Here are today's **highlights**:')
-  .list(['Feature A completed', 'Bug B fixed', '99.9% uptime'])
+  .header("Daily Report")
+  .text("Here are today's **highlights**:")
+  .list(["Feature A completed", "Bug B fixed", "99.9% uptime"])
   .divider()
-  .link('View dashboard', 'https://example.com/dashboard')
-  .context('Generated automatically');
+  .link("View dashboard", "https://example.com/dashboard")
+  .context("Generated automatically");
 
 // Automatically converted to Slack Block Kit / Discord Embed
 await channel.postMessage(report);
@@ -81,19 +80,18 @@ msg.postReply(doc().text('Rich reply with **formatting**'));
 ### Reactions
 
 ```typescript
-// Add reactions (chainable)
-const msg = channel
-  .postMessage('Pick one')
-  .addReactions(['👍', '👎'])
-  .addReactions(['🤷']);
+// Add reactions and listen for user votes (chainable)
+await channel
+  .postMessage("Pick one")
+  .addReactions(["👍", "👎", "🤷"])
+  .onReaction((event) => {
+    console.log(`${event.user.username} reacted with ${event.emoji}`);
+  });
 
-// Wait for reactions to complete
+// Or wait for reactions to be added before continuing
+const msg = await channel.postMessage("Loading...").wait();
+msg.addReactions(["✅"]);
 await msg.waitForReactions();
-
-// Listen for user reactions
-channel.onReaction((event) => {
-  console.log(`${event.user.username} reacted with ${event.emoji}`);
-});
 ```
 
 ## API Reference
@@ -138,40 +136,27 @@ Delete the message.
 
 Wait for all pending reactions to complete.
 
-### `channel.onReaction(callback): () => void`
+### `message.onReaction(callback): Message`
 
-Listen for reactions. Returns unsubscribe function.
+Listen for reactions on this message. Chainable.
 
 ```typescript
-const unsubscribe = channel.onReaction((event) => {
-  // event.emoji, event.user.id, event.user.username, 
-  // event.messageId, event.channelId, event.timestamp
-});
+channel
+  .postMessage("Vote!")
+  .addReactions(["👍", "👎"])
+  .onReaction((event) => {
+    // event.emoji, event.user.id, event.user.username,
+    // event.messageId, event.channelId, event.timestamp
+  });
 ```
+
+### `message.offReaction(): void`
+
+Stop listening for reactions on this message.
 
 ### `client.disconnect(): Promise<void>`
 
 Disconnect from the platform.
-
-## Custom Outputters
-
-For advanced use cases, convert documents to platform-specific formats:
-
-```typescript
-import { doc } from '@hardlydifficult/documentGenerator';
-import { toSlackBlocks, toDiscordEmbed } from '@hardlydifficult/chat';
-
-const document = doc()
-  .header('Alert')
-  .text('Something **important** happened')
-  .context('2025-01-15');
-
-// Get Slack Block Kit JSON
-const slackBlocks = toSlackBlocks(document.getBlocks());
-
-// Get Discord Embed object
-const discordEmbed = toDiscordEmbed(document.getBlocks());
-```
 
 ## Platform Setup
 
@@ -193,30 +178,29 @@ const discordEmbed = toDiscordEmbed(document.getBlocks());
 ## Example: Interactive Poll
 
 ```typescript
-import { createChatClient } from '@hardlydifficult/chat';
-import { doc } from '@hardlydifficult/documentGenerator';
+import { createChatClient } from "@hardlydifficult/chat";
+import { doc } from "@hardlydifficult/documentGenerator";
 
-const client = createChatClient({ type: 'discord' });
+const client = createChatClient({ type: "discord" });
 const channel = await client.connect(process.env.CHANNEL_ID);
 
-const options = ['Pizza', 'Burgers', 'Salad'];
-const emojis = ['1️⃣', '2️⃣', '3️⃣'];
+const options = ["Pizza", "Burgers", "Salad"];
+const emojis = ["1️⃣", "2️⃣", "3️⃣"];
 const votes: Record<string, string> = {};
 
 const pollDoc = doc()
-  .header('🗳️ Lunch Poll')
-  .text('What should we order?')
+  .header("🗳️ Lunch Poll")
+  .text("What should we order?")
   .list(options.map((o, i) => `${emojis[i]} ${o}`));
 
-const msg = await channel.postMessage(pollDoc).addReactions(emojis);
-
-channel.onReaction((event) => {
-  if (event.messageId !== msg.id) return;
-
-  const choice = options[emojis.indexOf(event.emoji)];
-  if (choice) {
-    votes[event.user.id] = choice;
-    console.log(`${event.user.username} voted for ${choice}`);
-  }
-});
+await channel
+  .postMessage(pollDoc)
+  .addReactions(emojis)
+  .onReaction((event) => {
+    const choice = options[emojis.indexOf(event.emoji)];
+    if (choice) {
+      votes[event.user.id] = choice;
+      console.log(`${event.user.username} voted for ${choice}`);
+    }
+  });
 ```

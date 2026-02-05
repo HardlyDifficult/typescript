@@ -7,6 +7,7 @@ Focused, opinionated, easy-to-use npm packages.
 | Package | Description |
 |---------|-------------|
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
+| [@hardlydifficult/documentGenerator](./packages/documentGenerator) | Platform-agnostic document builder |
 
 ## GitHub Actions Setup
 
