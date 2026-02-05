@@ -1,5 +1,5 @@
-// Main class
-export { Document } from './Document.js';
+// Main class and factory
+export { Document, doc } from './Document.js';
 
 // Types
 export type {
@@ -13,6 +13,12 @@ export type {
   CodeBlock,
   ImageBlock,
   Platform,
+  // Document options
+  DocumentOptions,
+  DocumentSection,
+  KeyValueOptions,
+  TruncatedListOptions,
+  TimestampOptions,
 } from './types.js';
 
 // Outputters (for direct use)
