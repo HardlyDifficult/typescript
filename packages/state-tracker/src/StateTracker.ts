@@ -10,10 +10,8 @@ export interface StateTrackerOptions {
   key: string;
   /** Property name to use in JSON file (default: "value") */
   propertyName?: string;
-  /** Directory to store state files (default: ~/.app-state) */
+  /** Directory to store state files (default: ~/.app-state or STATE_TRACKER_DIR env var) */
   stateDirectory?: string;
-  /** If true, log on every save (default: false) */
-  verbose?: boolean;
 }
 
 /**
@@ -28,10 +26,7 @@ export interface StateTrackerOptions {
  */
 export class StateTracker<T = number> {
   private readonly filePath: string;
-  private readonly key: string;
   private readonly propertyName: string;
-  private readonly verbose: boolean;
-  private readonly stateDirectory: string;
 
   /**
    * Sanitize the key to prevent path traversal and unsafe filenames.
@@ -42,8 +37,6 @@ export class StateTracker<T = number> {
     if (trimmed === '') {
       throw new Error('StateTracker key must be a non-empty string');
     }
-    // Whitelist: only allow [A-Za-z0-9_-] to avoid path traversal and
-    // filesystem-specific special characters (including null bytes).
     if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
       throw new Error(
         'StateTracker key contains invalid characters (only alphanumeric, hyphens, and underscores allowed)',
@@ -66,18 +59,13 @@ export class StateTracker<T = number> {
 
   constructor(options: StateTrackerOptions) {
     const sanitizedKey = StateTracker.sanitizeKey(options.key);
-    this.key = sanitizedKey;
     this.propertyName = options.propertyName ?? 'value';
-    this.verbose = options.verbose ?? false;
-    this.stateDirectory = options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
-    this.ensureStateDir();
-    this.filePath = path.join(this.stateDirectory, `${sanitizedKey}.json`);
-  }
+    const stateDirectory = options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
 
-  private ensureStateDir(): void {
-    if (!fs.existsSync(this.stateDirectory)) {
-      fs.mkdirSync(this.stateDirectory, { recursive: true });
+    if (!fs.existsSync(stateDirectory)) {
+      fs.mkdirSync(stateDirectory, { recursive: true });
     }
+    this.filePath = path.join(stateDirectory, `${sanitizedKey}.json`);
   }
 
   /**
@@ -88,10 +76,6 @@ export class StateTracker<T = number> {
    */
   load(defaultValue: T): T {
     if (!fs.existsSync(this.filePath)) {
-      if (this.verbose) {
-        // eslint-disable-next-line no-console
-        console.log(`No previous state found for ${this.key}, starting from default`);
-      }
       return defaultValue;
     }
     try {
@@ -99,24 +83,10 @@ export class StateTracker<T = number> {
       const state = JSON.parse(data) as Record<string, unknown>;
       const value = state[this.propertyName];
       if (value === undefined) {
-        if (this.verbose) {
-          console.error(`Invalid state for ${this.key}: missing ${this.propertyName}`);
-        }
         return defaultValue;
       }
-      const lastUpdated = state.lastUpdated as string | undefined;
-      if (this.verbose) {
-        // eslint-disable-next-line no-console
-        console.log(
-          `Resuming from ${this.propertyName} (last updated: ${lastUpdated ?? 'unknown'}) from ${this.filePath}`,
-        );
-      }
       return value as T;
-    } catch (error) {
-      console.error(
-        `Failed to load state ${this.key}, starting from default:`,
-        error instanceof Error ? error.message : 'Unknown error',
-      );
+    } catch {
       return defaultValue;
     }
   }
@@ -127,25 +97,14 @@ export class StateTracker<T = number> {
    * @param value - The value to persist
    */
   save(value: T): void {
-    try {
-      const state: Record<string, unknown> = {
-        [this.propertyName]: value,
-        lastUpdated: new Date().toISOString(),
-      };
-      // Atomic write: write to temp file then rename
-      const tempFilePath = `${this.filePath}.tmp`;
-      fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), 'utf-8');
-      fs.renameSync(tempFilePath, this.filePath);
-      if (this.verbose) {
-        // eslint-disable-next-line no-console
-        console.log(`Saved state ${this.key}: ${this.propertyName}=${String(value)}`);
-      }
-    } catch (error) {
-      console.error(
-        `Failed to save state ${this.key}:`,
-        error instanceof Error ? error.message : 'Unknown error',
-      );
-    }
+    const state: Record<string, unknown> = {
+      [this.propertyName]: value,
+      lastUpdated: new Date().toISOString(),
+    };
+    // Atomic write: write to temp file then rename
+    const tempFilePath = `${this.filePath}.tmp`;
+    fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), 'utf-8');
+    fs.renameSync(tempFilePath, this.filePath);
   }
 
   /**
