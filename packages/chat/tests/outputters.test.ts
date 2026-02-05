@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { toSlackBlocks } from '../src/outputters/slack.js';
 import { toDiscordEmbed } from '../src/outputters/discord.js';
-import type { Block } from '@hardlydifficult/documentGenerator';
+import type { Block } from '@hardlydifficult/document-generator';
 
 describe('toSlackBlocks', () => {
   it('should convert header block correctly', () => {
