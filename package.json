@@ -11,10 +11,10 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "lint": "eslint --config .config/eslint.config.js packages/ scripts/src/",
-    "lint:fix": "eslint --config .config/eslint.config.js packages/ scripts/src/ --fix",
-    "format": "prettier --config .config/prettier.config.js --write \"packages/**/*.ts\" \"scripts/**/*.ts\"",
-    "format:check": "prettier --config .config/prettier.config.js --check \"packages/**/*.ts\" \"scripts/**/*.ts\"",
+    "lint": "eslint --config .config/eslint.config.js packages/",
+    "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
+    "format": "prettier --config .config/prettier.config.js --write \"packages/**/*.ts\"",
+    "format:check": "prettier --config .config/prettier.config.js --check \"packages/**/*.ts\"",
     "clean": "turbo run clean"
   },
   "devDependencies": {
@@ -22,7 +22,6 @@
     "@types/node": "20.19.31",
     "eslint": "9.28.0",
     "prettier": "3.5.3",
-    "tsx": "4.19.4",
     "turbo": "2.8.2",
     "typescript": "5.8.3",
     "typescript-eslint": "8.33.1"
