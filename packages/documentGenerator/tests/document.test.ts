@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Document, doc } from '../src/index.js';
+import { Document } from '../src/index.js';
 
 describe('Document', () => {
   describe('constructor', () => {
@@ -255,25 +255,6 @@ describe('Document', () => {
       const blocks = document.getBlocks();
       // header(1) + section(header+divider=2) + text(1) + context(divider+text=2) = 6
       expect(blocks).toHaveLength(6);
-    });
-  });
-
-  describe('doc() factory function', () => {
-    it('creates empty document', () => {
-      const document = doc();
-      expect(document).toBeInstanceOf(Document);
-      expect(document.isEmpty()).toBe(true);
-    });
-
-    it('creates document with options', () => {
-      const document = doc({ header: 'Test' });
-      expect(document).toBeInstanceOf(Document);
-      expect(document.getBlocks()[0]).toEqual({ type: 'header', text: 'Test' });
-    });
-
-    it('is chainable', () => {
-      const document = doc().header('Title').text('Content');
-      expect(document.getBlocks()).toHaveLength(2);
     });
   });
 

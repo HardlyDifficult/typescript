@@ -353,15 +353,3 @@ export class Document {
     return outputPlainText(this.blocks);
   }
 }
-
-/**
- * Factory function to create a new Document.
- *
- * @example
- * ```typescript
- * const message = doc().header('Title').text('Content');
- * ```
- */
-export function doc(options?: DocumentOptions): Document {
-  return new Document(options);
-}

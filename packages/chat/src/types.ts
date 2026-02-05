@@ -1,15 +1,4 @@
-import { Document } from '@hardlydifficult/document-generator';
-
-// Re-export Document and related types from document-generator
-export {
-  Document,
-  doc,
-  type DocumentOptions,
-  type DocumentSection,
-  type KeyValueOptions,
-  type TruncatedListOptions,
-  type TimestampOptions,
-} from '@hardlydifficult/document-generator';
+import type { Document } from '@hardlydifficult/document-generator';
 
 /**
  * Configuration for Discord client

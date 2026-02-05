@@ -9,14 +9,6 @@ export {
   type ReactionCallback,
   type MessageContent,
   type PostMessageOptions,
-  // Document and related types (from document-generator)
-  Document,
-  doc,
-  type DocumentOptions,
-  type DocumentSection,
-  type KeyValueOptions,
-  type TruncatedListOptions,
-  type TimestampOptions,
 } from './types';
 
 // Core classes
