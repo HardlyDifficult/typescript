@@ -1,17 +1,17 @@
-# @hardlydifficult/documentGenerator
+# @hardlydifficult/document-generator
 
 Platform-agnostic document builder with chainable API. Build rich documents once, output to multiple formats.
 
 ## Installation
 
 ```bash
-npm install @hardlydifficult/documentGenerator
+npm install @hardlydifficult/document-generator
 ```
 
 ## Quick Start
 
 ```typescript
-import { doc, toMarkdown, toPlainText } from '@hardlydifficult/documentGenerator';
+import { doc, toMarkdown, toPlainText } from '@hardlydifficult/document-generator';
 
 const document = doc()
   .header("Weekly Report")
@@ -113,7 +113,7 @@ type Block =
 Documents integrate seamlessly with the chat package for Slack and Discord:
 
 ```typescript
-import { doc } from '@hardlydifficult/documentGenerator';
+import { doc } from '@hardlydifficult/document-generator';
 import { createChatClient } from '@hardlydifficult/chat';
 
 const client = createChatClient({ type: 'slack' });

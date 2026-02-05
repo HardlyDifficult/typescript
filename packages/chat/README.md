@@ -31,10 +31,10 @@ await channel
 
 ## Rich Documents
 
-Post rich, formatted messages using the `@hardlydifficult/documentGenerator` package:
+Post rich, formatted messages using the `@hardlydifficult/document-generator` package:
 
 ```typescript
-import { doc } from '@hardlydifficult/documentGenerator';
+import { doc } from '@hardlydifficult/document-generator';
 import { createChatClient } from '@hardlydifficult/chat';
 
 const client = createChatClient({ type: 'slack' });
@@ -179,7 +179,7 @@ Disconnect from the platform.
 
 ```typescript
 import { createChatClient } from "@hardlydifficult/chat";
-import { doc } from "@hardlydifficult/documentGenerator";
+import { doc } from "@hardlydifficult/document-generator";
 
 const client = createChatClient({ type: "discord" });
 const channel = await client.connect(process.env.CHANNEL_ID);

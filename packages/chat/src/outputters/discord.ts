@@ -1,4 +1,4 @@
-import type { Block } from '@hardlydifficult/documentGenerator';
+import type { Block } from '@hardlydifficult/document-generator';
 
 export interface DiscordEmbedField {
   name: string;

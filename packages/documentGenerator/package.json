@@ -1,5 +1,5 @@
 {
-  "name": "@hardlydifficult/documentGenerator",
+  "name": "@hardlydifficult/document-generator",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

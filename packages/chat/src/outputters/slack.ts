@@ -1,5 +1,5 @@
-import type { Block } from '@hardlydifficult/documentGenerator';
-import { convertMarkdown } from '@hardlydifficult/documentGenerator';
+import type { Block } from '@hardlydifficult/document-generator';
+import { convertMarkdown } from '@hardlydifficult/document-generator';
 
 /**
  * Slack Block Kit text object
