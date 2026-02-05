@@ -243,73 +243,21 @@ export class Document {
    * ```typescript
    * doc.timestamp(); // 🕐 2024-02-04T12:00:00.000Z
    * doc.timestamp({ emoji: false }); // 2024-02-04T12:00:00.000Z
-   * doc.timestamp({ prefix: 'Generated' }); // Generated 2024-02-04T...
+   * doc.timestamp({ label: 'Generated' }); // Generated 2024-02-04T...
    * ```
    */
   timestamp(options: TimestampOptions = {}): this {
-    const { date = new Date(), emoji = true, prefix } = options;
+    const { date = new Date(), emoji = true, label } = options;
     const iso = date.toISOString();
     let text: string;
-    if (prefix !== undefined && prefix !== '') {
-      text = `${prefix} ${iso}`;
+    if (label !== undefined && label !== '') {
+      text = `${label} ${iso}`;
     } else if (emoji) {
       text = `🕐 ${iso}`;
     } else {
       text = iso;
     }
     return this.context(text);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Conditional and iteration methods
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Conditionally add content to the document.
-   *
-   * @example
-   * ```typescript
-   * doc.if(hasErrors, d => d.section('Errors').list(errors));
-   * ```
-   */
-  if(condition: boolean, callback: (doc: this) => void): this {
-    if (condition) {
-      callback(this);
-    }
-    return this;
-  }
-
-  /**
-   * Add content only if the array is not empty.
-   *
-   * @example
-   * ```typescript
-   * doc.ifNotEmpty(warnings, (d, items) => d.section('Warnings').list(items));
-   * ```
-   */
-  ifNotEmpty<T>(items: T[], callback: (doc: this, items: T[]) => void): this {
-    if (items.length > 0) {
-      callback(this, items);
-    }
-    return this;
-  }
-
-  /**
-   * Iterate over items and add content for each.
-   *
-   * @example
-   * ```typescript
-   * doc.forEach(users, (d, user, i) => d.text(`${i + 1}. ${user.name}`));
-   * ```
-   */
-  forEach<T>(
-    items: T[],
-    callback: (doc: this, item: T, index: number) => void
-  ): this {
-    items.forEach((item, i) => {
-      callback(this, item, i);
-    });
-    return this;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

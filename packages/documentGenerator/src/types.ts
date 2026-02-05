@@ -92,6 +92,6 @@ export interface TimestampOptions {
   date?: Date;
   /** Include clock emoji. Default: true */
   emoji?: boolean;
-  /** Custom prefix text */
-  prefix?: string;
+  /** Custom label text */
+  label?: string;
 }

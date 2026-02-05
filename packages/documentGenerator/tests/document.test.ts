@@ -428,7 +428,7 @@ describe('Document', () => {
     });
 
     it('supports custom prefix', () => {
-      const document = new Document().timestamp({ prefix: 'Generated at' });
+      const document = new Document().timestamp({ label: 'Generated at' });
       expect(document.getBlocks()[0]).toEqual({
         type: 'context',
         text: 'Generated at 2024-02-04T12:00:00.000Z',
@@ -442,73 +442,6 @@ describe('Document', () => {
         type: 'context',
         text: '🕐 2025-01-01T00:00:00.000Z',
       });
-    });
-  });
-
-  describe('if()', () => {
-    it('executes callback when condition is true', () => {
-      const document = new Document().if(true, (d) => d.text('Added'));
-      expect(document.getBlocks()).toHaveLength(1);
-      expect(document.getBlocks()[0]).toEqual({ type: 'text', content: 'Added' });
-    });
-
-    it('skips callback when condition is false', () => {
-      const document = new Document().if(false, (d) => d.text('Not added'));
-      expect(document.getBlocks()).toHaveLength(0);
-    });
-
-    it('is chainable', () => {
-      const document = new Document()
-        .text('Before')
-        .if(true, (d) => d.text('Middle'))
-        .text('After');
-      expect(document.getBlocks()).toHaveLength(3);
-    });
-  });
-
-  describe('ifNotEmpty()', () => {
-    it('executes callback when array has items', () => {
-      const items = ['a', 'b'];
-      const document = new Document().ifNotEmpty(items, (d, arr) => d.list(arr));
-      expect(document.getBlocks()).toHaveLength(1);
-      expect(document.getBlocks()[0]).toEqual({ type: 'list', items: ['a', 'b'] });
-    });
-
-    it('skips callback when array is empty', () => {
-      const document = new Document().ifNotEmpty([], (d) => d.text('Not added'));
-      expect(document.getBlocks()).toHaveLength(0);
-    });
-
-    it('passes items to callback', () => {
-      const items = [1, 2, 3];
-      let receivedItems: number[] = [];
-      new Document().ifNotEmpty(items, (_, arr) => {
-        receivedItems = arr;
-      });
-      expect(receivedItems).toEqual([1, 2, 3]);
-    });
-  });
-
-  describe('forEach()', () => {
-    it('iterates over items', () => {
-      const items = ['a', 'b', 'c'];
-      const document = new Document().forEach(items, (d, item) => d.text(item));
-      expect(document.getBlocks()).toHaveLength(3);
-      expect(document.getBlocks()[0]).toEqual({ type: 'text', content: 'a' });
-      expect(document.getBlocks()[1]).toEqual({ type: 'text', content: 'b' });
-      expect(document.getBlocks()[2]).toEqual({ type: 'text', content: 'c' });
-    });
-
-    it('provides index to callback', () => {
-      const items = ['a', 'b'];
-      const document = new Document().forEach(items, (d, item, i) => d.text(`${i}: ${item}`));
-      expect(document.getBlocks()[0]).toEqual({ type: 'text', content: '0: a' });
-      expect(document.getBlocks()[1]).toEqual({ type: 'text', content: '1: b' });
-    });
-
-    it('handles empty array', () => {
-      const document = new Document().forEach([], (d) => d.text('never'));
-      expect(document.getBlocks()).toHaveLength(0);
     });
   });
 
