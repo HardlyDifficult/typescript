@@ -4,12 +4,13 @@ import * as path from 'path';
 
 /**
  * Options for configuring a StateTracker instance.
+ * The type T is inferred from the `default` property.
  */
-export interface StateTrackerOptions {
+export interface StateTrackerOptions<T> {
   /** Unique identifier for this state (e.g., "myapp-offset-mainnet") */
   key: string;
-  /** Property name to use in JSON file (default: "value") */
-  propertyName?: string;
+  /** Default value returned when no persisted state exists or loading fails */
+  default: T;
   /** Directory to store state files (default: ~/.app-state or STATE_TRACKER_DIR env var) */
   stateDirectory?: string;
 }
@@ -22,11 +23,22 @@ export interface StateTrackerOptions {
  * - The files are small (< 100 bytes typically)
  * - Synchronous writes ensure consistency without complex async coordination
  *
- * @typeParam T - The type of value to persist (default: number)
+ * ## Durability Guarantee
+ *
+ * StateTracker uses atomic writes (write to temp file, then rename) to ensure
+ * previously persisted state is never lost, even if the process crashes:
+ *
+ * - If a crash occurs before or during `save()`, the previous state file remains intact
+ * - If a crash occurs after `save()` completes, the new state is fully persisted
+ * - The only data that can be lost is an update that was in progress but didn't complete
+ *
+ * This guarantee relies on the atomicity of `rename()` on POSIX filesystems.
+ *
+ * @typeParam T - The type of value to persist, inferred from the `default` option
  */
-export class StateTracker<T = number> {
+export class StateTracker<T> {
   private readonly filePath: string;
-  private readonly propertyName: string;
+  private readonly defaultValue: T;
 
   /**
    * Sanitize the key to prevent path traversal and unsafe filenames.
@@ -57,9 +69,9 @@ export class StateTracker<T = number> {
     return path.join(os.homedir(), '.app-state');
   }
 
-  constructor(options: StateTrackerOptions) {
+  constructor(options: StateTrackerOptions<T>) {
     const sanitizedKey = StateTracker.sanitizeKey(options.key);
-    this.propertyName = options.propertyName ?? 'value';
+    this.defaultValue = options.default;
     const stateDirectory = options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
 
     if (!fs.existsSync(stateDirectory)) {
@@ -71,37 +83,40 @@ export class StateTracker<T = number> {
   /**
    * Load the persisted state value from disk.
    *
-   * @param defaultValue - Value to return if no persisted state exists or if loading fails
-   * @returns The persisted value or the default value
+   * @returns The persisted value, or the default value if no state exists or loading fails
    */
-  load(defaultValue: T): T {
+  load(): T {
     if (!fs.existsSync(this.filePath)) {
-      return defaultValue;
+      return this.defaultValue;
     }
     try {
       const data = fs.readFileSync(this.filePath, 'utf-8');
       const state = JSON.parse(data) as Record<string, unknown>;
-      const value = state[this.propertyName];
+      const value = state.value;
       if (value === undefined) {
-        return defaultValue;
+        return this.defaultValue;
       }
       return value as T;
     } catch {
-      return defaultValue;
+      return this.defaultValue;
     }
   }
 
   /**
    * Save a state value to disk.
    *
+   * Uses atomic write (temp file + rename) to ensure durability.
+   * Previously persisted state is never lost, even on crash.
+   *
    * @param value - The value to persist
    */
   save(value: T): void {
     const state: Record<string, unknown> = {
-      [this.propertyName]: value,
+      value: value,
       lastUpdated: new Date().toISOString(),
     };
     // Atomic write: write to temp file then rename
+    // This ensures the main file is never in a partially-written state
     const tempFilePath = `${this.filePath}.tmp`;
     fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), 'utf-8');
     fs.renameSync(tempFilePath, this.filePath);

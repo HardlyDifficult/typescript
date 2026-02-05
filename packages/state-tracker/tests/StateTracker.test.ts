@@ -24,35 +24,35 @@ describe('StateTracker', () => {
       const stateDir = path.join(testDir, 'nested', 'state');
       expect(fs.existsSync(stateDir)).toBe(false);
 
-      new StateTracker({ key: 'test', stateDirectory: stateDir });
+      new StateTracker({ key: 'test', default: 0, stateDirectory: stateDir });
 
       expect(fs.existsSync(stateDir)).toBe(true);
     });
 
     it('should reject keys with invalid characters', () => {
-      expect(() => new StateTracker({ key: '../evil', stateDirectory: testDir })).toThrow(
-        'invalid characters',
-      );
-      expect(() => new StateTracker({ key: 'foo/bar', stateDirectory: testDir })).toThrow(
-        'invalid characters',
-      );
-      expect(() => new StateTracker({ key: 'foo\\bar', stateDirectory: testDir })).toThrow(
-        'invalid characters',
-      );
+      expect(
+        () => new StateTracker({ key: '../evil', default: 0, stateDirectory: testDir }),
+      ).toThrow('invalid characters');
+      expect(
+        () => new StateTracker({ key: 'foo/bar', default: 0, stateDirectory: testDir }),
+      ).toThrow('invalid characters');
+      expect(
+        () => new StateTracker({ key: 'foo\\bar', default: 0, stateDirectory: testDir }),
+      ).toThrow('invalid characters');
       // Also reject special characters
-      expect(() => new StateTracker({ key: 'foo.bar', stateDirectory: testDir })).toThrow(
-        'invalid characters',
-      );
-      expect(() => new StateTracker({ key: 'foo@bar', stateDirectory: testDir })).toThrow(
-        'invalid characters',
-      );
+      expect(
+        () => new StateTracker({ key: 'foo.bar', default: 0, stateDirectory: testDir }),
+      ).toThrow('invalid characters');
+      expect(
+        () => new StateTracker({ key: 'foo@bar', default: 0, stateDirectory: testDir }),
+      ).toThrow('invalid characters');
     });
 
     it('should reject empty keys', () => {
-      expect(() => new StateTracker({ key: '', stateDirectory: testDir })).toThrow(
+      expect(() => new StateTracker({ key: '', default: 0, stateDirectory: testDir })).toThrow(
         'non-empty string',
       );
-      expect(() => new StateTracker({ key: '   ', stateDirectory: testDir })).toThrow(
+      expect(() => new StateTracker({ key: '   ', default: 0, stateDirectory: testDir })).toThrow(
         'non-empty string',
       );
     });
@@ -60,56 +60,55 @@ describe('StateTracker', () => {
 
   describe('load', () => {
     it('should return default value when no state file exists', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
-      const value = tracker.load(42);
+      const tracker = new StateTracker({ key: 'test', default: 42, stateDirectory: testDir });
+      const value = tracker.load();
       expect(value).toBe(42);
     });
 
     it('should load saved numeric value', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
+      const tracker = new StateTracker({ key: 'test', default: 0, stateDirectory: testDir });
       tracker.save(100);
 
-      const value = tracker.load(0);
+      const value = tracker.load();
       expect(value).toBe(100);
     });
 
-    it('should use custom property name', () => {
+    it('should always use value property in JSON file', () => {
       const tracker = new StateTracker({
         key: 'test',
+        default: 0,
         stateDirectory: testDir,
-        propertyName: 'lastOffset',
       });
       tracker.save(200);
 
-      // Verify the file uses the custom property name
+      // Verify the file uses "value" property
       const filePath = tracker.getFilePath();
       const content = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
-      expect(content.lastOffset).toBe(200);
-      expect(content.value).toBeUndefined();
+      expect(content.value).toBe(200);
     });
 
     it('should return default for corrupted JSON', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
+      const tracker = new StateTracker({ key: 'test', default: 999, stateDirectory: testDir });
       const filePath = tracker.getFilePath();
       fs.writeFileSync(filePath, 'not valid json{{{', 'utf-8');
 
-      const value = tracker.load(999);
+      const value = tracker.load();
       expect(value).toBe(999);
     });
 
-    it('should return default when property is missing', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
+    it('should return default when value property is missing', () => {
+      const tracker = new StateTracker({ key: 'test', default: 777, stateDirectory: testDir });
       const filePath = tracker.getFilePath();
       fs.writeFileSync(filePath, JSON.stringify({ other: 'data' }), 'utf-8');
 
-      const value = tracker.load(777);
+      const value = tracker.load();
       expect(value).toBe(777);
     });
   });
 
   describe('save', () => {
     it('should save numeric value', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
+      const tracker = new StateTracker({ key: 'test', default: 0, stateDirectory: testDir });
       tracker.save(500);
 
       const filePath = tracker.getFilePath();
@@ -119,49 +118,57 @@ describe('StateTracker', () => {
     });
 
     it('should overwrite previous value', () => {
-      const tracker = new StateTracker({ key: 'test', stateDirectory: testDir });
+      const tracker = new StateTracker({ key: 'test', default: 0, stateDirectory: testDir });
       tracker.save(100);
       tracker.save(200);
       tracker.save(300);
 
-      const value = tracker.load(0);
+      const value = tracker.load();
       expect(value).toBe(300);
     });
   });
 
-  describe('generic types', () => {
-    it('should save and load string values', () => {
-      const tracker = new StateTracker<string>({ key: 'string-test', stateDirectory: testDir });
+  describe('type inference from default', () => {
+    it('should infer string type from default', () => {
+      const tracker = new StateTracker({
+        key: 'string-test',
+        default: 'default-value',
+        stateDirectory: testDir,
+      });
       tracker.save('hello world');
 
-      const value = tracker.load('default');
+      const value = tracker.load();
       expect(value).toBe('hello world');
     });
 
-    it('should save and load object values', () => {
-      interface MyState {
-        count: number;
-        name: string;
-      }
-      const tracker = new StateTracker<MyState>({ key: 'object-test', stateDirectory: testDir });
+    it('should infer object type from default', () => {
+      const tracker = new StateTracker({
+        key: 'object-test',
+        default: { count: 0, name: '' },
+        stateDirectory: testDir,
+      });
       tracker.save({ count: 10, name: 'test' });
 
-      const value = tracker.load({ count: 0, name: '' });
+      const value = tracker.load();
       expect(value).toEqual({ count: 10, name: 'test' });
     });
 
-    it('should save and load array values', () => {
-      const tracker = new StateTracker<number[]>({ key: 'array-test', stateDirectory: testDir });
+    it('should infer array type from default', () => {
+      const tracker = new StateTracker({
+        key: 'array-test',
+        default: [] as number[],
+        stateDirectory: testDir,
+      });
       tracker.save([1, 2, 3, 4, 5]);
 
-      const value = tracker.load([]);
+      const value = tracker.load();
       expect(value).toEqual([1, 2, 3, 4, 5]);
     });
   });
 
   describe('getFilePath', () => {
     it('should return correct file path', () => {
-      const tracker = new StateTracker({ key: 'my-key', stateDirectory: testDir });
+      const tracker = new StateTracker({ key: 'my-key', default: 0, stateDirectory: testDir });
       const filePath = tracker.getFilePath();
 
       expect(filePath).toBe(path.join(testDir, 'my-key.json'));
@@ -170,13 +177,30 @@ describe('StateTracker', () => {
 
   describe('persistence across instances', () => {
     it('should persist state across different tracker instances', () => {
-      const tracker1 = new StateTracker({ key: 'shared', stateDirectory: testDir });
+      const tracker1 = new StateTracker({ key: 'shared', default: 0, stateDirectory: testDir });
       tracker1.save(12345);
 
-      const tracker2 = new StateTracker({ key: 'shared', stateDirectory: testDir });
-      const value = tracker2.load(0);
+      const tracker2 = new StateTracker({ key: 'shared', default: 0, stateDirectory: testDir });
+      const value = tracker2.load();
 
       expect(value).toBe(12345);
+    });
+  });
+
+  describe('atomic write durability', () => {
+    it('should not corrupt state file if temp file exists from interrupted write', () => {
+      const tracker = new StateTracker({ key: 'durable', default: 0, stateDirectory: testDir });
+
+      // Save initial value
+      tracker.save(100);
+
+      // Simulate a crashed write by leaving a temp file
+      const tempFilePath = `${tracker.getFilePath()}.tmp`;
+      fs.writeFileSync(tempFilePath, '{"value": 999, "lastUpdated": "corrupted"}', 'utf-8');
+
+      // Load should return the committed value, not the temp file
+      const value = tracker.load();
+      expect(value).toBe(100);
     });
   });
 });
