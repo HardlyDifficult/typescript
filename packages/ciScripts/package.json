@@ -1,7 +1,7 @@
 {
   "name": "@hardlydifficult/ci-scripts",
   "version": "1.0.0",
-  "description": "Reusable CI scripts for TypeScript monorepos",
+  "description": "Reusable CI scripts for npm projects",
   "bin": {
     "check-pinned-deps": "./dist/check-pinned-deps.js",
     "monorepo-publish": "./dist/publish.js"
