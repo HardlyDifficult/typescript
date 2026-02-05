@@ -177,7 +177,7 @@ export class Document {
    */
   keyValue(
     data: Record<string, string | number | boolean | undefined>,
-    options: KeyValueOptions = {}
+    options: KeyValueOptions = {},
   ): this {
     const { style = 'plain', separator = ':', bold = true } = options;
 
@@ -188,8 +188,7 @@ export class Document {
 
     const lines = entries.map(([key, value], i) => {
       const formattedKey = bold ? `**${key}**` : key;
-      const prefix =
-        style === 'bullet' ? '• ' : style === 'numbered' ? `${String(i + 1)}. ` : '';
+      const prefix = style === 'bullet' ? '• ' : style === 'numbered' ? `${String(i + 1)}. ` : '';
       return `${prefix}${formattedKey}${separator} ${String(value)}`;
     });
 
