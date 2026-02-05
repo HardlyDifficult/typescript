@@ -199,6 +199,15 @@ function getLastTag(packageName: string): string | null {
 }
 
 /**
+ * Extract version number from a tag name.
+ * E.g., "hardlydifficult-chat-v1.0.1" -> "1.0.1"
+ */
+function getVersionFromTag(tag: string): string | null {
+  const match = /-v(\d+\.\d+\.\d+)$/.exec(tag);
+  return match?.[1] ?? null;
+}
+
+/**
  * Update a package's dependencies to use newly published versions.
  * Handles both:
  * - file:../packageName references (transforms to real version)
@@ -307,6 +316,23 @@ function main(): void {
           ? `Changes detected since ${lastTag}.`
           : 'No previous tag found. Publishing initial version.',
       );
+    }
+
+    // Sync package.json version with last published tag before incrementing.
+    // This ensures we increment from the last published version, not the
+    // version currently in package.json (which may be out of sync if version
+    // bumps weren't committed back to the repo).
+    if (lastTag !== null && lastTag !== '') {
+      const tagVersion = getVersionFromTag(lastTag);
+      if (tagVersion !== null) {
+        const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
+        if (packageJson.version !== tagVersion) {
+          // eslint-disable-next-line no-console
+          console.log(`Syncing version from tag: ${packageJson.version} → ${tagVersion}`);
+          packageJson.version = tagVersion;
+          writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+        }
+      }
     }
 
     // Increment version
