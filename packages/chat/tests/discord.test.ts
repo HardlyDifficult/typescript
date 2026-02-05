@@ -114,19 +114,18 @@ async function waitFor(
   interval: number = 10,
 ): Promise<void> {
   const startTime = Date.now();
+  let lastError: unknown;
   while (Date.now() - startTime < timeout) {
     try {
       condition();
       return;
     } catch (error) {
-      if (Date.now() - startTime >= timeout) {
-        throw error;
-      }
+      lastError = error;
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
   }
-  // Final attempt - if it fails, the error will be thrown
-  condition();
+  // Timeout reached - throw the last error
+  throw lastError;
 }
 
 describe('DiscordChatClient', () => {
