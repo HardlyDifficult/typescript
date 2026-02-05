@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env node
 
 /**
  * Publishes packages that have changed since the last publish.
@@ -8,13 +8,17 @@
  * - Detects dependency order and publishes dependencies first
  * - Auto-updates dependency versions before publishing dependent packages
  * - Transforms file: references to real versions at publish time
+ *
+ * Usage:
+ *   npx monorepo-publish [--packages-dir <dir>]
+ *
+ * Options:
+ *   --packages-dir  Directory containing packages (default: "packages")
  */
 
 import { execSync, type ExecSyncOptions } from 'child_process';
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
-
-const PACKAGES_DIR = 'packages';
 
 interface ExecOptions extends ExecSyncOptions {
   ignoreError?: boolean;
@@ -40,6 +44,22 @@ interface Package {
   peerDependencies: Record<string, string>;
 }
 
+function parseArgs(): { packagesDir: string } {
+  const args = process.argv.slice(2);
+  let packagesDir = 'packages';
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--packages-dir') {
+      const next = args[i + 1];
+      if (next !== undefined && next !== '') {
+        packagesDir = next;
+      }
+    }
+  }
+
+  return { packagesDir };
+}
+
 function exec(command: string, options: ExecOptions = {}): string {
   // eslint-disable-next-line no-console
   console.log(`$ ${command}`);
@@ -55,8 +75,8 @@ function exec(command: string, options: ExecOptions = {}): string {
   }
 }
 
-function getPackages(): Package[] {
-  const packagesPath = join(process.cwd(), PACKAGES_DIR);
+function getPackages(packagesDir: string): Package[] {
+  const packagesPath = join(process.cwd(), packagesDir);
   const entries = readdirSync(packagesPath);
   const packages: Package[] = [];
 
@@ -78,7 +98,7 @@ function getPackages(): Package[] {
         name: packageJson.name,
         path: packagePath,
         packageJsonPath,
-        relativePath: `${PACKAGES_DIR}/${entry}`,
+        relativePath: `${packagesDir}/${entry}`,
         version: packageJson.version,
         dependencies: packageJson.dependencies ?? {},
         devDependencies: packageJson.devDependencies ?? {},
@@ -285,7 +305,8 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
 }
 
 function main(): void {
-  const packages = getPackages();
+  const { packagesDir } = parseArgs();
+  const packages = getPackages(packagesDir);
 
   if (packages.length === 0) {
     // eslint-disable-next-line no-console

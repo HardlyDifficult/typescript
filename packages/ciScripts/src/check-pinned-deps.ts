@@ -1,8 +1,11 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env node
 
 /**
  * Checks that all dependencies in package.json files use pinned versions.
  * Fails if any dependency uses ^ or ~ prefixes.
+ *
+ * Usage:
+ *   npx check-pinned-deps
  */
 
 import { readFileSync, readdirSync, statSync } from 'fs';
