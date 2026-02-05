@@ -39,4 +39,4 @@ jobs:
       - name: Check and publish packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx monorepo-publish
+        run: npx --no monorepo-publish
