@@ -1,1 +1,1 @@
-export { SlackChatClient } from './SlackChatClient.js';
+export { SlackChatClient } from './SlackChatClient';

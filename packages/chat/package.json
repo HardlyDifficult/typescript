@@ -1,7 +1,6 @@
 {
   "name": "@hardlydifficult/chat",
   "version": "1.0.0",
-  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -20,8 +19,12 @@
     "discord.js": "14.25.1"
   },
   "devDependencies": {
+    "@hardlydifficult/documentGenerator": "file:../documentGenerator",
     "@types/node": "20.19.31",
     "typescript": "5.8.3",
     "vitest": "1.6.1"
+  },
+  "peerDependencies": {
+    "@hardlydifficult/documentGenerator": ">=1.0.0"
   }
 }

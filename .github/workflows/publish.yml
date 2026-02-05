@@ -39,4 +39,4 @@ jobs:
       - name: Check and publish packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node scripts/publish.js
+        run: npx tsx scripts/src/publish.ts

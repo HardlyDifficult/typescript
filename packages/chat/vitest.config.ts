@@ -5,13 +5,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-    pool: 'forks',
-    testTimeout: 10000,
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/index.ts'],
-    },
+    // Use threads pool for faster tests
+    pool: 'threads',
+    // Fail if no tests are found
+    passWithNoTests: false,
+    // Shorter teardown timeout
+    teardownTimeout: 500,
+    // Maximum time for test lifecycle hooks (beforeEach, afterEach, etc.)
+    hookTimeout: 5000,
   },
 });

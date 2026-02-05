@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DiscordConfig, ReactionEvent } from '../src/types.js';
 
-// Use vi.hoisted to ensure mocks are defined before module loading
+// Use vi.hoisted to define mocks that are used in vi.mock()
 const {
-  mockClient,
-  mockTextChannelData,
   mockDiscordMessage,
+  mockTextChannelData,
+  mockClient,
   MockTextChannel,
   getReactionHandler,
   setReactionHandler,
@@ -26,6 +26,13 @@ const {
     },
   };
 
+  // Mock TextChannel class for instanceof checks
+  class MockTextChannel {
+    id = 'channel-456';
+    send = mockTextChannelData.send;
+    messages = mockTextChannelData.messages;
+  }
+
   const mockClient = {
     login: vi.fn(),
     channels: {
@@ -39,17 +46,10 @@ const {
     destroy: vi.fn(),
   };
 
-  // Mock TextChannel class for instanceof checks
-  class MockTextChannel {
-    id = 'channel-456';
-    send = mockTextChannelData.send;
-    messages = mockTextChannelData.messages;
-  }
-
   return {
-    mockClient,
-    mockTextChannelData,
     mockDiscordMessage,
+    mockTextChannelData,
+    mockClient,
     MockTextChannel,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
@@ -102,6 +102,30 @@ async function waitForMessage(message: Message): Promise<void> {
 
   // Final flush to ensure any cleanup callbacks have run
   await Promise.resolve();
+}
+
+/**
+ * Simple polling helper to wait for a condition (Vitest equivalent of waitFor).
+ * Polls every 10ms until the condition passes or timeout (default 1000ms).
+ */
+async function waitFor(
+  condition: () => void,
+  timeout: number = 1000,
+  interval: number = 10,
+): Promise<void> {
+  const startTime = Date.now();
+  let lastError: unknown;
+  while (Date.now() - startTime < timeout) {
+    try {
+      condition();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+  // Timeout reached - throw the last error
+  throw lastError;
 }
 
 describe('DiscordChatClient', () => {
@@ -382,27 +406,18 @@ describe('DiscordChatClient', () => {
     });
   });
 
-  describe('Channel.onReaction()', () => {
-    it('should register a callback for reaction events', async () => {
+  describe('Message.onReaction()', () => {
+    it('should call callback when reaction is added to message', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-
-      channel.onReaction(callback);
-
-      expect(typeof getReactionHandler()).toBe('function');
-    });
-
-    it('should call the callback when a reaction event is emitted', async () => {
-      const channel = await client.connect(channelId);
-      const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test message').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'thumbsup', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
@@ -411,20 +426,20 @@ describe('DiscordChatClient', () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
-    it('should provide correct ReactionEvent data to the callback', async () => {
+    it('should provide correct ReactionEvent data', async () => {
       const channel = await client.connect(channelId);
       let receivedEvent: ReactionEvent | null = null;
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'heart', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
@@ -434,46 +449,23 @@ describe('DiscordChatClient', () => {
       expect(receivedEvent!.emoji).toBe('heart');
       expect(receivedEvent!.messageId).toBe('msg-123');
       expect(receivedEvent!.channelId).toBe(channelId);
+      expect(receivedEvent!.user).toEqual({ id: 'user-001', username: 'TestUser' });
     });
 
-    it('should provide correct User object with id and username', async () => {
+    it('should handle user without username', async () => {
       const channel = await client.connect(channelId);
       let receivedEvent: ReactionEvent | null = null;
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
-
-      const mockReaction = {
-        partial: false,
-        message: { id: 'msg-123', channelId: channelId },
-        emoji: { name: 'star', id: null },
-      };
-
-      const mockUser = { id: 'user-999', username: 'ReactingUser' };
-
-      const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
-
-      expect(receivedEvent!.user).toEqual({ id: 'user-999', username: 'ReactingUser' });
-      expect(receivedEvent!.user.id).toBe('user-999');
-      expect(receivedEvent!.user.username).toBe('ReactingUser');
-    });
-
-    it('should handle user without username (partial user)', async () => {
-      const channel = await client.connect(channelId);
-      let receivedEvent: ReactionEvent | null = null;
-      const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
-        receivedEvent = event;
-      });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'wave', id: null },
       };
-
       const mockUser = { id: 'user-123', username: null };
 
       const handler = getReactionHandler();
@@ -483,92 +475,17 @@ describe('DiscordChatClient', () => {
       expect(receivedEvent!.user.username).toBeUndefined();
     });
 
-    it('should return an unsubscribe function that works', async () => {
+    it('should not call callback for reactions on different messages', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      const unsubscribe = channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
-        message: { id: 'msg-123', channelId: channelId },
+        message: { id: 'different-msg-999', channelId: channelId },
         emoji: { name: 'thumbsup', id: null },
       };
-
-      const mockUser = { id: 'user-001', username: 'TestUser' };
-
-      const handler = getReactionHandler();
-
-      await handler!(mockReaction, mockUser);
-      expect(callback).toHaveBeenCalledTimes(1);
-
-      unsubscribe();
-
-      await handler!(mockReaction, mockUser);
-      expect(callback).toHaveBeenCalledTimes(1);
-    });
-
-    it('should support multiple callbacks on the same channel', async () => {
-      const channel = await client.connect(channelId);
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-      const callback3 = vi.fn();
-
-      channel.onReaction(callback1);
-      channel.onReaction(callback2);
-      channel.onReaction(callback3);
-
-      const mockReaction = {
-        partial: false,
-        message: { id: 'msg-123', channelId: channelId },
-        emoji: { name: 'fire', id: null },
-      };
-
-      const mockUser = { id: 'user-001', username: 'TestUser' };
-
-      const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
-
-      expect(callback1).toHaveBeenCalledTimes(1);
-      expect(callback2).toHaveBeenCalledTimes(1);
-      expect(callback3).toHaveBeenCalledTimes(1);
-    });
-
-    it('should only unsubscribe the specific callback', async () => {
-      const channel = await client.connect(channelId);
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      channel.onReaction(callback1);
-      const unsubscribe2 = channel.onReaction(callback2);
-
-      unsubscribe2();
-
-      const mockReaction = {
-        partial: false,
-        message: { id: 'msg-123', channelId: channelId },
-        emoji: { name: 'rocket', id: null },
-      };
-
-      const mockUser = { id: 'user-001', username: 'TestUser' };
-
-      const handler = getReactionHandler();
-      await handler!(mockReaction, mockUser);
-
-      expect(callback1).toHaveBeenCalledTimes(1);
-      expect(callback2).not.toHaveBeenCalled();
-    });
-
-    it('should not call callback for reactions on different channels', async () => {
-      const channel = await client.connect(channelId);
-      const callback = vi.fn();
-      channel.onReaction(callback);
-
-      const mockReaction = {
-        partial: false,
-        message: { id: 'msg-123', channelId: 'different-channel-999' },
-        emoji: { name: 'thumbsup', id: null },
-      };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
@@ -577,10 +494,53 @@ describe('DiscordChatClient', () => {
       expect(callback).not.toHaveBeenCalled();
     });
 
+    it('should support multiple callbacks on the same message', async () => {
+      const channel = await client.connect(channelId);
+      const callback1 = vi.fn();
+      const callback2 = vi.fn();
+      const message = channel.postMessage('Test').onReaction(callback1).onReaction(callback2);
+      await waitForMessage(message);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: 'fire', id: null },
+      };
+      const mockUser = { id: 'user-001', username: 'TestUser' };
+
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(callback1).toHaveBeenCalledTimes(1);
+      expect(callback2).toHaveBeenCalledTimes(1);
+    });
+
+    it('should be chainable with addReactions', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel.postMessage('Vote!').addReactions(['1️⃣', '2️⃣']).onReaction(callback);
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: '1️⃣', id: null },
+      };
+      const mockUser = { id: 'user-voter', username: 'Voter' };
+
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
     it('should handle partial reactions by fetching them', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const fetchMock = vi.fn().mockResolvedValue(undefined);
       const mockReaction = {
@@ -589,14 +549,12 @@ describe('DiscordChatClient', () => {
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'thumbsup', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
       handler!(mockReaction, mockUser);
 
-      // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(fetchMock).toHaveBeenCalled();
         expect(callback).toHaveBeenCalledTimes(1);
       });
@@ -606,7 +564,8 @@ describe('DiscordChatClient', () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const fetchMock = vi.fn().mockRejectedValue(new Error('Failed to fetch'));
       const mockReaction = {
@@ -615,14 +574,12 @@ describe('DiscordChatClient', () => {
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'thumbsup', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
       handler!(mockReaction, mockUser);
 
-      // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(fetchMock).toHaveBeenCalled();
         expect(consoleErrorSpy).toHaveBeenCalledWith(
           'Failed to fetch partial reaction:',
@@ -630,7 +587,6 @@ describe('DiscordChatClient', () => {
         );
       });
       expect(callback).not.toHaveBeenCalled();
-
       consoleErrorSpy.mockRestore();
     });
 
@@ -640,14 +596,14 @@ describe('DiscordChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: null, id: 'custom-emoji-12345' },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
@@ -662,16 +618,15 @@ describe('DiscordChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const beforeTime = new Date();
-
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'clock', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
@@ -690,28 +645,51 @@ describe('DiscordChatClient', () => {
       const errorCallback = vi.fn().mockRejectedValue(new Error('Callback error'));
       const normalCallback = vi.fn();
 
-      channel.onReaction(errorCallback);
-      channel.onReaction(normalCallback);
+      const message = channel
+        .postMessage('Test')
+        .onReaction(errorCallback)
+        .onReaction(normalCallback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
         message: { id: 'msg-123', channelId: channelId },
         emoji: { name: 'boom', id: null },
       };
-
       const mockUser = { id: 'user-001', username: 'TestUser' };
 
       const handler = getReactionHandler();
       handler!(mockReaction, mockUser);
 
-      // Wait for async IIFE to complete
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(errorCallback).toHaveBeenCalledTimes(1);
         expect(normalCallback).toHaveBeenCalledTimes(1);
         expect(consoleErrorSpy).toHaveBeenCalled();
       });
-
       consoleErrorSpy.mockRestore();
+    });
+
+    it('should stop listening when offReaction is called', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: 'thumbsup', id: null },
+      };
+      const mockUser = { id: 'user-001', username: 'TestUser' };
+
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      message.offReaction();
+
+      await handler!(mockReaction, mockUser);
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -726,9 +704,10 @@ describe('DiscordChatClient', () => {
     it('should clear reaction listeners', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
-      await client.disconnect();
+      channel.disconnect();
 
       const mockReaction = {
         partial: false,
@@ -816,7 +795,8 @@ describe('DiscordChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
@@ -840,7 +820,8 @@ describe('DiscordChatClient', () => {
       const callback = vi.fn().mockImplementation((event: ReactionEvent) => {
         receivedEvent = event;
       });
-      channel.onReaction(callback);
+      const message = channel.postMessage('Test').onReaction(callback);
+      await waitForMessage(message);
 
       const mockReaction = {
         partial: false,
@@ -861,14 +842,14 @@ describe('DiscordChatClient', () => {
   describe('integration: full workflow', () => {
     it('should support posting a message with reactions and listening for reactions', async () => {
       const channel = await client.connect(channelId);
-
       const reactions: ReactionEvent[] = [];
-      channel.onReaction((event) => {
-        reactions.push(event);
-      });
 
-      const message = channel.postMessage('Pick a number:');
-      message.addReactions(['1\uFE0F\u20E3', '2\uFE0F\u20E3', '3\uFE0F\u20E3']);
+      const message = channel
+        .postMessage('Pick a number:')
+        .addReactions(['1\uFE0F\u20E3', '2\uFE0F\u20E3', '3\uFE0F\u20E3'])
+        .onReaction((event) => {
+          reactions.push(event);
+        });
       await waitForMessage(message);
 
       expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);

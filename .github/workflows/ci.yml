@@ -15,20 +15,20 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Check for unpinned dependencies
-        run: node scripts/check-pinned-deps.js
-
       - name: Install dependencies
         run: npm install
+
+      - name: Check for unpinned dependencies
+        run: npx tsx scripts/src/check-pinned-deps.ts
+
+      - name: Build
+        run: npm run build
 
       - name: Lint
         run: npm run lint
 
       - name: Format Check
         run: npm run format:check
-
-      - name: Build
-        run: npm run build
 
       - name: Test
         run: npm run test
