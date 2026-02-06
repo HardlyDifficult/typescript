@@ -1,25 +1,52 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
 
 jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package.json') }}
 
       - name: Install dependencies
+        if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install
 
       - name: Build
         run: npm run build
+
+      - name: Auto-fix lint and format
+        run: npm run fix
+
+      - name: Log local .claude skills
+        run: node packages/ci-scripts/dist/log-local-skills.js
+
+      - name: Commit and push fixes
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: node packages/ci-scripts/dist/auto-commit-fixes.js
 
       - name: Check for unpinned dependencies
         run: node packages/ci-scripts/dist/check-pinned-deps.js

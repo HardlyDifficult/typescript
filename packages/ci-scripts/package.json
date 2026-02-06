@@ -4,7 +4,10 @@
   "description": "Reusable CI scripts",
   "bin": {
     "check-pinned-deps": "./dist/check-pinned-deps.js",
-    "monorepo-publish": "./dist/publish.js"
+    "monorepo-publish": "./dist/publish.js",
+    "sync-skills": "./dist/sync-skills.js",
+    "log-local-skills": "./dist/log-local-skills.js",
+    "auto-commit-fixes": "./dist/auto-commit-fixes.js"
   },
   "files": [
     "dist"
