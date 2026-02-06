@@ -117,4 +117,3 @@ export interface MessageData {
  * Message content can be string or Document
  */
 export type MessageContent = string | Document;
-

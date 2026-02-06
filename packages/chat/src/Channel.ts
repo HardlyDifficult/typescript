@@ -163,7 +163,13 @@ export class Channel {
         channelId: string,
         name: string,
         autoArchiveDuration?: number
-      ) => this.operations.startThread(messageId, channelId, name, autoArchiveDuration),
+      ) =>
+        this.operations.startThread(
+          messageId,
+          channelId,
+          name,
+          autoArchiveDuration
+        ),
     };
   }
 

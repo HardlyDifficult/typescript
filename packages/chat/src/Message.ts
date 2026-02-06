@@ -139,7 +139,12 @@ export class Message {
     name: string,
     autoArchiveDuration?: number
   ): Promise<ThreadData> {
-    return this.operations.startThread(this.id, this.channelId, name, autoArchiveDuration);
+    return this.operations.startThread(
+      this.id,
+      this.channelId,
+      name,
+      autoArchiveDuration
+    );
   }
 
   /**
