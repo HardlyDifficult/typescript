@@ -82,8 +82,8 @@ async function main(): Promise<void> {
   // Use PAT for push so the commit triggers a new CI run
   // (pushes with the default GITHUB_TOKEN do not trigger workflows)
   const ghPat = process.env.GH_PAT;
-  if (ghPat !== undefined && ghPat !== "") {
-    const repo = process.env.GITHUB_REPOSITORY;
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (ghPat !== undefined && ghPat !== "" && repo !== undefined) {
     exec(
       `git remote set-url origin https://x-access-token:${ghPat}@github.com/${repo}.git`
     );
