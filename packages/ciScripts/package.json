@@ -1,0 +1,21 @@
+{
+  "name": "@hardlydifficult/ci-scripts",
+  "version": "1.0.0",
+  "description": "Reusable CI scripts",
+  "bin": {
+    "check-pinned-deps": "./dist/check-pinned-deps.js",
+    "monorepo-publish": "./dist/publish.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.31",
+    "typescript": "5.8.3"
+  }
+}
