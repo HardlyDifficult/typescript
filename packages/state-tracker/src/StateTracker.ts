@@ -92,7 +92,7 @@ export class StateTracker<T> {
     try {
       const data = fs.readFileSync(this.filePath, 'utf-8');
       const state = JSON.parse(data) as Record<string, unknown>;
-      const value = state.value;
+      const { value } = state;
       if (value === undefined) {
         return this.defaultValue;
       }
@@ -112,7 +112,7 @@ export class StateTracker<T> {
    */
   save(value: T): void {
     const state: Record<string, unknown> = {
-      value: value,
+      value,
       lastUpdated: new Date().toISOString(),
     };
     // Atomic write: write to temp file then rename

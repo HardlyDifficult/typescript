@@ -1,3 +1,8 @@
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 /**
  * Options for configuring a Throttle instance.
  */
@@ -45,6 +50,3 @@ export class Throttle {
     }
   }
 }
-
-const sleep = async (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
