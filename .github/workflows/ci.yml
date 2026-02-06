@@ -18,11 +18,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Check for unpinned dependencies
-        run: npx tsx scripts/src/check-pinned-deps.ts
-
       - name: Build
         run: npm run build
+
+      - name: Check for unpinned dependencies
+        run: node packages/ciScripts/dist/check-pinned-deps.js
 
       - name: Lint
         run: npm run lint

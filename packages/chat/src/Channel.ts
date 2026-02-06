@@ -1,5 +1,15 @@
-import type { Platform, ReactionCallback, MessageData, MessageContent } from './types';
-import { Message, type MessageOperations } from './Message';
+import { Message, type MessageOperations } from "./Message";
+import type {
+  DisconnectCallback,
+  ErrorCallback,
+  FileAttachment,
+  MessageCallback,
+  MessageContent,
+  MessageData,
+  Platform,
+  ReactionCallback,
+  ThreadData,
+} from "./types";
 
 /**
  * Interface for platform-specific channel operations
@@ -8,12 +18,35 @@ export interface ChannelOperations {
   postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string },
+    options?: { threadTs?: string; files?: FileAttachment[] }
   ): Promise<MessageData>;
-  updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
+  updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent
+  ): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
-  addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;
-  subscribeToReactions(channelId: string, callback: ReactionCallback): () => void;
+  addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  subscribeToReactions(
+    channelId: string,
+    callback: ReactionCallback
+  ): () => void;
+  subscribeToMessages(channelId: string, callback: MessageCallback): () => void;
+  sendTyping(channelId: string): Promise<void>;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    autoArchiveDuration?: number
+  ): Promise<ThreadData>;
+  bulkDelete(channelId: string, count: number): Promise<number>;
+  getThreads(channelId: string): Promise<ThreadData[]>;
+  onDisconnect(callback: DisconnectCallback): () => void;
+  onError(callback: ErrorCallback): () => void;
 }
 
 /**
@@ -33,41 +66,50 @@ export class Channel {
     this.operations = operations;
 
     // Subscribe to platform reactions and forward to message-specific callbacks
-    this.unsubscribeFromPlatform = this.operations.subscribeToReactions(id, (event) =>
-      this.emitReaction(event),
+    this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
+      id,
+      (event) => this.emitReaction(event)
     );
   }
 
   /**
    * Post a message to this channel
    * @param content - Message content (string or Document)
-   * @param options - Optional message options (e.g., threadTs for threading)
+   * @param options - Optional message options (e.g., files for attachments)
    * @returns Message object with chainable reaction methods
    */
-  postMessage(content: MessageContent, options?: { threadTs?: string }): Message {
-    const messagePromise = this.operations.postMessage(this.id, content, options);
+  postMessage(
+    content: MessageContent,
+    options?: { files?: FileAttachment[] }
+  ): Message & PromiseLike<Message> {
+    const messagePromise = this.operations.postMessage(
+      this.id,
+      content,
+      options
+    );
 
     // Create a Message that will resolve once the post completes
-    const pendingMessage = new PendingMessage(
+    return new PendingMessage(
       messagePromise,
       this.createMessageOperations(),
-      this.platform,
+      this.platform
     );
-    return pendingMessage;
   }
 
   /**
    * Emit a reaction event to registered message-specific callbacks
    */
-  private async emitReaction(event: Parameters<ReactionCallback>[0]): Promise<void> {
+  private async emitReaction(
+    event: Parameters<ReactionCallback>[0]
+  ): Promise<void> {
     const callbacks = this.messageReactionCallbacks.get(event.messageId);
     if (!callbacks) {
       return;
     }
     const promises = Array.from(callbacks).map((cb) =>
       Promise.resolve(cb(event)).catch((err: unknown) => {
-        console.error('Reaction callback error:', err);
-      }),
+        console.error("Reaction callback error:", err);
+      })
     );
     await Promise.all(promises);
   }
@@ -76,7 +118,10 @@ export class Channel {
    * Subscribe to reactions for a specific message
    * @internal Used by Message.onReaction
    */
-  private subscribeToMessageReactions(messageId: string, callback: ReactionCallback): () => void {
+  private subscribeToMessageReactions(
+    messageId: string,
+    callback: ReactionCallback
+  ): () => void {
     let callbacks = this.messageReactionCallbacks.get(messageId);
     if (!callbacks) {
       callbacks = new Set();
@@ -99,15 +144,66 @@ export class Channel {
     return {
       addReaction: (messageId: string, channelId: string, emoji: string) =>
         this.operations.addReaction(messageId, channelId, emoji),
-      updateMessage: (messageId: string, channelId: string, content: MessageContent) =>
-        this.operations.updateMessage(messageId, channelId, content),
+      updateMessage: (
+        messageId: string,
+        channelId: string,
+        content: MessageContent
+      ) => this.operations.updateMessage(messageId, channelId, content),
       deleteMessage: (messageId: string, channelId: string) =>
         this.operations.deleteMessage(messageId, channelId),
-      postReply: async (channelId: string, threadTs: string, content: MessageContent) =>
-        this.operations.postMessage(channelId, content, { threadTs }),
+      reply: async (
+        channelId: string,
+        threadTs: string,
+        content: MessageContent
+      ) => this.operations.postMessage(channelId, content, { threadTs }),
       subscribeToReactions: (messageId: string, callback: ReactionCallback) =>
         this.subscribeToMessageReactions(messageId, callback),
+      startThread: (
+        messageId: string,
+        channelId: string,
+        name: string,
+        autoArchiveDuration?: number
+      ) =>
+        this.operations.startThread(
+          messageId,
+          channelId,
+          name,
+          autoArchiveDuration
+        ),
     };
+  }
+
+  /**
+   * Subscribe to incoming messages in this channel
+   * @param callback - Function called when a new message is received
+   * @returns Unsubscribe function
+   */
+  onMessage(callback: MessageCallback): () => void {
+    return this.operations.subscribeToMessages(this.id, callback);
+  }
+
+  /**
+   * Send a typing indicator in this channel
+   */
+  async sendTyping(): Promise<void> {
+    await this.operations.sendTyping(this.id);
+  }
+
+  /**
+   * Bulk delete messages in this channel
+   * @param count - Number of recent messages to delete
+   * @returns Number of messages actually deleted
+   */
+  async bulkDelete(count: number): Promise<number> {
+    return this.operations.bulkDelete(this.id, count);
+  }
+
+  /**
+   * Get all threads in this channel (active and archived)
+   * @returns Array of thread data
+   */
+  async getThreads(): Promise<ThreadData[]> {
+    return this.operations.getThreads(this.id);
   }
 
   /**
@@ -124,37 +220,44 @@ export class Channel {
 
 /**
  * A Message that is still being posted.
- * Use `.wait()` to await completion and handle errors.
+ * Implements PromiseLike so it can be directly awaited:
+ *   const msg = await channel.postMessage('Hello');
+ *
+ * Also supports synchronous chaining before awaiting:
+ *   await channel.postMessage('Vote!').addReactions(['👍', '👎']).onReaction(cb);
  */
-class PendingMessage extends Message {
+class PendingMessage extends Message implements PromiseLike<Message> {
   private postPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
 
   constructor(
     postPromise: Promise<MessageData>,
     operations: MessageOperations,
-    platform: Platform,
+    platform: Platform
   ) {
     // Initialize with placeholder data using the correct platform
-    super({ id: '', channelId: '', platform }, operations);
+    super({ id: "", channelId: "", platform }, operations);
     this.postPromise = postPromise;
 
     // Update our data when the post resolves and subscribe any deferred listeners
     this.postPromise
       .then((data) => {
         // Update the readonly properties via Object.defineProperty
-        Object.defineProperty(this, 'id', { value: data.id });
-        Object.defineProperty(this, 'channelId', { value: data.channelId });
-        Object.defineProperty(this, 'platform', { value: data.platform });
+        Object.defineProperty(this, "id", { value: data.id });
+        Object.defineProperty(this, "channelId", { value: data.channelId });
+        Object.defineProperty(this, "platform", { value: data.platform });
 
         // Subscribe deferred reaction callbacks now that we have the message ID
         for (const callback of this.deferredReactionCallbacks) {
-          const unsubscribe = this.operations.subscribeToReactions(data.id, callback);
+          const unsubscribe = this.operations.subscribeToReactions(
+            data.id,
+            callback
+          );
           this.reactionUnsubscribers.push(unsubscribe);
         }
       })
       .catch(() => {
-        // Errors handled via wait()
+        // Errors surfaced when awaited via then()
       });
   }
 
@@ -164,10 +267,12 @@ class PendingMessage extends Message {
   override addReactions(emojis: string[]): this {
     // Chain after the post completes, capturing current pendingReactions
     const currentPendingReactions = this.pendingReactions;
-    this.pendingReactions = this.postPromise.then(() => currentPendingReactions);
+    this.pendingReactions = this.postPromise.then(
+      () => currentPendingReactions
+    );
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.operations.addReaction(this.id, this.channelId, emoji),
+        this.operations.addReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -182,19 +287,19 @@ class PendingMessage extends Message {
   }
 
   /**
-   * Wait for post to complete.
-   * Throws if the post fails - allows callers to handle errors.
-   *
-   * @example
-   * ```typescript
-   * const msg = channel.postMessage('Hello');
-   * await msg.wait(); // throws if post fails
-   * console.log(msg.id); // now available
-   * ```
+   * Makes PendingMessage directly awaitable.
+   * Resolves to a plain Message (not thenable) to prevent infinite await loops.
    */
-  async wait(): Promise<this> {
-    await this.postPromise;
-    return this;
+  then<TResult1 = Message, TResult2 = never>(
+    onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    const resolved = this.postPromise.then(async () => {
+      await this.pendingReactions;
+      // Return a plain Message (no then()) to stop await from recursing
+      return this.toSnapshot();
+    });
+    return resolved.then(onfulfilled, onrejected);
   }
 
   /**

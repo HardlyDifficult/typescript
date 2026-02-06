@@ -1,20 +1,41 @@
-import type { MessageData, MessageContent, Platform, ReactionCallback } from './types';
-
-/**
- * Interface for the platform-specific reaction adder
- */
-export interface ReactionAdder {
-  addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;
-}
+import type {
+  MessageContent,
+  MessageData,
+  Platform,
+  ReactionCallback,
+  ThreadData,
+} from "./types";
 
 /**
  * Interface for message operations (reactions, updates, deletes, replies)
  */
-export interface MessageOperations extends ReactionAdder {
-  updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
+export interface MessageOperations {
+  addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent
+  ): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
-  postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData>;
-  subscribeToReactions(messageId: string, callback: ReactionCallback): () => void;
+  reply(
+    channelId: string,
+    threadTs: string,
+    content: MessageContent
+  ): Promise<MessageData>;
+  subscribeToReactions(
+    messageId: string,
+    callback: ReactionCallback
+  ): () => void;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    autoArchiveDuration?: number
+  ): Promise<ThreadData>;
 }
 
 /**
@@ -37,6 +58,19 @@ export class Message {
   }
 
   /**
+   * Create a plain Message snapshot, transferring reaction unsubscribers.
+   * Used by PendingMessage/ReplyMessage to resolve to a non-thenable Message.
+   */
+  protected toSnapshot(): Message {
+    const msg = new Message(
+      { id: this.id, channelId: this.channelId, platform: this.platform },
+      this.operations
+    );
+    msg.reactionUnsubscribers = this.reactionUnsubscribers;
+    return msg;
+  }
+
+  /**
    * Add multiple emoji reactions to this message
    * @param emojis - Array of emojis to add
    * @returns this for chaining
@@ -44,7 +78,7 @@ export class Message {
   addReactions(emojis: string[]): this {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.operations.addReaction(this.id, this.channelId, emoji),
+        this.operations.addReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -82,13 +116,35 @@ export class Message {
   }
 
   /**
-   * Post a reply in this message's thread
+   * Reply in this message's thread
    * @param content - Reply content (string or Document)
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  postReply(content: MessageContent): ReplyMessage {
-    const replyPromise = this.operations.postReply(this.channelId, this.id, content);
+  reply(content: MessageContent): Message & PromiseLike<Message> {
+    const replyPromise = this.operations.reply(
+      this.channelId,
+      this.id,
+      content
+    );
     return new ReplyMessage(replyPromise, this.operations, this.platform);
+  }
+
+  /**
+   * Create a thread from this message
+   * @param name - Thread name
+   * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
+   * @returns Thread data
+   */
+  async startThread(
+    name: string,
+    autoArchiveDuration?: number
+  ): Promise<ThreadData> {
+    return this.operations.startThread(
+      this.id,
+      this.channelId,
+      name,
+      autoArchiveDuration
+    );
   }
 
   /**
@@ -123,36 +179,40 @@ export class Message {
 
 /**
  * A reply message that is still being posted.
- * Use `.wait()` to await completion and handle errors.
+ * Implements PromiseLike so it can be directly awaited:
+ *   const reply = await msg.reply('text');
  */
-export class ReplyMessage extends Message {
+export class ReplyMessage extends Message implements PromiseLike<Message> {
   private replyPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
 
   constructor(
     replyPromise: Promise<MessageData>,
     operations: MessageOperations,
-    platform: Platform,
+    platform: Platform
   ) {
     // Initialize with placeholder data
-    super({ id: '', channelId: '', platform }, operations);
+    super({ id: "", channelId: "", platform }, operations);
     this.replyPromise = replyPromise;
 
     // Update our data when the reply completes and subscribe any deferred listeners
     this.replyPromise
       .then((data) => {
-        Object.defineProperty(this, 'id', { value: data.id });
-        Object.defineProperty(this, 'channelId', { value: data.channelId });
-        Object.defineProperty(this, 'platform', { value: data.platform });
+        Object.defineProperty(this, "id", { value: data.id });
+        Object.defineProperty(this, "channelId", { value: data.channelId });
+        Object.defineProperty(this, "platform", { value: data.platform });
 
         // Subscribe deferred reaction callbacks now that we have the message ID
         for (const callback of this.deferredReactionCallbacks) {
-          const unsubscribe = this.operations.subscribeToReactions(data.id, callback);
+          const unsubscribe = this.operations.subscribeToReactions(
+            data.id,
+            callback
+          );
           this.reactionUnsubscribers.push(unsubscribe);
         }
       })
       .catch(() => {
-        // Errors handled via wait()
+        // Errors surfaced when awaited via then()
       });
   }
 
@@ -162,10 +222,12 @@ export class ReplyMessage extends Message {
   override addReactions(emojis: string[]): this {
     // Chain reactions after the reply completes, capturing current pendingReactions
     const currentPendingReactions = this.pendingReactions;
-    this.pendingReactions = this.replyPromise.then(() => currentPendingReactions);
+    this.pendingReactions = this.replyPromise.then(
+      () => currentPendingReactions
+    );
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.operations.addReaction(this.id, this.channelId, emoji),
+        this.operations.addReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -180,19 +242,18 @@ export class ReplyMessage extends Message {
   }
 
   /**
-   * Wait for reply to complete.
-   * Throws if the reply fails - allows callers to handle errors.
-   *
-   * @example
-   * ```typescript
-   * const reply = msg.postReply('text');
-   * await reply.wait(); // throws if reply fails
-   * console.log(reply.id); // now available
-   * ```
+   * Makes ReplyMessage directly awaitable.
+   * Resolves to a plain Message (not thenable) to prevent infinite await loops.
    */
-  async wait(): Promise<this> {
-    await this.replyPromise;
-    return this;
+  then<TResult1 = Message, TResult2 = never>(
+    onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    const resolved = this.replyPromise.then(async () => {
+      await this.pendingReactions;
+      return this.toSnapshot();
+    });
+    return resolved.then(onfulfilled, onrejected);
   }
 
   /**

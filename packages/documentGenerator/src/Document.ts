@@ -1,20 +1,20 @@
+import { toMarkdown as outputMarkdown } from "./outputters/markdown.js";
+import { toPlainText as outputPlainText } from "./outputters/plainText.js";
 import type {
   Block,
-  HeaderBlock,
-  TextBlock,
-  ListBlock,
-  DividerBlock,
-  ContextBlock,
-  LinkBlock,
   CodeBlock,
-  ImageBlock,
+  ContextBlock,
+  DividerBlock,
   DocumentOptions,
+  HeaderBlock,
+  ImageBlock,
   KeyValueOptions,
-  TruncatedListOptions,
+  LinkBlock,
+  ListBlock,
+  TextBlock,
   TimestampOptions,
-} from './types.js';
-import { toMarkdown as outputMarkdown } from './outputters/markdown.js';
-import { toPlainText as outputPlainText } from './outputters/plainText.js';
+  TruncatedListOptions,
+} from "./types.js";
 
 export class Document {
   private blocks: Block[] = [];
@@ -40,12 +40,12 @@ export class Document {
    */
   constructor(options?: DocumentOptions) {
     if (options !== undefined) {
-      if (options.header !== undefined && options.header !== '') {
+      if (options.header !== undefined && options.header !== "") {
         this.header(options.header);
       }
       if (options.sections !== undefined) {
         for (const section of options.sections) {
-          if (section.title !== undefined && section.title !== '') {
+          if (section.title !== undefined && section.title !== "") {
             this.section(section.title);
           }
           this.text(section.content);
@@ -74,7 +74,7 @@ export class Document {
 
   header(text: string): this {
     const block: HeaderBlock = {
-      type: 'header',
+      type: "header",
       text,
     };
     this.blocks.push(block);
@@ -83,7 +83,7 @@ export class Document {
 
   text(content: string): this {
     const block: TextBlock = {
-      type: 'text',
+      type: "text",
       content,
     };
     this.blocks.push(block);
@@ -92,7 +92,7 @@ export class Document {
 
   list(items: string[]): this {
     const block: ListBlock = {
-      type: 'list',
+      type: "list",
       items,
     };
     this.blocks.push(block);
@@ -101,7 +101,7 @@ export class Document {
 
   divider(): this {
     const block: DividerBlock = {
-      type: 'divider',
+      type: "divider",
     };
     this.blocks.push(block);
     return this;
@@ -109,7 +109,7 @@ export class Document {
 
   context(text: string): this {
     const block: ContextBlock = {
-      type: 'context',
+      type: "context",
       text,
     };
     this.blocks.push(block);
@@ -118,7 +118,7 @@ export class Document {
 
   link(text: string, url: string): this {
     const block: LinkBlock = {
-      type: 'link',
+      type: "link",
       text,
       url,
     };
@@ -127,9 +127,9 @@ export class Document {
   }
 
   code(content: string): this {
-    const multiline = content.includes('\n');
+    const multiline = content.includes("\n");
     const block: CodeBlock = {
-      type: 'code',
+      type: "code",
       content,
       multiline,
     };
@@ -139,7 +139,7 @@ export class Document {
 
   image(url: string, alt?: string): this {
     const block: ImageBlock = {
-      type: 'image',
+      type: "image",
       url,
       alt,
     };
@@ -177,9 +177,9 @@ export class Document {
    */
   keyValue(
     data: Record<string, string | number | boolean | undefined>,
-    options: KeyValueOptions = {},
+    options: KeyValueOptions = {}
   ): this {
-    const { style = 'plain', separator = ':', bold = true } = options;
+    const { style = "plain", separator = ":", bold = true } = options;
 
     const entries = Object.entries(data).filter(([, v]) => v !== undefined);
     if (entries.length === 0) {
@@ -188,11 +188,16 @@ export class Document {
 
     const lines = entries.map(([key, value], i) => {
       const formattedKey = bold ? `**${key}**` : key;
-      const prefix = style === 'bullet' ? '• ' : style === 'numbered' ? `${String(i + 1)}. ` : '';
+      let prefix = "";
+      if (style === "bullet") {
+        prefix = "• ";
+      } else if (style === "numbered") {
+        prefix = `${String(i + 1)}. `;
+      }
       return `${prefix}${formattedKey}${separator} ${String(value)}`;
     });
 
-    return this.text(lines.join('\n'));
+    return this.text(lines.join("\n"));
   }
 
   /**
@@ -224,7 +229,7 @@ export class Document {
     const remaining = items.length - limit;
 
     const lines = visible.map((item, i) => {
-      const prefix = ordered ? `${String(i + 1)}. ` : '• ';
+      const prefix = ordered ? `${String(i + 1)}. ` : "• ";
       return `${prefix}${format(item, i)}`;
     });
 
@@ -232,7 +237,7 @@ export class Document {
       lines.push(moreText(remaining));
     }
 
-    return this.text(lines.join('\n'));
+    return this.text(lines.join("\n"));
   }
 
   /**
@@ -249,7 +254,7 @@ export class Document {
     const { date = new Date(), emoji = true, label } = options;
     const iso = date.toISOString();
     let text: string;
-    if (label !== undefined && label !== '') {
+    if (label !== undefined && label !== "") {
       text = `${label} ${iso}`;
     } else if (emoji) {
       text = `🕐 ${iso}`;
