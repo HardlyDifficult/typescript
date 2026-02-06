@@ -1,4 +1,4 @@
-import { StateTracker } from '@hardlydifficult/state-tracker';
+import { StateTracker } from "@hardlydifficult/state-tracker";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -22,14 +22,19 @@ export class WeightedThrottle {
   private nextAvailableAt: number;
   private readonly unitsPerSecond: number;
   private readonly stateTracker?: StateTracker<number>;
-  private readonly onSleep?: (delayMs: number, info: WeightedThrottleSleepInfo) => void;
+  private readonly onSleep?: (
+    delayMs: number,
+    info: WeightedThrottleSleepInfo
+  ) => void;
 
   constructor(options: WeightedThrottleOptions) {
     this.unitsPerSecond = options.unitsPerSecond;
     this.onSleep = options.onSleep;
 
     if (!Number.isFinite(this.unitsPerSecond) || this.unitsPerSecond <= 0) {
-      throw new Error('WeightedThrottle requires a positive unitsPerSecond value');
+      throw new Error(
+        "WeightedThrottle requires a positive unitsPerSecond value"
+      );
     }
 
     if (options.persistKey !== undefined) {

@@ -1,4 +1,9 @@
-export type TimeUnit = 'milliseconds' | 'seconds' | 'minutes' | 'hours' | 'days';
+export type TimeUnit =
+  | "milliseconds"
+  | "seconds"
+  | "minutes"
+  | "hours"
+  | "days";
 
 export interface TimeSpan {
   value: number;

@@ -1,4 +1,4 @@
-import { type TimeSpan, toMilliseconds } from '@hardlydifficult/date-time';
+import { type TimeSpan, toMilliseconds } from "@hardlydifficult/date-time";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -18,7 +18,7 @@ export class Throttle {
   constructor(options: ThrottleOptions) {
     this.minimumDelayMs = toMilliseconds(options.minimumDelay);
     if (this.minimumDelayMs <= 0) {
-      throw new Error('Throttle minimumDelay must be a positive duration');
+      throw new Error("Throttle minimumDelay must be a positive duration");
     }
     this.onSleep = options.onSleep;
   }

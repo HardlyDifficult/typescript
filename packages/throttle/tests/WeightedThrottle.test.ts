@@ -1,15 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { WeightedThrottle } from '../src/WeightedThrottle';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { WeightedThrottle } from "../src/WeightedThrottle";
 
-describe('WeightedThrottle', () => {
+describe("WeightedThrottle", () => {
   let testDir: string;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'weighted-throttle-test-'));
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), "weighted-throttle-test-"));
   });
 
   afterEach(() => {
@@ -19,25 +19,27 @@ describe('WeightedThrottle', () => {
     }
   });
 
-  describe('constructor', () => {
-    it('should throw for non-positive unitsPerSecond', () => {
-      expect(() => new WeightedThrottle({ unitsPerSecond: 0 })).toThrow('positive unitsPerSecond');
+  describe("constructor", () => {
+    it("should throw for non-positive unitsPerSecond", () => {
+      expect(() => new WeightedThrottle({ unitsPerSecond: 0 })).toThrow(
+        "positive unitsPerSecond"
+      );
       expect(() => new WeightedThrottle({ unitsPerSecond: -10 })).toThrow(
-        'positive unitsPerSecond',
+        "positive unitsPerSecond"
       );
       expect(() => new WeightedThrottle({ unitsPerSecond: NaN })).toThrow(
-        'positive unitsPerSecond',
+        "positive unitsPerSecond"
       );
     });
 
-    it('should accept positive unitsPerSecond', () => {
+    it("should accept positive unitsPerSecond", () => {
       expect(() => new WeightedThrottle({ unitsPerSecond: 100 })).not.toThrow();
       expect(() => new WeightedThrottle({ unitsPerSecond: 0.5 })).not.toThrow();
     });
   });
 
-  describe('wait', () => {
-    it('should not delay when weight is 0', async () => {
+  describe("wait", () => {
+    it("should not delay when weight is 0", async () => {
       const onSleep = vi.fn();
       const throttle = new WeightedThrottle({ unitsPerSecond: 100, onSleep });
 
@@ -46,7 +48,7 @@ describe('WeightedThrottle', () => {
       expect(onSleep).not.toHaveBeenCalled();
     });
 
-    it('should not delay when weight is negative', async () => {
+    it("should not delay when weight is negative", async () => {
       const onSleep = vi.fn();
       const throttle = new WeightedThrottle({ unitsPerSecond: 100, onSleep });
 
@@ -55,7 +57,7 @@ describe('WeightedThrottle', () => {
       expect(onSleep).not.toHaveBeenCalled();
     });
 
-    it('should calculate delay based on weight / unitsPerSecond', async () => {
+    it("should calculate delay based on weight / unitsPerSecond", async () => {
       const onSleep = vi.fn();
       const throttle = new WeightedThrottle({ unitsPerSecond: 10, onSleep });
 
@@ -64,13 +66,16 @@ describe('WeightedThrottle', () => {
       await promise1;
 
       const promise2 = throttle.wait(10);
-      expect(onSleep).toHaveBeenCalledWith(1000, expect.objectContaining({ weight: 10 }));
+      expect(onSleep).toHaveBeenCalledWith(
+        1000,
+        expect.objectContaining({ weight: 10 })
+      );
 
       await vi.runAllTimersAsync();
       await promise2;
     });
 
-    it('should call onSleep with correct info', async () => {
+    it("should call onSleep with correct info", async () => {
       const onSleep = vi.fn();
       const throttle = new WeightedThrottle({ unitsPerSecond: 50, onSleep });
 
@@ -85,14 +90,14 @@ describe('WeightedThrottle', () => {
           weight: 25,
           limitPerSecond: 50,
           scheduledStart: expect.any(Number),
-        }),
+        })
       );
 
       await vi.runAllTimersAsync();
       await promise;
     });
 
-    it('should queue multiple waits correctly', async () => {
+    it("should queue multiple waits correctly", async () => {
       const delays: number[] = [];
       const onSleep = vi.fn((ms: number) => delays.push(ms));
       const throttle = new WeightedThrottle({ unitsPerSecond: 10, onSleep });
@@ -113,7 +118,7 @@ describe('WeightedThrottle', () => {
     });
   });
 
-  describe('persistence', () => {
+  describe("persistence", () => {
     beforeEach(() => {
       vi.useRealTimers();
     });
@@ -122,26 +127,29 @@ describe('WeightedThrottle', () => {
       vi.useFakeTimers();
     });
 
-    it('should persist state when persistKey provided', async () => {
+    it("should persist state when persistKey provided", async () => {
       const throttle = new WeightedThrottle({
         unitsPerSecond: 100,
-        persistKey: 'test-throttle',
+        persistKey: "test-throttle",
         stateDirectory: testDir,
       });
 
       await throttle.wait(100);
 
-      const stateFile = path.join(testDir, 'test-throttle.json');
+      const stateFile = path.join(testDir, "test-throttle.json");
       expect(fs.existsSync(stateFile)).toBe(true);
 
-      const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8')) as Record<string, unknown>;
+      const content = JSON.parse(fs.readFileSync(stateFile, "utf-8")) as Record<
+        string,
+        unknown
+      >;
       expect(content.value).toBeGreaterThan(Date.now() - 5000);
     });
 
-    it('should resume from persisted state after restart', async () => {
+    it("should resume from persisted state after restart", async () => {
       const throttle1 = new WeightedThrottle({
         unitsPerSecond: 10,
-        persistKey: 'persist-test',
+        persistKey: "persist-test",
         stateDirectory: testDir,
       });
 
@@ -150,7 +158,7 @@ describe('WeightedThrottle', () => {
       const onSleep = vi.fn();
       const throttle2 = new WeightedThrottle({
         unitsPerSecond: 10,
-        persistKey: 'persist-test',
+        persistKey: "persist-test",
         stateDirectory: testDir,
         onSleep,
       });
@@ -163,12 +171,12 @@ describe('WeightedThrottle', () => {
     });
   });
 
-  describe('with real timers', () => {
+  describe("with real timers", () => {
     beforeEach(() => {
       vi.useRealTimers();
     });
 
-    it('should actually delay execution based on weight', async () => {
+    it("should actually delay execution based on weight", async () => {
       const throttle = new WeightedThrottle({ unitsPerSecond: 100 });
 
       await throttle.wait(10);

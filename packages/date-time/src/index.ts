@@ -1,1 +1,1 @@
-export { type TimeSpan, type TimeUnit, toMilliseconds } from './TimeSpan';
+export { type TimeSpan, type TimeUnit, toMilliseconds } from "./TimeSpan";

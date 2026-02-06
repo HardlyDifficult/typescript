@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Throttle } from '../src/Throttle';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Throttle } from "../src/Throttle";
 
-describe('Throttle', () => {
+describe("Throttle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -10,23 +10,26 @@ describe('Throttle', () => {
     vi.useRealTimers();
   });
 
-  describe('constructor', () => {
-    it('should reject non-positive minimumDelay', () => {
+  describe("constructor", () => {
+    it("should reject non-positive minimumDelay", () => {
       expect(
-        () => new Throttle({ minimumDelay: { value: 0, unit: 'seconds' } }),
-      ).toThrow('minimumDelay must be a positive duration');
+        () => new Throttle({ minimumDelay: { value: 0, unit: "seconds" } })
+      ).toThrow("minimumDelay must be a positive duration");
       expect(
-        () => new Throttle({ minimumDelay: { value: -100, unit: 'milliseconds' } }),
-      ).toThrow('minimumDelay must be a positive duration');
+        () =>
+          new Throttle({ minimumDelay: { value: -100, unit: "milliseconds" } })
+      ).toThrow("minimumDelay must be a positive duration");
     });
   });
 
-  describe('wait', () => {
-    it('should resolve immediately on first call', async () => {
-      const throttle = new Throttle({ minimumDelay: { value: 1, unit: 'seconds' } });
+  describe("wait", () => {
+    it("should resolve immediately on first call", async () => {
+      const throttle = new Throttle({
+        minimumDelay: { value: 1, unit: "seconds" },
+      });
       const onSleep = vi.fn();
       const throttleWithCallback = new Throttle({
-        minimumDelay: { value: 1, unit: 'seconds' },
+        minimumDelay: { value: 1, unit: "seconds" },
         onSleep,
       });
 
@@ -36,10 +39,10 @@ describe('Throttle', () => {
       expect(onSleep).not.toHaveBeenCalled();
     });
 
-    it('should delay subsequent calls by minimumDelay', async () => {
+    it("should delay subsequent calls by minimumDelay", async () => {
       const onSleep = vi.fn();
       const throttle = new Throttle({
-        minimumDelay: { value: 1, unit: 'seconds' },
+        minimumDelay: { value: 1, unit: "seconds" },
         onSleep,
       });
 
@@ -55,10 +58,10 @@ describe('Throttle', () => {
       await promise2;
     });
 
-    it('should call onSleep callback with delay duration', async () => {
+    it("should call onSleep callback with delay duration", async () => {
       const onSleep = vi.fn();
       const throttle = new Throttle({
-        minimumDelay: { value: 500, unit: 'milliseconds' },
+        minimumDelay: { value: 500, unit: "milliseconds" },
         onSleep,
       });
 
@@ -72,10 +75,10 @@ describe('Throttle', () => {
       await promise;
     });
 
-    it('should handle concurrent calls in sequence', async () => {
+    it("should handle concurrent calls in sequence", async () => {
       const onSleep = vi.fn();
       const throttle = new Throttle({
-        minimumDelay: { value: 100, unit: 'milliseconds' },
+        minimumDelay: { value: 100, unit: "milliseconds" },
         onSleep,
       });
 
@@ -87,10 +90,10 @@ describe('Throttle', () => {
       expect(onSleep).toHaveBeenCalledTimes(2);
     });
 
-    it('should accept friendly time units like minutes', async () => {
+    it("should accept friendly time units like minutes", async () => {
       const onSleep = vi.fn();
       const throttle = new Throttle({
-        minimumDelay: { value: 1.5, unit: 'minutes' },
+        minimumDelay: { value: 1.5, unit: "minutes" },
         onSleep,
       });
 
@@ -106,14 +109,14 @@ describe('Throttle', () => {
     });
   });
 
-  describe('with real timers', () => {
+  describe("with real timers", () => {
     beforeEach(() => {
       vi.useRealTimers();
     });
 
-    it('should actually delay execution', async () => {
+    it("should actually delay execution", async () => {
       const throttle = new Throttle({
-        minimumDelay: { value: 50, unit: 'milliseconds' },
+        minimumDelay: { value: 50, unit: "milliseconds" },
       });
 
       await throttle.wait();

@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
 export interface StateTrackerOptions<T> {
   key: string;
@@ -14,12 +14,12 @@ export class StateTracker<T> {
 
   private static sanitizeKey(key: string): string {
     const trimmed = key.trim();
-    if (trimmed === '') {
-      throw new Error('StateTracker key must be a non-empty string');
+    if (trimmed === "") {
+      throw new Error("StateTracker key must be a non-empty string");
     }
     if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
       throw new Error(
-        'StateTracker key contains invalid characters (only alphanumeric, hyphens, and underscores allowed)',
+        "StateTracker key contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"
       );
     }
     return trimmed;
@@ -27,16 +27,17 @@ export class StateTracker<T> {
 
   private static getDefaultStateDirectory(): string {
     const envDir = process.env.STATE_TRACKER_DIR;
-    if (envDir !== undefined && envDir !== '') {
+    if (envDir !== undefined && envDir !== "") {
       return envDir;
     }
-    return path.join(os.homedir(), '.app-state');
+    return path.join(os.homedir(), ".app-state");
   }
 
   constructor(options: StateTrackerOptions<T>) {
     const sanitizedKey = StateTracker.sanitizeKey(options.key);
     this.defaultValue = options.default;
-    const stateDirectory = options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
+    const stateDirectory =
+      options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
 
     if (!fs.existsSync(stateDirectory)) {
       fs.mkdirSync(stateDirectory, { recursive: true });
@@ -49,7 +50,7 @@ export class StateTracker<T> {
       return this.defaultValue;
     }
     try {
-      const data = fs.readFileSync(this.filePath, 'utf-8');
+      const data = fs.readFileSync(this.filePath, "utf-8");
       const state = JSON.parse(data) as Record<string, unknown>;
       const { value } = state;
       if (value === undefined) {
@@ -67,7 +68,7 @@ export class StateTracker<T> {
       lastUpdated: new Date().toISOString(),
     };
     const tempFilePath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), 'utf-8');
+    fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf-8");
     fs.renameSync(tempFilePath, this.filePath);
   }
 
