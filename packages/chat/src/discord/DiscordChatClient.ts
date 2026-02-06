@@ -1,34 +1,35 @@
 import {
+  AttachmentBuilder,
   Client,
-  GatewayIntentBits,
-  TextChannel,
-  type MessageReaction,
+  type Message as DiscordMessage,
   type User as DiscordUser,
+  GatewayIntentBits,
+  type MessageReaction,
+  type PartialMessage,
   type PartialMessageReaction,
   type PartialUser,
-  type Message as DiscordMessage,
-  type PartialMessage,
-  AttachmentBuilder,
-} from 'discord.js';
-import { ChatClient } from '../ChatClient.js';
-import { Channel, type ChannelOperations } from '../Channel.js';
+  TextChannel,
+} from "discord.js";
+
+import { Channel, type ChannelOperations } from "../Channel.js";
+import { ChatClient } from "../ChatClient.js";
+import { type DiscordEmbed, toDiscordEmbed } from "../outputters/discord.js";
 import type {
+  DisconnectCallback,
   DiscordConfig,
+  ErrorCallback,
+  FileAttachment,
+  MessageCallback,
+  MessageContent,
   MessageData,
+  MessageEvent,
   ReactionCallback,
   ReactionEvent,
-  MessageCallback,
-  MessageEvent,
-  User,
-  MessageContent,
-  FileAttachment,
-  ThreadData,
   StartThreadOptions,
-  DisconnectCallback,
-  ErrorCallback,
-} from '../types.js';
-import { toDiscordEmbed, type DiscordEmbed } from '../outputters/discord.js';
-import { isDocument } from '../utils.js';
+  ThreadData,
+  User,
+} from "../types.js";
+import { isDocument } from "../utils.js";
 
 /**
  * Discord chat client implementation using discord.js
@@ -44,8 +45,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
   constructor(config: DiscordConfig) {
     super(config);
-    this.token = config.token ?? process.env.DISCORD_TOKEN ?? '';
-    this.guildId = config.guildId ?? process.env.DISCORD_GUILD_ID ?? '';
+    this.token = config.token ?? process.env.DISCORD_TOKEN ?? "";
+    this.guildId = config.guildId ?? process.env.DISCORD_GUILD_ID ?? "";
 
     const intents = [
       GatewayIntentBits.Guilds,
@@ -53,7 +54,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       GatewayIntentBits.GuildMessageReactions,
       // MessageContent is a privileged intent requiring Discord developer portal approval.
       // Enabled by default; set config.intents.messageContent = false to disable.
-      ...(config.intents?.messageContent === false ? [] : [GatewayIntentBits.MessageContent]),
+      ...(config.intents?.messageContent === false
+        ? []
+        : [GatewayIntentBits.MessageContent]),
     ];
 
     this.client = new Client({ intents });
@@ -68,10 +71,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    */
   private setupReactionListener(): void {
     this.client.on(
-      'messageReactionAdd',
+      "messageReactionAdd",
       (
         reaction: MessageReaction | PartialMessageReaction,
-        user: DiscordUser | PartialUser,
+        user: DiscordUser | PartialUser
       ): void => {
         void (async (): Promise<void> => {
           // Handle partial reactions
@@ -79,25 +82,28 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
             try {
               await reaction.fetch();
             } catch (error) {
-              console.error('Failed to fetch partial reaction:', error);
+              console.error("Failed to fetch partial reaction:", error);
               return;
             }
           }
 
-          const channelId = reaction.message.channelId;
+          const { channelId } = reaction.message;
           const callbacks = this.reactionListeners.get(channelId);
 
           if (!callbacks || callbacks.size === 0) {
             return;
           }
 
-          const reactionUser: User = { id: user.id, username: user.username ?? undefined };
+          const reactionUser: User = {
+            id: user.id,
+            username: user.username ?? undefined,
+          };
 
           const event: ReactionEvent = {
-            emoji: reaction.emoji.name ?? reaction.emoji.id ?? '',
+            emoji: reaction.emoji.name ?? reaction.emoji.id ?? "",
             user: reactionUser,
             messageId: reaction.message.id,
-            channelId: channelId,
+            channelId,
             timestamp: new Date(),
           };
 
@@ -105,11 +111,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
             try {
               await callback(event);
             } catch (error) {
-              console.error('Reaction callback error:', error);
+              console.error("Reaction callback error:", error);
             }
           }
         })();
-      },
+      }
     );
   }
 
@@ -117,42 +123,45 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * Set up the global message listener that routes events to channel-specific callbacks
    */
   private setupMessageListener(): void {
-    this.client.on('messageCreate', (message: DiscordMessage | PartialMessage): void => {
-      void (async (): Promise<void> => {
-        // Ignore messages from the bot itself
-        if (message.author?.id === this.client.user?.id) {
-          return;
-        }
-
-        const channelId = message.channelId;
-        const callbacks = this.messageListeners.get(channelId);
-
-        if (!callbacks || callbacks.size === 0) {
-          return;
-        }
-
-        const author: User = {
-          id: message.author?.id ?? '',
-          username: message.author?.username ?? undefined,
-        };
-
-        const event: MessageEvent = {
-          id: message.id,
-          content: message.content ?? '',
-          author,
-          channelId,
-          timestamp: message.createdAt,
-        };
-
-        for (const callback of callbacks) {
-          try {
-            await callback(event);
-          } catch (error) {
-            console.error('Message callback error:', error);
+    this.client.on(
+      "messageCreate",
+      (message: DiscordMessage | PartialMessage): void => {
+        void (async (): Promise<void> => {
+          // Ignore messages from the bot itself
+          if (message.author?.id === this.client.user?.id) {
+            return;
           }
-        }
-      })();
-    });
+
+          const { channelId } = message;
+          const callbacks = this.messageListeners.get(channelId);
+
+          if (!callbacks || callbacks.size === 0) {
+            return;
+          }
+
+          const author: User = {
+            id: message.author?.id ?? "",
+            username: message.author?.username ?? undefined,
+          };
+
+          const event: MessageEvent = {
+            id: message.id,
+            content: message.content ?? "",
+            author,
+            channelId,
+            timestamp: message.createdAt,
+          };
+
+          for (const callback of callbacks) {
+            try {
+              await callback(event);
+            } catch (error) {
+              console.error("Message callback error:", error);
+            }
+          }
+        })();
+      }
+    );
   }
 
   /**
@@ -160,23 +169,23 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * discord.js handles reconnection internally — these callbacks are for observability.
    */
   private setupConnectionResilience(): void {
-    this.client.on('shardDisconnect', (_event, shardId) => {
+    this.client.on("shardDisconnect", (_event, shardId) => {
       const reason = `Shard ${String(shardId)} disconnected`;
       for (const callback of this.disconnectCallbacks) {
         void Promise.resolve(callback(reason)).catch((err: unknown) => {
-          console.error('Disconnect callback error:', err);
+          console.error("Disconnect callback error:", err);
         });
       }
     });
 
-    this.client.on('shardError', (error, shardId) => {
+    this.client.on("shardError", (error, shardId) => {
       const wrappedError =
         error instanceof Error
           ? error
           : new Error(`Shard ${String(shardId)} error: ${String(error)}`);
       for (const callback of this.errorCallbacks) {
         void Promise.resolve(callback(wrappedError)).catch((err: unknown) => {
-          console.error('Error callback error:', err);
+          console.error("Error callback error:", err);
         });
       }
     });
@@ -193,10 +202,12 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     const discordChannel = await this.client.channels.fetch(channelId);
 
     if (!discordChannel || !(discordChannel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
-    return new Channel(channelId, 'discord', this);
+    return new Channel(channelId, "discord", this);
   }
 
   /**
@@ -220,11 +231,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] },
+    options?: { threadTs?: string; files?: FileAttachment[] }
   ): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     let messageOptions: {
@@ -247,14 +260,14 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
         messageOptions = { embeds: [embed] };
       } else {
         // Fallback to empty content for documents with no visible blocks
-        messageOptions = { content: '\u200B' };
+        messageOptions = { content: "\u200B" };
       }
     } else {
       messageOptions = { content };
     }
 
     // If threadTs is provided (non-empty), use it as a reply reference
-    if (options?.threadTs !== undefined && options.threadTs !== '') {
+    if (options?.threadTs !== undefined && options.threadTs !== "") {
       messageOptions.messageReference = { messageId: options.threadTs };
     }
 
@@ -263,9 +276,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       messageOptions.files = options.files.map(
         (file) =>
           new AttachmentBuilder(
-            typeof file.content === 'string' ? Buffer.from(file.content) : file.content,
-            { name: file.name },
-          ),
+            typeof file.content === "string"
+              ? Buffer.from(file.content)
+              : file.content,
+            { name: file.name }
+          )
       );
     }
 
@@ -273,8 +288,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
     return {
       id: message.id,
-      channelId: channelId,
-      platform: 'discord',
+      channelId,
+      platform: "discord",
     };
   }
 
@@ -287,11 +302,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async updateMessage(
     messageId: string,
     channelId: string,
-    content: MessageContent,
+    content: MessageContent
   ): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const message = await channel.messages.fetch(messageId);
@@ -313,7 +330,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async deleteMessage(messageId: string, channelId: string): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const message = await channel.messages.fetch(messageId);
@@ -326,11 +345,17 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param channelId - Channel containing the message
    * @param emoji - Emoji to add
    */
-  async addReaction(messageId: string, channelId: string, emoji: string): Promise<void> {
+  async addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
 
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const message = await channel.messages.fetch(messageId);
@@ -343,7 +368,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param callback - Function to call when reactions are added
    * @returns Unsubscribe function
    */
-  subscribeToReactions(channelId: string, callback: ReactionCallback): () => void {
+  subscribeToReactions(
+    channelId: string,
+    callback: ReactionCallback
+  ): () => void {
     if (!this.reactionListeners.has(channelId)) {
       this.reactionListeners.set(channelId, new Set());
     }
@@ -368,7 +396,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param callback - Function to call when messages are received
    * @returns Unsubscribe function
    */
-  subscribeToMessages(channelId: string, callback: MessageCallback): () => void {
+  subscribeToMessages(
+    channelId: string,
+    callback: MessageCallback
+  ): () => void {
     if (!this.messageListeners.has(channelId)) {
       this.messageListeners.set(channelId, new Set());
     }
@@ -394,7 +425,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async sendTyping(channelId: string): Promise<void> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     await channel.sendTyping();
@@ -412,23 +445,30 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions,
+    options?: StartThreadOptions
   ): Promise<ThreadData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const message = await channel.messages.fetch(messageId);
     const thread = await message.startThread({
       name,
-      autoArchiveDuration: options?.autoArchiveDuration as 60 | 1440 | 4320 | 10080 | undefined,
+      autoArchiveDuration: options?.autoArchiveDuration as
+        | 60
+        | 1440
+        | 4320
+        | 10080
+        | undefined,
     });
 
     return {
       id: thread.id,
-      channelId: channelId,
-      platform: 'discord',
+      channelId,
+      platform: "discord",
     };
   }
 
@@ -441,7 +481,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async bulkDelete(channelId: string, count: number): Promise<number> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const deleted = await channel.bulkDelete(count, true);
@@ -456,7 +498,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async getThreads(channelId: string): Promise<ThreadData[]> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(`Channel ${channelId} not found or is not a text channel`);
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
     }
 
     const threads: ThreadData[] = [];
@@ -464,13 +508,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     // Fetch active threads
     const activeThreads = await channel.threads.fetchActive();
     for (const [threadId] of activeThreads.threads) {
-      threads.push({ id: threadId, channelId, platform: 'discord' });
+      threads.push({ id: threadId, channelId, platform: "discord" });
     }
 
     // Fetch archived threads
     const archivedThreads = await channel.threads.fetchArchived();
     for (const [threadId] of archivedThreads.threads) {
-      threads.push({ id: threadId, channelId, platform: 'discord' });
+      threads.push({ id: threadId, channelId, platform: "discord" });
     }
 
     return threads;

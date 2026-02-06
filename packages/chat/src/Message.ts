@@ -1,32 +1,47 @@
 import type {
-  MessageData,
   MessageContent,
+  MessageData,
   Platform,
   ReactionCallback,
-  ThreadData,
   StartThreadOptions,
-} from './types';
+  ThreadData,
+} from "./types";
 
 /**
  * Interface for the platform-specific reaction adder
  */
 export interface ReactionAdder {
-  addReaction(messageId: string, channelId: string, emoji: string): Promise<void>;
+  addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
 }
 
 /**
  * Interface for message operations (reactions, updates, deletes, replies)
  */
 export interface MessageOperations extends ReactionAdder {
-  updateMessage(messageId: string, channelId: string, content: MessageContent): Promise<void>;
+  updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent
+  ): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
-  postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData>;
-  subscribeToReactions(messageId: string, callback: ReactionCallback): () => void;
+  postReply(
+    channelId: string,
+    threadTs: string,
+    content: MessageContent
+  ): Promise<MessageData>;
+  subscribeToReactions(
+    messageId: string,
+    callback: ReactionCallback
+  ): () => void;
   startThread(
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions,
+    options?: StartThreadOptions
   ): Promise<ThreadData>;
 }
 
@@ -56,7 +71,7 @@ export class Message {
   protected toSnapshot(): Message {
     const msg = new Message(
       { id: this.id, channelId: this.channelId, platform: this.platform },
-      this.operations,
+      this.operations
     );
     msg.reactionUnsubscribers = this.reactionUnsubscribers;
     return msg;
@@ -70,7 +85,7 @@ export class Message {
   addReactions(emojis: string[]): this {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.operations.addReaction(this.id, this.channelId, emoji),
+        this.operations.addReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -113,7 +128,11 @@ export class Message {
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
   postReply(content: MessageContent): Message & PromiseLike<Message> {
-    const replyPromise = this.operations.postReply(this.channelId, this.id, content);
+    const replyPromise = this.operations.postReply(
+      this.channelId,
+      this.id,
+      content
+    );
     return new ReplyMessage(replyPromise, this.operations, this.platform);
   }
 
@@ -123,7 +142,10 @@ export class Message {
    * @param options - Optional thread options
    * @returns Channel-like object for posting into the thread
    */
-  async startThread(name: string, options?: StartThreadOptions): Promise<ThreadData> {
+  async startThread(
+    name: string,
+    options?: StartThreadOptions
+  ): Promise<ThreadData> {
     return this.operations.startThread(this.id, this.channelId, name, options);
   }
 
@@ -169,22 +191,25 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
   constructor(
     replyPromise: Promise<MessageData>,
     operations: MessageOperations,
-    platform: Platform,
+    platform: Platform
   ) {
     // Initialize with placeholder data
-    super({ id: '', channelId: '', platform }, operations);
+    super({ id: "", channelId: "", platform }, operations);
     this.replyPromise = replyPromise;
 
     // Update our data when the reply completes and subscribe any deferred listeners
     this.replyPromise
       .then((data) => {
-        Object.defineProperty(this, 'id', { value: data.id });
-        Object.defineProperty(this, 'channelId', { value: data.channelId });
-        Object.defineProperty(this, 'platform', { value: data.platform });
+        Object.defineProperty(this, "id", { value: data.id });
+        Object.defineProperty(this, "channelId", { value: data.channelId });
+        Object.defineProperty(this, "platform", { value: data.platform });
 
         // Subscribe deferred reaction callbacks now that we have the message ID
         for (const callback of this.deferredReactionCallbacks) {
-          const unsubscribe = this.operations.subscribeToReactions(data.id, callback);
+          const unsubscribe = this.operations.subscribeToReactions(
+            data.id,
+            callback
+          );
           this.reactionUnsubscribers.push(unsubscribe);
         }
       })
@@ -199,10 +224,12 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
   override addReactions(emojis: string[]): this {
     // Chain reactions after the reply completes, capturing current pendingReactions
     const currentPendingReactions = this.pendingReactions;
-    this.pendingReactions = this.replyPromise.then(() => currentPendingReactions);
+    this.pendingReactions = this.replyPromise.then(
+      () => currentPendingReactions
+    );
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
-        this.operations.addReaction(this.id, this.channelId, emoji),
+        this.operations.addReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -222,7 +249,7 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
    */
   then<TResult1 = Message, TResult2 = never>(
     onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
     const resolved = this.replyPromise.then(async () => {
       await this.pendingReactions;

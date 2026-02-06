@@ -1,4 +1,4 @@
-export type Platform = 'markdown' | 'slack' | 'discord' | 'plaintext';
+export type Platform = "markdown" | "slack" | "discord" | "plaintext";
 
 export type Block =
   | HeaderBlock
@@ -11,43 +11,43 @@ export type Block =
   | ImageBlock;
 
 export interface HeaderBlock {
-  type: 'header';
+  type: "header";
   text: string;
 }
 
 export interface TextBlock {
-  type: 'text';
+  type: "text";
   content: string;
 }
 
 export interface ListBlock {
-  type: 'list';
+  type: "list";
   items: string[];
 }
 
 export interface DividerBlock {
-  type: 'divider';
+  type: "divider";
 }
 
 export interface ContextBlock {
-  type: 'context';
+  type: "context";
   text: string;
 }
 
 export interface LinkBlock {
-  type: 'link';
+  type: "link";
   text: string;
   url: string;
 }
 
 export interface CodeBlock {
-  type: 'code';
+  type: "code";
   content: string;
   multiline: boolean;
 }
 
 export interface ImageBlock {
-  type: 'image';
+  type: "image";
   url: string;
   alt?: string;
 }
@@ -67,7 +67,7 @@ export interface DocumentOptions {
 // Key-value formatting options
 export interface KeyValueOptions {
   /** List style: plain (default), bullet, or numbered */
-  style?: 'plain' | 'bullet' | 'numbered';
+  style?: "plain" | "bullet" | "numbered";
   /** Separator between key and value. Default: ':' */
   separator?: string;
   /** Whether to bold keys. Default: true */

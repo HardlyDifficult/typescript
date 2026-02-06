@@ -1,5 +1,5 @@
-import type { ChatConfig } from './types';
-import type { Channel } from './Channel';
+import type { Channel } from "./Channel";
+import type { ChatConfig } from "./types";
 
 /**
  * Abstract base class for chat platform clients

@@ -1,10 +1,10 @@
-import type { Document } from '@hardlydifficult/document-generator';
+import type { Document } from "@hardlydifficult/document-generator";
 
 /**
  * Configuration for Discord client
  */
 export interface DiscordConfig {
-  type: 'discord';
+  type: "discord";
   token?: string; // defaults to process.env.DISCORD_TOKEN
   guildId?: string; // defaults to process.env.DISCORD_GUILD_ID
   /** Additional gateway intents to register */
@@ -15,7 +15,7 @@ export interface DiscordConfig {
  * Configuration for Slack client
  */
 export interface SlackConfig {
-  type: 'slack';
+  type: "slack";
   token?: string; // defaults to process.env.SLACK_BOT_TOKEN
   appToken?: string; // defaults to process.env.SLACK_APP_TOKEN
   socketMode?: boolean;
@@ -26,7 +26,7 @@ export type ChatConfig = DiscordConfig | SlackConfig;
 /**
  * Platform identifier
  */
-export type Platform = 'discord' | 'slack';
+export type Platform = "discord" | "slack";
 
 /**
  * User who performed an action (e.g., added a reaction)

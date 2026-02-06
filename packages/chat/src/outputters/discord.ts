@@ -1,4 +1,4 @@
-import type { Block } from '@hardlydifficult/document-generator';
+import type { Block } from "@hardlydifficult/document-generator";
 
 export interface DiscordEmbedField {
   name: string;
@@ -22,7 +22,7 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
 
   for (const block of blocks) {
     switch (block.type) {
-      case 'header':
+      case "header":
         if (!titleSet) {
           embed.title = block.text;
           titleSet = true;
@@ -32,21 +32,21 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
         }
         break;
 
-      case 'text':
+      case "text":
         descriptionParts.push(block.content);
         break;
 
-      case 'list': {
-        const listItems = block.items.map((item) => `• ${item}`).join('\n');
+      case "list": {
+        const listItems = block.items.map((item) => `• ${item}`).join("\n");
         descriptionParts.push(listItems);
         break;
       }
 
-      case 'divider':
-        descriptionParts.push('───────────');
+      case "divider":
+        descriptionParts.push("───────────");
         break;
 
-      case 'context':
+      case "context":
         if (!footerSet) {
           embed.footer = { text: block.text };
           footerSet = true;
@@ -56,11 +56,11 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
         }
         break;
 
-      case 'link':
+      case "link":
         descriptionParts.push(`[${block.text}](${block.url})`);
         break;
 
-      case 'code':
+      case "code":
         if (block.multiline) {
           descriptionParts.push(`\`\`\`\n${block.content}\n\`\`\``);
         } else {
@@ -68,15 +68,19 @@ export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
         }
         break;
 
-      case 'image':
+      case "image":
         embed.image = { url: block.url };
+        break;
+
+      default:
+        // Unknown block type, skip
         break;
     }
   }
 
   // Join description parts with double newlines for spacing
   if (descriptionParts.length > 0) {
-    embed.description = descriptionParts.join('\n\n');
+    embed.description = descriptionParts.join("\n\n");
   }
 
   return embed;

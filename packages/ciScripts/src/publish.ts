@@ -16,9 +16,9 @@
  *   --packages-dir  Directory containing packages (default: "packages")
  */
 
-import { execSync, type ExecSyncOptions } from 'child_process';
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { execSync, type ExecSyncOptions } from "child_process";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import { join } from "path";
 
 interface ExecOptions extends ExecSyncOptions {
   ignoreError?: boolean;
@@ -46,12 +46,12 @@ interface Package {
 
 function parseArgs(): { packagesDir: string } {
   const args = process.argv.slice(2);
-  let packagesDir = 'packages';
+  let packagesDir = "packages";
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--packages-dir') {
+    if (args[i] === "--packages-dir") {
       const next = args[i + 1];
-      if (next !== undefined && next !== '') {
+      if (next !== undefined && next !== "") {
         packagesDir = next;
       }
     }
@@ -65,11 +65,15 @@ function exec(command: string, options: ExecOptions = {}): string {
   console.log(`$ ${command}`);
   try {
     const { ignoreError: _ignoreError, ...execOptions } = options;
-    const result = execSync(command, { encoding: 'utf-8', stdio: 'pipe', ...execOptions });
-    return typeof result === 'string' ? result.trim() : '';
+    const result = execSync(command, {
+      encoding: "utf-8",
+      stdio: "pipe",
+      ...execOptions,
+    });
+    return typeof result === "string" ? result.trim() : "";
   } catch (error) {
     if (options.ignoreError === true) {
-      return '';
+      return "";
     }
     throw error;
   }
@@ -88,9 +92,11 @@ function getPackages(packagesDir: string): Package[] {
       continue;
     }
 
-    const packageJsonPath = join(packagePath, 'package.json');
+    const packageJsonPath = join(packagePath, "package.json");
     try {
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
+      const packageJson = JSON.parse(
+        readFileSync(packageJsonPath, "utf-8")
+      ) as PackageJson;
       if (packageJson.private === true) {
         continue;
       }
@@ -182,7 +188,7 @@ function sortByDependencyOrder(packages: Package[]): Package[] {
   }
 
   if (sorted.length !== packages.length) {
-    throw new Error('Circular dependency detected between packages');
+    throw new Error("Circular dependency detected between packages");
   }
 
   // Return packages in sorted order
@@ -193,14 +199,17 @@ function sortByDependencyOrder(packages: Package[]): Package[] {
 }
 
 function hasChanges(packagePath: string, lastTag: string | null): boolean {
-  if (lastTag === null || lastTag === '') {
+  if (lastTag === null || lastTag === "") {
     return true;
   }
 
   try {
-    const diff = exec(`git diff --name-only ${lastTag} HEAD -- ${packagePath}`, {
-      ignoreError: true,
-    });
+    const diff = exec(
+      `git diff --name-only ${lastTag} HEAD -- ${packagePath}`,
+      {
+        ignoreError: true,
+      }
+    );
     return diff.length > 0;
   } catch {
     return true;
@@ -209,9 +218,11 @@ function hasChanges(packagePath: string, lastTag: string | null): boolean {
 
 function getLastTag(packageName: string): string | null {
   try {
-    const safeName = packageName.replace('@', '').replace('/', '-');
-    const tags = exec(`git tag -l "${safeName}-v*" --sort=-v:refname`, { ignoreError: true });
-    const tagList = tags.split('\n').filter(Boolean);
+    const safeName = packageName.replace("@", "").replace("/", "-");
+    const tags = exec(`git tag -l "${safeName}-v*" --sort=-v:refname`, {
+      ignoreError: true,
+    });
+    const tagList = tags.split("\n").filter(Boolean);
     return tagList[0] ?? null;
   } catch {
     return null;
@@ -222,18 +233,23 @@ function getLastTag(packageName: string): string | null {
  * Get the latest patch version of a package from npm for a given major.minor.
  * Returns the full version string (e.g., "1.1.5") or null if no versions exist for that major.minor.
  */
-function getLatestNpmPatchVersion(packageName: string, majorMinor: string): string | null {
+function getLatestNpmPatchVersion(
+  packageName: string,
+  majorMinor: string
+): string | null {
   try {
     // Get all versions from npm and filter to the major.minor we want
-    const allVersions = exec(`npm view ${packageName} versions --json`, { ignoreError: false });
+    const allVersions = exec(`npm view ${packageName} versions --json`, {
+      ignoreError: false,
+    });
     const versions = JSON.parse(allVersions) as string[];
 
     // Filter to versions matching our major.minor and find the highest patch
     const matchingVersions = versions
       .filter((v) => v.startsWith(`${majorMinor}.`))
       .map((v) => {
-        const parts = v.split('.');
-        return { full: v, patch: parseInt(parts[2] ?? '0', 10) };
+        const parts = v.split(".");
+        return { full: v, patch: parseInt(parts[2] ?? "0", 10) };
       })
       .sort((a, b) => b.patch - a.patch);
 
@@ -252,11 +268,20 @@ function getLatestNpmPatchVersion(packageName: string, majorMinor: string): stri
  * Note: peerDependencies are excluded from file: transformations since they
  * should use version ranges for compatibility, not exact versions.
  */
-function updateInternalDependencies(pkg: Package, publishedVersions: Map<string, string>): boolean {
-  const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
+function updateInternalDependencies(
+  pkg: Package,
+  publishedVersions: Map<string, string>
+): boolean {
+  const packageJson = JSON.parse(
+    readFileSync(pkg.packageJsonPath, "utf-8")
+  ) as PackageJson;
   let updated = false;
 
-  const depTypes = ['dependencies', 'devDependencies', 'peerDependencies'] as const;
+  const depTypes = [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+  ] as const;
 
   for (const depType of depTypes) {
     const deps = packageJson[depType];
@@ -266,20 +291,22 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
 
     for (const [depName, currentVersion] of Object.entries(deps)) {
       // Check if this is a file: reference to a monorepo package
-      if (currentVersion.startsWith('file:')) {
+      if (currentVersion.startsWith("file:")) {
         // Skip file: transformations for peerDependencies - they should use
         // version ranges for compatibility, not exact versions
-        if (depType === 'peerDependencies') {
+        if (depType === "peerDependencies") {
           console.warn(
             `  Warning: ${depName} in peerDependencies uses file: reference. ` +
-              `Consider using a version range instead.`,
+              `Consider using a version range instead.`
           );
           continue;
         }
         const newVersion = publishedVersions.get(depName);
-        if (newVersion !== undefined && newVersion !== '') {
+        if (newVersion !== undefined && newVersion !== "") {
           // eslint-disable-next-line no-console
-          console.log(`  Transforming ${depName}: ${currentVersion} → ${newVersion}`);
+          console.log(
+            `  Transforming ${depName}: ${currentVersion} → ${newVersion}`
+          );
           deps[depName] = newVersion;
           updated = true;
         }
@@ -287,9 +314,15 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
       // Check if this is a version that needs updating
       else {
         const newVersion = publishedVersions.get(depName);
-        if (newVersion !== undefined && newVersion !== '' && currentVersion !== newVersion) {
+        if (
+          newVersion !== undefined &&
+          newVersion !== "" &&
+          currentVersion !== newVersion
+        ) {
           // eslint-disable-next-line no-console
-          console.log(`  Updating ${depName}: ${currentVersion} → ${newVersion}`);
+          console.log(
+            `  Updating ${depName}: ${currentVersion} → ${newVersion}`
+          );
           deps[depName] = newVersion;
           updated = true;
         }
@@ -298,7 +331,10 @@ function updateInternalDependencies(pkg: Package, publishedVersions: Map<string,
   }
 
   if (updated) {
-    writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    writeFileSync(
+      pkg.packageJsonPath,
+      `${JSON.stringify(packageJson, null, 2)}\n`
+    );
   }
 
   return updated;
@@ -310,7 +346,7 @@ function main(): void {
 
   if (packages.length === 0) {
     // eslint-disable-next-line no-console
-    console.log('No publishable packages found.');
+    console.log("No publishable packages found.");
     return;
   }
 
@@ -318,7 +354,9 @@ function main(): void {
   const sortedPackages = sortByDependencyOrder(packages);
 
   // eslint-disable-next-line no-console
-  console.log(`Found ${String(packages.length)} package(s) (in publish order):`);
+  console.log(
+    `Found ${String(packages.length)} package(s) (in publish order):`
+  );
   sortedPackages.forEach((p, i) => {
     // eslint-disable-next-line no-console
     console.log(`  ${String(i + 1)}. ${p.name}`);
@@ -339,28 +377,32 @@ function main(): void {
 
     if (!changed && !depsUpdated) {
       // eslint-disable-next-line no-console
-      console.log(`No changes since last publish (${lastTag ?? 'none'}). Skipping.`);
+      console.log(
+        `No changes since last publish (${lastTag ?? "none"}). Skipping.`
+      );
       continue;
     }
 
     if (depsUpdated && !changed) {
       // eslint-disable-next-line no-console
-      console.log('Internal dependencies updated. Publishing new version.');
+      console.log("Internal dependencies updated. Publishing new version.");
     } else {
       // eslint-disable-next-line no-console
       console.log(
-        lastTag !== null && lastTag !== ''
+        lastTag !== null && lastTag !== ""
           ? `Changes detected since ${lastTag}.`
-          : 'No previous tag found. Publishing initial version.',
+          : "No previous tag found. Publishing initial version."
       );
     }
 
     // Get the major.minor version from package.json - this is controlled by developers.
     // Then auto-determine the patch version based on what's already published to npm.
-    const packageJson = JSON.parse(readFileSync(pkg.packageJsonPath, 'utf-8')) as PackageJson;
-    const versionParts = packageJson.version.split('.');
-    const major = versionParts[0] ?? '0';
-    const minor = versionParts[1] ?? '0';
+    const packageJson = JSON.parse(
+      readFileSync(pkg.packageJsonPath, "utf-8")
+    ) as PackageJson;
+    const versionParts = packageJson.version.split(".");
+    const major = versionParts[0] ?? "0";
+    const minor = versionParts[1] ?? "0";
     const majorMinor = `${major}.${minor}`;
 
     // Check npm for the latest patch version of this major.minor
@@ -369,11 +411,13 @@ function main(): void {
     let newVersion: string;
     if (latestNpmVersion !== null) {
       // Increment patch from the latest npm version
-      const npmParts = latestNpmVersion.split('.');
-      const nextPatch = parseInt(npmParts[2] ?? '0', 10) + 1;
+      const npmParts = latestNpmVersion.split(".");
+      const nextPatch = parseInt(npmParts[2] ?? "0", 10) + 1;
       newVersion = `${majorMinor}.${String(nextPatch)}`;
       // eslint-disable-next-line no-console
-      console.log(`Latest npm version for ${majorMinor}.x: ${latestNpmVersion}`);
+      console.log(
+        `Latest npm version for ${majorMinor}.x: ${latestNpmVersion}`
+      );
     } else {
       // No versions exist for this major.minor, start at .0
       newVersion = `${majorMinor}.0`;
@@ -383,7 +427,10 @@ function main(): void {
 
     // Update package.json with the new version
     packageJson.version = newVersion;
-    writeFileSync(pkg.packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    writeFileSync(
+      pkg.packageJsonPath,
+      `${JSON.stringify(packageJson, null, 2)}\n`
+    );
 
     // eslint-disable-next-line no-console
     console.log(`New version: ${newVersion}`);
@@ -393,14 +440,14 @@ function main(): void {
 
     // Publish
     // eslint-disable-next-line no-console
-    console.log('Publishing to npm...');
+    console.log("Publishing to npm...");
     try {
       exec(`npm publish --access public`, { cwd: pkg.path });
       // eslint-disable-next-line no-console
       console.log(`Successfully published ${pkg.name}@${newVersion}`);
 
       // Create and push git tag
-      const safeName = pkg.name.replace('@', '').replace('/', '-');
+      const safeName = pkg.name.replace("@", "").replace("/", "-");
       const tagName = `${safeName}-v${newVersion}`;
       exec(`git tag ${tagName}`);
       exec(`git push origin ${tagName}`);
@@ -414,12 +461,12 @@ function main(): void {
   }
 
   // eslint-disable-next-line no-console
-  console.log('\nDone!');
+  console.log("\nDone!");
 }
 
 try {
   main();
 } catch (error: unknown) {
-  console.error('Publish failed:', error);
+  console.error("Publish failed:", error);
   process.exit(1);
 }
