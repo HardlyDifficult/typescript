@@ -19,7 +19,7 @@
     "discord.js": "14.25.1"
   },
   "devDependencies": {
-    "@hardlydifficult/document-generator": "file:../documentGenerator",
+    "@hardlydifficult/document-generator": "file:../document-generator",
     "@types/node": "20.19.31",
     "typescript": "5.8.3",
     "vitest": "1.6.1"

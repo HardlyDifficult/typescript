@@ -7,8 +7,8 @@ Focused, opinionated, easy-to-use npm packages.
 | Package | Description |
 |---------|-------------|
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
-| [@hardlydifficult/ci-scripts](./packages/ciScripts) | Reusable CI scripts |
-| [@hardlydifficult/document-generator](./packages/documentGenerator) | Platform-agnostic document builder |
+| [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
+| [@hardlydifficult/document-generator](./packages/document-generator) | Platform-agnostic document builder |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
