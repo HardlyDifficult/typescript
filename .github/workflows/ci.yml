@@ -41,12 +41,12 @@ jobs:
         run: npm run fix
 
       - name: Log local .claude skills
-        run: npx log-local-skills
+        run: node packages/ci-scripts/dist/log-local-skills.js
 
       - name: Commit and push fixes
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: npx auto-commit-fixes
+        run: node packages/ci-scripts/dist/auto-commit-fixes.js
 
       - name: Check for unpinned dependencies
         run: node packages/ci-scripts/dist/check-pinned-deps.js
