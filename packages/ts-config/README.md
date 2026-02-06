@@ -1,6 +1,6 @@
 # @hardlydifficult/ts-config
 
-Shared ESLint, Prettier, and TypeScript configurations for the `@hardlydifficult` ecosystem.
+Opinionated ESLint, Prettier, and TypeScript configurations.
 
 ## Installation
 
@@ -16,8 +16,6 @@ npm install -D @eslint/js eslint eslint-config-prettier eslint-plugin-import typ
 
 ## ESLint
 
-Exports a `createConfig(projectRoot)` function for ESLint flat config.
-
 Create `eslint.config.js`:
 
 ```js
@@ -25,12 +23,7 @@ import createConfig from "@hardlydifficult/ts-config/eslint";
 export default createConfig(import.meta.dirname);
 ```
 
-For monorepos with config in a subdirectory (e.g., `.config/eslint.config.js`):
-
-```js
-import createConfig from "@hardlydifficult/ts-config/eslint";
-export default createConfig(import.meta.dirname + "/..");
-```
+`createConfig` takes the project root directory (used for TypeScript type-checked linting).
 
 ### Rules Included
 
@@ -42,18 +35,30 @@ export default createConfig(import.meta.dirname + "/..");
 
 ## Prettier
 
-Exports a shared Prettier config object. Add to `package.json`:
+Add the `prettier` key to `package.json` to use the shared config:
 
 ```json
-"prettier": "@hardlydifficult/ts-config/prettier"
+{
+  "prettier": "@hardlydifficult/ts-config/prettier"
+}
 ```
+
+This tells Prettier to load its config from this package. No `.prettierrc` file needed.
 
 ## TypeScript
 
-Base TypeScript config targeting ES2022 with CommonJS modules, strict mode, and declaration output.
+Base config targeting ES2022 with CommonJS modules, strict mode, and declaration output.
 
-In `tsconfig.json`:
+Create or update `tsconfig.json`:
 
 ```json
-{ "extends": "@hardlydifficult/ts-config/tsconfig.base.json" }
+{
+  "extends": "@hardlydifficult/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  }
+}
 ```
+
+The `extends` field pulls in all shared compiler options. Add per-project overrides alongside it.
