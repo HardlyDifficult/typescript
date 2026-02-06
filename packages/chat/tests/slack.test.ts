@@ -13,6 +13,7 @@ const {
   mockReactionsAdd,
   mockFilesUploadV2,
   mockConversationsHistory,
+  mockConversationsReplies,
   mockStart,
   mockStop,
   mockEvent,
@@ -36,6 +37,7 @@ const {
   const mockReactionsAdd = vi.fn();
   const mockFilesUploadV2 = vi.fn();
   const mockConversationsHistory = vi.fn();
+  const mockConversationsReplies = vi.fn();
   const mockStart = vi.fn();
   const mockStop = vi.fn();
   const mockEvent = vi.fn();
@@ -57,6 +59,7 @@ const {
       filesUploadV2: mockFilesUploadV2,
       conversations: {
         history: mockConversationsHistory,
+        replies: mockConversationsReplies,
       },
     },
   };
@@ -76,6 +79,7 @@ const {
     mockReactionsAdd,
     mockFilesUploadV2,
     mockConversationsHistory,
+    mockConversationsReplies,
     mockStart,
     mockStop,
     mockEvent,
@@ -154,6 +158,7 @@ describe("SlackChatClient", () => {
       files: [{ timestamp: "1234567890.999999" }],
     });
     mockConversationsHistory.mockResolvedValue({ messages: [] });
+    mockConversationsReplies.mockResolvedValue({ messages: [] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockEvent.mockImplementation((eventName: string, handler: any) => {
       if (eventName === "reaction_added") {
@@ -1234,6 +1239,60 @@ describe("SlackChatClient", () => {
       expect(thread.id).toBe(msg.id);
       expect(thread.channelId).toBe(channelId);
       expect(thread.platform).toBe("slack");
+    });
+  });
+
+  describe("Message.delete()", () => {
+    it("should delete a message without thread replies", async () => {
+      mockConversationsReplies.mockResolvedValue({
+        messages: [{ ts: "1234567890.123456" }], // only parent, no replies
+      });
+
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Hello");
+
+      await msg.delete();
+
+      expect(mockConversationsReplies).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: msg.id,
+      });
+      expect(mockChatDelete).toHaveBeenCalledTimes(1);
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: msg.id,
+      });
+    });
+
+    it("should delete thread replies before deleting the parent", async () => {
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "1234567890.123456" }, // parent
+          { ts: "1234567890.200000" }, // reply 1
+          { ts: "1234567890.300000" }, // reply 2
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Hello");
+
+      await msg.delete();
+
+      // 2 replies + 1 parent = 3 deletes
+      expect(mockChatDelete).toHaveBeenCalledTimes(3);
+      // Replies deleted in reverse order, then parent
+      expect(mockChatDelete).toHaveBeenNthCalledWith(1, {
+        channel: channelId,
+        ts: "1234567890.300000",
+      });
+      expect(mockChatDelete).toHaveBeenNthCalledWith(2, {
+        channel: channelId,
+        ts: "1234567890.200000",
+      });
+      expect(mockChatDelete).toHaveBeenNthCalledWith(3, {
+        channel: channelId,
+        ts: msg.id,
+      });
     });
   });
 

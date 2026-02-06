@@ -318,7 +318,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
-   * Delete a message from a Discord channel
+   * Delete a message and its thread replies from a Discord channel
    * @param messageId - ID of the message to delete
    * @param channelId - Channel containing the message
    */
@@ -331,6 +331,12 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
 
     const message = await channel.messages.fetch(messageId);
+
+    // Delete the thread (and all its messages) if one exists
+    if (message.thread) {
+      await message.thread.delete();
+    }
+
     await message.delete();
   }
 
