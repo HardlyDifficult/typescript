@@ -1,6 +1,5 @@
-import { App } from "@slack/bolt";
-
 import { convertMarkdown } from "@hardlydifficult/document-generator";
+import { App } from "@slack/bolt";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
