@@ -12,6 +12,12 @@ describe('Message', () => {
       channelId: 'ch-1',
       platform: 'slack' as const,
     }),
+    subscribeToReactions: vi.fn().mockReturnValue(() => {}),
+    startThread: vi.fn().mockResolvedValue({
+      id: 'thread-1',
+      channelId: 'ch-1',
+      platform: 'slack' as const,
+    }),
   });
 
   describe('postReply', () => {
@@ -35,15 +41,15 @@ describe('Message', () => {
         mockOperations,
       );
 
-      const reply = msg.postReply('Reply content');
+      const pending = msg.postReply('Reply content');
 
-      expect(reply).toBeInstanceOf(ReplyMessage);
-      expect(reply).toBeInstanceOf(Message);
+      expect(pending).toBeInstanceOf(ReplyMessage);
+      expect(pending).toBeInstanceOf(Message);
       // Platform is inherited from parent immediately
-      expect(reply.platform).toBe('slack');
+      expect(pending.platform).toBe('slack');
 
       // After awaiting, the data is populated from the response
-      await reply.wait();
+      const reply = await pending;
       expect(reply.id).toBe('reply-123');
       expect(reply.channelId).toBe('ch-1');
     });
@@ -88,7 +94,7 @@ describe('Message', () => {
       expect(mockOperations.postReply).toHaveBeenCalledWith('ch-1', 'msg-1', document);
     });
 
-    it('should propagate errors when awaited via wait()', async () => {
+    it('should propagate errors when awaited', async () => {
       const mockOperations = createMockOperations();
       const error = new Error('Reply failed');
       (mockOperations.postReply as Mock).mockRejectedValue(error);
@@ -100,7 +106,7 @@ describe('Message', () => {
 
       const reply = msg.postReply('Reply content');
 
-      await expect(reply.wait()).rejects.toThrow('Reply failed');
+      await expect(Promise.resolve(reply)).rejects.toThrow('Reply failed');
     });
 
     it('should allow error handling via catch', async () => {
@@ -114,7 +120,7 @@ describe('Message', () => {
       );
 
       const reply = msg.postReply('Reply content');
-      const result = await reply.wait().catch((err: Error) => `caught: ${err.message}`);
+      const result = await Promise.resolve(reply).catch((err: Error) => `caught: ${err.message}`);
 
       expect(result).toBe('caught: Reply failed');
     });

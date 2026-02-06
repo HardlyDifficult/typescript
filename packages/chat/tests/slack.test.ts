@@ -1,37 +1,55 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { SlackConfig, ReactionEvent } from '../src/types.js';
+import type { SlackConfig, ReactionEvent, MessageEvent as ChatMessageEvent } from '../src/types.js';
 
 // Define mocks at module level - Vitest hoists vi.mock() calls automatically
 // Use vi.hoisted() to ensure mocks are available before mock setup
 const {
   mockPostMessage,
+  mockChatDelete,
   mockReactionsAdd,
+  mockFilesUploadV2,
+  mockConversationsHistory,
   mockStart,
   mockStop,
   mockEvent,
+  mockError,
   mockApp,
   getReactionHandler,
   setReactionHandler,
+  getMessageHandler,
+  setMessageHandler,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let reactionAddedHandler: ((args: { event: any }) => Promise<void>) | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let messageHandler: ((args: { event: any; context: any }) => Promise<void>) | null = null;
 
   const mockPostMessage = vi.fn();
+  const mockChatDelete = vi.fn();
   const mockReactionsAdd = vi.fn();
+  const mockFilesUploadV2 = vi.fn();
+  const mockConversationsHistory = vi.fn();
   const mockStart = vi.fn();
   const mockStop = vi.fn();
   const mockEvent = vi.fn();
+  const mockError = vi.fn();
 
   const mockApp = {
     start: mockStart,
     stop: mockStop,
     event: mockEvent,
+    error: mockError,
     client: {
       chat: {
         postMessage: mockPostMessage,
+        delete: mockChatDelete,
       },
       reactions: {
         add: mockReactionsAdd,
+      },
+      filesUploadV2: mockFilesUploadV2,
+      conversations: {
+        history: mockConversationsHistory,
       },
     },
   };
@@ -40,16 +58,26 @@ const {
   const setReactionHandler = (handler: typeof reactionAddedHandler) => {
     reactionAddedHandler = handler;
   };
+  const getMessageHandler = () => messageHandler;
+  const setMessageHandler = (handler: typeof messageHandler) => {
+    messageHandler = handler;
+  };
 
   return {
     mockPostMessage,
+    mockChatDelete,
     mockReactionsAdd,
+    mockFilesUploadV2,
+    mockConversationsHistory,
     mockStart,
     mockStop,
     mockEvent,
+    mockError,
     mockApp,
     getReactionHandler,
     setReactionHandler,
+    getMessageHandler,
+    setMessageHandler,
   };
 });
 
@@ -102,6 +130,7 @@ describe('SlackChatClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setReactionHandler(null);
+    setMessageHandler(null);
 
     // Clear environment variables
     delete process.env.SLACK_TOKEN;
@@ -112,9 +141,16 @@ describe('SlackChatClient', () => {
     mockStop.mockResolvedValue(undefined);
     mockPostMessage.mockResolvedValue({ ts: '1234567890.123456' });
     mockReactionsAdd.mockResolvedValue({ ok: true });
+    mockChatDelete.mockResolvedValue({ ok: true });
+    mockFilesUploadV2.mockResolvedValue({ ok: true, files: [{ timestamp: '1234567890.999999' }] });
+    mockConversationsHistory.mockResolvedValue({ messages: [] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockEvent.mockImplementation((eventName: string, handler: any) => {
       if (eventName === 'reaction_added') {
         setReactionHandler(handler);
+      }
+      if (eventName === 'message') {
+        setMessageHandler(handler);
       }
     });
 
@@ -146,6 +182,15 @@ describe('SlackChatClient', () => {
     it('should register a reaction_added event handler', () => {
       expect(mockEvent).toHaveBeenCalledWith('reaction_added', expect.any(Function));
       expect(getReactionHandler()).not.toBeNull();
+    });
+
+    it('should register a message event handler', () => {
+      expect(mockEvent).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(getMessageHandler()).not.toBeNull();
+    });
+
+    it('should register a global error handler', () => {
+      expect(mockError).toHaveBeenCalledWith(expect.any(Function));
     });
 
     it('should default socketMode to true when not specified', async () => {
@@ -1000,6 +1045,247 @@ describe('SlackChatClient', () => {
 
       expect(message.id).toBe('1234567890.123456');
       expect(mockReactionsAdd).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('Channel.onMessage()', () => {
+    it('should call callback when a message is received', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: 'U999',
+          ts: '1234567890.111111',
+          text: 'Hello from user',
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      expect(event.content).toBe('Hello from user');
+      expect(event.author.id).toBe('U999');
+      expect(event.channelId).toBe(channelId);
+    });
+
+    it('should not call callback for different channel', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: 'C_OTHER',
+          user: 'U999',
+          ts: '1234567890.111111',
+          text: 'Wrong channel',
+        },
+        context: {},
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should skip bot own messages', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: 'U_BOT',
+          ts: '1234567890.111111',
+          text: 'Bot message',
+          bot_id: 'B123',
+        },
+        context: { botId: 'B123' },
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should return an unsubscribe function', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const unsubscribe = channel.onMessage(callback);
+
+      unsubscribe();
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: 'U999',
+          ts: '1234567890.111111',
+          text: 'After unsubscribe',
+        },
+        context: {},
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Channel.sendTyping()', () => {
+    it('should be a no-op (resolve without error)', async () => {
+      const channel = await client.connect(channelId);
+      // Should not throw
+      await channel.sendTyping();
+    });
+  });
+
+  describe('File attachments', () => {
+    it('should upload text files via filesUploadV2 with content field', async () => {
+      const channel = await client.connect(channelId);
+      await channel.postMessage('Here is a file', {
+        files: [{ content: 'plain text', name: 'notes.txt' }],
+      });
+
+      expect(mockFilesUploadV2).toHaveBeenCalledTimes(1);
+      const args = mockFilesUploadV2.mock.calls[0][0];
+      expect(args.content).toBe('plain text');
+      expect(args.filename).toBe('notes.txt');
+      expect(args.file).toBeUndefined();
+    });
+
+    it('should upload binary files via filesUploadV2 with file field', async () => {
+      const channel = await client.connect(channelId);
+      const buffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+      await channel.postMessage('Binary file', {
+        files: [{ content: buffer, name: 'image.png' }],
+      });
+
+      expect(mockFilesUploadV2).toHaveBeenCalledTimes(1);
+      const args = mockFilesUploadV2.mock.calls[0][0];
+      expect(args.file).toBe(buffer);
+      expect(args.content).toBeUndefined();
+    });
+
+    it('should only include initial_comment on the first file', async () => {
+      const channel = await client.connect(channelId);
+      await channel.postMessage('Two files', {
+        files: [
+          { content: 'file1', name: 'a.txt' },
+          { content: 'file2', name: 'b.txt' },
+        ],
+      });
+
+      expect(mockFilesUploadV2).toHaveBeenCalledTimes(2);
+      expect(mockFilesUploadV2.mock.calls[0][0].initial_comment).toBe('Two files');
+      expect(mockFilesUploadV2.mock.calls[1][0].initial_comment).toBeUndefined();
+    });
+
+    it('should return empty ID for file-only uploads', async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage('With file', {
+        files: [{ content: 'data', name: 'file.txt' }],
+      });
+
+      // Slack filesUploadV2 doesn't reliably return a message timestamp
+      expect(msg.id).toBe('');
+    });
+  });
+
+  describe('Message.startThread()', () => {
+    it('should return the message timestamp as thread ID', async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage('Thread root');
+      const thread = await msg.startThread('Thread Name');
+
+      expect(thread.id).toBe(msg.id);
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe('slack');
+    });
+  });
+
+  describe('Channel.bulkDelete()', () => {
+    it('should delete messages one-by-one from history', async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [{ ts: '111.111' }, { ts: '222.222' }, { ts: '333.333' }],
+      });
+
+      const channel = await client.connect(channelId);
+      const deleted = await channel.bulkDelete(3);
+
+      expect(mockConversationsHistory).toHaveBeenCalledWith({
+        channel: channelId,
+        limit: 3,
+      });
+      expect(mockChatDelete).toHaveBeenCalledTimes(3);
+      expect(deleted).toBe(3);
+    });
+
+    it('should continue deleting when some messages fail', async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [{ ts: '111.111' }, { ts: '222.222' }],
+      });
+      mockChatDelete
+        .mockResolvedValueOnce({ ok: true })
+        .mockRejectedValueOnce(new Error('Cannot delete'));
+
+      const channel = await client.connect(channelId);
+      const deleted = await channel.bulkDelete(2);
+
+      expect(deleted).toBe(1);
+    });
+  });
+
+  describe('Channel.getThreads()', () => {
+    it('should return messages with replies as threads', async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: '111.111', reply_count: 3 },
+          { ts: '222.222' },
+          { ts: '333.333', reply_count: 1 },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+
+      expect(threads).toHaveLength(2);
+      expect(threads[0].id).toBe('111.111');
+      expect(threads[1].id).toBe('333.333');
+    });
+  });
+
+  describe('Connection resilience', () => {
+    it('should forward errors from app.error() to onError callbacks', async () => {
+      const errorCallback = vi.fn();
+      client.onError(errorCallback);
+
+      // Get the error handler registered with app.error()
+      const errorHandler = mockError.mock.calls[0][0];
+      const testError = new Error('Socket error');
+      await errorHandler(testError);
+
+      expect(errorCallback).toHaveBeenCalledWith(testError);
+    });
+
+    it('should return unsubscribe function from onError', async () => {
+      const errorCallback = vi.fn();
+      const unsub = client.onError(errorCallback);
+      unsub();
+
+      const errorHandler = mockError.mock.calls[0][0];
+      await errorHandler(new Error('After unsub'));
+
+      expect(errorCallback).not.toHaveBeenCalled();
+    });
+
+    it('should return unsubscribe function from onDisconnect', async () => {
+      const disconnectCallback = vi.fn();
+      const unsub = client.onDisconnect(disconnectCallback);
+
+      expect(typeof unsub).toBe('function');
+      unsub();
     });
   });
 
