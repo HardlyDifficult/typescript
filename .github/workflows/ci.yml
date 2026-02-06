@@ -14,7 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }}
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
@@ -46,6 +45,7 @@ jobs:
       - name: Commit and push fixes
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: node packages/ci-scripts/dist/auto-commit-fixes.js
 
       - name: Check for unpinned dependencies
