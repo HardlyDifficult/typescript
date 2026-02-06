@@ -1,5 +1,6 @@
-/** @type {import("prettier").Config} */
-export default {
+import { type Config } from "prettier";
+
+const config: Config = {
   semi: true,
   singleQuote: false,
   tabWidth: 2,
@@ -17,3 +18,5 @@ export default {
   embeddedLanguageFormatting: "auto",
   singleAttributePerLine: false,
 };
+
+export default config;
