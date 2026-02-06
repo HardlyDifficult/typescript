@@ -1,72 +1,64 @@
 # @hardlydifficult/shared-config
 
-Shared configuration files synced to consuming repos via `postinstall` hook.
+Shared configuration files synced to consuming repos via a `postinstall` hook.
+
+## Installation
+
+```bash
+npm install -D @hardlydifficult/shared-config
+```
 
 ## What Gets Synced
 
-- `.gitignore` — overwritten (shared config is authoritative)
-- `.github/dependabot.yml` — overwritten
-- `.claude/` — merged (shared files overwrite, local additions preserved)
+| Path | Strategy | Details |
+|------|----------|---------|
+| `.gitignore` | Overwrite | Shared config is authoritative |
+| `.github/dependabot.yml` | Overwrite | Shared config is authoritative |
+| `.claude/` | Merge | Shared files overwrite, local additions preserved |
 
-## Setup for a New Repo
+## How It Works
 
-### 1. Install packages
+The package has a `postinstall` hook that runs automatically on `npm install`. It copies the bundled shared files into the consuming repo's root directory using the strategies listed above.
+
+No manual steps required after installation. Every `npm install` re-syncs the files.
+
+## Updating
 
 ```bash
-npm install -D @hardlydifficult/ts-config @hardlydifficult/shared-config @hardlydifficult/ci-scripts
+# Re-sync with the currently installed version
+npm install
+
+# Bump to the latest published version
+npm install @hardlydifficult/shared-config@latest
 ```
 
-### 2. ESLint — create `eslint.config.js`
-
-```js
-import createConfig from "@hardlydifficult/ts-config/eslint";
-export default createConfig(import.meta.dirname);
-```
-
-For monorepos with config in a subdirectory:
-
-```js
-import createConfig from "@hardlydifficult/ts-config/eslint";
-export default createConfig(import.meta.dirname + "/..");
-```
-
-### 3. Prettier — add to `package.json`
-
-```json
-"prettier": "@hardlydifficult/ts-config/prettier"
-```
-
-### 4. TypeScript — create or update `tsconfig.json`
-
-```json
-{ "extends": "@hardlydifficult/ts-config/tsconfig.base.json" }
-```
-
-### 5. npm scripts — add to `package.json`
-
-```json
-"fix": "eslint --fix . && prettier --write .",
-"lint": "eslint .",
-"format:check": "prettier --check ."
-```
-
-### 6. CI workflow
-
-Copy the CI workflow from this repo's `.github/workflows/ci.yml` or reference the template.
-
-Set up a `PAT_TOKEN` secret in your repo settings (GitHub PAT with `repo` scope) so auto-fix commits trigger CI re-runs.
-
-### 7. Run `npm install`
-
-The postinstall hook syncs `.gitignore`, `dependabot.yml`, and `.claude/` skills automatically.
-
-## Updating Shared Config
-
-Just run `npm install` — the postinstall hook always syncs the latest bundled files.
-
-To explicitly update: `npm install @hardlydifficult/shared-config@latest`
+Both commands trigger the `postinstall` hook, which re-syncs all shared files.
 
 ## Skill Repos
 
-Skills are pulled from external GitHub repos listed in `skill-repos.json` (not published to npm).
-Run `npx sync-skills` from the monorepo root to pull latest skills before publishing.
+`skill-repos.json` lists external GitHub repos (in `owner/repo` format) used as skill sources:
+
+```json
+[
+  "some-org/some-repo",
+  "another-org/another-repo"
+]
+```
+
+Pull the latest skills from those repos into the local `.claude/` directory:
+
+```bash
+npx sync-skills
+```
+
+This fetches skills via the GitHub API. It runs in the monorepo only and is not published to npm.
+
+## Local .claude/ Files
+
+The `.claude/` merge strategy means any files you add locally are preserved across syncs. Only files that exist in the shared config are overwritten.
+
+To see which `.claude/` files are local additions (not from the shared config):
+
+```bash
+npx log-local-skills
+```
