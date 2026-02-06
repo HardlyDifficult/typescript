@@ -10,13 +10,14 @@ npm install @hardlydifficult/throttle
 
 ## Throttle
 
-Delay-based rate limiting with human-readable durations.
+Delay-based rate limiting with human-readable durations and optional state persistence across restarts.
 
 ```typescript
 import { Throttle } from '@hardlydifficult/throttle';
 
 const throttle = new Throttle({
   minimumDelay: { value: 1.5, unit: 'minutes' },
+  persistKey: 'my-throttle', // optional: survives restarts
   onSleep: (ms) => console.log(`Sleeping ${ms}ms`),
 });
 

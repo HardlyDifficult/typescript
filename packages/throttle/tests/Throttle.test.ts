@@ -1,13 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import { Throttle } from "../src/Throttle";
 
 describe("Throttle", () => {
+  let testDir: string;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), "throttle-test-"));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    }
   });
 
   describe("constructor", () => {
@@ -106,6 +115,59 @@ describe("Throttle", () => {
 
       await vi.runAllTimersAsync();
       await promise2;
+    });
+  });
+
+  describe("persistence", () => {
+    beforeEach(() => {
+      vi.useRealTimers();
+    });
+
+    afterEach(() => {
+      vi.useFakeTimers();
+    });
+
+    it("should persist state when persistKey provided", async () => {
+      const throttle = new Throttle({
+        minimumDelay: { value: 1, unit: "seconds" },
+        persistKey: "test-throttle",
+        stateDirectory: testDir,
+      });
+
+      await throttle.wait();
+
+      const stateFile = path.join(testDir, "test-throttle.json");
+      expect(fs.existsSync(stateFile)).toBe(true);
+
+      const content = JSON.parse(fs.readFileSync(stateFile, "utf-8")) as Record<
+        string,
+        unknown
+      >;
+      expect(content.value).toBeGreaterThan(Date.now() - 5000);
+    });
+
+    it("should resume from persisted state after restart", async () => {
+      const throttle1 = new Throttle({
+        minimumDelay: { value: 1, unit: "seconds" },
+        persistKey: "persist-test",
+        stateDirectory: testDir,
+      });
+
+      await throttle1.wait();
+
+      const onSleep = vi.fn();
+      const throttle2 = new Throttle({
+        minimumDelay: { value: 1, unit: "seconds" },
+        persistKey: "persist-test",
+        stateDirectory: testDir,
+        onSleep,
+      });
+
+      const startTime = Date.now();
+      await throttle2.wait();
+      const elapsed = Date.now() - startTime;
+
+      expect(elapsed).toBeGreaterThanOrEqual(800);
     });
   });
 
