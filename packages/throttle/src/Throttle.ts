@@ -1,4 +1,4 @@
-import { type TimeSpan, toMilliseconds } from '@hardlydifficult/timespan';
+import { type TimeSpan, toMilliseconds } from '@hardlydifficult/date-time';
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {

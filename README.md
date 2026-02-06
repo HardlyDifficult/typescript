@@ -11,7 +11,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/document-generator](./packages/documentGenerator) | Platform-agnostic document builder |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
-| [@hardlydifficult/timespan](./packages/timespan) | TimeSpan type with millisecond conversion |
+| [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
 
 ## GitHub Actions Setup
 

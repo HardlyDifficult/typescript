@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@hardlydifficult/state-tracker": "file:../state-tracker",
-    "@hardlydifficult/timespan": "file:../timespan"
+    "@hardlydifficult/date-time": "file:../date-time"
   },
   "devDependencies": {
     "@types/node": "20.19.31",
@@ -23,7 +23,7 @@
   },
   "peerDependencies": {
     "@hardlydifficult/state-tracker": ">=1.0.0",
-    "@hardlydifficult/timespan": ">=1.0.0"
+    "@hardlydifficult/date-time": ">=1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
