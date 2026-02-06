@@ -1,38 +1,70 @@
-import { type TimeSpan, toMilliseconds } from "@hardlydifficult/date-time";
+import { StateTracker } from "@hardlydifficult/state-tracker";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 
+export interface ThrottleSleepInfo {
+  weight: number;
+  limitPerSecond: number;
+  scheduledStart: number;
+}
+
 export interface ThrottleOptions {
-  minimumDelay: TimeSpan;
-  onSleep?: (ms: number) => void;
+  unitsPerSecond: number;
+  persistKey?: string;
+  stateDirectory?: string;
+  onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
 }
 
 export class Throttle {
-  private lastTimestamp = 0;
-  private readonly minimumDelayMs: number;
-  private readonly onSleep?: (ms: number) => void;
+  private nextAvailableAt: number;
+  private readonly unitsPerSecond: number;
+  private readonly stateTracker?: StateTracker<number>;
+  private readonly onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
 
   constructor(options: ThrottleOptions) {
-    this.minimumDelayMs = toMilliseconds(options.minimumDelay);
-    if (this.minimumDelayMs <= 0) {
-      throw new Error("Throttle minimumDelay must be a positive duration");
-    }
+    this.unitsPerSecond = options.unitsPerSecond;
     this.onSleep = options.onSleep;
+
+    if (!Number.isFinite(this.unitsPerSecond) || this.unitsPerSecond <= 0) {
+      throw new Error("Throttle requires a positive unitsPerSecond value");
+    }
+
+    if (options.persistKey !== undefined) {
+      this.stateTracker = new StateTracker({
+        key: options.persistKey,
+        default: Date.now(),
+        stateDirectory: options.stateDirectory,
+      });
+      this.nextAvailableAt = this.stateTracker.load();
+    } else {
+      this.nextAvailableAt = 0;
+    }
   }
 
-  async wait(): Promise<void> {
+  async wait(weight = 1): Promise<void> {
+    if (!Number.isFinite(weight) || weight <= 0) {
+      return;
+    }
+
     const now = Date.now();
-    const target = Math.max(now, this.lastTimestamp + this.minimumDelayMs);
-    const delay = target - now;
+    const startAt = Math.max(now, this.nextAvailableAt);
+    const processingWindowMs = (weight / this.unitsPerSecond) * 1000;
+    const delayMs = startAt - now;
+    const newNextAvailableAt = startAt + processingWindowMs;
 
-    this.lastTimestamp = target;
+    this.stateTracker?.save(newNextAvailableAt);
+    this.nextAvailableAt = newNextAvailableAt;
 
-    if (delay > 0) {
-      this.onSleep?.(delay);
-      await sleep(delay);
+    if (delayMs > 0) {
+      this.onSleep?.(delayMs, {
+        weight,
+        limitPerSecond: this.unitsPerSecond,
+        scheduledStart: startAt,
+      });
+      await sleep(delayMs);
     }
   }
 }

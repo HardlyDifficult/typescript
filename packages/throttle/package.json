@@ -1,6 +1,6 @@
 {
   "name": "@hardlydifficult/throttle",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
@@ -13,8 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hardlydifficult/state-tracker": "file:../state-tracker",
-    "@hardlydifficult/date-time": "file:../date-time"
+    "@hardlydifficult/state-tracker": "file:../state-tracker"
   },
   "devDependencies": {
     "@types/node": "20.19.31",
@@ -22,8 +21,7 @@
     "vitest": "1.6.1"
   },
   "peerDependencies": {
-    "@hardlydifficult/state-tracker": ">=1.0.0",
-    "@hardlydifficult/date-time": ">=1.0.0"
+    "@hardlydifficult/state-tracker": ">=1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
