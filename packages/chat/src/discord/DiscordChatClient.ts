@@ -51,11 +51,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildMessageReactions,
-      // MessageContent is a privileged intent requiring Discord developer portal approval.
-      // Enabled by default; set messageContent = false to disable.
-      ...(config.messageContent === false
-        ? []
-        : [GatewayIntentBits.MessageContent]),
+      GatewayIntentBits.MessageContent,
     ];
 
     this.client = new Client({ intents });

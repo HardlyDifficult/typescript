@@ -91,14 +91,14 @@ channel.postMessage("Here's the scan report", {
 const msg = await channel.postMessage("Hello");
 
 await msg.update("Updated content");
-await msg.delete();
 msg.reply("Thread reply");
+await msg.delete();
 ```
 
 ### Reactions
 
 ```typescript
-await channel
+const msg = await channel
   .postMessage("Pick one")
   .addReactions(["👍", "👎"])
   .onReaction((event) => {

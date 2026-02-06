@@ -7,8 +7,6 @@ export interface DiscordConfig {
   type: "discord";
   token?: string; // defaults to process.env.DISCORD_TOKEN
   guildId?: string; // defaults to process.env.DISCORD_GUILD_ID
-  /** Include MessageContent intent for reading message content from other bots/users */
-  messageContent?: boolean;
 }
 
 /**
