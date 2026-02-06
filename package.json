@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@10.9.4",
+  "prettier": "@hardlydifficult/ts-config/prettier",
   "workspaces": [
     "packages/*"
   ],
@@ -13,8 +14,9 @@
     "test:coverage": "turbo run test:coverage",
     "lint": "eslint --config .config/eslint.config.js packages/",
     "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
-    "format": "prettier --config .config/prettier.config.js --write \"packages/**/*.ts\"",
-    "format:check": "prettier --config .config/prettier.config.js --check \"packages/**/*.ts\"",
+    "format": "prettier --write \"packages/**/*.ts\"",
+    "format:check": "prettier --check \"packages/**/*.ts\"",
+    "fix": "npm run lint:fix && npm run format",
     "clean": "turbo run clean"
   },
   "devDependencies": {
