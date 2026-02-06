@@ -13,194 +13,188 @@ npm install @hardlydifficult/chat
 ```typescript
 import { createChatClient } from "@hardlydifficult/chat";
 
-// Uses DISCORD_TOKEN and DISCORD_GUILD_ID env vars
 const client = createChatClient({ type: "discord" });
-
-// Or for Slack: uses SLACK_BOT_TOKEN and SLACK_APP_TOKEN env vars
-const client = createChatClient({ type: "slack" });
-
 const channel = await client.connect(channelId);
 
-await channel
-  .postMessage("Vote: (1) Pizza, (2) Burgers, (3) Salad")
-  .addReactions(["1️⃣", "2️⃣", "3️⃣"])
-  .onReaction((event) => {
-    console.log(`${event.user.username} voted ${event.emoji}`);
-  });
+// Post messages
+await channel.postMessage("Hello!");
+
+// Listen for incoming messages
+channel.onMessage((event) => {
+  console.log(`${event.author.username}: ${event.content}`);
+});
 ```
 
-## Rich Documents
-
-Post rich, formatted messages using the `@hardlydifficult/document-generator` package:
+## Configuration
 
 ```typescript
-import { Document } from '@hardlydifficult/document-generator';
-import { createChatClient } from '@hardlydifficult/chat';
+// Discord - env vars: DISCORD_TOKEN, DISCORD_GUILD_ID
+createChatClient({ type: "discord" });
+createChatClient({ type: "discord", token: "...", guildId: "..." });
 
-const client = createChatClient({ type: 'slack' });
-const channel = await client.connect(channelId);
+// Slack - env vars: SLACK_BOT_TOKEN, SLACK_APP_TOKEN
+createChatClient({ type: "slack" });
+createChatClient({ type: "slack", token: "...", appToken: "..." });
+```
+
+## Incoming Messages
+
+Subscribe to new messages in a channel. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = channel.onMessage((event) => {
+  // event.id, event.content, event.author, event.channelId, event.timestamp
+  console.log(`${event.author.username}: ${event.content}`);
+});
+
+// Later: stop listening
+unsubscribe();
+```
+
+Messages from the bot itself are automatically filtered out.
+
+## Posting Messages
+
+Content can be a string or a `Document` from `@hardlydifficult/document-generator`.
+
+```typescript
+// Simple text
+channel.postMessage("Hello!");
+
+// Rich document (auto-converted to Discord Embed / Slack Block Kit)
+import { Document } from "@hardlydifficult/document-generator";
 
 const report = new Document()
   .header("Daily Report")
   .text("Here are today's **highlights**:")
-  .list(["Feature A completed", "Bug B fixed", "99.9% uptime"])
-  .divider()
-  .link("View dashboard", "https://example.com/dashboard")
-  .context("Generated automatically");
+  .list(["Feature A completed", "Bug B fixed", "99.9% uptime"]);
 
-// Automatically converted to Slack Block Kit / Discord Embed
-await channel.postMessage(report);
+channel.postMessage(report);
+```
+
+### File Attachments
+
+Send files as message attachments.
+
+```typescript
+channel.postMessage("Here's the scan report", {
+  files: [
+    { content: Buffer.from(markdownContent), name: "report.md" },
+    { content: "plain text content", name: "notes.txt" },
+  ],
+});
 ```
 
 ## Message Operations
 
-### Update Messages
-
 ```typescript
-const msg = await channel.postMessage('Initial content');
-await msg.update('Updated content');
-await msg.update(new Document().header('New Header').text('New body'));
-```
+const msg = await channel.postMessage("Hello").wait();
 
-### Delete Messages
-
-```typescript
-const msg = await channel.postMessage('Temporary message');
+await msg.update("Updated content");
 await msg.delete();
-```
-
-### Thread Replies
-
-```typescript
-const msg = await channel.postMessage('Main message');
-msg.postReply('This is a thread reply');
-msg.postReply(new Document().text('Rich reply with **formatting**'));
+msg.postReply("Thread reply");
 ```
 
 ### Reactions
 
 ```typescript
-// Add reactions and listen for user votes (chainable)
 await channel
   .postMessage("Pick one")
-  .addReactions(["👍", "👎", "🤷"])
+  .addReactions(["👍", "👎"])
   .onReaction((event) => {
     console.log(`${event.user.username} reacted with ${event.emoji}`);
   });
 
-// Or wait for reactions to be added before continuing
-const msg = await channel.postMessage("Loading...").wait();
-msg.addReactions(["✅"]);
-await msg.waitForReactions();
+msg.offReaction(); // stop listening
 ```
 
-## API Reference
+### Threads
 
-### `createChatClient(config)`
+Create a thread from an existing message.
 
 ```typescript
-// Discord - env vars: DISCORD_TOKEN, DISCORD_GUILD_ID
-createChatClient({ type: 'discord' });
-createChatClient({ type: 'discord', token: '...', guildId: '...' });
-
-// Slack - env vars: SLACK_BOT_TOKEN, SLACK_APP_TOKEN
-createChatClient({ type: 'slack' });
-createChatClient({ type: 'slack', token: '...', appToken: '...' });
+const msg = await channel.postMessage("Starting a discussion").wait();
+const thread = await msg.startThread("Discussion Thread", {
+  autoArchiveDuration: 1440, // minutes
+});
 ```
 
-### `client.connect(channelId): Promise<Channel>`
+> **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.postReply()` to populate the thread.
 
-Connect to a channel.
+## Typing Indicator
 
-### `channel.postMessage(content): Message`
-
-Post a message. Content can be a string or a Document.
-
-### `message.addReactions(emojis): Message`
-
-Add reactions. Chainable and awaitable.
-
-### `message.postReply(content): Message`
-
-Post a reply in the message's thread.
-
-### `message.update(content): Promise<void>`
-
-Update the message content.
-
-### `message.delete(): Promise<void>`
-
-Delete the message.
-
-### `message.waitForReactions(): Promise<void>`
-
-Wait for all pending reactions to complete.
-
-### `message.onReaction(callback): Message`
-
-Listen for reactions on this message. Chainable.
+Show a "typing" indicator while processing.
 
 ```typescript
-channel
-  .postMessage("Vote!")
-  .addReactions(["👍", "👎"])
-  .onReaction((event) => {
-    // event.emoji, event.user.id, event.user.username,
-    // event.messageId, event.channelId, event.timestamp
-  });
+await channel.sendTyping();
+// ... do work ...
+await channel.postMessage("Done!");
 ```
 
-### `message.offReaction(): void`
+> **Slack note:** Slack does not support bot typing indicators. `sendTyping()` is a no-op on Slack.
 
-Stop listening for reactions on this message.
+## Bulk Operations
 
-### `client.disconnect(): Promise<void>`
+Delete messages and manage threads in bulk.
 
-Disconnect from the platform.
+```typescript
+// Delete up to 100 recent messages
+const deletedCount = await channel.bulkDelete(50);
+
+// Get all threads (active and archived)
+const threads = await channel.getThreads();
+for (const thread of threads) {
+  console.log(thread.id);
+}
+```
+
+> **Slack note:** Slack has no bulk delete API — messages are deleted one-by-one. Some may fail if the bot lacks permission to delete others' messages. `getThreads()` scans recent channel history for messages with replies.
+
+## Connection Resilience
+
+Register callbacks for disconnect and error events. Discord includes built-in auto-reconnect with exponential backoff.
+
+```typescript
+const client = createChatClient({ type: "discord" });
+
+client.onDisconnect((reason) => {
+  console.log("Disconnected:", reason);
+});
+
+client.onError((error) => {
+  console.error("Connection error:", error);
+});
+
+await client.disconnect(); // clean shutdown
+```
+
+Both callbacks return an unsubscribe function.
 
 ## Platform Setup
 
 ### Discord
 
 1. Create bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Enable Gateway Intents: `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`
-3. Bot permissions: `Send Messages`, `Add Reactions`, `Read Message History`
+2. Enable Gateway Intents: `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `MESSAGE_CONTENT`
+3. Bot permissions: `Send Messages`, `Add Reactions`, `Read Message History`, `Manage Messages` (for bulk delete), `Create Public Threads`, `Send Messages in Threads`
 4. Set `DISCORD_TOKEN` and `DISCORD_GUILD_ID` env vars
 
 ### Slack
 
 1. Create app at [Slack API](https://api.slack.com/apps)
 2. Enable Socket Mode, generate App Token
-3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`
-4. Subscribe to: `reaction_added`
+3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `files:write`
+4. Subscribe to events: `reaction_added`, `message.channels`
 5. Set `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` env vars
 
-## Example: Interactive Poll
+## Platform Differences
 
-```typescript
-import { createChatClient } from "@hardlydifficult/chat";
-import { Document } from "@hardlydifficult/document-generator";
-
-const client = createChatClient({ type: "discord" });
-const channel = await client.connect(process.env.CHANNEL_ID);
-
-const options = ["Pizza", "Burgers", "Salad"];
-const emojis = ["1️⃣", "2️⃣", "3️⃣"];
-const votes: Record<string, string> = {};
-
-const pollDoc = new Document()
-  .header("🗳️ Lunch Poll")
-  .text("What should we order?")
-  .list(options.map((o, i) => `${emojis[i]} ${o}`));
-
-await channel
-  .postMessage(pollDoc)
-  .addReactions(emojis)
-  .onReaction((event) => {
-    const choice = options[emojis.indexOf(event.emoji)];
-    if (choice) {
-      votes[event.user.id] = choice;
-      console.log(`${event.user.username} voted for ${choice}`);
-    }
-  });
-```
+| Feature | Discord | Slack |
+|---|---|---|
+| Incoming messages | Full support | Full support |
+| Typing indicator | Full support | No-op (unsupported by Slack bot API) |
+| File attachments | `AttachmentBuilder` | `filesUploadV2` |
+| Thread creation | Creates named thread on message | Returns message timestamp (threads are implicit) |
+| Bulk delete | Native `bulkDelete` API (fast) | One-by-one deletion (slower, may partially fail) |
+| Get threads | `fetchActive` + `fetchArchived` | Scans channel history for threaded messages |
+| Auto-reconnect | Built-in with exponential backoff | Handled by `@slack/bolt` Socket Mode |
