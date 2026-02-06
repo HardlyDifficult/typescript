@@ -121,14 +121,6 @@ export interface MessageData {
 export type MessageContent = string | Document;
 
 /**
- * Options for posting messages with thread support and file attachments
- */
-export interface PostMessageOptions {
-  threadTs?: string;
-  files?: FileAttachment[];
-}
-
-/**
  * Options for creating a thread from a message
  */
 export interface StartThreadOptions {

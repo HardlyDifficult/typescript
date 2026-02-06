@@ -76,12 +76,12 @@ export class Channel {
   /**
    * Post a message to this channel
    * @param content - Message content (string or Document)
-   * @param options - Optional message options (e.g., threadTs for threading, files for attachments)
+   * @param options - Optional message options (e.g., files for attachments)
    * @returns Message object with chainable reaction methods
    */
   postMessage(
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: { files?: FileAttachment[] }
   ): Message & PromiseLike<Message> {
     const messagePromise = this.operations.postMessage(
       this.id,
@@ -152,7 +152,7 @@ export class Channel {
       ) => this.operations.updateMessage(messageId, channelId, content),
       deleteMessage: (messageId: string, channelId: string) =>
         this.operations.deleteMessage(messageId, channelId),
-      postReply: async (
+      reply: async (
         channelId: string,
         threadTs: string,
         content: MessageContent

@@ -10,7 +10,6 @@ export {
   type MessageEvent,
   type MessageCallback,
   type MessageContent,
-  type PostMessageOptions,
   type FileAttachment,
   type ThreadData,
   type StartThreadOptions,

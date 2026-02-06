@@ -7,7 +7,7 @@ describe("Message", () => {
     addReaction: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
-    postReply: vi.fn().mockResolvedValue({
+    reply: vi.fn().mockResolvedValue({
       id: "reply-123",
       channelId: "ch-1",
       platform: "slack" as const,
@@ -20,17 +20,17 @@ describe("Message", () => {
     }),
   });
 
-  describe("postReply", () => {
-    it("should call postReply with correct parameters", () => {
+  describe("reply", () => {
+    it("should call reply with correct parameters", () => {
       const mockOperations = createMockOperations();
       const msg = new Message(
         { id: "msg-1", channelId: "ch-1", platform: "slack" },
         mockOperations
       );
 
-      const reply = msg.postReply("Reply content");
+      const reply = msg.reply("Reply content");
 
-      expect(mockOperations.postReply).toHaveBeenCalledWith(
+      expect(mockOperations.reply).toHaveBeenCalledWith(
         "ch-1",
         "msg-1",
         "Reply content"
@@ -45,7 +45,7 @@ describe("Message", () => {
         mockOperations
       );
 
-      const pending = msg.postReply("Reply content");
+      const pending = msg.reply("Reply content");
 
       expect(pending).toBeInstanceOf(ReplyMessage);
       expect(pending).toBeInstanceOf(Message);
@@ -65,14 +65,14 @@ describe("Message", () => {
         channelId: "ch-2",
         platform: "discord" as const,
       };
-      (mockOperations.postReply as Mock).mockResolvedValue(replyData);
+      (mockOperations.reply as Mock).mockResolvedValue(replyData);
 
       const msg = new Message(
         { id: "msg-1", channelId: "ch-1", platform: "slack" },
         mockOperations
       );
 
-      const reply = msg.postReply("Reply content");
+      const reply = msg.reply("Reply content");
 
       // Wait for the promise to resolve
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -93,9 +93,9 @@ describe("Message", () => {
         getBlocks: () => [{ type: "text" as const, content: "Test" }],
       };
 
-      msg.postReply(document);
+      msg.reply(document);
 
-      expect(mockOperations.postReply).toHaveBeenCalledWith(
+      expect(mockOperations.reply).toHaveBeenCalledWith(
         "ch-1",
         "msg-1",
         document
@@ -105,14 +105,14 @@ describe("Message", () => {
     it("should propagate errors when awaited", async () => {
       const mockOperations = createMockOperations();
       const error = new Error("Reply failed");
-      (mockOperations.postReply as Mock).mockRejectedValue(error);
+      (mockOperations.reply as Mock).mockRejectedValue(error);
 
       const msg = new Message(
         { id: "msg-1", channelId: "ch-1", platform: "slack" },
         mockOperations
       );
 
-      const reply = msg.postReply("Reply content");
+      const reply = msg.reply("Reply content");
 
       await expect(Promise.resolve(reply)).rejects.toThrow("Reply failed");
     });
@@ -120,14 +120,14 @@ describe("Message", () => {
     it("should allow error handling via catch", async () => {
       const mockOperations = createMockOperations();
       const error = new Error("Reply failed");
-      (mockOperations.postReply as Mock).mockRejectedValue(error);
+      (mockOperations.reply as Mock).mockRejectedValue(error);
 
       const msg = new Message(
         { id: "msg-1", channelId: "ch-1", platform: "slack" },
         mockOperations
       );
 
-      const reply = msg.postReply("Reply content");
+      const reply = msg.reply("Reply content");
       const result = await Promise.resolve(reply).catch(
         (err: Error) => `caught: ${err.message}`
       );
@@ -292,11 +292,11 @@ describe("Message", () => {
         mockOperations
       );
 
-      const reply = msg.postReply("Initial reply");
+      const reply = msg.reply("Initial reply");
       await new Promise((resolve) => setTimeout(resolve, 10)); // Wait for reply to resolve
       await reply.update("Updated reply");
 
-      expect(mockOperations.postReply).toHaveBeenCalled();
+      expect(mockOperations.reply).toHaveBeenCalled();
       expect(mockOperations.updateMessage).toHaveBeenCalled();
     });
   });

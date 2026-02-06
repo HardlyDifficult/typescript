@@ -92,7 +92,7 @@ const msg = await channel.postMessage("Hello");
 
 await msg.update("Updated content");
 await msg.delete();
-msg.postReply("Thread reply");
+msg.reply("Thread reply");
 ```
 
 ### Reactions
@@ -119,7 +119,7 @@ const thread = await msg.startThread("Discussion Thread", {
 });
 ```
 
-> **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.postReply()` to populate the thread.
+> **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.reply()` to populate the thread.
 
 ## Typing Indicator
 

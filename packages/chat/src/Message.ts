@@ -28,7 +28,7 @@ export interface MessageOperations extends ReactionAdder {
     content: MessageContent
   ): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
-  postReply(
+  reply(
     channelId: string,
     threadTs: string,
     content: MessageContent
@@ -123,12 +123,12 @@ export class Message {
   }
 
   /**
-   * Post a reply in this message's thread
+   * Reply in this message's thread
    * @param content - Reply content (string or Document)
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  postReply(content: MessageContent): Message & PromiseLike<Message> {
-    const replyPromise = this.operations.postReply(
+  reply(content: MessageContent): Message & PromiseLike<Message> {
+    const replyPromise = this.operations.reply(
       this.channelId,
       this.id,
       content
@@ -182,7 +182,7 @@ export class Message {
 /**
  * A reply message that is still being posted.
  * Implements PromiseLike so it can be directly awaited:
- *   const reply = await msg.postReply('text');
+ *   const reply = await msg.reply('text');
  */
 export class ReplyMessage extends Message implements PromiseLike<Message> {
   private replyPromise: Promise<MessageData>;
