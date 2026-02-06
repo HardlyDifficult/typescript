@@ -22,10 +22,7 @@ export class Throttle {
   private nextAvailableAt: number;
   private readonly unitsPerSecond: number;
   private readonly stateTracker?: StateTracker<number>;
-  private readonly onSleep?: (
-    delayMs: number,
-    info: ThrottleSleepInfo
-  ) => void;
+  private readonly onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
 
   constructor(options: ThrottleOptions) {
     this.unitsPerSecond = options.unitsPerSecond;

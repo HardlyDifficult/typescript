@@ -1,1 +1,5 @@
-export { Throttle, type ThrottleOptions, type ThrottleSleepInfo } from "./Throttle";
+export {
+  Throttle,
+  type ThrottleOptions,
+  type ThrottleSleepInfo,
+} from "./Throttle";
