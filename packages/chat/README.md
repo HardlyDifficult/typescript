@@ -114,9 +114,7 @@ Create a thread from an existing message.
 
 ```typescript
 const msg = await channel.postMessage("Starting a discussion");
-const thread = await msg.startThread("Discussion Thread", {
-  autoArchiveDuration: 1440, // minutes
-});
+const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive in minutes
 ```
 
 > **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.reply()` to populate the thread.

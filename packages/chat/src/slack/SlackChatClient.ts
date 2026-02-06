@@ -14,7 +14,6 @@ import type {
   ReactionCallback,
   ReactionEvent,
   SlackConfig,
-  StartThreadOptions,
   ThreadData,
   User,
 } from "../types.js";
@@ -336,7 +335,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     messageId: string,
     channelId: string,
     _name: string,
-    _options?: StartThreadOptions
+    _autoArchiveDuration?: number
   ): Promise<ThreadData> {
     // In Slack, threads are created by replying to a message.
     // Return the message timestamp as the thread ID

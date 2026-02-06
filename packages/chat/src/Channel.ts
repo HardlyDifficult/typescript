@@ -8,7 +8,6 @@ import type {
   MessageData,
   Platform,
   ReactionCallback,
-  StartThreadOptions,
   ThreadData,
 } from "./types";
 
@@ -42,7 +41,7 @@ export interface ChannelOperations {
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions
+    autoArchiveDuration?: number
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
   getThreads(channelId: string): Promise<ThreadData[]>;
@@ -163,8 +162,8 @@ export class Channel {
         messageId: string,
         channelId: string,
         name: string,
-        options?: StartThreadOptions
-      ) => this.operations.startThread(messageId, channelId, name, options),
+        autoArchiveDuration?: number
+      ) => this.operations.startThread(messageId, channelId, name, autoArchiveDuration),
     };
   }
 

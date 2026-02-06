@@ -3,25 +3,18 @@ import type {
   MessageData,
   Platform,
   ReactionCallback,
-  StartThreadOptions,
   ThreadData,
 } from "./types";
 
 /**
- * Interface for the platform-specific reaction adder
+ * Interface for message operations (reactions, updates, deletes, replies)
  */
-export interface ReactionAdder {
+export interface MessageOperations {
   addReaction(
     messageId: string,
     channelId: string,
     emoji: string
   ): Promise<void>;
-}
-
-/**
- * Interface for message operations (reactions, updates, deletes, replies)
- */
-export interface MessageOperations extends ReactionAdder {
   updateMessage(
     messageId: string,
     channelId: string,
@@ -41,7 +34,7 @@ export interface MessageOperations extends ReactionAdder {
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions
+    autoArchiveDuration?: number
   ): Promise<ThreadData>;
 }
 
@@ -139,14 +132,14 @@ export class Message {
   /**
    * Create a thread from this message
    * @param name - Thread name
-   * @param options - Optional thread options
-   * @returns Channel-like object for posting into the thread
+   * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
+   * @returns Thread data
    */
   async startThread(
     name: string,
-    options?: StartThreadOptions
+    autoArchiveDuration?: number
   ): Promise<ThreadData> {
-    return this.operations.startThread(this.id, this.channelId, name, options);
+    return this.operations.startThread(this.id, this.channelId, name, autoArchiveDuration);
   }
 
   /**

@@ -1282,7 +1282,7 @@ describe("DiscordChatClient", () => {
       const message = channel.postMessage("Thread with options");
       await waitForMessage(message);
 
-      await message.startThread("Timed Thread", { autoArchiveDuration: 1440 });
+      await message.startThread("Timed Thread", 1440);
 
       expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
         name: "Timed Thread",

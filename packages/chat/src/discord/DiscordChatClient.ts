@@ -25,7 +25,6 @@ import type {
   MessageEvent,
   ReactionCallback,
   ReactionEvent,
-  StartThreadOptions,
   ThreadData,
   User,
 } from "../types.js";
@@ -53,8 +52,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildMessageReactions,
       // MessageContent is a privileged intent requiring Discord developer portal approval.
-      // Enabled by default; set config.intents.messageContent = false to disable.
-      ...(config.intents?.messageContent === false
+      // Enabled by default; set messageContent = false to disable.
+      ...(config.messageContent === false
         ? []
         : [GatewayIntentBits.MessageContent]),
     ];
@@ -438,14 +437,14 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param messageId - Message to create thread from
    * @param channelId - Channel containing the message
    * @param name - Thread name
-   * @param options - Optional thread options
+   * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
    * @returns Thread data
    */
   async startThread(
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions
+    autoArchiveDuration?: number
   ): Promise<ThreadData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
@@ -457,7 +456,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     const message = await channel.messages.fetch(messageId);
     const thread = await message.startThread({
       name,
-      autoArchiveDuration: options?.autoArchiveDuration as
+      autoArchiveDuration: autoArchiveDuration as
         | 60
         | 1440
         | 4320

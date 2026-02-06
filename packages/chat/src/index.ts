@@ -12,16 +12,14 @@ export {
   type MessageContent,
   type FileAttachment,
   type ThreadData,
-  type StartThreadOptions,
-  type DiscordGatewayIntents,
   type DisconnectCallback,
   type ErrorCallback,
 } from "./types";
 
 // Core classes
 export { ChatClient } from "./ChatClient";
-export { Channel, type ChannelOperations } from "./Channel";
-export { Message, ReplyMessage, type MessageOperations } from "./Message";
+export { Channel } from "./Channel";
+export { Message } from "./Message";
 
 // Platform implementations
 export { DiscordChatClient } from "./discord";

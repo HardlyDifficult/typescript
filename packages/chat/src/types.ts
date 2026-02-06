@@ -7,8 +7,8 @@ export interface DiscordConfig {
   type: "discord";
   token?: string; // defaults to process.env.DISCORD_TOKEN
   guildId?: string; // defaults to process.env.DISCORD_GUILD_ID
-  /** Additional gateway intents to register */
-  intents?: DiscordGatewayIntents;
+  /** Include MessageContent intent for reading message content from other bots/users */
+  messageContent?: boolean;
 }
 
 /**
@@ -120,19 +120,3 @@ export interface MessageData {
  */
 export type MessageContent = string | Document;
 
-/**
- * Options for creating a thread from a message
- */
-export interface StartThreadOptions {
-  /** Auto-archive duration in minutes (60, 1440, 4320, 10080) */
-  autoArchiveDuration?: number;
-}
-
-/**
- * Configuration for Discord client
- * Additional gateway intents can be specified
- */
-export interface DiscordGatewayIntents {
-  /** Include MessageContent intent for reading message content from other bots/users */
-  messageContent?: boolean;
-}
