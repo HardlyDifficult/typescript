@@ -41,6 +41,18 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       socketMode: config.socketMode ?? true,
     });
 
+    // Forward @slack/bolt errors to registered error callbacks
+    this.app.error(async (error) => {
+      const wrappedError = error instanceof Error ? error : new Error(String(error));
+      for (const callback of this.errorCallbacks) {
+        try {
+          await callback(wrappedError);
+        } catch (err) {
+          console.error('Error callback error:', err);
+        }
+      }
+    });
+
     // Set up global reaction event listener
     this.app.event('reaction_added', async ({ event }) => {
       const channelId = event.item.channel;
@@ -150,21 +162,22 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
 
     // If files are provided, upload them and attach to the message
     if (options?.files && options.files.length > 0) {
-      for (const file of options.files) {
-        const fileContent =
-          typeof file.content === 'string' ? file.content : file.content.toString('base64');
+      for (let i = 0; i < options.files.length; i++) {
+        const file = options.files[i];
         await this.app.client.filesUploadV2({
           channel_id: channelId,
-          content: fileContent,
           filename: file.name,
-          initial_comment: text,
+          // Only attach the text as initial_comment on the first file to avoid duplicates
+          ...(i === 0 ? { initial_comment: text } : {}),
           thread_ts: options.threadTs,
+          // String content uses the content field; binary uses the file field
+          ...(typeof file.content === 'string'
+            ? { content: file.content }
+            : { file: file.content }),
         });
       }
 
-      // For file uploads, the message is created by the upload
-      // Return a synthetic message data with the upload timestamp
-      // Post the text message separately if there are also blocks
+      // Post the text message separately if there are also blocks (rich document)
       if (blocks) {
         const result = await this.app.client.chat.postMessage({
           channel: channelId,
@@ -178,7 +191,8 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         return { id: result.ts, channelId, platform: 'slack' };
       }
 
-      // Return a placeholder - the file upload created the message
+      // File uploads create messages implicitly; the Slack API doesn't reliably
+      // return a message timestamp from filesUploadV2, so return empty ID.
       return { id: '', channelId, platform: 'slack' };
     }
 

@@ -256,12 +256,7 @@ class PendingMessage extends Message implements PromiseLike<Message> {
     const resolved = this.postPromise.then(async () => {
       await this.pendingReactions;
       // Return a plain Message (no then()) to stop await from recursing
-      const msg = new Message(
-        { id: this.id, channelId: this.channelId, platform: this.platform },
-        this.operations,
-      );
-      msg.reactionUnsubscribers = this.reactionUnsubscribers;
-      return msg;
+      return this.toSnapshot();
     });
     return resolved.then(onfulfilled, onrejected);
   }

@@ -40,14 +40,26 @@ export class Message {
 
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
-  /** @internal */
-  reactionUnsubscribers: (() => void)[] = [];
+  protected reactionUnsubscribers: (() => void)[] = [];
 
   constructor(data: MessageData, operations: MessageOperations) {
     this.id = data.id;
     this.channelId = data.channelId;
     this.platform = data.platform;
     this.operations = operations;
+  }
+
+  /**
+   * Create a plain Message snapshot, transferring reaction unsubscribers.
+   * Used by PendingMessage/ReplyMessage to resolve to a non-thenable Message.
+   */
+  protected toSnapshot(): Message {
+    const msg = new Message(
+      { id: this.id, channelId: this.channelId, platform: this.platform },
+      this.operations,
+    );
+    msg.reactionUnsubscribers = this.reactionUnsubscribers;
+    return msg;
   }
 
   /**
@@ -214,12 +226,7 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
   ): Promise<TResult1 | TResult2> {
     const resolved = this.replyPromise.then(async () => {
       await this.pendingReactions;
-      const msg = new Message(
-        { id: this.id, channelId: this.channelId, platform: this.platform },
-        this.operations,
-      );
-      msg.reactionUnsubscribers = this.reactionUnsubscribers;
-      return msg;
+      return this.toSnapshot();
     });
     return resolved.then(onfulfilled, onrejected);
   }
