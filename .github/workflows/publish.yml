@@ -39,4 +39,4 @@ jobs:
       - name: Check and publish packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node packages/ciScripts/dist/publish.js
+        run: node packages/ci-scripts/dist/publish.js

@@ -7,7 +7,7 @@ Monorepo of opinionated TypeScript libraries under the `@hardlydifficult` scope.
 ## Packages
 
 - `packages/chat` — Unified Discord/Slack messaging API
-- `packages/documentGenerator` — Rich document builder (Block Kit / Embeds)
+- `packages/document-generator` — Rich document builder (Block Kit / Embeds)
 
 ## Design Philosophy
 
@@ -35,6 +35,6 @@ channel.postMessage("reply", { threadTs: "..." }); // NOT supported
 
 ## Commands
 
-- **Build:** `npm run build` (from package dir, build `documentGenerator` first)
+- **Build:** `npm run build` (from package dir, build `document-generator` first)
 - **Test:** `npx vitest run` (from package dir)
 - **Lint:** `npx tsc --noEmit` (from package dir)
