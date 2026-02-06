@@ -35,7 +35,7 @@ export interface WeightedThrottleOptions {
 export class WeightedThrottle {
   private nextAvailableAt: number;
   private readonly unitsPerSecond: number;
-  private readonly stateTracker?: StateTracker;
+  private readonly stateTracker?: StateTracker<number>;
   private readonly onSleep?: (delayMs: number, info: WeightedThrottleSleepInfo) => void;
 
   constructor(options: WeightedThrottleOptions) {
@@ -47,14 +47,15 @@ export class WeightedThrottle {
     }
 
     if (options.persistKey !== undefined) {
-      this.stateTracker = new StateTracker<number>({
-        key: options.persistKey,
-        stateDirectory: options.stateDirectory,
-      });
       // Load persisted state, defaulting to current time if none exists.
       // Using Date.now() as the default avoids creating artificial "debt"
       // if there's a long gap before first use.
-      this.nextAvailableAt = this.stateTracker.load(Date.now());
+      this.stateTracker = new StateTracker({
+        key: options.persistKey,
+        default: Date.now(),
+        stateDirectory: options.stateDirectory,
+      });
+      this.nextAvailableAt = this.stateTracker.load();
     } else {
       this.nextAvailableAt = 0;
     }
