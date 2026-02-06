@@ -120,9 +120,7 @@ describe('Message', () => {
       );
 
       const reply = msg.postReply('Reply content');
-      const result = await Promise.resolve(reply).catch(
-        (err: Error) => `caught: ${err.message}`,
-      );
+      const result = await Promise.resolve(reply).catch((err: Error) => `caught: ${err.message}`);
 
       expect(result).toBe('caught: Reply failed');
     });

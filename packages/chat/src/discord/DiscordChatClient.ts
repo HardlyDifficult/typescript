@@ -115,45 +115,42 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * Set up the global message listener that routes events to channel-specific callbacks
    */
   private setupMessageListener(): void {
-    this.client.on(
-      'messageCreate',
-      (message: DiscordMessage | PartialMessage): void => {
-        void (async (): Promise<void> => {
-          // Ignore messages from the bot itself
-          if (message.author?.id === this.client.user?.id) {
-            return;
+    this.client.on('messageCreate', (message: DiscordMessage | PartialMessage): void => {
+      void (async (): Promise<void> => {
+        // Ignore messages from the bot itself
+        if (message.author?.id === this.client.user?.id) {
+          return;
+        }
+
+        const channelId = message.channelId;
+        const callbacks = this.messageListeners.get(channelId);
+
+        if (!callbacks || callbacks.size === 0) {
+          return;
+        }
+
+        const author: User = {
+          id: message.author?.id ?? '',
+          username: message.author?.username ?? undefined,
+        };
+
+        const event: MessageEvent = {
+          id: message.id,
+          content: message.content ?? '',
+          author,
+          channelId,
+          timestamp: message.createdAt,
+        };
+
+        for (const callback of callbacks) {
+          try {
+            await callback(event);
+          } catch (error) {
+            console.error('Message callback error:', error);
           }
-
-          const channelId = message.channelId;
-          const callbacks = this.messageListeners.get(channelId);
-
-          if (!callbacks || callbacks.size === 0) {
-            return;
-          }
-
-          const author: User = {
-            id: message.author?.id ?? '',
-            username: message.author?.username ?? undefined,
-          };
-
-          const event: MessageEvent = {
-            id: message.id,
-            content: message.content ?? '',
-            author,
-            channelId,
-            timestamp: message.createdAt ?? new Date(),
-          };
-
-          for (const callback of callbacks) {
-            try {
-              await callback(event);
-            } catch (error) {
-              console.error('Message callback error:', error);
-            }
-          }
-        })();
-      },
-    );
+        }
+      })();
+    });
   }
 
   /**
@@ -162,7 +159,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    */
   private setupConnectionResilience(): void {
     this.client.on('shardDisconnect', (_event, shardId) => {
-      const reason = `Shard ${shardId} disconnected`;
+      const reason = `Shard ${String(shardId)} disconnected`;
       for (const callback of this.disconnectCallbacks) {
         void Promise.resolve(callback(reason)).catch((err: unknown) => {
           console.error('Disconnect callback error:', err);
@@ -172,7 +169,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
     this.client.on('shardError', (error, shardId) => {
       const wrappedError =
-        error instanceof Error ? error : new Error(`Shard ${shardId} error: ${String(error)}`);
+        error instanceof Error
+          ? error
+          : new Error(`Shard ${String(shardId)} error: ${String(error)}`);
       for (const callback of this.errorCallbacks) {
         void Promise.resolve(callback(wrappedError)).catch((err: unknown) => {
           console.error('Error callback error:', err);
@@ -372,7 +371,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.messageListeners.set(channelId, new Set());
     }
 
-    const callbacks = this.messageListeners.get(channelId)!;
+    const callbacks = this.messageListeners.get(channelId);
+    if (!callbacks) {
+      throw new Error(`Callbacks not found for channel ${channelId}`);
+    }
     callbacks.add(callback);
 
     return () => {

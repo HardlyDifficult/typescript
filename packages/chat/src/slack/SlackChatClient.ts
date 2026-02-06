@@ -79,7 +79,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       }
 
       // Skip bot's own messages
-      if (context.botId && 'bot_id' in event && event.bot_id === context.botId) {
+      if (
+        context.botId !== undefined &&
+        context.botId !== '' &&
+        'bot_id' in event &&
+        event.bot_id === context.botId
+      ) {
         return;
       }
 
@@ -89,11 +94,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       };
 
       const messageEvent: MessageEvent = {
-        id: 'ts' in event ? (event.ts ?? '') : '',
+        id: 'ts' in event ? event.ts : '',
         content: 'text' in event ? (event.text ?? '') : '',
         author: user,
         channelId,
-        timestamp: 'ts' in event ? new Date(parseFloat(event.ts ?? '0') * 1000) : new Date(),
+        timestamp: 'ts' in event ? new Date(parseFloat(event.ts) * 1000) : new Date(),
       };
 
       for (const callback of callbacks) {
@@ -153,7 +158,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
           content: fileContent,
           filename: file.name,
           initial_comment: text,
-          thread_ts: options?.threadTs,
+          thread_ts: options.threadTs,
         });
       }
 
@@ -165,7 +170,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
           channel: channelId,
           text,
           blocks,
-          thread_ts: options?.threadTs,
+          thread_ts: options.threadTs,
         });
         if (result.ts === undefined) {
           throw new Error('Slack API did not return a message timestamp');
@@ -300,7 +305,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Create a thread from a message in Slack
    * Slack threads are implicit - posting a reply creates the thread
    */
-  async startThread(
+  startThread(
     messageId: string,
     channelId: string,
     _name: string,
@@ -308,11 +313,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   ): Promise<ThreadData> {
     // In Slack, threads are created by replying to a message.
     // Return the message timestamp as the thread ID
-    return {
+    return Promise.resolve({
       id: messageId,
       channelId,
       platform: 'slack',
-    };
+    });
   }
 
   /**
@@ -328,7 +333,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     let deleted = 0;
     if (history.messages) {
       for (const msg of history.messages) {
-        if (msg.ts) {
+        if (msg.ts !== undefined && msg.ts !== '') {
           try {
             await this.app.client.chat.delete({
               channel: channelId,
@@ -358,7 +363,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
 
     if (history.messages) {
       for (const msg of history.messages) {
-        if (msg.reply_count && msg.reply_count > 0 && msg.ts) {
+        if (
+          msg.reply_count !== undefined &&
+          msg.reply_count > 0 &&
+          msg.ts !== undefined &&
+          msg.ts !== ''
+        ) {
           threads.push({
             id: msg.ts,
             channelId,

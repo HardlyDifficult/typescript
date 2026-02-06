@@ -111,10 +111,7 @@ export class Message {
    * @param options - Optional thread options
    * @returns Channel-like object for posting into the thread
    */
-  async startThread(
-    name: string,
-    options?: StartThreadOptions,
-  ): Promise<ThreadData> {
+  async startThread(name: string, options?: StartThreadOptions): Promise<ThreadData> {
     return this.operations.startThread(this.id, this.channelId, name, options);
   }
 

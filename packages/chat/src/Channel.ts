@@ -74,11 +74,7 @@ export class Channel {
     const messagePromise = this.operations.postMessage(this.id, content, options);
 
     // Create a Message that will resolve once the post completes
-    return new PendingMessage(
-      messagePromise,
-      this.createMessageOperations(),
-      this.platform,
-    );
+    return new PendingMessage(messagePromise, this.createMessageOperations(), this.platform);
   }
 
   /**

@@ -35,7 +35,12 @@ const {
     id: 'channel-456',
     send: vi.fn(),
     sendTyping: vi.fn().mockResolvedValue(undefined),
-    bulkDelete: vi.fn().mockResolvedValue(new Map([['msg-1', {}], ['msg-2', {}]])),
+    bulkDelete: vi.fn().mockResolvedValue(
+      new Map([
+        ['msg-1', {}],
+        ['msg-2', {}],
+      ]),
+    ),
     messages: {
       fetch: vi.fn(),
     },
@@ -213,7 +218,12 @@ describe('DiscordChatClient', () => {
     mockDiscordMessage.react.mockResolvedValue(undefined);
     mockDiscordMessage.startThread.mockResolvedValue({ id: 'thread-001', name: 'Test Thread' });
     mockTextChannelData.sendTyping.mockResolvedValue(undefined);
-    mockTextChannelData.bulkDelete.mockResolvedValue(new Map([['msg-1', {}], ['msg-2', {}]]));
+    mockTextChannelData.bulkDelete.mockResolvedValue(
+      new Map([
+        ['msg-1', {}],
+        ['msg-2', {}],
+      ]),
+    );
     mockTextChannelData.threads.fetchActive.mockResolvedValue({
       threads: new Map([['thread-1', { id: 'thread-1' }]]),
     });
@@ -806,9 +816,7 @@ describe('DiscordChatClient', () => {
 
     it('should resolve chained reactions when awaited', async () => {
       const channel = await client.connect(channelId);
-      const message = await channel
-        .postMessage('Test message')
-        .addReactions(['emoji1', 'emoji2']);
+      const message = await channel.postMessage('Test message').addReactions(['emoji1', 'emoji2']);
 
       expect(message.id).toBe('msg-123');
       expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
@@ -847,10 +855,7 @@ describe('DiscordChatClient', () => {
     it('should resolve reactions and onReaction when awaited', async () => {
       const channel = await client.connect(channelId);
       const callback = vi.fn();
-      await channel
-        .postMessage('Vote!')
-        .addReactions(['1️⃣', '2️⃣'])
-        .onReaction(callback);
+      await channel.postMessage('Vote!').addReactions(['1️⃣', '2️⃣']).onReaction(callback);
 
       expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
 
