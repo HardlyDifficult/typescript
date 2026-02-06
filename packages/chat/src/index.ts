@@ -7,8 +7,16 @@ export {
   type Platform,
   type ReactionEvent,
   type ReactionCallback,
+  type MessageEvent,
+  type MessageCallback,
   type MessageContent,
   type PostMessageOptions,
+  type FileAttachment,
+  type ThreadData,
+  type StartThreadOptions,
+  type DiscordGatewayIntents,
+  type DisconnectCallback,
+  type ErrorCallback,
 } from './types';
 
 // Core classes

@@ -6,8 +6,15 @@ import type {
   MessageData,
   ReactionCallback,
   ReactionEvent,
+  MessageCallback,
+  MessageEvent,
   User,
   MessageContent,
+  FileAttachment,
+  ThreadData,
+  StartThreadOptions,
+  DisconnectCallback,
+  ErrorCallback,
 } from '../types.js';
 import { toSlackBlocks, type SlackBlock } from '../outputters/slack.js';
 import { isDocument } from '../utils.js';
@@ -18,6 +25,9 @@ import { isDocument } from '../utils.js';
 export class SlackChatClient extends ChatClient implements ChannelOperations {
   private app: App;
   private reactionCallbacks = new Map<string, Set<ReactionCallback>>();
+  private messageCallbacks = new Map<string, Set<MessageCallback>>();
+  private disconnectCallbacks = new Set<DisconnectCallback>();
+  private errorCallbacks = new Set<ErrorCallback>();
 
   constructor(config: SlackConfig) {
     super(config);
@@ -29,6 +39,18 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       token,
       appToken,
       socketMode: config.socketMode ?? true,
+    });
+
+    // Forward @slack/bolt errors to registered error callbacks
+    this.app.error(async (error) => {
+      const wrappedError = error instanceof Error ? error : new Error(String(error));
+      for (const callback of this.errorCallbacks) {
+        try {
+          await callback(wrappedError);
+        } catch (err) {
+          console.error('Error callback error:', err);
+        }
+      }
     });
 
     // Set up global reaction event listener
@@ -58,6 +80,47 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         }
       }
     });
+
+    // Set up global message event listener
+    this.app.event('message', async ({ event, context }) => {
+      const channelId = event.channel;
+      const callbacks = this.messageCallbacks.get(channelId);
+
+      if (!callbacks || callbacks.size === 0) {
+        return;
+      }
+
+      // Skip bot's own messages
+      if (
+        context.botId !== undefined &&
+        context.botId !== '' &&
+        'bot_id' in event &&
+        event.bot_id === context.botId
+      ) {
+        return;
+      }
+
+      const user: User = {
+        id: 'user' in event ? (event.user ?? '') : '',
+        username: undefined,
+      };
+
+      const messageEvent: MessageEvent = {
+        id: 'ts' in event ? event.ts : '',
+        content: 'text' in event ? (event.text ?? '') : '',
+        author: user,
+        channelId,
+        timestamp: 'ts' in event ? new Date(parseFloat(event.ts) * 1000) : new Date(),
+      };
+
+      for (const callback of callbacks) {
+        try {
+          await Promise.resolve(callback(messageEvent));
+        } catch (err) {
+          console.error('Message callback error:', err);
+        }
+      }
+    });
   }
 
   /**
@@ -74,6 +137,9 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async disconnect(): Promise<void> {
     await this.app.stop();
     this.reactionCallbacks.clear();
+    this.messageCallbacks.clear();
+    this.disconnectCallbacks.clear();
+    this.errorCallbacks.clear();
   }
 
   /**
@@ -82,7 +148,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string },
+    options?: { threadTs?: string; files?: FileAttachment[] },
   ): Promise<MessageData> {
     let text: string;
     let blocks: SlackBlock[] | undefined;
@@ -92,6 +158,42 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       text = content.toPlainText().trim() || 'Message'; // fallback text for accessibility
     } else {
       text = content;
+    }
+
+    // If files are provided, upload them and attach to the message
+    if (options?.files && options.files.length > 0) {
+      for (let i = 0; i < options.files.length; i++) {
+        const file = options.files[i];
+        await this.app.client.filesUploadV2({
+          channel_id: channelId,
+          filename: file.name,
+          // Only attach the text as initial_comment on the first file to avoid duplicates
+          ...(i === 0 ? { initial_comment: text } : {}),
+          thread_ts: options.threadTs,
+          // String content uses the content field; binary uses the file field
+          ...(typeof file.content === 'string'
+            ? { content: file.content }
+            : { file: file.content }),
+        });
+      }
+
+      // Post the text message separately if there are also blocks (rich document)
+      if (blocks) {
+        const result = await this.app.client.chat.postMessage({
+          channel: channelId,
+          text,
+          blocks,
+          thread_ts: options.threadTs,
+        });
+        if (result.ts === undefined) {
+          throw new Error('Slack API did not return a message timestamp');
+        }
+        return { id: result.ts, channelId, platform: 'slack' };
+      }
+
+      // File uploads create messages implicitly; the Slack API doesn't reliably
+      // return a message timestamp from filesUploadV2, so return empty ID.
+      return { id: '', channelId, platform: 'slack' };
     }
 
     const result = await this.app.client.chat.postMessage({
@@ -181,6 +283,135 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
           this.reactionCallbacks.delete(channelId);
         }
       }
+    };
+  }
+
+  /**
+   * Subscribe to incoming message events on a channel
+   */
+  subscribeToMessages(channelId: string, callback: MessageCallback): () => void {
+    let callbacks = this.messageCallbacks.get(channelId);
+    if (!callbacks) {
+      callbacks = new Set();
+      this.messageCallbacks.set(channelId, callbacks);
+    }
+    callbacks.add(callback);
+
+    return () => {
+      const channelCallbacks = this.messageCallbacks.get(channelId);
+      if (channelCallbacks) {
+        channelCallbacks.delete(callback);
+        if (channelCallbacks.size === 0) {
+          this.messageCallbacks.delete(channelId);
+        }
+      }
+    };
+  }
+
+  /**
+   * Send a typing indicator (not directly supported in Slack bot API - no-op)
+   */
+  async sendTyping(_channelId: string): Promise<void> {
+    // Slack does not support bot typing indicators via the API
+  }
+
+  /**
+   * Create a thread from a message in Slack
+   * Slack threads are implicit - posting a reply creates the thread
+   */
+  startThread(
+    messageId: string,
+    channelId: string,
+    _name: string,
+    _options?: StartThreadOptions,
+  ): Promise<ThreadData> {
+    // In Slack, threads are created by replying to a message.
+    // Return the message timestamp as the thread ID
+    return Promise.resolve({
+      id: messageId,
+      channelId,
+      platform: 'slack',
+    });
+  }
+
+  /**
+   * Bulk delete messages in a Slack channel
+   */
+  async bulkDelete(channelId: string, count: number): Promise<number> {
+    // Slack doesn't have a bulkDelete API; delete messages one by one
+    const history = await this.app.client.conversations.history({
+      channel: channelId,
+      limit: count,
+    });
+
+    let deleted = 0;
+    if (history.messages) {
+      for (const msg of history.messages) {
+        if (msg.ts !== undefined && msg.ts !== '') {
+          try {
+            await this.app.client.chat.delete({
+              channel: channelId,
+              ts: msg.ts,
+            });
+            deleted++;
+          } catch {
+            // Some messages may not be deletable (e.g., others' messages without admin)
+          }
+        }
+      }
+    }
+
+    return deleted;
+  }
+
+  /**
+   * Get all threads in a Slack channel
+   */
+  async getThreads(channelId: string): Promise<ThreadData[]> {
+    const threads: ThreadData[] = [];
+
+    const history = await this.app.client.conversations.history({
+      channel: channelId,
+      limit: 200,
+    });
+
+    if (history.messages) {
+      for (const msg of history.messages) {
+        if (
+          msg.reply_count !== undefined &&
+          msg.reply_count > 0 &&
+          msg.ts !== undefined &&
+          msg.ts !== ''
+        ) {
+          threads.push({
+            id: msg.ts,
+            channelId,
+            platform: 'slack',
+          });
+        }
+      }
+    }
+
+    return threads;
+  }
+
+  /**
+   * Register a callback for disconnect events
+   */
+  onDisconnect(callback: DisconnectCallback): () => void {
+    this.disconnectCallbacks.add(callback);
+    return () => {
+      this.disconnectCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Register a callback for error events
+   */
+  onError(callback: ErrorCallback): () => void {
+    this.errorCallbacks.add(callback);
+    return () => {
+      this.errorCallbacks.delete(callback);
     };
   }
 }

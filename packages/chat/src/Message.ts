@@ -1,4 +1,11 @@
-import type { MessageData, MessageContent, Platform, ReactionCallback } from './types';
+import type {
+  MessageData,
+  MessageContent,
+  Platform,
+  ReactionCallback,
+  ThreadData,
+  StartThreadOptions,
+} from './types';
 
 /**
  * Interface for the platform-specific reaction adder
@@ -15,6 +22,12 @@ export interface MessageOperations extends ReactionAdder {
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   postReply(channelId: string, threadTs: string, content: MessageContent): Promise<MessageData>;
   subscribeToReactions(messageId: string, callback: ReactionCallback): () => void;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    options?: StartThreadOptions,
+  ): Promise<ThreadData>;
 }
 
 /**
@@ -34,6 +47,19 @@ export class Message {
     this.channelId = data.channelId;
     this.platform = data.platform;
     this.operations = operations;
+  }
+
+  /**
+   * Create a plain Message snapshot, transferring reaction unsubscribers.
+   * Used by PendingMessage/ReplyMessage to resolve to a non-thenable Message.
+   */
+  protected toSnapshot(): Message {
+    const msg = new Message(
+      { id: this.id, channelId: this.channelId, platform: this.platform },
+      this.operations,
+    );
+    msg.reactionUnsubscribers = this.reactionUnsubscribers;
+    return msg;
   }
 
   /**
@@ -86,9 +112,19 @@ export class Message {
    * @param content - Reply content (string or Document)
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  postReply(content: MessageContent): ReplyMessage {
+  postReply(content: MessageContent): Message & PromiseLike<Message> {
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
     return new ReplyMessage(replyPromise, this.operations, this.platform);
+  }
+
+  /**
+   * Create a thread from this message
+   * @param name - Thread name
+   * @param options - Optional thread options
+   * @returns Channel-like object for posting into the thread
+   */
+  async startThread(name: string, options?: StartThreadOptions): Promise<ThreadData> {
+    return this.operations.startThread(this.id, this.channelId, name, options);
   }
 
   /**
@@ -123,9 +159,10 @@ export class Message {
 
 /**
  * A reply message that is still being posted.
- * Use `.wait()` to await completion and handle errors.
+ * Implements PromiseLike so it can be directly awaited:
+ *   const reply = await msg.postReply('text');
  */
-export class ReplyMessage extends Message {
+export class ReplyMessage extends Message implements PromiseLike<Message> {
   private replyPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
 
@@ -152,7 +189,7 @@ export class ReplyMessage extends Message {
         }
       })
       .catch(() => {
-        // Errors handled via wait()
+        // Errors surfaced when awaited via then()
       });
   }
 
@@ -180,19 +217,18 @@ export class ReplyMessage extends Message {
   }
 
   /**
-   * Wait for reply to complete.
-   * Throws if the reply fails - allows callers to handle errors.
-   *
-   * @example
-   * ```typescript
-   * const reply = msg.postReply('text');
-   * await reply.wait(); // throws if reply fails
-   * console.log(reply.id); // now available
-   * ```
+   * Makes ReplyMessage directly awaitable.
+   * Resolves to a plain Message (not thenable) to prevent infinite await loops.
    */
-  async wait(): Promise<this> {
-    await this.replyPromise;
-    return this;
+  then<TResult1 = Message, TResult2 = never>(
+    onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    const resolved = this.replyPromise.then(async () => {
+      await this.pendingReactions;
+      return this.toSnapshot();
+    });
+    return resolved.then(onfulfilled, onrejected);
   }
 
   /**
