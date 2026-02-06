@@ -1,5 +1,7 @@
 import { App } from "@slack/bolt";
 
+import { convertMarkdown } from "@hardlydifficult/document-generator";
+
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
@@ -159,7 +161,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       blocks = toSlackBlocks(content.getBlocks());
       text = content.toPlainText().trim() || "Message"; // fallback text for accessibility
     } else {
-      text = content;
+      text = convertMarkdown(content, "slack");
     }
 
     // If files are provided, upload them and attach to the message
@@ -230,7 +232,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       blocks = toSlackBlocks(content.getBlocks());
       text = content.toPlainText().trim() || "Message";
     } else {
-      text = content;
+      text = convertMarkdown(content, "slack");
     }
 
     await this.app.client.chat.update({
