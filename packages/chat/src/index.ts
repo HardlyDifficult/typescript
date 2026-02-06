@@ -17,22 +17,22 @@ export {
   type DiscordGatewayIntents,
   type DisconnectCallback,
   type ErrorCallback,
-} from './types';
+} from "./types";
 
 // Core classes
-export { ChatClient } from './ChatClient';
-export { Channel, type ChannelOperations } from './Channel';
-export { Message, ReplyMessage, type MessageOperations } from './Message';
+export { ChatClient } from "./ChatClient";
+export { Channel, type ChannelOperations } from "./Channel";
+export { Message, ReplyMessage, type MessageOperations } from "./Message";
 
 // Platform implementations
-export { DiscordChatClient } from './discord/index';
-export { SlackChatClient } from './slack/index';
+export { DiscordChatClient } from "./discord";
+export { SlackChatClient } from "./slack";
 
 // Factory
-import type { ChatConfig } from './types';
-import { ChatClient } from './ChatClient';
-import { DiscordChatClient } from './discord/index';
-import { SlackChatClient } from './slack/index';
+import { type ChatClient } from "./ChatClient";
+import { DiscordChatClient } from "./discord";
+import { SlackChatClient } from "./slack";
+import type { ChatConfig } from "./types";
 
 /**
  * Factory function to create a chat client based on config type
@@ -56,11 +56,13 @@ import { SlackChatClient } from './slack/index';
  */
 export function createChatClient(config: ChatConfig): ChatClient {
   switch (config.type) {
-    case 'discord':
+    case "discord":
       return new DiscordChatClient(config);
-    case 'slack':
+    case "slack":
       return new SlackChatClient(config);
     default:
-      throw new Error(`Unknown chat platform: ${(config as { type: string }).type}`);
+      throw new Error(
+        `Unknown chat platform: ${(config as { type: string }).type}`
+      );
   }
 }

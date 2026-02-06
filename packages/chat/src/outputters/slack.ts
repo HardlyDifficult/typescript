@@ -1,11 +1,13 @@
-import type { Block } from '@hardlydifficult/document-generator';
-import { convertMarkdown } from '@hardlydifficult/document-generator';
+import {
+  type Block,
+  convertMarkdown,
+} from "@hardlydifficult/document-generator";
 
 /**
  * Slack Block Kit text object
  */
 export interface SlackTextObject {
-  type: 'plain_text' | 'mrkdwn';
+  type: "plain_text" | "mrkdwn";
   text: string;
   emoji?: boolean;
 }
@@ -36,7 +38,7 @@ function chunkText(text: string, maxLen = 2900): string[] {
   while (remaining.length > maxLen) {
     // Try to find a newline near the maxLen boundary
     const searchStart = Math.max(0, maxLen - 500); // Look back up to 500 chars
-    const newlineIndex = remaining.lastIndexOf('\n', maxLen);
+    const newlineIndex = remaining.lastIndexOf("\n", maxLen);
 
     if (newlineIndex > searchStart) {
       // Split at newline
@@ -64,28 +66,28 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
 
   for (const block of blocks) {
     switch (block.type) {
-      case 'header': {
+      case "header": {
         slackBlocks.push({
-          type: 'header',
+          type: "header",
           text: {
-            type: 'plain_text',
+            type: "plain_text",
             text: block.text,
           },
         });
         break;
       }
 
-      case 'text': {
+      case "text": {
         // Convert markdown to Slack format
-        const slackText = convertMarkdown(block.content, 'slack');
+        const slackText = convertMarkdown(block.content, "slack");
 
         // Chunk if necessary
         const chunks = chunkText(slackText);
         for (const chunk of chunks) {
           slackBlocks.push({
-            type: 'section',
+            type: "section",
             text: {
-              type: 'mrkdwn',
+              type: "mrkdwn",
               text: chunk,
             },
           });
@@ -93,18 +95,18 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         break;
       }
 
-      case 'list': {
+      case "list": {
         // Convert list items to Slack markdown format
-        const listText = block.items.map((item) => `• ${item}`).join('\n');
-        const slackText = convertMarkdown(listText, 'slack');
+        const listText = block.items.map((item) => `• ${item}`).join("\n");
+        const slackText = convertMarkdown(listText, "slack");
 
         // Chunk if necessary
         const chunks = chunkText(slackText);
         for (const chunk of chunks) {
           slackBlocks.push({
-            type: 'section',
+            type: "section",
             text: {
-              type: 'mrkdwn',
+              type: "mrkdwn",
               text: chunk,
             },
           });
@@ -112,20 +114,20 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         break;
       }
 
-      case 'divider': {
+      case "divider": {
         slackBlocks.push({
-          type: 'divider',
+          type: "divider",
         });
         break;
       }
 
-      case 'context': {
-        const slackText = convertMarkdown(block.text, 'slack');
+      case "context": {
+        const slackText = convertMarkdown(block.text, "slack");
         slackBlocks.push({
-          type: 'context',
+          type: "context",
           elements: [
             {
-              type: 'mrkdwn',
+              type: "mrkdwn",
               text: slackText,
             },
           ],
@@ -133,20 +135,20 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         break;
       }
 
-      case 'link': {
+      case "link": {
         // Slack link format: <url|text>
-        const slackText = convertMarkdown(block.text, 'slack');
+        const slackText = convertMarkdown(block.text, "slack");
         slackBlocks.push({
-          type: 'section',
+          type: "section",
           text: {
-            type: 'mrkdwn',
+            type: "mrkdwn",
             text: `<${block.url}|${slackText}>`,
           },
         });
         break;
       }
 
-      case 'code': {
+      case "code": {
         // Format code block with backticks
         let codeText: string;
         if (block.multiline) {
@@ -156,20 +158,21 @@ export function toSlackBlocks(blocks: Block[]): SlackBlock[] {
         }
 
         slackBlocks.push({
-          type: 'section',
+          type: "section",
           text: {
-            type: 'mrkdwn',
+            type: "mrkdwn",
             text: codeText,
           },
         });
         break;
       }
 
-      case 'image': {
+      case "image": {
         slackBlocks.push({
-          type: 'image',
+          type: "image",
           image_url: block.url,
-          alt_text: block.alt !== undefined && block.alt !== '' ? block.alt : 'image',
+          alt_text:
+            block.alt !== undefined && block.alt !== "" ? block.alt : "image",
         });
         break;
       }

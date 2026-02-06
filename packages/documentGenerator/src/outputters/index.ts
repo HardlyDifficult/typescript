@@ -1,2 +1,2 @@
-export { toMarkdown } from './markdown.js';
-export { toPlainText } from './plainText.js';
+export { toMarkdown } from "./markdown.js";
+export { toPlainText } from "./plainText.js";

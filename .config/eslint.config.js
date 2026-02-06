@@ -102,7 +102,7 @@ export default tseslint.config(
         },
       ],
       'no-useless-concat': 'error',
-      'no-use-before-define': ['error', { functions: false, classes: true }],
+      'no-use-before-define': ['error', { functions: false, classes: false }],
       'require-atomic-updates': 'error',
       'no-console': ['error', { allow: ['error', 'warn'] }],
 

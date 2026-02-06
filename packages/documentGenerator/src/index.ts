@@ -1,5 +1,5 @@
 // Main class and factory
-export { Document } from './Document.js';
+export { Document } from "./Document.js";
 
 // Types
 export type {
@@ -19,11 +19,11 @@ export type {
   KeyValueOptions,
   TruncatedListOptions,
   TimestampOptions,
-} from './types.js';
+} from "./types.js";
 
 // Outputters (for direct use)
-export { toMarkdown } from './outputters/markdown.js';
-export { toPlainText } from './outputters/plainText.js';
+export { toMarkdown } from "./outputters/markdown.js";
+export { toPlainText } from "./outputters/plainText.js";
 
 // Markdown converter (for custom outputters)
-export { convertMarkdown, stripMarkdown } from './markdownConverter.js';
+export { convertMarkdown, stripMarkdown } from "./markdownConverter.js";
