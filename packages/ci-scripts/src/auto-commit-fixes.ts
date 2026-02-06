@@ -9,7 +9,9 @@
  *   npx auto-commit-fixes
  *
  * Environment:
- *   BRANCH - Required. The branch to push to (e.g., from github.head_ref || github.ref_name).
+ *   BRANCH  - Required. The branch to push to (e.g., from github.head_ref || github.ref_name).
+ *   GH_PAT  - Optional. A GitHub PAT used for push so the commit triggers a new CI run.
+ *             (Pushes with the default GITHUB_TOKEN do not trigger workflows.)
  */
 
 import { execSync } from "child_process";
@@ -76,6 +78,16 @@ async function main(): Promise<void> {
   }
 
   console.log("Changes detected. Committing auto-fixes...");
+
+  // Use PAT for push so the commit triggers a new CI run
+  // (pushes with the default GITHUB_TOKEN do not trigger workflows)
+  const ghPat = process.env.GH_PAT;
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (ghPat !== undefined && ghPat !== "" && repo !== undefined) {
+    exec(
+      `git remote set-url origin https://x-access-token:${ghPat}@github.com/${repo}.git`
+    );
+  }
 
   exec(
     'git config --local user.email "github-actions[bot]@users.noreply.github.com"'
