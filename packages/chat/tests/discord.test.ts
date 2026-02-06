@@ -794,13 +794,24 @@ describe('DiscordChatClient', () => {
   });
 
   describe('Message awaiting behavior', () => {
-    it('should await message post completion', async () => {
+    it('should be directly awaitable via PromiseLike', async () => {
       const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message');
-      await waitForMessage(message);
+      const message = await channel.postMessage('Test message');
 
       expect(message).toBeInstanceOf(Message);
       expect(message.id).toBe('msg-123');
+      expect(message.channelId).toBe(channelId);
+      expect(message.platform).toBe('discord');
+    });
+
+    it('should resolve chained reactions when awaited', async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel
+        .postMessage('Test message')
+        .addReactions(['emoji1', 'emoji2']);
+
+      expect(message.id).toBe('msg-123');
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
     });
 
     it('should wait for all reactions to complete when awaited', async () => {
@@ -812,8 +823,7 @@ describe('DiscordChatClient', () => {
       });
 
       const channel = await client.connect(channelId);
-      const message = channel.postMessage('Test message').addReactions(['emoji1', 'emoji2']);
-      await waitForMessage(message);
+      await channel.postMessage('Test message').addReactions(['emoji1', 'emoji2']);
 
       callOrder.push('done');
 
@@ -832,6 +842,28 @@ describe('DiscordChatClient', () => {
 
       expect(message.id).toBe('msg-123');
       expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+    });
+
+    it('should resolve reactions and onReaction when awaited', async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      await channel
+        .postMessage('Vote!')
+        .addReactions(['1️⃣', '2️⃣'])
+        .onReaction(callback);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+
+      // Verify the reaction listener was subscribed
+      const mockReaction = {
+        partial: false,
+        message: { id: 'msg-123', channelId: channelId },
+        emoji: { name: '1️⃣', id: null },
+      };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, { id: 'user-1', username: 'Test' });
+
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 

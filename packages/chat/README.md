@@ -88,7 +88,7 @@ channel.postMessage("Here's the scan report", {
 ## Message Operations
 
 ```typescript
-const msg = await channel.postMessage("Hello").wait();
+const msg = await channel.postMessage("Hello");
 
 await msg.update("Updated content");
 await msg.delete();
@@ -113,7 +113,7 @@ msg.offReaction(); // stop listening
 Create a thread from an existing message.
 
 ```typescript
-const msg = await channel.postMessage("Starting a discussion").wait();
+const msg = await channel.postMessage("Starting a discussion");
 const thread = await msg.startThread("Discussion Thread", {
   autoArchiveDuration: 1440, // minutes
 });
@@ -152,7 +152,7 @@ for (const thread of threads) {
 
 ## Connection Resilience
 
-Register callbacks for disconnect and error events. Discord includes built-in auto-reconnect with exponential backoff.
+Both platforms auto-reconnect via their underlying libraries (discord.js and @slack/bolt). Register callbacks for observability.
 
 ```typescript
 const client = createChatClient({ type: "discord" });
@@ -197,4 +197,4 @@ Both callbacks return an unsubscribe function.
 | Thread creation | Creates named thread on message | Returns message timestamp (threads are implicit) |
 | Bulk delete | Native `bulkDelete` API (fast) | One-by-one deletion (slower, may partially fail) |
 | Get threads | `fetchActive` + `fetchArchived` | Scans channel history for threaded messages |
-| Auto-reconnect | Built-in with exponential backoff | Handled by `@slack/bolt` Socket Mode |
+| Auto-reconnect | Handled by discord.js | Handled by `@slack/bolt` Socket Mode |

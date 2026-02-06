@@ -41,8 +41,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   private errorCallbacks = new Set<ErrorCallback>();
   private readonly token: string;
   private readonly guildId: string;
-  private reconnecting = false;
-  private channelIds = new Set<string>();
 
   constructor(config: DiscordConfig) {
     super(config);
@@ -159,7 +157,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
-   * Set up connection resilience with auto-reconnect
+   * Set up connection event forwarding.
+   * discord.js handles reconnection internally — these callbacks are for observability.
    */
   private setupConnectionResilience(): void {
     this.client.on('shardDisconnect', (_event, shardId) => {
@@ -169,7 +168,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
           console.error('Disconnect callback error:', err);
         });
       }
-      void this.attemptReconnect();
     });
 
     this.client.on('shardError', (error, shardId) => {
@@ -181,51 +179,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
         });
       }
     });
-
-    this.client.on('shardReconnecting', () => {
-      // discord.js handles reconnection internally; we track state
-      this.reconnecting = true;
-    });
-
-    this.client.on('shardReady', () => {
-      this.reconnecting = false;
-    });
-  }
-
-  /**
-   * Attempt to reconnect with exponential backoff
-   */
-  private async attemptReconnect(): Promise<void> {
-    if (this.reconnecting) {
-      return;
-    }
-    this.reconnecting = true;
-
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-
-      try {
-        await this.client.login(this.token);
-        this.reconnecting = false;
-        return;
-      } catch (error) {
-        console.error(`Reconnection attempt ${attempt + 1} failed:`, error);
-        if (attempt === maxRetries - 1) {
-          this.reconnecting = false;
-          const reconnectError =
-            error instanceof Error
-              ? error
-              : new Error(`Reconnection failed after ${maxRetries} attempts`);
-          for (const callback of this.errorCallbacks) {
-            void Promise.resolve(callback(reconnectError)).catch((err: unknown) => {
-              console.error('Error callback error:', err);
-            });
-          }
-        }
-      }
-    }
   }
 
   /**
@@ -242,7 +195,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       throw new Error(`Channel ${channelId} not found or is not a text channel`);
     }
 
-    this.channelIds.add(channelId);
     return new Channel(channelId, 'discord', this);
   }
 
@@ -254,7 +206,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     this.messageListeners.clear();
     this.disconnectCallbacks.clear();
     this.errorCallbacks.clear();
-    this.channelIds.clear();
     await this.client.destroy();
   }
 

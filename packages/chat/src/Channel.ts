@@ -70,16 +70,15 @@ export class Channel {
   postMessage(
     content: MessageContent,
     options?: { threadTs?: string; files?: FileAttachment[] },
-  ): Message {
+  ): Message & PromiseLike<Message> {
     const messagePromise = this.operations.postMessage(this.id, content, options);
 
     // Create a Message that will resolve once the post completes
-    const pendingMessage = new PendingMessage(
+    return new PendingMessage(
       messagePromise,
       this.createMessageOperations(),
       this.platform,
     );
-    return pendingMessage;
   }
 
   /**
@@ -189,9 +188,13 @@ export class Channel {
 
 /**
  * A Message that is still being posted.
- * Use `.wait()` to await completion and handle errors.
+ * Implements PromiseLike so it can be directly awaited:
+ *   const msg = await channel.postMessage('Hello');
+ *
+ * Also supports synchronous chaining before awaiting:
+ *   await channel.postMessage('Vote!').addReactions(['👍', '👎']).onReaction(cb);
  */
-class PendingMessage extends Message {
+class PendingMessage extends Message implements PromiseLike<Message> {
   private postPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
 
@@ -219,7 +222,7 @@ class PendingMessage extends Message {
         }
       })
       .catch(() => {
-        // Errors handled via wait()
+        // Errors surfaced when awaited via then()
       });
   }
 
@@ -247,19 +250,24 @@ class PendingMessage extends Message {
   }
 
   /**
-   * Wait for post to complete.
-   * Throws if the post fails - allows callers to handle errors.
-   *
-   * @example
-   * ```typescript
-   * const msg = channel.postMessage('Hello');
-   * await msg.wait(); // throws if post fails
-   * console.log(msg.id); // now available
-   * ```
+   * Makes PendingMessage directly awaitable.
+   * Resolves to a plain Message (not thenable) to prevent infinite await loops.
    */
-  async wait(): Promise<this> {
-    await this.postPromise;
-    return this;
+  then<TResult1 = Message, TResult2 = never>(
+    onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    const resolved = this.postPromise.then(async () => {
+      await this.pendingReactions;
+      // Return a plain Message (no then()) to stop await from recursing
+      const msg = new Message(
+        { id: this.id, channelId: this.channelId, platform: this.platform },
+        this.operations,
+      );
+      msg.reactionUnsubscribers = this.reactionUnsubscribers;
+      return msg;
+    });
+    return resolved.then(onfulfilled, onrejected);
   }
 
   /**

@@ -40,7 +40,8 @@ export class Message {
 
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
-  protected reactionUnsubscribers: (() => void)[] = [];
+  /** @internal */
+  reactionUnsubscribers: (() => void)[] = [];
 
   constructor(data: MessageData, operations: MessageOperations) {
     this.id = data.id;
@@ -99,7 +100,7 @@ export class Message {
    * @param content - Reply content (string or Document)
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  postReply(content: MessageContent): ReplyMessage {
+  postReply(content: MessageContent): Message & PromiseLike<Message> {
     const replyPromise = this.operations.postReply(this.channelId, this.id, content);
     return new ReplyMessage(replyPromise, this.operations, this.platform);
   }
@@ -149,9 +150,10 @@ export class Message {
 
 /**
  * A reply message that is still being posted.
- * Use `.wait()` to await completion and handle errors.
+ * Implements PromiseLike so it can be directly awaited:
+ *   const reply = await msg.postReply('text');
  */
-export class ReplyMessage extends Message {
+export class ReplyMessage extends Message implements PromiseLike<Message> {
   private replyPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
 
@@ -178,7 +180,7 @@ export class ReplyMessage extends Message {
         }
       })
       .catch(() => {
-        // Errors handled via wait()
+        // Errors surfaced when awaited via then()
       });
   }
 
@@ -206,19 +208,23 @@ export class ReplyMessage extends Message {
   }
 
   /**
-   * Wait for reply to complete.
-   * Throws if the reply fails - allows callers to handle errors.
-   *
-   * @example
-   * ```typescript
-   * const reply = msg.postReply('text');
-   * await reply.wait(); // throws if reply fails
-   * console.log(reply.id); // now available
-   * ```
+   * Makes ReplyMessage directly awaitable.
+   * Resolves to a plain Message (not thenable) to prevent infinite await loops.
    */
-  async wait(): Promise<this> {
-    await this.replyPromise;
-    return this;
+  then<TResult1 = Message, TResult2 = never>(
+    onfulfilled?: ((value: Message) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    const resolved = this.replyPromise.then(async () => {
+      await this.pendingReactions;
+      const msg = new Message(
+        { id: this.id, channelId: this.channelId, platform: this.platform },
+        this.operations,
+      );
+      msg.reactionUnsubscribers = this.reactionUnsubscribers;
+      return msg;
+    });
+    return resolved.then(onfulfilled, onrejected);
   }
 
   /**
