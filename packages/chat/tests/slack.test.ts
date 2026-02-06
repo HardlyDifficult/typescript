@@ -370,6 +370,42 @@ describe("SlackChatClient", () => {
       });
     });
 
+    it("should convert markdown bold to Slack format for plain strings", async () => {
+      const channel = await client.connect(channelId);
+
+      const message = channel.postMessage("This is **bold** text");
+      await waitForMessage(message);
+
+      expect(mockPostMessage).toHaveBeenCalledWith({
+        channel: channelId,
+        text: "This is *bold* text",
+      });
+    });
+
+    it("should convert markdown italic to Slack format for plain strings", async () => {
+      const channel = await client.connect(channelId);
+
+      const message = channel.postMessage("This is *italic* text");
+      await waitForMessage(message);
+
+      expect(mockPostMessage).toHaveBeenCalledWith({
+        channel: channelId,
+        text: "This is _italic_ text",
+      });
+    });
+
+    it("should convert markdown strikethrough to Slack format for plain strings", async () => {
+      const channel = await client.connect(channelId);
+
+      const message = channel.postMessage("This is ~~struck~~ text");
+      await waitForMessage(message);
+
+      expect(mockPostMessage).toHaveBeenCalledWith({
+        channel: channelId,
+        text: "This is ~struck~ text",
+      });
+    });
+
     it("should return a Message object with ts as id", async () => {
       const expectedTs = "1234567890.123456";
       mockPostMessage.mockResolvedValue({ ts: expectedTs });
