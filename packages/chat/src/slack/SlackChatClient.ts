@@ -14,7 +14,6 @@ import type {
   ReactionCallback,
   ReactionEvent,
   SlackConfig,
-  StartThreadOptions,
   ThreadData,
   User,
 } from "../types.js";
@@ -243,9 +242,28 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
-   * Delete a message from a Slack channel
+   * Delete a message and its thread replies from a Slack channel
    */
   async deleteMessage(messageId: string, channelId: string): Promise<void> {
+    // Fetch and delete thread replies first
+    const replies = await this.app.client.conversations.replies({
+      channel: channelId,
+      ts: messageId,
+    });
+
+    if (replies.messages && replies.messages.length > 1) {
+      // First message is the parent — delete replies (rest) in reverse order
+      for (const reply of replies.messages.slice(1).reverse()) {
+        if (reply.ts !== undefined && reply.ts !== "") {
+          await this.app.client.chat.delete({
+            channel: channelId,
+            ts: reply.ts,
+          });
+        }
+      }
+    }
+
+    // Delete the parent message
     await this.app.client.chat.delete({
       channel: channelId,
       ts: messageId,
@@ -336,7 +354,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     messageId: string,
     channelId: string,
     _name: string,
-    _options?: StartThreadOptions
+    _autoArchiveDuration?: number
   ): Promise<ThreadData> {
     // In Slack, threads are created by replying to a message.
     // Return the message timestamp as the thread ID

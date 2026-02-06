@@ -8,7 +8,6 @@ import type {
   MessageData,
   Platform,
   ReactionCallback,
-  StartThreadOptions,
   ThreadData,
 } from "./types";
 
@@ -42,7 +41,7 @@ export interface ChannelOperations {
     messageId: string,
     channelId: string,
     name: string,
-    options?: StartThreadOptions
+    autoArchiveDuration?: number
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
   getThreads(channelId: string): Promise<ThreadData[]>;
@@ -76,12 +75,12 @@ export class Channel {
   /**
    * Post a message to this channel
    * @param content - Message content (string or Document)
-   * @param options - Optional message options (e.g., threadTs for threading, files for attachments)
+   * @param options - Optional message options (e.g., files for attachments)
    * @returns Message object with chainable reaction methods
    */
   postMessage(
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: { files?: FileAttachment[] }
   ): Message & PromiseLike<Message> {
     const messagePromise = this.operations.postMessage(
       this.id,
@@ -152,7 +151,7 @@ export class Channel {
       ) => this.operations.updateMessage(messageId, channelId, content),
       deleteMessage: (messageId: string, channelId: string) =>
         this.operations.deleteMessage(messageId, channelId),
-      postReply: async (
+      reply: async (
         channelId: string,
         threadTs: string,
         content: MessageContent
@@ -163,8 +162,14 @@ export class Channel {
         messageId: string,
         channelId: string,
         name: string,
-        options?: StartThreadOptions
-      ) => this.operations.startThread(messageId, channelId, name, options),
+        autoArchiveDuration?: number
+      ) =>
+        this.operations.startThread(
+          messageId,
+          channelId,
+          name,
+          autoArchiveDuration
+        ),
     };
   }
 

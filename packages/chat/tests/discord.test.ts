@@ -33,6 +33,8 @@ const {
     id: "msg-123",
     channelId: "channel-456",
     react: vi.fn(),
+    delete: vi.fn().mockResolvedValue(undefined),
+    thread: null as { delete: ReturnType<typeof vi.fn> } | null,
     startThread: vi.fn().mockResolvedValue(mockThread),
   };
 
@@ -221,6 +223,8 @@ describe("DiscordChatClient", () => {
     mockTextChannelData.send.mockResolvedValue(mockDiscordMessage);
     mockTextChannelData.messages.fetch.mockResolvedValue(mockDiscordMessage);
     mockDiscordMessage.react.mockResolvedValue(undefined);
+    mockDiscordMessage.delete.mockResolvedValue(undefined);
+    mockDiscordMessage.thread = null;
     mockDiscordMessage.startThread.mockResolvedValue({
       id: "thread-001",
       name: "Test Thread",
@@ -1282,12 +1286,38 @@ describe("DiscordChatClient", () => {
       const message = channel.postMessage("Thread with options");
       await waitForMessage(message);
 
-      await message.startThread("Timed Thread", { autoArchiveDuration: 1440 });
+      await message.startThread("Timed Thread", 1440);
 
       expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
         name: "Timed Thread",
         autoArchiveDuration: 1440,
       });
+    });
+  });
+
+  describe("Message.delete()", () => {
+    it("should delete a message without a thread", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Hello");
+      await waitForMessage(message);
+
+      await message.delete();
+
+      expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it("should delete thread before deleting the message", async () => {
+      const mockThreadDelete = vi.fn().mockResolvedValue(undefined);
+      mockDiscordMessage.thread = { delete: mockThreadDelete };
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Hello");
+      await waitForMessage(message);
+
+      await message.delete();
+
+      expect(mockThreadDelete).toHaveBeenCalledTimes(1);
+      expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
     });
   });
 
