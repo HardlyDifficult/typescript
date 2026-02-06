@@ -1,5 +1,10 @@
 import { StateTracker } from '@hardlydifficult/state-tracker';
 
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 /**
  * Information passed to the onSleep callback.
  */
@@ -93,6 +98,3 @@ export class WeightedThrottle {
     }
   }
 }
-
-const sleep = async (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
