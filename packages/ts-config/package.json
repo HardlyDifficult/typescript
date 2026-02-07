@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./eslint": "./dist/eslint.js",
+    "./eslint-next": "./dist/eslint-next.js",
     "./prettier": "./dist/prettier.js",
     "./tsconfig.base.json": "./tsconfig.base.json"
   },
