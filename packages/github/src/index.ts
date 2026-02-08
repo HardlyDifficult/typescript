@@ -1,4 +1,4 @@
-export { GitHubClient } from "./GitHubClient.js";
+export { GitHubClient, RepoClient, PRClient } from "./GitHubClient.js";
 export type {
   PullRequest,
   Repository,

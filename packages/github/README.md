@@ -1,6 +1,6 @@
 # @hardlydifficult/github
 
-Typed GitHub API client wrapping Octokit.
+Typed GitHub API client wrapping Octokit with a chainable API.
 
 ## Install
 
@@ -13,36 +13,68 @@ npm install @hardlydifficult/github
 ```typescript
 import { GitHubClient } from "@hardlydifficult/github";
 
-const github = new GitHubClient("ghp_token", "myusername");
+// Create client — token defaults to GH_PAT env var
+const github = await GitHubClient.create();
+const github = await GitHubClient.create("ghp_...");
 
-const prs = await github.getOpenPRs("owner", "repo");
-const pr = await github.getPR("owner", "repo", 42);
-const diff = await github.getPRDiff("owner", "repo", 42);
+// Repo-level
+const repo = github.repo("owner", "repo");
+const prs = await repo.getOpenPRs();
+const repoInfo = await repo.get();
 
-await github.postComment("owner", "repo", 42, "LGTM!");
-await github.mergePR("owner", "repo", 42, "feat: new feature (#42)");
+// PR-level (chainable from repo)
+const pr = repo.pr(42);
+const data = await pr.get();
+const diff = await pr.getDiff();
+const files = await pr.getFiles();
+const commits = await pr.getCommits();
+const reviews = await pr.getReviews();
+const comments = await pr.getComments();
+const checkRuns = await pr.getCheckRuns();
+await pr.postComment("LGTM!");
+await pr.merge("feat: my feature (#42)");
+
+// Owner-level
+const repos = await github.getOwnerRepos("owner");
+
+// User-level (uses auto-resolved username)
+const contributed = await github.getContributedRepos(30);
+const myPRs = await github.getMyOpenPRs();
 ```
 
 ## API
 
-### `new GitHubClient(token, username)`
+### `GitHubClient`
 
 | Method | Description |
 |--------|-------------|
-| `getOpenPRs(owner, repo)` | List open pull requests |
-| `getPR(owner, repo, prNumber)` | Get a single PR |
-| `getPRDiff(owner, repo, prNumber)` | Get PR diff as string |
-| `getPRFiles(owner, repo, prNumber)` | List files changed in a PR |
-| `getPRCommits(owner, repo, prNumber)` | List commits in a PR |
-| `getPRReviews(owner, repo, prNumber)` | List reviews on a PR |
-| `getPRComments(owner, repo, prNumber)` | List comments on a PR |
-| `getCheckRuns(owner, repo, ref)` | List check runs for a ref |
-| `postComment(owner, repo, prNumber, body)` | Post a comment on a PR |
-| `mergePR(owner, repo, prNumber, title)` | Squash-merge a PR |
-| `getRepository(owner, repo)` | Get repository info |
+| `static create(token?)` | Create client (token defaults to `GH_PAT` env var) |
+| `repo(owner, name)` | Get a `RepoClient` scoped to owner/repo |
 | `getOwnerRepos(owner)` | List repos for a user or org |
 | `getContributedRepos(days)` | Find repos the user contributed to recently |
 | `getMyOpenPRs()` | Find open PRs by the authenticated user |
+
+### `RepoClient`
+
+| Method | Description |
+|--------|-------------|
+| `pr(number)` | Get a `PRClient` scoped to a pull request |
+| `getOpenPRs()` | List open pull requests |
+| `get()` | Get repository info |
+
+### `PRClient`
+
+| Method | Description |
+|--------|-------------|
+| `get()` | Get pull request details |
+| `getDiff()` | Get PR diff as string |
+| `getFiles()` | List files changed in the PR |
+| `getCommits()` | List commits in the PR |
+| `getReviews()` | List reviews on the PR |
+| `getComments()` | List comments on the PR |
+| `getCheckRuns()` | List check runs (auto-resolves head SHA) |
+| `postComment(body)` | Post a comment on the PR |
+| `merge(title)` | Squash-merge the PR |
 
 ### Types
 

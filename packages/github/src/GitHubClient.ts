@@ -11,85 +11,35 @@ import type {
   Repository,
 } from "./types.js";
 
-export class GitHubClient {
+export class PRClient {
   private readonly octokit: Octokit;
-  private readonly username: string;
+  private readonly owner: string;
+  private readonly repo: string;
+  private readonly number: number;
 
-  constructor(token: string, username: string) {
-    this.octokit = new Octokit({ auth: token });
-    this.username = username;
+  /** @internal */
+  constructor(octokit: Octokit, owner: string, repo: string, number: number) {
+    this.octokit = octokit;
+    this.owner = owner;
+    this.repo = repo;
+    this.number = number;
   }
 
-  async getContributedRepos(
-    days: number
-  ): Promise<readonly ContributionRepo[]> {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-
-    const query = `author:${this.username} created:>=${since.toISOString().split("T")[0]}`;
-    const repos = new Map<string, ContributionRepo>();
-
-    const pattern = /repos\/([^/]+)\/([^/]+)$/;
-
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const prResults = await this.octokit.search.issuesAndPullRequests({
-      q: `${query} is:pr`,
-      per_page: 100,
-      sort: "updated",
-    });
-
-    for (const item of prResults.data.items) {
-      const repoUrl = item.repository_url;
-      const match = pattern.exec(repoUrl);
-      if (match !== null) {
-        const [, owner, name] = match;
-        const fullName = `${owner}/${name}`;
-        if (!repos.has(fullName)) {
-          repos.set(fullName, { owner, name, fullName });
-        }
-      }
-    }
-
-    return Array.from(repos.values());
-  }
-
-  async getOpenPRs(
-    owner: string,
-    repo: string
-  ): Promise<readonly PullRequest[]> {
-    const response = await this.octokit.pulls.list({
-      owner,
-      repo,
-      state: "open",
-      per_page: 100,
-    });
-
-    return response.data as unknown as readonly PullRequest[];
-  }
-
-  async getPR(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<PullRequest> {
+  async get(): Promise<PullRequest> {
     const response = await this.octokit.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
     });
 
     return response.data as unknown as PullRequest;
   }
 
-  async getPRDiff(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<string> {
+  async getDiff(): Promise<string> {
     const response = await this.octokit.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
       mediaType: {
         format: "diff",
       },
@@ -98,117 +48,142 @@ export class GitHubClient {
     return response.data as unknown as string;
   }
 
-  async getPRFiles(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<readonly PullRequestFile[]> {
+  async getFiles(): Promise<readonly PullRequestFile[]> {
     const response = await this.octokit.pulls.listFiles({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
       per_page: 100,
     });
 
     return response.data as unknown as readonly PullRequestFile[];
   }
 
-  async getPRCommits(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<readonly PullRequestCommit[]> {
+  async getCommits(): Promise<readonly PullRequestCommit[]> {
     const response = await this.octokit.pulls.listCommits({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
       per_page: 100,
     });
 
     return response.data as unknown as readonly PullRequestCommit[];
   }
 
-  async getCheckRuns(
-    owner: string,
-    repo: string,
-    ref: string
-  ): Promise<readonly CheckRun[]> {
-    const response = await this.octokit.checks.listForRef({
-      owner,
-      repo,
-      ref,
-      per_page: 100,
-    });
-
-    return response.data.check_runs as unknown as readonly CheckRun[];
-  }
-
-  async getPRComments(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<readonly PullRequestComment[]> {
-    const response = await this.octokit.issues.listComments({
-      owner,
-      repo,
-      issue_number: prNumber,
-      per_page: 100,
-    });
-
-    return response.data as unknown as readonly PullRequestComment[];
-  }
-
-  async getPRReviews(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<readonly PullRequestReview[]> {
+  async getReviews(): Promise<readonly PullRequestReview[]> {
     const response = await this.octokit.pulls.listReviews({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
       per_page: 100,
     });
 
     return response.data as unknown as readonly PullRequestReview[];
   }
 
-  async postComment(
-    owner: string,
-    repo: string,
-    prNumber: number,
-    body: string
-  ): Promise<void> {
+  async getComments(): Promise<readonly PullRequestComment[]> {
+    const response = await this.octokit.issues.listComments({
+      owner: this.owner,
+      repo: this.repo,
+      issue_number: this.number,
+      per_page: 100,
+    });
+
+    return response.data as unknown as readonly PullRequestComment[];
+  }
+
+  async getCheckRuns(): Promise<readonly CheckRun[]> {
+    const pr = await this.get();
+    const response = await this.octokit.checks.listForRef({
+      owner: this.owner,
+      repo: this.repo,
+      ref: pr.head.sha,
+      per_page: 100,
+    });
+
+    return response.data.check_runs as unknown as readonly CheckRun[];
+  }
+
+  async postComment(body: string): Promise<void> {
     await this.octokit.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
+      owner: this.owner,
+      repo: this.repo,
+      issue_number: this.number,
       body,
     });
   }
 
-  async getRepository(owner: string, repo: string): Promise<Repository> {
+  async merge(title: string): Promise<void> {
+    await this.octokit.pulls.merge({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
+      merge_method: "squash",
+      commit_title: title,
+    });
+  }
+}
+
+export class RepoClient {
+  private readonly octokit: Octokit;
+  private readonly owner: string;
+  private readonly name: string;
+
+  /** @internal */
+  constructor(octokit: Octokit, owner: string, name: string) {
+    this.octokit = octokit;
+    this.owner = owner;
+    this.name = name;
+  }
+
+  pr(number: number): PRClient {
+    return new PRClient(this.octokit, this.owner, this.name, number);
+  }
+
+  async getOpenPRs(): Promise<readonly PullRequest[]> {
+    const response = await this.octokit.pulls.list({
+      owner: this.owner,
+      repo: this.name,
+      state: "open",
+      per_page: 100,
+    });
+
+    return response.data as unknown as readonly PullRequest[];
+  }
+
+  async get(): Promise<Repository> {
     const response = await this.octokit.repos.get({
-      owner,
-      repo,
+      owner: this.owner,
+      repo: this.name,
     });
 
     return response.data as unknown as Repository;
   }
+}
 
-  async mergePR(
-    owner: string,
-    repo: string,
-    prNumber: number,
-    title: string
-  ): Promise<void> {
-    await this.octokit.pulls.merge({
-      owner,
-      repo,
-      pull_number: prNumber,
-      merge_method: "squash",
-      commit_title: title,
-    });
+export class GitHubClient {
+  private readonly octokit: Octokit;
+  private readonly username: string;
+
+  private constructor(octokit: Octokit, username: string) {
+    this.octokit = octokit;
+    this.username = username;
+  }
+
+  static async create(token?: string): Promise<GitHubClient> {
+    const resolvedToken = token ?? process.env.GH_PAT;
+    if (!resolvedToken) {
+      throw new Error("GitHub token is required (pass token or set GH_PAT)");
+    }
+
+    const octokit = new Octokit({ auth: resolvedToken });
+    const { data } = await octokit.users.getAuthenticated();
+
+    return new GitHubClient(octokit, data.login);
+  }
+
+  repo(owner: string, name: string): RepoClient {
+    return new RepoClient(this.octokit, owner, name);
   }
 
   async getOwnerRepos(owner: string): Promise<readonly ContributionRepo[]> {
@@ -247,6 +222,39 @@ export class GitHubClient {
     return repos;
   }
 
+  async getContributedRepos(
+    days: number
+  ): Promise<readonly ContributionRepo[]> {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const query = `author:${this.username} created:>=${since.toISOString().split("T")[0]}`;
+    const repos = new Map<string, ContributionRepo>();
+
+    const pattern = /repos\/([^/]+)\/([^/]+)$/;
+
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    const prResults = await this.octokit.search.issuesAndPullRequests({
+      q: `${query} is:pr`,
+      per_page: 100,
+      sort: "updated",
+    });
+
+    for (const item of prResults.data.items) {
+      const repoUrl = item.repository_url;
+      const match = pattern.exec(repoUrl);
+      if (match !== null) {
+        const [, owner, name] = match;
+        const fullName = `${owner}/${name}`;
+        if (!repos.has(fullName)) {
+          repos.set(fullName, { owner, name, fullName });
+        }
+      }
+    }
+
+    return Array.from(repos.values());
+  }
+
   async getMyOpenPRs(): Promise<
     readonly {
       readonly pr: PullRequest;
@@ -272,7 +280,7 @@ export class GitHubClient {
       const match = pattern.exec(repoUrl);
       if (match !== null) {
         const [, owner, name] = match;
-        const pr = await this.getPR(owner, name, item.number);
+        const pr = await this.repo(owner, name).pr(item.number).get();
         results.push({ pr, repo: { owner, name } });
       }
     }

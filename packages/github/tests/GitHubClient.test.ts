@@ -17,6 +17,11 @@ vi.mock("@octokit/rest", () => ({
 }));
 
 const mockOctokit = {
+  users: {
+    getAuthenticated: vi
+      .fn()
+      .mockResolvedValue({ data: { login: "testuser" } }),
+  },
   pulls: {
     list: vi.fn(),
     get: vi.fn(),
@@ -45,12 +50,38 @@ const mockOctokit = {
 describe("GitHubClient", () => {
   let client: GitHubClient;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    client = new GitHubClient("test-token", "testuser");
+    mockOctokit.users.getAuthenticated.mockResolvedValue({
+      data: { login: "testuser" },
+    });
+    client = await GitHubClient.create("test-token");
   });
 
-  describe("getOpenPRs", () => {
+  describe("create", () => {
+    it("resolves username from token", async () => {
+      expect(mockOctokit.users.getAuthenticated).toHaveBeenCalled();
+    });
+
+    it("reads GH_PAT from environment when no token provided", async () => {
+      process.env.GH_PAT = "env-token";
+      try {
+        await GitHubClient.create();
+        expect(mockOctokit.users.getAuthenticated).toHaveBeenCalled();
+      } finally {
+        delete process.env.GH_PAT;
+      }
+    });
+
+    it("throws when no token and no GH_PAT", async () => {
+      delete process.env.GH_PAT;
+      await expect(GitHubClient.create()).rejects.toThrow(
+        "GitHub token is required"
+      );
+    });
+  });
+
+  describe("repo().getOpenPRs", () => {
     it("returns open pull requests", async () => {
       const prs: PullRequest[] = [
         {
@@ -97,7 +128,7 @@ describe("GitHubClient", () => {
       ];
       mockOctokit.pulls.list.mockResolvedValue({ data: prs });
 
-      const result = await client.getOpenPRs("owner", "repo");
+      const result = await client.repo("owner", "repo").getOpenPRs();
 
       expect(result).toEqual(prs);
       expect(mockOctokit.pulls.list).toHaveBeenCalledWith({
@@ -109,12 +140,30 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPR", () => {
+  describe("repo().get", () => {
+    it("returns repository info", async () => {
+      const repo: Repository = {
+        id: 1,
+        name: "repo",
+        full_name: "owner/repo",
+        owner: { login: "owner", id: 1 },
+        html_url: "https://github.com/owner/repo",
+        default_branch: "main",
+      };
+      mockOctokit.repos.get.mockResolvedValue({ data: repo });
+
+      const result = await client.repo("owner", "repo").get();
+
+      expect(result).toEqual(repo);
+    });
+  });
+
+  describe("repo().pr().get", () => {
     it("returns a single pull request", async () => {
       const pr = { id: 1, number: 42, title: "Test PR" };
       mockOctokit.pulls.get.mockResolvedValue({ data: pr });
 
-      const result = await client.getPR("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).get();
 
       expect(result).toEqual(pr);
       expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
@@ -125,13 +174,13 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPRDiff", () => {
+  describe("repo().pr().getDiff", () => {
     it("returns diff string", async () => {
       mockOctokit.pulls.get.mockResolvedValue({
         data: "diff --git a/file.ts b/file.ts",
       });
 
-      const result = await client.getPRDiff("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).getDiff();
 
       expect(result).toBe("diff --git a/file.ts b/file.ts");
       expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
@@ -143,7 +192,7 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPRFiles", () => {
+  describe("repo().pr().getFiles", () => {
     it("returns files changed in PR", async () => {
       const files: PullRequestFile[] = [
         {
@@ -160,7 +209,7 @@ describe("GitHubClient", () => {
       ];
       mockOctokit.pulls.listFiles.mockResolvedValue({ data: files });
 
-      const result = await client.getPRFiles("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).getFiles();
 
       expect(result).toEqual(files);
       expect(mockOctokit.pulls.listFiles).toHaveBeenCalledWith({
@@ -172,7 +221,7 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPRCommits", () => {
+  describe("repo().pr().getCommits", () => {
     it("returns commits in PR", async () => {
       const commits: PullRequestCommit[] = [
         {
@@ -191,14 +240,21 @@ describe("GitHubClient", () => {
       ];
       mockOctokit.pulls.listCommits.mockResolvedValue({ data: commits });
 
-      const result = await client.getPRCommits("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).getCommits();
 
       expect(result).toEqual(commits);
     });
   });
 
-  describe("getCheckRuns", () => {
-    it("returns check runs for a ref", async () => {
+  describe("repo().pr().getCheckRuns", () => {
+    it("fetches PR then returns check runs for head sha", async () => {
+      const pr = {
+        id: 1,
+        number: 42,
+        head: { sha: "abc123" },
+      };
+      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
+
       const checkRuns: CheckRun[] = [
         {
           id: 1,
@@ -214,9 +270,14 @@ describe("GitHubClient", () => {
         data: { check_runs: checkRuns },
       });
 
-      const result = await client.getCheckRuns("owner", "repo", "abc123");
+      const result = await client.repo("owner", "repo").pr(42).getCheckRuns();
 
       expect(result).toEqual(checkRuns);
+      expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        pull_number: 42,
+      });
       expect(mockOctokit.checks.listForRef).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
@@ -226,7 +287,7 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPRComments", () => {
+  describe("repo().pr().getComments", () => {
     it("returns comments on a PR", async () => {
       const comments: PullRequestComment[] = [
         {
@@ -240,7 +301,7 @@ describe("GitHubClient", () => {
       ];
       mockOctokit.issues.listComments.mockResolvedValue({ data: comments });
 
-      const result = await client.getPRComments("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).getComments();
 
       expect(result).toEqual(comments);
       expect(mockOctokit.issues.listComments).toHaveBeenCalledWith({
@@ -252,7 +313,7 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getPRReviews", () => {
+  describe("repo().pr().getReviews", () => {
     it("returns reviews on a PR", async () => {
       const reviews: PullRequestReview[] = [
         {
@@ -266,17 +327,17 @@ describe("GitHubClient", () => {
       ];
       mockOctokit.pulls.listReviews.mockResolvedValue({ data: reviews });
 
-      const result = await client.getPRReviews("owner", "repo", 42);
+      const result = await client.repo("owner", "repo").pr(42).getReviews();
 
       expect(result).toEqual(reviews);
     });
   });
 
-  describe("postComment", () => {
+  describe("repo().pr().postComment", () => {
     it("creates a comment on a PR", async () => {
       mockOctokit.issues.createComment.mockResolvedValue({});
 
-      await client.postComment("owner", "repo", 42, "Great work!");
+      await client.repo("owner", "repo").pr(42).postComment("Great work!");
 
       expect(mockOctokit.issues.createComment).toHaveBeenCalledWith({
         owner: "owner",
@@ -287,29 +348,14 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("getRepository", () => {
-    it("returns repository info", async () => {
-      const repo: Repository = {
-        id: 1,
-        name: "repo",
-        full_name: "owner/repo",
-        owner: { login: "owner", id: 1 },
-        html_url: "https://github.com/owner/repo",
-        default_branch: "main",
-      };
-      mockOctokit.repos.get.mockResolvedValue({ data: repo });
-
-      const result = await client.getRepository("owner", "repo");
-
-      expect(result).toEqual(repo);
-    });
-  });
-
-  describe("mergePR", () => {
+  describe("repo().pr().merge", () => {
     it("squash merges a PR", async () => {
       mockOctokit.pulls.merge.mockResolvedValue({});
 
-      await client.mergePR("owner", "repo", 42, "feat: my feature (#42)");
+      await client
+        .repo("owner", "repo")
+        .pr(42)
+        .merge("feat: my feature (#42)");
 
       expect(mockOctokit.pulls.merge).toHaveBeenCalledWith({
         owner: "owner",
