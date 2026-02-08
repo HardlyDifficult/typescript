@@ -10,6 +10,8 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
 | [@hardlydifficult/document-generator](./packages/document-generator) | Platform-agnostic document builder |
+| [@hardlydifficult/github](./packages/github) | Typed GitHub API client (Octokit wrapper) |
+| [@hardlydifficult/poller](./packages/poller) | Generic state-change poller with interval polling |
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared config files synced via postinstall |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
