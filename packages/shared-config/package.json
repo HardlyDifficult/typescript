@@ -6,8 +6,9 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "postinstall": "node -e \"try{require('./dist/postinstall.js')}catch{}\"",
+    "copy-skills": "tsx src/copy-skills.ts",
     "sync-external-skills": "tsx src/sync-external-skills.ts",
-    "prebuild": "npm run sync-external-skills"
+    "prebuild": "npm run copy-skills && npm run sync-external-skills"
   },
   "files": ["dist", "files", "external-skills.txt"],
   "devDependencies": {
