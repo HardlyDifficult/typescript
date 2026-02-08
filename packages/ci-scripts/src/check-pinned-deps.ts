@@ -40,7 +40,7 @@ function findPackageJsonFiles(dir: string, files: string[] = []): string[] {
   for (const entry of entries) {
     const fullPath = join(dir, entry);
 
-    if (entry === "node_modules" || entry === "dist") {
+    if (entry === "node_modules" || entry === "dist" || entry === ".tmp") {
       continue;
     }
 
