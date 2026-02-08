@@ -335,6 +335,7 @@ function main(): void {
   console.log("🔄 Syncing external skills (reference mode)...\n");
 
   const packageRoot = join(__dirname, "..");
+  const monorepoRoot = join(packageRoot, "../..");
   const repoRoot = findRepoRoot();
 
   // Load repos from package's external-skills.txt
@@ -363,7 +364,8 @@ function main(): void {
   console.log(`📋 Total repos to sync: ${allRepos.length}`);
 
   const tmpDir = join(packageRoot, ".tmp-skills");
-  const destDir = join(packageRoot, "files", ".claude", "skills", "external");
+  // Generate into monorepo root so skills work for the monorepo itself
+  const destDir = join(monorepoRoot, ".claude", "skills", "external");
 
   // Clean destination directory
   if (existsSync(destDir)) {
@@ -385,7 +387,8 @@ function main(): void {
 
   console.log("\n✅ External skills sync complete!");
   console.log(`\nTotal reference skills: ${totalSkills}`);
-  console.log(`Skills available in: files/.claude/skills/external/\n`);
+  console.log(`Skills available in: .claude/skills/external/\n`);
+  console.log("💡 Tip: Commit these to the monorepo so they work for all packages\n");
 }
 
 main();
