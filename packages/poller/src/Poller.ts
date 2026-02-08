@@ -14,7 +14,7 @@ export class Poller<T> {
     fetchFn: () => Promise<T>,
     onChange: (current: T, previous: T | undefined) => void,
     intervalMs: number,
-    onError?: (error: unknown) => void,
+    onError?: (error: unknown) => void
   ) {
     this.fetchFn = fetchFn;
     this.onChange = onChange;

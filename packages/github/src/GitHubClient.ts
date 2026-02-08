@@ -21,7 +21,7 @@ export class GitHubClient {
   }
 
   async getContributedRepos(
-    days: number,
+    days: number
   ): Promise<readonly ContributionRepo[]> {
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -55,7 +55,7 @@ export class GitHubClient {
 
   async getOpenPRs(
     owner: string,
-    repo: string,
+    repo: string
   ): Promise<readonly PullRequest[]> {
     const response = await this.octokit.pulls.list({
       owner,
@@ -70,7 +70,7 @@ export class GitHubClient {
   async getPR(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<PullRequest> {
     const response = await this.octokit.pulls.get({
       owner,
@@ -84,7 +84,7 @@ export class GitHubClient {
   async getPRDiff(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<string> {
     const response = await this.octokit.pulls.get({
       owner,
@@ -101,7 +101,7 @@ export class GitHubClient {
   async getPRFiles(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<readonly PullRequestFile[]> {
     const response = await this.octokit.pulls.listFiles({
       owner,
@@ -116,7 +116,7 @@ export class GitHubClient {
   async getPRCommits(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<readonly PullRequestCommit[]> {
     const response = await this.octokit.pulls.listCommits({
       owner,
@@ -131,7 +131,7 @@ export class GitHubClient {
   async getCheckRuns(
     owner: string,
     repo: string,
-    ref: string,
+    ref: string
   ): Promise<readonly CheckRun[]> {
     const response = await this.octokit.checks.listForRef({
       owner,
@@ -146,7 +146,7 @@ export class GitHubClient {
   async getPRComments(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<readonly PullRequestComment[]> {
     const response = await this.octokit.issues.listComments({
       owner,
@@ -161,7 +161,7 @@ export class GitHubClient {
   async getPRReviews(
     owner: string,
     repo: string,
-    prNumber: number,
+    prNumber: number
   ): Promise<readonly PullRequestReview[]> {
     const response = await this.octokit.pulls.listReviews({
       owner,
@@ -177,7 +177,7 @@ export class GitHubClient {
     owner: string,
     repo: string,
     prNumber: number,
-    body: string,
+    body: string
   ): Promise<void> {
     await this.octokit.issues.createComment({
       owner,
@@ -200,7 +200,7 @@ export class GitHubClient {
     owner: string,
     repo: string,
     prNumber: number,
-    title: string,
+    title: string
   ): Promise<void> {
     await this.octokit.pulls.merge({
       owner,
