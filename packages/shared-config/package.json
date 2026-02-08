@@ -13,7 +13,7 @@
   "files": ["dist", "files", "external-skills.txt"],
   "devDependencies": {
     "@types/node": "20.19.31",
-    "tsx": "4.19.2",
+    "tsx": "4.21.0",
     "typescript": "5.8.3"
   }
 }
