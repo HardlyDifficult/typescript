@@ -69,28 +69,28 @@ Both commands trigger the `postinstall` hook, which re-syncs all shared files.
 
 External skills are automatically synced from trusted GitHub repositories during the build process.
 
-### Adding New External Skill Sources
+### Package Default Skills
 
-Edit `external-skills.json` to add new sources:
+The package includes default external skills in `external-skills.txt`:
 
-```json
-{
-  "sources": [
-    {
-      "name": "my-org",
-      "repo": "my-org/agent-skills",
-      "path": "skills",
-      "description": "Description of skills"
-    }
-  ]
-}
+```
+# External skill repositories (owner/repo format)
+anthropics/skills
+vercel-labs/agent-skills
+supabase/agent-skills
 ```
 
-Then sync:
+### Project-Specific External Skills
 
-```bash
-npm run sync-external-skills
+Add project-specific external skills by creating `external-skills.txt` in your project root:
+
 ```
+# Your custom skill repos (owner/repo format)
+your-org/agent-skills
+another-org/claude-skills
+```
+
+These will be synced alongside the package's default skills. Duplicates are safely ignored with a warning.
 
 ### Updating External Skills
 
@@ -102,24 +102,22 @@ npm run sync-external-skills
 
 This fetches the latest versions from each upstream repository.
 
-## Skill Repos
+## External Skills Configuration
 
-`skill-repos.json` lists external GitHub repos (in `owner/repo` format) used as skill sources:
+`external-skills.txt` lists external GitHub repos (in `owner/repo` format) used as skill sources:
 
-```json
-[
-  "some-org/some-repo",
-  "another-org/another-repo"
-]
+```
+# External skill repositories
+anthropics/skills
+vercel-labs/agent-skills
+supabase/agent-skills
 ```
 
-Pull the latest skills from those repos into the local `.claude/` directory:
+Skills are automatically synced during `npm run build` or manually with:
 
 ```bash
-npx sync-skills
+npm run sync-external-skills
 ```
-
-This fetches skills via the GitHub API. It runs in the monorepo only and is not published to npm.
 
 ## Local .claude/ Files
 

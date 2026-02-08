@@ -1,0 +1,4 @@
+# Project-specific external skills
+# These are synced alongside shared-config's default skills
+# Example: uncomment to add anthropics/agent-skills
+# anthropics/agent-skills

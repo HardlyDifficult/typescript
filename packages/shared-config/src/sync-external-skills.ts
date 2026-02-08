@@ -4,21 +4,94 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
-interface SkillSource {
-  name: string;
+interface SkillRepo {
+  owner: string;
   repo: string;
-  path: string;
-  description: string;
+  fullName: string;
 }
 
-interface ExternalSkillsConfig {
-  sources: SkillSource[];
+function parseRepoLine(line: string): SkillRepo | null {
+  const trimmed = line.trim();
+
+  // Skip empty lines and comments
+  if (!trimmed || trimmed.startsWith("#")) {
+    return null;
+  }
+
+  // Parse owner/repo format
+  const match = trimmed.match(/^([^\/]+)\/([^\/]+)$/);
+  if (!match) {
+    console.warn(`⚠️  Invalid repo format (expected owner/repo): ${trimmed}`);
+    return null;
+  }
+
+  return {
+    owner: match[1],
+    repo: match[2],
+    fullName: trimmed,
+  };
 }
 
-function loadConfig(): ExternalSkillsConfig {
-  const configPath = join(__dirname, "..", "external-skills.json");
-  const configContent = readFileSync(configPath, "utf-8");
-  return JSON.parse(configContent);
+function loadReposFromFile(filePath: string): SkillRepo[] {
+  if (!existsSync(filePath)) {
+    return [];
+  }
+
+  const content = readFileSync(filePath, "utf-8");
+  const repos: SkillRepo[] = [];
+
+  for (const line of content.split("\n")) {
+    const repo = parseRepoLine(line);
+    if (repo) {
+      repos.push(repo);
+    }
+  }
+
+  return repos;
+}
+
+function findRepoRoot(): string | null {
+  // INIT_CWD is set by npm to the directory where npm install was run
+  if (process.env.INIT_CWD !== undefined && process.env.INIT_CWD !== "") {
+    return process.env.INIT_CWD;
+  }
+
+  // Fallback: walk up from our location past node_modules
+  let dir = __dirname;
+  while (dir !== "/" && dir !== ".") {
+    if (dir.includes("node_modules")) {
+      const parts = dir.split("node_modules");
+      return parts[0].replace(/\/$/, "");
+    }
+    const parent = join(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return process.cwd();
+}
+
+function mergeRepos(packageRepos: SkillRepo[], consumerRepos: SkillRepo[]): SkillRepo[] {
+  const seen = new Set<string>();
+  const merged: SkillRepo[] = [];
+
+  // Add package repos first
+  for (const repo of packageRepos) {
+    seen.add(repo.fullName);
+    merged.push(repo);
+  }
+
+  // Add consumer repos, warn on duplicates but don't fail
+  for (const repo of consumerRepos) {
+    if (seen.has(repo.fullName)) {
+      console.log(`   ℹ️  Already included from package: ${repo.fullName}`);
+    } else {
+      seen.add(repo.fullName);
+      merged.push(repo);
+    }
+  }
+
+  return merged;
 }
 
 function ensureDir(dir: string): void {
@@ -27,45 +100,84 @@ function ensureDir(dir: string): void {
   }
 }
 
-function cloneOrUpdateRepo(source: SkillSource, tmpDir: string): string {
-  const repoDir = join(tmpDir, source.name);
+function cloneOrUpdateRepo(repo: SkillRepo, tmpDir: string): string {
+  const repoDir = join(tmpDir, repo.owner, repo.repo);
+  const parentDir = join(tmpDir, repo.owner);
 
-  console.log(`\n📦 Fetching ${source.name} from ${source.repo}...`);
+  console.log(`\n📦 Fetching ${repo.fullName}...`);
+
+  ensureDir(parentDir);
 
   if (existsSync(repoDir)) {
     // Update existing clone
     console.log(`   Updating existing clone...`);
-    execSync("git pull", { cwd: repoDir, stdio: "inherit" });
+    try {
+      execSync("git pull", { cwd: repoDir, stdio: "pipe" });
+      console.log(`   ✅ Updated`);
+    } catch (error) {
+      console.warn(`   ⚠️  Update failed, will re-clone`);
+      rmSync(repoDir, { recursive: true, force: true });
+      return cloneOrUpdateRepo(repo, tmpDir);
+    }
   } else {
     // Fresh clone
     console.log(`   Cloning repository...`);
-    execSync(
-      `git clone --depth 1 https://github.com/${source.repo}.git ${source.name}`,
-      { cwd: tmpDir, stdio: "inherit" }
-    );
+    try {
+      execSync(
+        `git clone --depth 1 https://github.com/${repo.fullName}.git ${repo.repo}`,
+        { cwd: parentDir, stdio: "pipe" }
+      );
+      console.log(`   ✅ Cloned`);
+    } catch (error) {
+      console.error(`   ❌ Failed to clone ${repo.fullName}`);
+      throw error;
+    }
   }
 
-  return join(repoDir, source.path);
+  // Look for skills directory (try common locations)
+  const possiblePaths = ["skills", ".", "src/skills"];
+  for (const path of possiblePaths) {
+    const skillsDir = join(repoDir, path);
+    if (existsSync(skillsDir)) {
+      const hasSkills = existsSync(join(skillsDir, "SKILL.md")) ||
+        execSync(`find "${skillsDir}" -name "SKILL.md" -type f | head -1`, { encoding: "utf-8" }).trim();
+      if (hasSkills) {
+        return skillsDir;
+      }
+    }
+  }
+
+  return join(repoDir, "skills"); // Default fallback
 }
 
-function copySkills(sourceDir: string, destDir: string, sourceName: string): void {
+function copySkills(sourceDir: string, destDir: string, repo: SkillRepo): void {
   if (!existsSync(sourceDir)) {
-    console.warn(`   ⚠️  Warning: Skills directory not found at ${sourceDir}`);
+    console.warn(`   ⚠️  Skills directory not found at ${sourceDir}`);
     return;
   }
 
-  // Remove old skills for this source
-  const sourceDestDir = join(destDir, sourceName);
-  if (existsSync(sourceDestDir)) {
-    rmSync(sourceDestDir, { recursive: true, force: true });
+  // Create destination with owner/repo structure
+  const repoDestDir = join(destDir, repo.owner, repo.repo);
+
+  // Remove old skills for this repo
+  if (existsSync(repoDestDir)) {
+    rmSync(repoDestDir, { recursive: true, force: true });
   }
 
+  // Ensure parent directory exists
+  ensureDir(join(destDir, repo.owner));
+
   // Copy new skills
-  execSync(`cp -R "${sourceDir}" "${sourceDestDir}"`, { stdio: "inherit" });
-  console.log(`   ✅ Copied skills to ${sourceName}/`);
+  try {
+    execSync(`cp -R "${sourceDir}" "${repoDestDir}"`, { stdio: "pipe" });
+    const skillCount = execSync(`find "${repoDestDir}" -name "SKILL.md" | wc -l`, { encoding: "utf-8" }).trim();
+    console.log(`   ✅ Copied ${skillCount} skill(s) to ${repo.owner}/${repo.repo}/`);
+  } catch (error) {
+    console.error(`   ❌ Failed to copy skills for ${repo.fullName}`);
+  }
 }
 
-function generateIndex(config: ExternalSkillsConfig, destDir: string): void {
+function generateIndex(repos: SkillRepo[], destDir: string): void {
   const lines: string[] = [
     "# External Skills",
     "",
@@ -75,23 +187,49 @@ function generateIndex(config: ExternalSkillsConfig, destDir: string): void {
     "",
   ];
 
-  for (const source of config.sources) {
-    lines.push(`### ${source.name}`);
+  // Group by owner
+  const byOwner = new Map<string, SkillRepo[]>();
+  for (const repo of repos) {
+    if (!byOwner.has(repo.owner)) {
+      byOwner.set(repo.owner, []);
+    }
+    byOwner.get(repo.owner)!.push(repo);
+  }
+
+  for (const [owner, ownerRepos] of byOwner) {
+    lines.push(`### ${owner}`);
     lines.push("");
-    lines.push(`- **Repository**: [${source.repo}](https://github.com/${source.repo})`);
-    lines.push(`- **Description**: ${source.description}`);
+    for (const repo of ownerRepos) {
+      lines.push(`- **[${repo.repo}](https://github.com/${repo.fullName})**`);
+    }
     lines.push("");
   }
 
-  lines.push("## Updating");
+  lines.push("## Managing External Skills");
   lines.push("");
-  lines.push("To sync with the latest versions from upstream:");
+  lines.push("### Package Default Skills");
+  lines.push("");
+  lines.push("Default skills are listed in the package's `external-skills.txt`.");
+  lines.push("");
+  lines.push("### Adding Project-Specific Skills");
+  lines.push("");
+  lines.push("Create `external-skills.txt` in your project root:");
+  lines.push("");
+  lines.push("```");
+  lines.push("# Your custom skill repos");
+  lines.push("your-org/agent-skills");
+  lines.push("another-org/claude-skills");
+  lines.push("```");
+  lines.push("");
+  lines.push("These will be synced alongside the package's default skills.");
+  lines.push("");
+  lines.push("### Updating");
+  lines.push("");
+  lines.push("To sync with the latest versions:");
   lines.push("");
   lines.push("```bash");
   lines.push("npm run sync-external-skills");
   lines.push("```");
-  lines.push("");
-  lines.push("This fetches the latest skills from each source repository and updates the local copies.");
   lines.push("");
 
   writeFileSync(join(destDir, "README.md"), lines.join("\n"));
@@ -101,30 +239,63 @@ function generateIndex(config: ExternalSkillsConfig, destDir: string): void {
 function main(): void {
   console.log("🔄 Syncing external skills...\n");
 
-  const config = loadConfig();
-  const rootDir = join(__dirname, "..");
-  const tmpDir = join(rootDir, ".tmp-skills");
-  const destDir = join(rootDir, "files", ".claude", "skills", "external");
+  const packageRoot = join(__dirname, "..");
+  const repoRoot = findRepoRoot();
+
+  // Load repos from package's external-skills.txt
+  const packageReposFile = join(packageRoot, "external-skills.txt");
+  const packageRepos = loadReposFromFile(packageReposFile);
+  console.log(`📋 Package default repos: ${packageRepos.length}`);
+
+  // Load repos from consuming repo's external-skills.txt (if it exists)
+  let consumerRepos: SkillRepo[] = [];
+  if (repoRoot && repoRoot !== packageRoot) {
+    const consumerReposFile = join(repoRoot, "external-skills.txt");
+    consumerRepos = loadReposFromFile(consumerReposFile);
+    if (consumerRepos.length > 0) {
+      console.log(`📋 Project-specific repos: ${consumerRepos.length}`);
+    }
+  }
+
+  // Merge repos (package + consumer)
+  const allRepos = mergeRepos(packageRepos, consumerRepos);
+
+  if (allRepos.length === 0) {
+    console.log("ℹ️  No external skills configured");
+    return;
+  }
+
+  console.log(`📋 Total repos to sync: ${allRepos.length}`);
+
+  const tmpDir = join(packageRoot, ".tmp-skills");
+  const destDir = join(packageRoot, "files", ".claude", "skills", "external");
 
   // Ensure directories exist
   ensureDir(tmpDir);
   ensureDir(destDir);
 
-  // Fetch and copy each source
-  for (const source of config.sources) {
+  // Fetch and copy each repo
+  for (const repo of allRepos) {
     try {
-      const skillsDir = cloneOrUpdateRepo(source, tmpDir);
-      copySkills(skillsDir, destDir, source.name);
+      const skillsDir = cloneOrUpdateRepo(repo, tmpDir);
+      copySkills(skillsDir, destDir, repo);
     } catch (error) {
-      console.error(`   ❌ Error processing ${source.name}:`, error);
+      console.error(`   ❌ Error processing ${repo.fullName}:`, error instanceof Error ? error.message : error);
     }
   }
 
   // Generate index
-  generateIndex(config, destDir);
+  generateIndex(allRepos, destDir);
+
+  // Count total skills
+  const totalSkills = execSync(
+    `find "${destDir}" -name "SKILL.md" | wc -l`,
+    { encoding: "utf-8" }
+  ).trim();
 
   console.log("\n✅ External skills sync complete!");
-  console.log(`\nSkills available in: files/.claude/skills/external/\n`);
+  console.log(`\nTotal external skills: ${totalSkills}`);
+  console.log(`Skills available in: files/.claude/skills/external/\n`);
 }
 
 main();

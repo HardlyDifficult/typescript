@@ -9,7 +9,7 @@
     "sync-external-skills": "tsx src/sync-external-skills.ts",
     "prebuild": "npm run sync-external-skills"
   },
-  "files": ["dist", "files", "external-skills.json"],
+  "files": ["dist", "files", "external-skills.txt"],
   "devDependencies": {
     "@types/node": "20.19.31",
     "tsx": "^4.19.2",
