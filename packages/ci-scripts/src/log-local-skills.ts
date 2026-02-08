@@ -113,7 +113,9 @@ function main(): void {
 
   // Report external skills
   if (externalSkills.length > 0) {
-    const skillCount = externalSkills.filter(f => f.endsWith("/SKILL.md")).length;
+    const skillCount = externalSkills.filter((f) =>
+      f.endsWith("/SKILL.md")
+    ).length;
     console.log(
       `📦 External skills: ${String(skillCount)} skill(s) synced from external repositories`
     );

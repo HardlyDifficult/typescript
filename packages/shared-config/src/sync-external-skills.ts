@@ -2,7 +2,14 @@
 /* eslint-disable no-console, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unused-vars */
 
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { join } from "path";
 
 interface SkillRepo {
@@ -71,14 +78,19 @@ function findRepoRoot(): string | null {
       return parts[0].replace(/\/$/, "");
     }
     const parent = join(dir, "..");
-    if (parent === dir) {break;}
+    if (parent === dir) {
+      break;
+    }
     dir = parent;
   }
 
   return process.cwd();
 }
 
-function mergeRepos(packageRepos: SkillRepo[], consumerRepos: SkillRepo[]): SkillRepo[] {
+function mergeRepos(
+  packageRepos: SkillRepo[],
+  consumerRepos: SkillRepo[]
+): SkillRepo[] {
   const seen = new Set<string>();
   const merged: SkillRepo[] = [];
 
@@ -141,7 +153,9 @@ function findSkillsInRepo(repoDir: string): SkillMetadata[] {
 
   for (const basePath of possiblePaths) {
     const searchDir = join(repoDir, basePath);
-    if (!existsSync(searchDir)) {continue;}
+    if (!existsSync(searchDir)) {
+      continue;
+    }
 
     try {
       // Find all SKILL.md files
@@ -150,14 +164,16 @@ function findSkillsInRepo(repoDir: string): SkillMetadata[] {
         stdio: ["pipe", "pipe", "pipe"],
       }).trim();
 
-      if (!output) {continue;}
+      if (!output) {
+        continue;
+      }
 
       const skillFiles = output.split("\n");
       for (const skillFile of skillFiles) {
         const metadata = extractMetadataFromSkill(skillFile);
         if (metadata) {
           // Store relative path from repo root
-          const relativePath = skillFile.replace(`${repoDir  }/`, "");
+          const relativePath = skillFile.replace(`${repoDir}/`, "");
           metadata.path = relativePath;
           skills.push(metadata);
         }
@@ -264,12 +280,18 @@ function processRepo(repo: SkillRepo, tmpDir: string, destDir: string): number {
     console.log(`   ✅ Created ${skills.length} reference skill(s)`);
     return skills.length;
   } catch (error) {
-    console.error(`   ❌ Error: ${error instanceof Error ? error.message : error}`);
+    console.error(
+      `   ❌ Error: ${error instanceof Error ? error.message : error}`
+    );
     return 0;
   }
 }
 
-function generateIndex(repos: SkillRepo[], destDir: string, totalSkills: number): void {
+function generateIndex(
+  repos: SkillRepo[],
+  destDir: string,
+  totalSkills: number
+): void {
   const lines: string[] = [
     "# External Skills (References)",
     "",
@@ -313,7 +335,9 @@ function generateIndex(repos: SkillRepo[], destDir: string, totalSkills: number)
   lines.push("");
   lines.push("### Package Default Skills");
   lines.push("");
-  lines.push("Default skills are listed in the package's `external-skills.txt`.");
+  lines.push(
+    "Default skills are listed in the package's `external-skills.txt`."
+  );
   lines.push("");
   lines.push("### Adding Project-Specific Skills");
   lines.push("");
@@ -392,7 +416,9 @@ function main(): void {
   console.log("\n✅ External skills sync complete!");
   console.log(`\nTotal reference skills: ${totalSkills}`);
   console.log(`Skills available in: .claude/skills/external/\n`);
-  console.log("💡 Tip: Commit these to the monorepo so they work for all packages\n");
+  console.log(
+    "💡 Tip: Commit these to the monorepo so they work for all packages\n"
+  );
 }
 
 main();
