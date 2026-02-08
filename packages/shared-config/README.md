@@ -16,6 +16,26 @@ npm install -D @hardlydifficult/shared-config
 | `.github/dependabot.yml` | Overwrite | Shared config is authoritative |
 | `.claude/` | Merge | Shared files overwrite, local additions preserved |
 
+### Included Skills
+
+The package includes 8 reusable Claude skills:
+
+**Development Workflows:**
+- `git-workflows` - Git and GitHub operations
+- `creating-task-files` - Structured task documentation
+- `coordinating-subagents` - Parallel agent coordination
+- `capturing-learnings` - Session learning documentation
+
+**Code Quality:**
+- `typescript-strict` - Strict TypeScript practices
+- `processing-bot-reviews` - Bot review processing
+
+**Testing & Debugging:**
+- `browser-automation` - Headless browser testing
+- `ui-testing` - Visual UI testing and screenshots
+
+See [files/.claude/skills/README.md](files/.claude/skills/README.md) for detailed documentation.
+
 ## How It Works
 
 The package has a `postinstall` hook that runs automatically on `npm install`. It copies the bundled shared files into the consuming repo's root directory using the strategies listed above.
