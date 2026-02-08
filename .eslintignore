@@ -3,8 +3,8 @@ dist/
 coverage/
 .turbo/
 
-# Generated files
-.tmp-skills/
+# Generated/temporary files
+.tmp/
 **/files/.claude/
 
 # Dependencies

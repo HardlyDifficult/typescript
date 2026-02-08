@@ -1,4 +1,4 @@
 dist/
-.tmp-skills/
+.tmp/
 node_modules/
 files/.claude/

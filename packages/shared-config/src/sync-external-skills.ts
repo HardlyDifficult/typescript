@@ -363,7 +363,7 @@ function main(): void {
 
   console.log(`📋 Total repos to sync: ${allRepos.length}`);
 
-  const tmpDir = join(packageRoot, ".tmp-skills");
+  const tmpDir = join(packageRoot, ".tmp", "skills");
   // Generate into monorepo root so skills work for the monorepo itself
   const destDir = join(monorepoRoot, ".claude", "skills", "external");
 
