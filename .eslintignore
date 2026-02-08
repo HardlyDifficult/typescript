@@ -1,0 +1,11 @@
+# Build outputs
+dist/
+coverage/
+.turbo/
+
+# Generated files
+.tmp-skills/
+**/files/.claude/
+
+# Dependencies
+node_modules/
