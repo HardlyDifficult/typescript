@@ -172,7 +172,7 @@ export class GitHubClient {
 
   static async create(token?: string): Promise<GitHubClient> {
     const resolvedToken = token ?? process.env.GH_PAT;
-    if (!resolvedToken) {
+    if (resolvedToken === undefined || resolvedToken === "") {
       throw new Error("GitHub token is required (pass token or set GH_PAT)");
     }
 

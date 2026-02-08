@@ -352,10 +352,7 @@ describe("GitHubClient", () => {
     it("squash merges a PR", async () => {
       mockOctokit.pulls.merge.mockResolvedValue({});
 
-      await client
-        .repo("owner", "repo")
-        .pr(42)
-        .merge("feat: my feature (#42)");
+      await client.repo("owner", "repo").pr(42).merge("feat: my feature (#42)");
 
       expect(mockOctokit.pulls.merge).toHaveBeenCalledWith({
         owner: "owner",
