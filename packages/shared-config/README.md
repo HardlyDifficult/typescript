@@ -36,13 +36,18 @@ The package includes **30 Claude skills** (8 custom + 22 external):
 - `browser-automation` - Headless browser testing
 - `ui-testing` - Visual UI testing and screenshots
 
-#### External Skills (22)
+#### External Skills (28 lightweight references)
 
-Skills automatically synced from trusted sources:
+**Lightweight reference skills** that point to externally maintained skills. When activated, the agent fetches the full skill from the source repository.
 
 - **Anthropics** (16 skills) - PDF, XLSX, PPTX, doc-coauthoring, etc.
-- **Vercel Labs** (5 skills) - React, Next.js, design patterns
-- **Supabase** (1 skill) - Postgres best practices
+- **Vercel Labs** (10 skills) - React, Next.js, design patterns
+- **Supabase** (2 skills) - Postgres best practices
+
+**Benefits of reference skills:**
+- Minimal repo size (500 bytes vs 100KB+ per skill)
+- Always up-to-date (fetches latest from source)
+- Full skill discoverability (name/description in metadata)
 
 See [files/.claude/skills/README.md](files/.claude/skills/README.md) for custom skill documentation.
 See [files/.claude/skills/external/README.md](files/.claude/skills/external/README.md) for external skills.
@@ -67,7 +72,16 @@ Both commands trigger the `postinstall` hook, which re-syncs all shared files.
 
 ## Managing External Skills
 
-External skills are automatically synced from trusted GitHub repositories during the build process.
+External skills use a **lightweight reference system** - the package includes only metadata (name/description) to trigger skill discovery. When activated, the agent fetches the full skill content from the source repository.
+
+This keeps the repo lean (500 bytes vs 100KB+ per skill) while maintaining full discoverability.
+
+### How Reference Skills Work
+
+1. **Discovery:** Claude sees the skill name and description in the reference
+2. **Activation:** When relevant, Claude reads the reference which contains fetch instructions
+3. **Fetch:** The agent uses `curl` to fetch the full skill from the source repository
+4. **Execute:** The agent follows the full skill instructions
 
 ### Package Default Skills
 
@@ -94,30 +108,13 @@ These will be synced alongside the package's default skills. Duplicates are safe
 
 ### Updating External Skills
 
-External skills are automatically updated during `npm run build`. To manually update:
+Reference skills are automatically regenerated during `npm run build`. To manually update:
 
 ```bash
 npm run sync-external-skills
 ```
 
-This fetches the latest versions from each upstream repository.
-
-## External Skills Configuration
-
-`external-skills.txt` lists external GitHub repos (in `owner/repo` format) used as skill sources:
-
-```
-# External skill repositories
-anthropics/skills
-vercel-labs/agent-skills
-supabase/agent-skills
-```
-
-Skills are automatically synced during `npm run build` or manually with:
-
-```bash
-npm run sync-external-skills
-```
+This fetches the latest metadata from each upstream repository and regenerates the lightweight references.
 
 ## Local .claude/ Files
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
@@ -8,6 +8,12 @@ interface SkillRepo {
   owner: string;
   repo: string;
   fullName: string;
+}
+
+interface SkillMetadata {
+  name: string;
+  description: string;
+  path: string;
 }
 
 function parseRepoLine(line: string): SkillRepo | null {
@@ -100,88 +106,182 @@ function ensureDir(dir: string): void {
   }
 }
 
-function cloneOrUpdateRepo(repo: SkillRepo, tmpDir: string): string {
+function extractMetadataFromSkill(skillPath: string): SkillMetadata | null {
+  if (!existsSync(skillPath)) {
+    return null;
+  }
+
+  const content = readFileSync(skillPath, "utf-8");
+
+  // Extract YAML frontmatter
+  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatterMatch) {
+    return null;
+  }
+
+  const frontmatter = frontmatterMatch[1];
+  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+  const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
+
+  if (!nameMatch || !descMatch) {
+    return null;
+  }
+
+  return {
+    name: nameMatch[1].trim(),
+    description: descMatch[1].trim(),
+    path: skillPath,
+  };
+}
+
+function findSkillsInRepo(repoDir: string): SkillMetadata[] {
+  const skills: SkillMetadata[] = [];
+  const possiblePaths = ["skills", ".", "src/skills"];
+
+  for (const basePath of possiblePaths) {
+    const searchDir = join(repoDir, basePath);
+    if (!existsSync(searchDir)) continue;
+
+    try {
+      // Find all SKILL.md files
+      const output = execSync(`find "${searchDir}" -name "SKILL.md" -type f`, {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+
+      if (!output) continue;
+
+      const skillFiles = output.split("\n");
+      for (const skillFile of skillFiles) {
+        const metadata = extractMetadataFromSkill(skillFile);
+        if (metadata) {
+          // Store relative path from repo root
+          const relativePath = skillFile.replace(repoDir + "/", "");
+          metadata.path = relativePath;
+          skills.push(metadata);
+        }
+      }
+    } catch (error) {
+      // Continue if find fails
+    }
+  }
+
+  return skills;
+}
+
+function cloneRepoForMetadata(repo: SkillRepo, tmpDir: string): string {
   const repoDir = join(tmpDir, repo.owner, repo.repo);
   const parentDir = join(tmpDir, repo.owner);
-
-  console.log(`\n📦 Fetching ${repo.fullName}...`);
 
   ensureDir(parentDir);
 
   if (existsSync(repoDir)) {
     // Update existing clone
-    console.log(`   Updating existing clone...`);
     try {
       execSync("git pull", { cwd: repoDir, stdio: "pipe" });
-      console.log(`   ✅ Updated`);
     } catch (error) {
-      console.warn(`   ⚠️  Update failed, will re-clone`);
+      // Re-clone if pull fails
       rmSync(repoDir, { recursive: true, force: true });
-      return cloneOrUpdateRepo(repo, tmpDir);
-    }
-  } else {
-    // Fresh clone
-    console.log(`   Cloning repository...`);
-    try {
       execSync(
         `git clone --depth 1 https://github.com/${repo.fullName}.git ${repo.repo}`,
         { cwd: parentDir, stdio: "pipe" }
       );
-      console.log(`   ✅ Cloned`);
-    } catch (error) {
-      console.error(`   ❌ Failed to clone ${repo.fullName}`);
-      throw error;
     }
+  } else {
+    // Fresh clone
+    execSync(
+      `git clone --depth 1 https://github.com/${repo.fullName}.git ${repo.repo}`,
+      { cwd: parentDir, stdio: "pipe" }
+    );
   }
 
-  // Look for skills directory (try common locations)
-  const possiblePaths = ["skills", ".", "src/skills"];
-  for (const path of possiblePaths) {
-    const skillsDir = join(repoDir, path);
-    if (existsSync(skillsDir)) {
-      const hasSkills = existsSync(join(skillsDir, "SKILL.md")) ||
-        execSync(`find "${skillsDir}" -name "SKILL.md" -type f | head -1`, { encoding: "utf-8" }).trim();
-      if (hasSkills) {
-        return skillsDir;
-      }
-    }
-  }
-
-  return join(repoDir, "skills"); // Default fallback
+  return repoDir;
 }
 
-function copySkills(sourceDir: string, destDir: string, repo: SkillRepo): void {
-  if (!existsSync(sourceDir)) {
-    console.warn(`   ⚠️  Skills directory not found at ${sourceDir}`);
-    return;
-  }
+function createReferenceSkill(
+  skill: SkillMetadata,
+  repo: SkillRepo,
+  destDir: string
+): void {
+  const skillDir = join(destDir, repo.owner, repo.repo, skill.name);
+  ensureDir(skillDir);
 
-  // Create destination with owner/repo structure
-  const repoDestDir = join(destDir, repo.owner, repo.repo);
+  const repoUrl = `https://github.com/${repo.fullName}`;
+  const skillPath = skill.path;
+  const rawUrl = `https://raw.githubusercontent.com/${repo.fullName}/main/${skillPath}`;
 
-  // Remove old skills for this repo
-  if (existsSync(repoDestDir)) {
-    rmSync(repoDestDir, { recursive: true, force: true });
-  }
+  const referenceContent = `---
+name: ${skill.name}
+description: ${skill.description}
+---
 
-  // Ensure parent directory exists
-  ensureDir(join(destDir, repo.owner));
+# ${skill.name}
 
-  // Copy new skills
+**This is a reference skill maintained externally at [${repo.fullName}](${repoUrl})**
+
+To use this skill, fetch and read the full documentation:
+
+\`\`\`bash
+curl -s ${rawUrl}
+\`\`\`
+
+If the skill references supporting files, fetch those as needed:
+
+\`\`\`bash
+curl -s https://raw.githubusercontent.com/${repo.fullName}/main/skills/${skill.name}/path/to/file
+\`\`\`
+
+The full skill contains detailed instructions, examples, and reference materials not included in this lightweight reference.
+`;
+
+  writeFileSync(join(skillDir, "SKILL.md"), referenceContent);
+}
+
+function processRepo(repo: SkillRepo, tmpDir: string, destDir: string): number {
+  console.log(`\n📦 Processing ${repo.fullName}...`);
+
   try {
-    execSync(`cp -R "${sourceDir}" "${repoDestDir}"`, { stdio: "pipe" });
-    const skillCount = execSync(`find "${repoDestDir}" -name "SKILL.md" | wc -l`, { encoding: "utf-8" }).trim();
-    console.log(`   ✅ Copied ${skillCount} skill(s) to ${repo.owner}/${repo.repo}/`);
+    // Clone repo to extract metadata
+    const repoDir = cloneRepoForMetadata(repo, tmpDir);
+    console.log(`   ✅ Cloned`);
+
+    // Find all skills
+    const skills = findSkillsInRepo(repoDir);
+
+    if (skills.length === 0) {
+      console.log(`   ⚠️  No skills found`);
+      return 0;
+    }
+
+    console.log(`   Found ${skills.length} skill(s)`);
+
+    // Create reference skills
+    for (const skill of skills) {
+      createReferenceSkill(skill, repo, destDir);
+    }
+
+    console.log(`   ✅ Created ${skills.length} reference skill(s)`);
+    return skills.length;
   } catch (error) {
-    console.error(`   ❌ Failed to copy skills for ${repo.fullName}`);
+    console.error(`   ❌ Error: ${error instanceof Error ? error.message : error}`);
+    return 0;
   }
 }
 
-function generateIndex(repos: SkillRepo[], destDir: string): void {
+function generateIndex(repos: SkillRepo[], destDir: string, totalSkills: number): void {
   const lines: string[] = [
-    "# External Skills",
+    "# External Skills (References)",
     "",
-    "Skills from external repositories, automatically synced.",
+    "Lightweight reference skills that point to externally maintained skills.",
+    "",
+    `**Total reference skills:** ${totalSkills}`,
+    "",
+    "## How Reference Skills Work",
+    "",
+    "These are lightweight skills that contain only metadata (name/description) to trigger when relevant.",
+    "When activated, they instruct the agent to clone the external repository and read the full skill.",
+    "",
+    "This keeps the shared-config package lean while providing access to external skills.",
     "",
     "## Sources",
     "",
@@ -218,14 +318,9 @@ function generateIndex(repos: SkillRepo[], destDir: string): void {
   lines.push("```");
   lines.push("# Your custom skill repos");
   lines.push("your-org/agent-skills");
-  lines.push("another-org/claude-skills");
   lines.push("```");
   lines.push("");
-  lines.push("These will be synced alongside the package's default skills.");
-  lines.push("");
   lines.push("### Updating");
-  lines.push("");
-  lines.push("To sync with the latest versions:");
   lines.push("");
   lines.push("```bash");
   lines.push("npm run sync-external-skills");
@@ -237,7 +332,7 @@ function generateIndex(repos: SkillRepo[], destDir: string): void {
 }
 
 function main(): void {
-  console.log("🔄 Syncing external skills...\n");
+  console.log("🔄 Syncing external skills (reference mode)...\n");
 
   const packageRoot = join(__dirname, "..");
   const repoRoot = findRepoRoot();
@@ -270,31 +365,26 @@ function main(): void {
   const tmpDir = join(packageRoot, ".tmp-skills");
   const destDir = join(packageRoot, "files", ".claude", "skills", "external");
 
+  // Clean destination directory
+  if (existsSync(destDir)) {
+    rmSync(destDir, { recursive: true, force: true });
+  }
+
   // Ensure directories exist
   ensureDir(tmpDir);
   ensureDir(destDir);
 
-  // Fetch and copy each repo
+  // Process each repo
+  let totalSkills = 0;
   for (const repo of allRepos) {
-    try {
-      const skillsDir = cloneOrUpdateRepo(repo, tmpDir);
-      copySkills(skillsDir, destDir, repo);
-    } catch (error) {
-      console.error(`   ❌ Error processing ${repo.fullName}:`, error instanceof Error ? error.message : error);
-    }
+    totalSkills += processRepo(repo, tmpDir, destDir);
   }
 
   // Generate index
-  generateIndex(allRepos, destDir);
-
-  // Count total skills
-  const totalSkills = execSync(
-    `find "${destDir}" -name "SKILL.md" | wc -l`,
-    { encoding: "utf-8" }
-  ).trim();
+  generateIndex(allRepos, destDir, totalSkills);
 
   console.log("\n✅ External skills sync complete!");
-  console.log(`\nTotal external skills: ${totalSkills}`);
+  console.log(`\nTotal reference skills: ${totalSkills}`);
   console.log(`Skills available in: files/.claude/skills/external/\n`);
 }
 

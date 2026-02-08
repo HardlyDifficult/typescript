@@ -1,6 +1,15 @@
-# External Skills
+# External Skills (References)
 
-Skills from external repositories, automatically synced.
+Lightweight reference skills that point to externally maintained skills.
+
+**Total reference skills:** 28
+
+## How Reference Skills Work
+
+These are lightweight skills that contain only metadata (name/description) to trigger when relevant.
+When activated, they instruct the agent to clone the external repository and read the full skill.
+
+This keeps the shared-config package lean while providing access to external skills.
 
 ## Sources
 
@@ -29,14 +38,9 @@ Create `external-skills.txt` in your project root:
 ```
 # Your custom skill repos
 your-org/agent-skills
-another-org/claude-skills
 ```
 
-These will be synced alongside the package's default skills.
-
 ### Updating
-
-To sync with the latest versions:
 
 ```bash
 npm run sync-external-skills

@@ -2,10 +2,12 @@
 
 ## Overview
 
-Consolidated and centralized **30 Claude skills** in `@hardlydifficult/shared-config`:
+Consolidated and centralized **36 Claude skills** in `@hardlydifficult/shared-config`:
 - **8 custom skills** moved from garden and fairmint-workspace repos
-- **22 external skills** automatically synced from trusted sources (Anthropics, Vercel Labs, Supabase)
+- **28 external skills** as lightweight references (Anthropics, Vercel Labs, Supabase)
 - **10 repo-specific skills** left in place in their respective repos
+
+**NEW: Lightweight Reference Skills** - External skills now use a minimal reference format (500 bytes vs 100KB+ each) that contains only metadata for discovery. When activated, the agent fetches the full skill from the source repository.
 
 ## Skills Moved to Shared-Config (8)
 
@@ -91,16 +93,36 @@ Based on Anthropic's skill authoring best practices:
 
 ## External Skills System
 
+### Lightweight Reference System
+
+External skills use a **reference-based approach** to keep the repo lean:
+
+1. **Discovery**: Each skill has a lightweight reference (~500 bytes) with name/description metadata
+2. **Activation**: When Claude determines a skill is relevant, it reads the reference
+3. **Fetch**: The reference contains instructions to fetch the full skill via curl
+4. **Execute**: Claude follows the full skill instructions from the source
+
+**Benefits:**
+- Drastically reduced repo size (200k+ lines removed)
+- Always up-to-date (fetches latest from source when used)
+- Full discoverability (metadata in frontmatter)
+- Works in remote AI environments (agents can curl repos)
+
 ### Automatic Syncing
 
-External skills are automatically fetched from trusted GitHub repositories:
+Reference skills are automatically regenerated from trusted GitHub repositories:
 
 1. **During build**: `npm run build` → runs `prebuild` → syncs external skills
 2. **Manually**: `npm run sync-external-skills`
 
+The sync script:
+- Clones repos temporarily to extract metadata
+- Creates lightweight references with fetch instructions
+- Cleans up temporary clones
+
 ### Sources
 
-Configured in `external-skills.json`:
+Configured in `external-skills.txt`:
 
 - **anthropics/skills** (16 skills)
   - PDF, XLSX, PPTX, DOCX processing
@@ -108,14 +130,16 @@ Configured in `external-skills.json`:
   - Canvas design, algorithmic art
   - MCP builder, skill creator, webapp testing
 
-- **vercel-labs/agent-skills** (5 skills)
+- **vercel-labs/agent-skills** (10 skills)
   - React best practices
   - Composition patterns
   - Web design guidelines
   - React Native skills
+  - Vercel deployment
 
-- **supabase/agent-skills** (1 skill)
+- **supabase/agent-skills** (2 skills)
   - Postgres best practices
+  - Supabase patterns
 
 ### Adding New Sources
 
