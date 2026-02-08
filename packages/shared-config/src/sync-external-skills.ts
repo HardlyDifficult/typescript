@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+/* eslint-disable no-console, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unused-vars */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync } from "fs";
-import { join } from "path";
 import { execSync } from "child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
 
 interface SkillRepo {
   owner: string;
@@ -25,7 +26,7 @@ function parseRepoLine(line: string): SkillRepo | null {
   }
 
   // Parse owner/repo format
-  const match = trimmed.match(/^([^\/]+)\/([^\/]+)$/);
+  const match = /^([^/]+)\/([^/]+)$/.exec(trimmed);
   if (!match) {
     console.warn(`⚠️  Invalid repo format (expected owner/repo): ${trimmed}`);
     return null;
@@ -70,7 +71,7 @@ function findRepoRoot(): string | null {
       return parts[0].replace(/\/$/, "");
     }
     const parent = join(dir, "..");
-    if (parent === dir) break;
+    if (parent === dir) {break;}
     dir = parent;
   }
 
@@ -114,14 +115,14 @@ function extractMetadataFromSkill(skillPath: string): SkillMetadata | null {
   const content = readFileSync(skillPath, "utf-8");
 
   // Extract YAML frontmatter
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const frontmatterMatch = /^---\n([\s\S]*?)\n---/.exec(content);
   if (!frontmatterMatch) {
     return null;
   }
 
   const frontmatter = frontmatterMatch[1];
-  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-  const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
+  const nameMatch = /^name:\s*(.+)$/m.exec(frontmatter);
+  const descMatch = /^description:\s*(.+)$/m.exec(frontmatter);
 
   if (!nameMatch || !descMatch) {
     return null;
@@ -140,7 +141,7 @@ function findSkillsInRepo(repoDir: string): SkillMetadata[] {
 
   for (const basePath of possiblePaths) {
     const searchDir = join(repoDir, basePath);
-    if (!existsSync(searchDir)) continue;
+    if (!existsSync(searchDir)) {continue;}
 
     try {
       // Find all SKILL.md files
@@ -149,14 +150,14 @@ function findSkillsInRepo(repoDir: string): SkillMetadata[] {
         stdio: ["pipe", "pipe", "pipe"],
       }).trim();
 
-      if (!output) continue;
+      if (!output) {continue;}
 
       const skillFiles = output.split("\n");
       for (const skillFile of skillFiles) {
         const metadata = extractMetadataFromSkill(skillFile);
         if (metadata) {
           // Store relative path from repo root
-          const relativePath = skillFile.replace(repoDir + "/", "");
+          const relativePath = skillFile.replace(`${repoDir  }/`, "");
           metadata.path = relativePath;
           skills.push(metadata);
         }
@@ -293,7 +294,10 @@ function generateIndex(repos: SkillRepo[], destDir: string, totalSkills: number)
     if (!byOwner.has(repo.owner)) {
       byOwner.set(repo.owner, []);
     }
-    byOwner.get(repo.owner)!.push(repo);
+    const ownerRepos = byOwner.get(repo.owner);
+    if (ownerRepos) {
+      ownerRepos.push(repo);
+    }
   }
 
   for (const [owner, ownerRepos] of byOwner) {
@@ -345,7 +349,7 @@ function main(): void {
 
   // Load repos from consuming repo's external-skills.txt (if it exists)
   let consumerRepos: SkillRepo[] = [];
-  if (repoRoot && repoRoot !== packageRoot) {
+  if (repoRoot !== null && repoRoot !== packageRoot) {
     const consumerReposFile = join(repoRoot, "external-skills.txt");
     consumerRepos = loadReposFromFile(consumerReposFile);
     if (consumerRepos.length > 0) {

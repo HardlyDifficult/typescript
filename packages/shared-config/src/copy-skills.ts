@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
 
-import { cpSync, existsSync, rmSync, mkdirSync } from "fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
 function main(): void {
