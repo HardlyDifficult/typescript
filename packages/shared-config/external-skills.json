@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "name": "anthropics",
+      "repo": "anthropics/skills",
+      "path": "skills",
+      "description": "Official Anthropic skills (PDF, XLSX, PPTX, etc.)"
+    },
+    {
+      "name": "vercel-labs",
+      "repo": "vercel-labs/agent-skills",
+      "path": "skills",
+      "description": "Vercel Labs skills (React, Next.js, design patterns)"
+    },
+    {
+      "name": "supabase",
+      "repo": "supabase/agent-skills",
+      "path": "skills",
+      "description": "Supabase skills (Postgres best practices)"
+    }
+  ]
+}

@@ -18,7 +18,9 @@ npm install -D @hardlydifficult/shared-config
 
 ### Included Skills
 
-The package includes 8 reusable Claude skills:
+The package includes **30 Claude skills** (8 custom + 22 external):
+
+#### Custom Skills (8)
 
 **Development Workflows:**
 - `git-workflows` - Git and GitHub operations
@@ -34,7 +36,16 @@ The package includes 8 reusable Claude skills:
 - `browser-automation` - Headless browser testing
 - `ui-testing` - Visual UI testing and screenshots
 
-See [files/.claude/skills/README.md](files/.claude/skills/README.md) for detailed documentation.
+#### External Skills (22)
+
+Skills automatically synced from trusted sources:
+
+- **Anthropics** (16 skills) - PDF, XLSX, PPTX, doc-coauthoring, etc.
+- **Vercel Labs** (5 skills) - React, Next.js, design patterns
+- **Supabase** (1 skill) - Postgres best practices
+
+See [files/.claude/skills/README.md](files/.claude/skills/README.md) for custom skill documentation.
+See [files/.claude/skills/external/README.md](files/.claude/skills/external/README.md) for external skills.
 
 ## How It Works
 
@@ -53,6 +64,43 @@ npm install @hardlydifficult/shared-config@latest
 ```
 
 Both commands trigger the `postinstall` hook, which re-syncs all shared files.
+
+## Managing External Skills
+
+External skills are automatically synced from trusted GitHub repositories during the build process.
+
+### Adding New External Skill Sources
+
+Edit `external-skills.json` to add new sources:
+
+```json
+{
+  "sources": [
+    {
+      "name": "my-org",
+      "repo": "my-org/agent-skills",
+      "path": "skills",
+      "description": "Description of skills"
+    }
+  ]
+}
+```
+
+Then sync:
+
+```bash
+npm run sync-external-skills
+```
+
+### Updating External Skills
+
+External skills are automatically updated during `npm run build`. To manually update:
+
+```bash
+npm run sync-external-skills
+```
+
+This fetches the latest versions from each upstream repository.
 
 ## Skill Repos
 
