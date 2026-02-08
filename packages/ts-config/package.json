@@ -1,6 +1,6 @@
 {
   "name": "@hardlydifficult/ts-config",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "type": "module",
   "exports": {
     "./eslint": "./dist/eslint.js",
