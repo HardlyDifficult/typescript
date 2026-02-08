@@ -95,16 +95,36 @@ function main(): void {
   );
 
   const localOnly: string[] = [];
+  const externalSkills: string[] = [];
+
   for (const file of localFiles) {
     const relPath = relative(localClaudeDir, file);
+
+    // External skills are synced dynamically, not local-only
+    if (relPath.startsWith("skills/external/")) {
+      externalSkills.push(relPath);
+      continue;
+    }
+
     if (!sharedFiles.has(relPath)) {
       localOnly.push(relPath);
     }
   }
 
+  // Report external skills
+  if (externalSkills.length > 0) {
+    const skillCount = externalSkills.filter((f) =>
+      f.endsWith("/SKILL.md")
+    ).length;
+    console.log(
+      `📦 External skills: ${String(skillCount)} skill(s) synced from external repositories`
+    );
+  }
+
+  // Report local-only files
   if (localOnly.length === 0) {
     console.log(
-      "All .claude/ files are from shared-config. No local-only files."
+      "✅ All .claude/ files are from shared-config. No local-only files."
     );
   } else {
     console.log(
@@ -114,7 +134,7 @@ function main(): void {
       console.log(`  LOCAL: .claude/${file}`);
     }
     console.log(
-      "\nConsider promoting these to shared-config if they should be shared across repos."
+      "\n💡 Consider promoting these to shared-config if they should be shared across repos."
     );
   }
 }

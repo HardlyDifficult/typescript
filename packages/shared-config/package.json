@@ -5,11 +5,15 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "postinstall": "node -e \"try{require('./dist/postinstall.js')}catch{}\""
+    "postinstall": "node -e \"try{require('./dist/postinstall.js')}catch{}\"",
+    "copy-skills": "tsx src/copy-skills.ts",
+    "sync-external-skills": "tsx src/sync-external-skills.ts",
+    "prebuild": "npm run copy-skills && npm run sync-external-skills"
   },
-  "files": ["dist", "files"],
+  "files": ["dist", "files", "external-skills.txt"],
   "devDependencies": {
     "@types/node": "20.19.31",
+    "tsx": "4.19.2",
     "typescript": "5.8.3"
   }
 }

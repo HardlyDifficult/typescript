@@ -1,0 +1,15 @@
+# Build outputs
+dist/
+coverage/
+.turbo/
+
+# Generated/temporary files
+.tmp/
+**/files/.claude/
+
+# Dependencies
+node_modules/
+
+# Package lock files
+package-lock.json
+pnpm-lock.yaml

@@ -1,0 +1,5 @@
+# External skill repositories (owner/repo format, one per line)
+# These are automatically synced from GitHub during build
+anthropics/skills
+vercel-labs/agent-skills
+supabase/agent-skills

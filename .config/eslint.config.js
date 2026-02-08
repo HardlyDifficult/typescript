@@ -1,2 +1,18 @@
 import createConfig from "@hardlydifficult/ts-config/eslint";
-export default createConfig(import.meta.dirname + "/..");
+
+const config = createConfig(import.meta.dirname + "/..");
+
+// Add ignores for generated/temporary files
+export default [
+  {
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/coverage/**",
+      "**/.turbo/**",
+      "**/.tmp/**",
+      "**/files/.claude/**",
+    ],
+  },
+  ...config,
+];
