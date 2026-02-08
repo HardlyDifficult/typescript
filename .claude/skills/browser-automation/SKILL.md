@@ -1,4 +1,3 @@
-
 ---
 name: browser-automation
 description: Headless browser automation for testing and debugging using agent-browser. Navigate pages, inspect content, take screenshots.
