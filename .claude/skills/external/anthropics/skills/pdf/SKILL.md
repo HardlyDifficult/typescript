@@ -10,7 +10,7 @@ description: Use this skill whenever the user wants to do anything with PDF file
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/pdf/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/pdf/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

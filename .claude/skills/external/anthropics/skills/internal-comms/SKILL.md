@@ -10,7 +10,7 @@ description: A set of resources to help me write all kinds of internal communica
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/internal-comms/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/internal-comms/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

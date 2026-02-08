@@ -10,7 +10,7 @@ description: Toolkit for styling artifacts with a theme. These artifacts can be 
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/theme-factory/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/theme-factory/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

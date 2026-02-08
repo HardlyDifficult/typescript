@@ -10,7 +10,7 @@ description: Creating algorithmic art using p5.js with seeded randomness and int
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/algorithmic-art/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/algorithmic-art/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

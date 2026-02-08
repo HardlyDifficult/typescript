@@ -2,7 +2,7 @@
 
 Lightweight reference skills that point to externally maintained skills.
 
-**Total reference skills:** 28
+**Total reference skills:** 45
 
 ## How Reference Skills Work
 

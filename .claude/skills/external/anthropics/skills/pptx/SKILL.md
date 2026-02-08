@@ -10,7 +10,7 @@ description: "Use this skill any time a .pptx file is involved in any way — as
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/pptx/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/pptx/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

@@ -10,7 +10,7 @@ description: Create beautiful visual art in .png and .pdf documents using design
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/canvas-design/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/canvas-design/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

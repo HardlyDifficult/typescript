@@ -10,7 +10,7 @@ description: Toolkit for interacting with and testing local web applications usi
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/webapp-testing/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/webapp-testing/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

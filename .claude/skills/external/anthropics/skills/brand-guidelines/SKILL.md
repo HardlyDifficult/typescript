@@ -10,7 +10,7 @@ description: Applies Anthropic's official brand colors and typography to any sor
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/brand-guidelines/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/brand-guidelines/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

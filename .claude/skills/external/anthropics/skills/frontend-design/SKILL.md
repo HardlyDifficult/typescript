@@ -10,7 +10,7 @@ description: Create distinctive, production-grade frontend interfaces with high 
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/frontend-design/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/frontend-design/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

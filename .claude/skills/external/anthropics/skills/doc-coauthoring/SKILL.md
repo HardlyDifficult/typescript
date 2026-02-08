@@ -10,7 +10,7 @@ description: Guide users through a structured workflow for co-authoring document
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/doc-coauthoring/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/doc-coauthoring/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

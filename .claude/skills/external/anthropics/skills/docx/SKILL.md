@@ -10,7 +10,7 @@ description: "Use this skill whenever the user wants to create, read, edit, or m
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/docx/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/docx/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

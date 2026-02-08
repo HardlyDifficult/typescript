@@ -10,7 +10,7 @@ description: Knowledge and utilities for creating animated GIFs optimized for Sl
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/slack-gif-creator/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/slack-gif-creator/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

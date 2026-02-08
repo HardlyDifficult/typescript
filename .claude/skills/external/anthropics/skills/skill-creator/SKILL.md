@@ -10,7 +10,7 @@ description: Guide for creating effective skills. This skill should be used when
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/skill-creator/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

@@ -10,7 +10,7 @@ description: Suite of tools for creating elaborate, multi-component claude.ai HT
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/web-artifacts-builder/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/web-artifacts-builder/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

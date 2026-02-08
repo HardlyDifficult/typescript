@@ -10,7 +10,7 @@ description: Guide for creating high-quality MCP (Model Context Protocol) server
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/mcp-builder/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/mcp-builder/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:

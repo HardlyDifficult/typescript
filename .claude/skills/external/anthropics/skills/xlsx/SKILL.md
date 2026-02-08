@@ -10,7 +10,7 @@ description: "Use this skill any time a spreadsheet file is the primary input or
 To use this skill, fetch and read the full documentation:
 
 ```bash
-curl -s https://raw.githubusercontent.com/anthropics/skills/main/xlsx/SKILL.md
+curl -s https://raw.githubusercontent.com/anthropics/skills/main/skills/xlsx/SKILL.md
 ```
 
 If the skill references supporting files, fetch those as needed:
