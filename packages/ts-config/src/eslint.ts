@@ -126,7 +126,10 @@ export default function createConfig(projectRoot: string) {
         "import-x/no-absolute-path": "error",
         "import-x/no-self-import": "error",
         "import-x/no-cycle": ["error", { maxDepth: 10 }],
-        "import-x/no-useless-path-segments": ["error", { noUselessIndex: true }],
+        "import-x/no-useless-path-segments": [
+          "error",
+          { noUselessIndex: true },
+        ],
         "import-x/order": [
           "error",
           {
