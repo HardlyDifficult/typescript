@@ -1,10 +1,13 @@
+import { fixupConfigRules } from "@eslint/compat";
 import eslint from "@eslint/js";
+import { type ESLint } from "eslint";
+import { defineConfig } from "eslint/config";
 import eslintConfigPrettier from "eslint-config-prettier";
-import importPlugin from "eslint-plugin-import";
+import { importX } from "eslint-plugin-import-x";
 import tseslint from "typescript-eslint";
 
 export default function createConfig(projectRoot: string) {
-  return tseslint.config(
+  return defineConfig(
     {
       ignores: [
         "**/dist/**",
@@ -18,12 +21,12 @@ export default function createConfig(projectRoot: string) {
       ],
     },
     eslint.configs.recommended,
-    ...tseslint.configs.strictTypeChecked,
-    ...tseslint.configs.stylisticTypeChecked,
+    ...fixupConfigRules(tseslint.configs.strictTypeChecked),
+    ...fixupConfigRules(tseslint.configs.stylisticTypeChecked),
     eslintConfigPrettier,
     {
       plugins: {
-        import: importPlugin,
+        "import-x": importX as unknown as ESLint.Plugin,
       },
     },
     {
@@ -117,14 +120,17 @@ export default function createConfig(projectRoot: string) {
         "no-console": ["error", { allow: ["error", "warn"] }],
 
         // Import rules
-        "import/extensions": "off",
-        "import/no-unresolved": "off",
-        "import/export": "error",
-        "import/no-absolute-path": "error",
-        "import/no-self-import": "error",
-        "import/no-cycle": ["error", { maxDepth: 10 }],
-        "import/no-useless-path-segments": ["error", { noUselessIndex: true }],
-        "import/order": [
+        "import-x/extensions": "off",
+        "import-x/no-unresolved": "off",
+        "import-x/export": "error",
+        "import-x/no-absolute-path": "error",
+        "import-x/no-self-import": "error",
+        "import-x/no-cycle": ["error", { maxDepth: 10 }],
+        "import-x/no-useless-path-segments": [
+          "error",
+          { noUselessIndex: true },
+        ],
+        "import-x/order": [
           "error",
           {
             groups: [

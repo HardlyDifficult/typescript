@@ -18,20 +18,22 @@
     "lint": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@eslint/compat": ">=2.0.0",
     "@eslint/js": ">=9.0.0",
     "eslint": ">=9.0.0",
     "eslint-config-prettier": ">=10.0.0",
-    "eslint-plugin-import": ">=2.30.0",
+    "eslint-plugin-import-x": ">=4.0.0",
     "typescript-eslint": ">=8.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.28.0",
+    "@eslint/compat": "2.0.2",
+    "@eslint/js": "10.0.1",
     "@types/node": "20.19.31",
-    "eslint": "9.28.0",
+    "eslint": "10.0.0",
     "eslint-config-prettier": "10.1.8",
-    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-import-x": "4.16.1",
     "prettier": "3.5.3",
     "typescript": "5.8.3",
-    "typescript-eslint": "8.33.1"
+    "typescript-eslint": "8.55.0"
   }
 }
