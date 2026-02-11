@@ -1,5 +1,6 @@
 // Types
 export {
+  type Attachment,
   type User,
   type DiscordConfig,
   type SlackConfig,

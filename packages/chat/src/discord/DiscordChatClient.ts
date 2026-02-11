@@ -15,6 +15,7 @@ import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import { type DiscordEmbed, toDiscordEmbed } from "../outputters/discord.js";
 import type {
+  Attachment,
   DisconnectCallback,
   DiscordConfig,
   ErrorCallback,
@@ -139,12 +140,25 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
             username: message.author?.username ?? undefined,
           };
 
+          const attachments: Attachment[] = [];
+          if (message.attachments) {
+            for (const [, attachment] of message.attachments) {
+              attachments.push({
+                url: attachment.url,
+                name: attachment.name,
+                contentType: attachment.contentType ?? undefined,
+                size: attachment.size,
+              });
+            }
+          }
+
           const event: MessageEvent = {
             id: message.id,
             content: message.content ?? "",
             author,
             channelId,
             timestamp: message.createdAt,
+            attachments,
           };
 
           for (const callback of callbacks) {

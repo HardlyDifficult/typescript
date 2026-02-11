@@ -5,6 +5,7 @@ import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
 import type {
+  Attachment,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -107,6 +108,20 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         username: undefined,
       };
 
+      const attachments: Attachment[] = [];
+      if ("files" in event && Array.isArray(event.files)) {
+        for (const file of event.files) {
+          const f = file as unknown as Record<string, unknown>;
+          attachments.push({
+            url: (f.url_private as string) ?? "",
+            name: (f.name as string) ?? "",
+            contentType: (f.mimetype as string) ?? undefined,
+            size:
+              typeof f.size === "number" ? f.size : undefined,
+          });
+        }
+      }
+
       const messageEvent: MessageEvent = {
         id: "ts" in event ? event.ts : "",
         content: "text" in event ? (event.text ?? "") : "",
@@ -114,6 +129,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         channelId,
         timestamp:
           "ts" in event ? new Date(parseFloat(event.ts) * 1000) : new Date(),
+        attachments,
       };
 
       for (const callback of callbacks) {
