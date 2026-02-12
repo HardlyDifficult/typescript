@@ -43,8 +43,20 @@ Always run from the **repo root** so turbo handles dependency ordering (e.g. bui
 - **Build one package:** `npx turbo run build --filter=@hardlydifficult/chat`
 - **Test one package:** `npx turbo run test --filter=@hardlydifficult/chat`
 - **Lint:** `npx turbo run lint --filter=@hardlydifficult/chat`
+- **Full CI check (lint + format):** `npm run lint && npm run format:check`
+- **Auto-fix lint + format:** `npm run fix`
 
 Avoid running `npm run build` or `npx vitest run` directly from a package directory — that bypasses turbo and will fail if upstream packages (like `document-generator`) haven't been built yet.
+
+### Pre-commit CI checklist
+
+Before committing, always verify these pass (CI runs all of them):
+
+1. `npm run build` — TypeScript compilation
+2. `npm run lint` — ESLint (includes `max-lines: 400` per file)
+3. `npm run format:check` — Prettier formatting
+4. `npm run test` — All tests
+5. `git restore .claude/skills/external/` — Undo build side effects (see below)
 
 ## Build Side Effects
 
