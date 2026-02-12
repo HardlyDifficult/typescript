@@ -23,6 +23,7 @@ import type {
 import { isDocument } from "../utils.js";
 
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { removeAllReactions } from "./removeAllReactions.js";
 
 /**
  * Slack chat client implementation using @slack/bolt
@@ -353,29 +354,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     messageId: string,
     channelId: string
   ): Promise<void> {
-    const result = await this.app.client.reactions.get({
-      channel: channelId,
-      timestamp: messageId,
-    });
-
-    const reactions = result.message?.reactions;
-    if (!reactions) {
-      return;
-    }
-
-    for (const reaction of reactions) {
-      if (reaction.name) {
-        try {
-          await this.app.client.reactions.remove({
-            channel: channelId,
-            timestamp: messageId,
-            name: reaction.name,
-          });
-        } catch {
-          // Bot may not have reacted with this emoji — ignore
-        }
-      }
-    }
+    await removeAllReactions(this.app, messageId, channelId);
   }
 
   /**
