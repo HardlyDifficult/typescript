@@ -1044,6 +1044,7 @@ describe("DiscordChatClient", () => {
         content: "Hello there",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1191,6 +1192,7 @@ describe("DiscordChatClient", () => {
         content: "First message",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1216,6 +1218,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1243,6 +1246,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();

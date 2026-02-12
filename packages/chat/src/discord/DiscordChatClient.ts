@@ -141,15 +141,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
           };
 
           const attachments: Attachment[] = [];
-          if (message.attachments) {
-            for (const [, attachment] of message.attachments) {
-              attachments.push({
-                url: attachment.url,
-                name: attachment.name,
-                contentType: attachment.contentType ?? undefined,
-                size: attachment.size,
-              });
-            }
+          for (const [, attachment] of message.attachments) {
+            attachments.push({
+              url: attachment.url,
+              name: attachment.name,
+              contentType: attachment.contentType ?? undefined,
+              size: attachment.size,
+            });
           }
 
           const event: MessageEvent = {
