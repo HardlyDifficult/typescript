@@ -53,3 +53,9 @@ When adding, removing, or changing any public method or type:
 1. Update the package's `README.md` with usage examples
 2. Add or update tests covering the new behavior
 3. Implement for **both** Discord and Slack (both platform clients must satisfy the shared interfaces)
+
+## Code Size Limits
+
+ESLint enforces `max-lines: 400` (skipping blanks and comments). Hitting this limit signals that a file is doing too much — extract repeated patterns into helpers or split distinct concerns into separate modules. Don't just trim comments to fit.
+
+**Example:** Discord's `fetchTextChannel` helper eliminated 9 copies of the same fetch-and-validate boilerplate so each new operation doesn't grow the file.
