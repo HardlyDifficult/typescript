@@ -387,6 +387,32 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Remove the bot's own reaction from a message
+   * @param messageId - Message to remove reaction from
+   * @param channelId - Channel containing the message
+   * @param emoji - Emoji to remove
+   */
+  async removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void> {
+    const channel = await this.client.channels.fetch(channelId);
+
+    if (!channel || !(channel instanceof TextChannel)) {
+      throw new Error(
+        `Channel ${channelId} not found or is not a text channel`
+      );
+    }
+
+    const message = await channel.messages.fetch(messageId);
+    const reaction = message.reactions.resolve(emoji);
+    if (reaction) {
+      await reaction.users.remove();
+    }
+  }
+
+  /**
    * Subscribe to reaction events on a channel
    * @param channelId - Channel to monitor
    * @param callback - Function to call when reactions are added

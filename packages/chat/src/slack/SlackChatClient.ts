@@ -326,6 +326,23 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Remove a reaction from a message
+   */
+  async removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void> {
+    const emojiName = emoji.replace(/^:|:$/g, "");
+
+    await this.app.client.reactions.remove({
+      channel: channelId,
+      timestamp: messageId,
+      name: emojiName,
+    });
+  }
+
+  /**
    * Subscribe to reaction events for a specific channel
    */
   subscribeToReactions(

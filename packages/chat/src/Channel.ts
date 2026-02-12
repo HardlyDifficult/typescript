@@ -35,6 +35,11 @@ export interface ChannelOperations {
     channelId: string,
     emoji: string
   ): Promise<void>;
+  removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
   subscribeToReactions(
     channelId: string,
     callback: ReactionCallback
@@ -148,6 +153,8 @@ export class Channel {
     return {
       addReaction: (messageId: string, channelId: string, emoji: string) =>
         this.operations.addReaction(messageId, channelId, emoji),
+      removeReaction: (messageId: string, channelId: string, emoji: string) =>
+        this.operations.removeReaction(messageId, channelId, emoji),
       updateMessage: (
         messageId: string,
         channelId: string,
@@ -277,6 +284,22 @@ class PendingMessage extends Message implements PromiseLike<Message> {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
         this.operations.addReaction(this.id, this.channelId, emoji)
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Override removeReactions to wait for post to complete first
+   */
+  override removeReactions(emojis: string[]): this {
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.postPromise.then(
+      () => currentPendingReactions
+    );
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
