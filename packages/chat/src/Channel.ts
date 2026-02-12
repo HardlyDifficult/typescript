@@ -1,4 +1,5 @@
 import { Message, type MessageOperations } from "./Message";
+import { Thread } from "./Thread";
 import type {
   DisconnectCallback,
   ErrorCallback,
@@ -57,6 +58,7 @@ export interface ChannelOperations {
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
   getThreads(channelId: string): Promise<ThreadData[]>;
+  deleteThread(threadId: string, channelId: string): Promise<void>;
   getMembers(channelId: string): Promise<Member[]>;
   onDisconnect(callback: DisconnectCallback): () => void;
   onError(callback: ErrorCallback): () => void;
@@ -187,6 +189,8 @@ export class Channel {
           name,
           autoArchiveDuration
         ),
+      deleteThread: (threadId: string, channelId: string) =>
+        this.operations.deleteThread(threadId, channelId),
     };
   }
 
@@ -234,10 +238,16 @@ export class Channel {
 
   /**
    * Get all threads in this channel (active and archived)
-   * @returns Array of thread data
+   * @returns Array of threads with delete capability
    */
-  async getThreads(): Promise<ThreadData[]> {
-    return this.operations.getThreads(this.id);
+  async getThreads(): Promise<Thread[]> {
+    const threadsData = await this.operations.getThreads(this.id);
+    return threadsData.map(
+      (data) =>
+        new Thread(data, () =>
+          this.operations.deleteThread(data.id, data.channelId)
+        )
+    );
   }
 
   /**

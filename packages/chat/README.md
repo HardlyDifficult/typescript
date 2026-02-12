@@ -169,10 +169,10 @@ Delete messages and manage threads in bulk.
 // Delete up to 100 recent messages
 const deletedCount = await channel.bulkDelete(50);
 
-// Get all threads (active and archived)
+// Get all threads (active and archived) and delete them
 const threads = await channel.getThreads();
 for (const thread of threads) {
-  console.log(thread.id);
+  await thread.delete();
 }
 ```
 
@@ -225,5 +225,6 @@ Both callbacks return an unsubscribe function.
 | Thread creation | Creates named thread on message | Returns message timestamp (threads are implicit) |
 | Bulk delete | Native `bulkDelete` API (fast) | One-by-one deletion (slower, may partially fail) |
 | Get threads | `fetchActive` + `fetchArchived` | Scans channel history for threaded messages |
+| Delete thread | `ThreadChannel.delete()` | Deletes parent message and all replies |
 | Get members | Guild members filtered by channel permissions | `conversations.members` + `users.info` |
 | Auto-reconnect | Handled by discord.js | Handled by `@slack/bolt` Socket Mode |

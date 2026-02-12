@@ -7,12 +7,14 @@ const {
   mockTextChannelData,
   mockClient,
   MockTextChannel,
+  MockThreadChannel,
   MockAttachmentBuilder,
   mockReactionUsersRemove,
   mockReactionResolve,
   mockReactionsRemoveAll,
   mockGuildMembersList,
   mockPermissionsFor,
+  mockThreadChannelDelete,
   getReactionHandler,
   setReactionHandler,
   getMessageHandler,
@@ -87,6 +89,16 @@ const {
     permissionsFor = mockPermissionsFor;
   }
 
+  const mockThreadChannelDelete = vi.fn().mockResolvedValue(undefined);
+
+  class MockThreadChannel {
+    id: string;
+    delete = mockThreadChannelDelete;
+    constructor(id = "thread-1") {
+      this.id = id;
+    }
+  }
+
   class MockAttachmentBuilder {
     attachment: unknown;
     name: string;
@@ -122,12 +134,14 @@ const {
     mockTextChannelData,
     mockClient,
     MockTextChannel,
+    MockThreadChannel,
     MockAttachmentBuilder,
     mockReactionUsersRemove,
     mockReactionResolve,
     mockReactionsRemoveAll,
     mockGuildMembersList,
     mockPermissionsFor,
+    mockThreadChannelDelete,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
       reactionHandler = handler;
@@ -159,6 +173,7 @@ vi.mock("discord.js", () => ({
     SuppressEmbeds: 4,
   },
   TextChannel: MockTextChannel,
+  ThreadChannel: MockThreadChannel,
   AttachmentBuilder: MockAttachmentBuilder,
 }));
 
@@ -275,6 +290,7 @@ describe("DiscordChatClient", () => {
     mockClient.destroy.mockResolvedValue(undefined);
     mockGuildMembersList.mockResolvedValue(new Map());
     mockPermissionsFor.mockReturnValue({ has: () => true });
+    mockThreadChannelDelete.mockResolvedValue(undefined);
 
     client = new DiscordChatClient(config);
   });
@@ -1715,6 +1731,20 @@ describe("DiscordChatClient", () => {
       expect(threads[0].id).toBe("thread-1");
       expect(threads[1].id).toBe("thread-2");
       expect(threads[0].platform).toBe("discord");
+    });
+
+    it("should delete a thread via thread.delete()", async () => {
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+
+      // Next channels.fetch call (for deleteThread) returns a MockThreadChannel
+      const mockThread = new MockThreadChannel("thread-1");
+      mockClient.channels.fetch.mockResolvedValueOnce(mockThread);
+
+      await threads[0].delete();
+
+      expect(mockClient.channels.fetch).toHaveBeenCalledWith("thread-1");
+      expect(mockThreadChannelDelete).toHaveBeenCalledTimes(1);
     });
   });
 

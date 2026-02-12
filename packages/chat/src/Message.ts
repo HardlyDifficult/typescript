@@ -1,3 +1,4 @@
+import { Thread } from "./Thread";
 import type {
   Attachment,
   MessageContent,
@@ -44,6 +45,7 @@ export interface MessageOperations {
     name: string,
     autoArchiveDuration?: number
   ): Promise<ThreadData>;
+  deleteThread(threadId: string, channelId: string): Promise<void>;
 }
 
 /**
@@ -182,17 +184,20 @@ export class Message {
    * Create a thread from this message
    * @param name - Thread name
    * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
-   * @returns Thread data
+   * @returns Thread with delete capability
    */
   async startThread(
     name: string,
     autoArchiveDuration?: number
-  ): Promise<ThreadData> {
-    return this.operations.startThread(
+  ): Promise<Thread> {
+    const data = await this.operations.startThread(
       this.id,
       this.channelId,
       name,
       autoArchiveDuration
+    );
+    return new Thread(data, () =>
+      this.operations.deleteThread(data.id, data.channelId)
     );
   }
 
