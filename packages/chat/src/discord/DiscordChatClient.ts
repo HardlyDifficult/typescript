@@ -383,6 +383,20 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Remove all reactions from a message
+   * @param messageId - Message to clear reactions from
+   * @param channelId - Channel containing the message
+   */
+  async removeAllReactions(
+    messageId: string,
+    channelId: string
+  ): Promise<void> {
+    const channel = await this.fetchTextChannel(channelId);
+    const message = await channel.messages.fetch(messageId);
+    await message.reactions.removeAll();
+  }
+
+  /**
    * Subscribe to reaction events on a channel
    * @param channelId - Channel to monitor
    * @param callback - Function to call when reactions are added

@@ -117,7 +117,12 @@ msg.offReaction(); // stop listening
 
 // Remove the bot's own reactions
 msg.removeReactions(["👍", "👎"]);
+
+// Remove all reactions from the message (from all users)
+msg.removeAllReactions();
 ```
+
+> **Slack note:** Slack only allows removing the bot's own reactions. `removeAllReactions()` removes the bot's reactions for every emoji on the message but cannot remove other users' reactions.
 
 ### Threads
 

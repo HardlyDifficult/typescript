@@ -346,6 +346,39 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Remove all of the bot's reactions from a message.
+   * Slack only allows removing the authenticated user's own reactions.
+   */
+  async removeAllReactions(
+    messageId: string,
+    channelId: string
+  ): Promise<void> {
+    const result = await this.app.client.reactions.get({
+      channel: channelId,
+      timestamp: messageId,
+    });
+
+    const reactions = result.message?.reactions;
+    if (!reactions) {
+      return;
+    }
+
+    for (const reaction of reactions) {
+      if (reaction.name) {
+        try {
+          await this.app.client.reactions.remove({
+            channel: channelId,
+            timestamp: messageId,
+            name: reaction.name,
+          });
+        } catch {
+          // Bot may not have reacted with this emoji — ignore
+        }
+      }
+    }
+  }
+
+  /**
    * Subscribe to reaction events for a specific channel
    */
   subscribeToReactions(

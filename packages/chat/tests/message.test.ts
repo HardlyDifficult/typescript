@@ -6,6 +6,7 @@ describe("Message", () => {
   const createMockOperations = (): MessageOperations => ({
     addReaction: vi.fn().mockResolvedValue(undefined),
     removeReaction: vi.fn().mockResolvedValue(undefined),
+    removeAllReactions: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue({
@@ -321,6 +322,53 @@ describe("Message", () => {
 
       expect(mockOperations.addReaction).toHaveBeenCalledTimes(1);
       expect(mockOperations.removeReaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("removeAllReactions (inherited behavior)", () => {
+    it("should call removeAllReactions operation", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.removeAllReactions();
+
+      await msg.waitForReactions();
+
+      expect(mockOperations.removeAllReactions).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1"
+      );
+      expect(mockOperations.removeAllReactions).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return this for chaining", () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const result = msg.removeAllReactions();
+
+      expect(result).toBe(msg);
+    });
+
+    it("should chain with addReactions", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.addReactions(["thumbsup"]).removeAllReactions();
+
+      await msg.waitForReactions();
+
+      expect(mockOperations.addReaction).toHaveBeenCalledTimes(1);
+      expect(mockOperations.removeAllReactions).toHaveBeenCalledTimes(1);
     });
   });
 

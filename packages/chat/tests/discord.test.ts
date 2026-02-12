@@ -10,6 +10,7 @@ const {
   MockAttachmentBuilder,
   mockReactionUsersRemove,
   mockReactionResolve,
+  mockReactionsRemoveAll,
   mockGuildMembersList,
   mockPermissionsFor,
   getReactionHandler,
@@ -33,6 +34,7 @@ const {
   const mockReactionResolve = vi.fn().mockReturnValue({
     users: { remove: mockReactionUsersRemove },
   });
+  const mockReactionsRemoveAll = vi.fn().mockResolvedValue(undefined);
 
   const mockDiscordMessage = {
     id: "msg-123",
@@ -43,6 +45,7 @@ const {
     startThread: vi.fn().mockResolvedValue(mockThread),
     reactions: {
       resolve: mockReactionResolve,
+      removeAll: mockReactionsRemoveAll,
     },
   };
 
@@ -122,6 +125,7 @@ const {
     MockAttachmentBuilder,
     mockReactionUsersRemove,
     mockReactionResolve,
+    mockReactionsRemoveAll,
     mockGuildMembersList,
     mockPermissionsFor,
     getReactionHandler: () => reactionHandler,
@@ -250,6 +254,7 @@ describe("DiscordChatClient", () => {
     mockReactionResolve.mockReturnValue({
       users: { remove: mockReactionUsersRemove },
     });
+    mockReactionsRemoveAll.mockResolvedValue(undefined);
     mockDiscordMessage.startThread.mockResolvedValue({
       id: "thread-001",
       name: "Test Thread",
@@ -616,6 +621,78 @@ describe("DiscordChatClient", () => {
       expect(mockDiscordMessage.react).toHaveBeenCalledWith("thumbsup");
       expect(mockReactionResolve).toHaveBeenCalledWith("thumbsup");
       expect(mockReactionUsersRemove).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Message.removeAllReactions()", () => {
+    it("should call message.reactions.removeAll()", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+
+      message.removeAllReactions();
+      await waitForMessage(message);
+
+      expect(mockReactionsRemoveAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return the Message instance for chaining", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+
+      const returnedMessage = message.removeAllReactions();
+
+      expect(returnedMessage).toBe(message);
+    });
+
+    it("should chain with addReactions", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel
+        .postMessage("Test message")
+        .addReactions(["thumbsup", "heart"])
+        .removeAllReactions();
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+      expect(mockReactionsRemoveAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should allow adding new reactions after removing all", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel
+        .postMessage("Test message")
+        .addReactions(["thumbsup"])
+        .removeAllReactions()
+        .addReactions(["heart"]);
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+      expect(mockReactionsRemoveAll).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("removeAllReactions() (direct client method)", () => {
+    it("should fetch the message and call reactions.removeAll()", async () => {
+      await client.connect(channelId);
+
+      await client.removeAllReactions("msg-123", channelId);
+
+      expect(mockTextChannelData.messages.fetch).toHaveBeenCalledWith(
+        "msg-123"
+      );
+      expect(mockReactionsRemoveAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should throw if channel is not found", async () => {
+      await client.connect(channelId);
+      mockClient.channels.fetch.mockResolvedValue(null);
+
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).rejects.toThrow(
+        "Channel channel-456 not found or is not a text channel"
+      );
     });
   });
 
