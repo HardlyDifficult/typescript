@@ -112,11 +112,19 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       if ("files" in event && Array.isArray(event.files)) {
         for (const file of event.files) {
           const f = file as unknown as Record<string, unknown>;
+          const url = typeof f.url_private === "string" ? f.url_private : "";
+          const name = typeof f.name === "string" ? f.name : "";
+
+          if (url === "" || name === "") {
+            continue;
+          }
+
+          const mimetype =
+            typeof f.mimetype === "string" ? f.mimetype : undefined;
           attachments.push({
-            url: typeof f.url_private === "string" ? f.url_private : "",
-            name: typeof f.name === "string" ? f.name : "",
-            contentType:
-              typeof f.mimetype === "string" ? f.mimetype : undefined,
+            url,
+            name,
+            contentType: mimetype === "" ? undefined : mimetype,
             size: typeof f.size === "number" ? f.size : undefined,
           });
         }
