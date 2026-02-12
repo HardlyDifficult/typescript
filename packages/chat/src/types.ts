@@ -35,6 +35,20 @@ export interface User {
 }
 
 /**
+ * A member of a channel with mention support
+ */
+export interface Member {
+  /** Platform-specific user ID */
+  id: string;
+  /** Username (e.g., "johndoe") */
+  username: string;
+  /** Display name shown in the UI (nickname, real name, or username fallback) */
+  displayName: string;
+  /** Ready-to-use mention string (e.g., "<@USER_ID>") — embed in messages to @mention */
+  mention: string;
+}
+
+/**
  * Data provided to reaction callbacks
  */
 export interface ReactionEvent {

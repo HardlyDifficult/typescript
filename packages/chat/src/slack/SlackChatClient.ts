@@ -9,6 +9,7 @@ import type {
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
+  Member,
   MessageCallback,
   MessageContent,
   MessageData,
@@ -478,6 +479,54 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     }
 
     return threads;
+  }
+
+  /**
+   * Get all members of a Slack channel
+   * @param channelId - Channel to get members for
+   * @returns Array of members with mention strings
+   */
+  async getMembers(channelId: string): Promise<Member[]> {
+    const memberIds: string[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const result = await this.app.client.conversations.members({
+        channel: channelId,
+        limit: 200,
+        cursor,
+      });
+
+      if (result.members) {
+        memberIds.push(...result.members);
+      }
+
+      cursor = result.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+
+    const members: Member[] = [];
+    for (const userId of memberIds) {
+      const info = await this.app.client.users.info({ user: userId });
+      if (info.user) {
+        const u = info.user;
+        const profile = u.profile as
+          | { display_name?: string }
+          | undefined;
+        const name = (u.name as string | undefined) ?? userId;
+        const displayName =
+          profile?.display_name ||
+          (u.real_name as string | undefined) ||
+          name;
+        members.push({
+          id: userId,
+          username: name,
+          displayName,
+          mention: `<@${userId}>`,
+        });
+      }
+    }
+
+    return members;
   }
 
   /**

@@ -130,6 +130,20 @@ const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive
 
 > **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.reply()` to populate the thread.
 
+## Mentions
+
+Get channel members and @mention them in messages.
+
+```typescript
+const members = await channel.getMembers();
+const user = members.find((m) => m.username === "alice");
+if (user) {
+  await channel.postMessage(`Hey ${user.mention}, check this out!`);
+}
+```
+
+Each `Member` has `id`, `username`, `displayName`, and `mention` (a ready-to-use `<@USER_ID>` string that renders as a clickable @mention on both platforms).
+
 ## Typing Indicator
 
 Show a "typing" indicator while processing.
@@ -184,7 +198,7 @@ Both callbacks return an unsubscribe function.
 ### Discord
 
 1. Create bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Enable Gateway Intents: `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `MESSAGE_CONTENT`
+2. Enable Gateway Intents: `GUILDS`, `GUILD_MEMBERS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `MESSAGE_CONTENT`
 3. Bot permissions: `Send Messages`, `Add Reactions`, `Read Message History`, `Manage Messages` (for bulk delete), `Create Public Threads`, `Send Messages in Threads`
 4. Set `DISCORD_TOKEN` and `DISCORD_GUILD_ID` env vars
 
@@ -192,7 +206,7 @@ Both callbacks return an unsubscribe function.
 
 1. Create app at [Slack API](https://api.slack.com/apps)
 2. Enable Socket Mode, generate App Token
-3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `files:write`
+3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `channels:read`, `files:write`, `users:read`
 4. Subscribe to events: `reaction_added`, `message.channels`
 5. Set `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` env vars
 
@@ -206,4 +220,5 @@ Both callbacks return an unsubscribe function.
 | Thread creation | Creates named thread on message | Returns message timestamp (threads are implicit) |
 | Bulk delete | Native `bulkDelete` API (fast) | One-by-one deletion (slower, may partially fail) |
 | Get threads | `fetchActive` + `fetchArchived` | Scans channel history for threaded messages |
+| Get members | Guild members filtered by channel permissions | `conversations.members` + `users.info` |
 | Auto-reconnect | Handled by discord.js | Handled by `@slack/bolt` Socket Mode |

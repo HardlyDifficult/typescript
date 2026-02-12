@@ -3,6 +3,7 @@ import type {
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
+  Member,
   MessageCallback,
   MessageContent,
   MessageData,
@@ -55,6 +56,7 @@ export interface ChannelOperations {
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
   getThreads(channelId: string): Promise<ThreadData[]>;
+  getMembers(channelId: string): Promise<Member[]>;
   onDisconnect(callback: DisconnectCallback): () => void;
   onError(callback: ErrorCallback): () => void;
 }
@@ -233,6 +235,14 @@ export class Channel {
    */
   async getThreads(): Promise<ThreadData[]> {
     return this.operations.getThreads(this.id);
+  }
+
+  /**
+   * Get all members of this channel
+   * @returns Array of members with mention strings
+   */
+  async getMembers(): Promise<Member[]> {
+    return this.operations.getMembers(this.id);
   }
 
   /**
