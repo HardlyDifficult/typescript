@@ -127,6 +127,10 @@ export interface MessageData {
   id: string;
   channelId: string;
   platform: Platform;
+  content?: string;
+  author?: User;
+  timestamp?: Date;
+  attachments?: Attachment[];
 }
 
 /**

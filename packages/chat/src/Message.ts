@@ -1,9 +1,11 @@
 import type {
+  Attachment,
   MessageContent,
   MessageData,
   Platform,
   ReactionCallback,
   ThreadData,
+  User,
 } from "./types";
 
 /**
@@ -50,6 +52,10 @@ export class Message {
   public readonly id: string;
   public readonly channelId: string;
   public readonly platform: Platform;
+  public readonly content?: string;
+  public readonly author?: User;
+  public readonly timestamp?: Date;
+  public readonly attachments?: Attachment[];
 
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
@@ -59,6 +65,10 @@ export class Message {
     this.id = data.id;
     this.channelId = data.channelId;
     this.platform = data.platform;
+    this.content = data.content;
+    this.author = data.author;
+    this.timestamp = data.timestamp;
+    this.attachments = data.attachments;
     this.operations = operations;
   }
 
@@ -68,7 +78,15 @@ export class Message {
    */
   protected toSnapshot(): Message {
     const msg = new Message(
-      { id: this.id, channelId: this.channelId, platform: this.platform },
+      {
+        id: this.id,
+        channelId: this.channelId,
+        platform: this.platform,
+        content: this.content,
+        author: this.author,
+        timestamp: this.timestamp,
+        attachments: this.attachments,
+      },
       this.operations
     );
     msg.reactionUnsubscribers = this.reactionUnsubscribers;
