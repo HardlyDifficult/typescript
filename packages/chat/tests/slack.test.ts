@@ -367,6 +367,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: text,
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -379,6 +381,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is *bold* text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -391,6 +395,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is _italic_ text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -403,6 +409,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is ~struck~ text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -418,6 +426,31 @@ describe("SlackChatClient", () => {
       expect(message.id).toBe(expectedTs);
       expect(message.channelId).toBe(channelId);
       expect(message.platform).toBe("slack");
+    });
+
+    it("should suppress link previews by default", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com");
+      await waitForMessage(message);
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          unfurl_links: false,
+          unfurl_media: false,
+        })
+      );
+    });
+
+    it("should not suppress link previews when linkPreviews is true", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com", {
+        linkPreviews: true,
+      });
+      await waitForMessage(message);
+
+      const callArgs = mockPostMessage.mock.calls[0][0];
+      expect(callArgs.unfurl_links).toBeUndefined();
+      expect(callArgs.unfurl_media).toBeUndefined();
     });
   });
 

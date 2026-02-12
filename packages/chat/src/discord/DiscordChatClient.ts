@@ -4,6 +4,7 @@ import {
   type Message as DiscordMessage,
   type User as DiscordUser,
   GatewayIntentBits,
+  MessageFlags,
   type MessageReaction,
   type PartialMessage,
   type PartialMessageReaction,
@@ -226,7 +227,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
   ): Promise<MessageData> {
     const channel = await this.client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
@@ -240,6 +245,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       embeds?: DiscordEmbed[];
       messageReference?: { messageId: string };
       files?: AttachmentBuilder[];
+      flags?: typeof MessageFlags.SuppressEmbeds;
     };
 
     if (isDocument(content)) {
@@ -277,6 +283,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
             { name: file.name }
           )
       );
+    }
+
+    // Suppress link preview embeds by default
+    if (!options?.linkPreviews) {
+      messageOptions.flags = MessageFlags.SuppressEmbeds;
     }
 
     const message = await channel.send(messageOptions);

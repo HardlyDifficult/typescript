@@ -18,7 +18,11 @@ export interface ChannelOperations {
   postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
   ): Promise<MessageData>;
   updateMessage(
     messageId: string,
@@ -80,7 +84,7 @@ export class Channel {
    */
   postMessage(
     content: MessageContent,
-    options?: { files?: FileAttachment[] }
+    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
   ): Message & PromiseLike<Message> {
     const messagePromise = this.operations.postMessage(
       this.id,
