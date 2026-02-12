@@ -10,7 +10,6 @@ import {
   type PartialMessageReaction,
   type PartialUser,
   TextChannel,
-  ThreadChannel,
 } from "discord.js";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
@@ -34,6 +33,7 @@ import type {
 } from "../types.js";
 import { isDocument } from "../utils.js";
 
+import { deleteThread } from "./deleteThread.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
 
 /**
@@ -536,11 +536,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param threadId - ID of the thread to delete
    */
   async deleteThread(threadId: string, _channelId: string): Promise<void> {
-    const thread = await this.client.channels.fetch(threadId);
-    if (!thread || !(thread instanceof ThreadChannel)) {
-      throw new Error(`Thread ${threadId} not found`);
-    }
-    await thread.delete();
+    await deleteThread(this.client, threadId);
   }
 
   async getMembers(channelId: string): Promise<Member[]> {

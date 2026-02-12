@@ -1783,10 +1783,7 @@ describe("SlackChatClient", () => {
         messages: [{ ts: "111.111", reply_count: 2 }],
       });
       mockConversationsReplies.mockResolvedValue({
-        messages: [
-          { ts: "111.111" },
-          { ts: "111.222" },
-        ],
+        messages: [{ ts: "111.111" }, { ts: "111.222" }],
       });
 
       const channel = await client.connect(channelId);
