@@ -35,6 +35,13 @@ channel.postMessage("reply", { threadTs: "..." }); // NOT supported
 
 ## Commands
 
-- **Build:** `npm run build` (from package dir, build `document-generator` first)
-- **Test:** `npx vitest run` (from package dir)
-- **Lint:** `npx tsc --noEmit` (from package dir)
+Always run from the **repo root** so turbo handles dependency ordering (e.g. builds `document-generator` before `chat`):
+
+- **Setup:** `npm install` (from repo root — installs all workspace packages)
+- **Build all:** `npm run build`
+- **Test all:** `npm run test`
+- **Build one package:** `npx turbo run build --filter=@hardlydifficult/chat`
+- **Test one package:** `npx turbo run test --filter=@hardlydifficult/chat`
+- **Lint:** `npx turbo run lint --filter=@hardlydifficult/chat`
+
+Avoid running `npm run build` or `npx vitest run` directly from a package directory — that bypasses turbo and will fail if upstream packages (like `document-generator`) haven't been built yet.
