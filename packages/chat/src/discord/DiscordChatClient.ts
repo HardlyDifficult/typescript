@@ -32,6 +32,7 @@ import type {
   User,
 } from "../types.js";
 import { isDocument } from "../utils.js";
+import { fetchChannelMembers } from "./fetchChannelMembers.js";
 
 /**
  * Discord chat client implementation using discord.js
@@ -514,39 +515,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return threads;
   }
 
-  /**
-   * Get all members who can view a channel
-   * @param channelId - Channel to get members for
-   * @returns Array of members with mention strings
-   */
   async getMembers(channelId: string): Promise<Member[]> {
     const channel = await this.fetchTextChannel(channelId);
-    const guild = channel.guild;
-
-    const members: Member[] = [];
-    let after: string | undefined;
-
-    for (;;) {
-      const batch = await guild.members.list({ limit: 1000, after });
-      if (batch.size === 0) break;
-
-      for (const [, member] of batch) {
-        const perms = channel.permissionsFor(member);
-        if (perms?.has("ViewChannel")) {
-          members.push({
-            id: member.id,
-            username: member.user.username,
-            displayName: member.displayName,
-            mention: `<@${member.id}>`,
-          });
-        }
-      }
-
-      if (batch.size < 1000) break;
-      after = batch.lastKey();
-    }
-
-    return members;
+    return fetchChannelMembers(channel);
   }
 
   /**
