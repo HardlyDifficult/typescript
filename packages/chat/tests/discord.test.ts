@@ -1446,9 +1446,7 @@ describe("DiscordChatClient", () => {
       receivedMessage!.addReactions(["white_check_mark"]);
       await receivedMessage!.waitForReactions();
 
-      expect(mockDiscordMessage.react).toHaveBeenCalledWith(
-        "white_check_mark"
-      );
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("white_check_mark");
     });
 
     it("should allow replying to a received message", async () => {

@@ -190,9 +190,7 @@ export class Channel {
    * @param callback - Function called with a Message object for each incoming message
    * @returns Unsubscribe function
    */
-  onMessage(
-    callback: (message: Message) => void | Promise<void>
-  ): () => void {
+  onMessage(callback: (message: Message) => void | Promise<void>): () => void {
     return this.operations.subscribeToMessages(
       this.id,
       (event: MessageEvent) => {
