@@ -1068,6 +1068,7 @@ describe("DiscordChatClient", () => {
         content: "Hello there",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1091,6 +1092,7 @@ describe("DiscordChatClient", () => {
         content: "Hello there",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date("2025-01-01"),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1105,6 +1107,64 @@ describe("DiscordChatClient", () => {
       });
       expect(receivedEvent!.channelId).toBe(channelId);
       expect(receivedEvent!.timestamp).toEqual(new Date("2025-01-01"));
+      expect(receivedEvent!.attachments).toEqual([]);
+    });
+
+    it("should include attachments from the message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedEvent: MessageEvent | null = null;
+      const callback = vi.fn().mockImplementation((event: MessageEvent) => {
+        receivedEvent = event;
+      });
+      channel.onMessage(callback);
+
+      const mockAttachments = new Map([
+        [
+          "att-1",
+          {
+            url: "https://cdn.discord.com/file1.png",
+            name: "screenshot.png",
+            contentType: "image/png",
+            size: 12345,
+          },
+        ],
+        [
+          "att-2",
+          {
+            url: "https://cdn.discord.com/file2.txt",
+            name: "notes.txt",
+            contentType: null,
+            size: 256,
+          },
+        ],
+      ]);
+
+      const mockMessage = {
+        id: "msg-att-1",
+        channelId: channelId,
+        content: "Check these files",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: mockAttachments,
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(receivedEvent).not.toBeNull();
+      expect(receivedEvent!.attachments).toHaveLength(2);
+      expect(receivedEvent!.attachments[0]).toEqual({
+        url: "https://cdn.discord.com/file1.png",
+        name: "screenshot.png",
+        contentType: "image/png",
+        size: 12345,
+      });
+      expect(receivedEvent!.attachments[1]).toEqual({
+        url: "https://cdn.discord.com/file2.txt",
+        name: "notes.txt",
+        contentType: undefined,
+        size: 256,
+      });
     });
 
     it("should ignore messages from the bot itself", async () => {
@@ -1156,6 +1216,7 @@ describe("DiscordChatClient", () => {
         content: "First message",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1181,6 +1242,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1208,6 +1270,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();

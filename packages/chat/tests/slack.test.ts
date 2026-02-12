@@ -1172,6 +1172,137 @@ describe("SlackChatClient", () => {
       expect(event.content).toBe("Hello from user");
       expect(event.author.id).toBe("U999");
       expect(event.channelId).toBe(channelId);
+      expect(event.attachments).toEqual([]);
+    });
+
+    it("should include file attachments from the message", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Here are some files",
+          files: [
+            {
+              url_private: "https://files.slack.com/file1.png",
+              name: "screenshot.png",
+              mimetype: "image/png",
+              size: 12345,
+            },
+            {
+              url_private: "https://files.slack.com/file2.txt",
+              name: "notes.txt",
+              mimetype: "text/plain",
+              size: 256,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      expect(event.attachments).toHaveLength(2);
+      expect(event.attachments[0]).toEqual({
+        url: "https://files.slack.com/file1.png",
+        name: "screenshot.png",
+        contentType: "image/png",
+        size: 12345,
+      });
+      expect(event.attachments[1]).toEqual({
+        url: "https://files.slack.com/file2.txt",
+        name: "notes.txt",
+        contentType: "text/plain",
+        size: 256,
+      });
+    });
+
+    it("should set contentType to undefined when mimetype is null, undefined, or empty", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Files with missing mimetypes",
+          files: [
+            {
+              url_private: "https://files.slack.com/file1.bin",
+              name: "data.bin",
+              mimetype: null,
+              size: 100,
+            },
+            {
+              url_private: "https://files.slack.com/file2.bin",
+              name: "blob.bin",
+              size: 200,
+            },
+            {
+              url_private: "https://files.slack.com/file3.bin",
+              name: "empty.bin",
+              mimetype: "",
+              size: 300,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      expect(event.attachments).toHaveLength(3);
+      expect(event.attachments[0].contentType).toBeUndefined();
+      expect(event.attachments[1].contentType).toBeUndefined();
+      expect(event.attachments[2].contentType).toBeUndefined();
+    });
+
+    it("should skip files missing url or name", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Partial files",
+          files: [
+            {
+              url_private: "https://files.slack.com/valid.txt",
+              name: "valid.txt",
+              mimetype: "text/plain",
+              size: 10,
+            },
+            {
+              name: "no-url.txt",
+              mimetype: "text/plain",
+              size: 20,
+            },
+            {
+              url_private: "https://files.slack.com/no-name.txt",
+              mimetype: "text/plain",
+              size: 30,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      expect(event.attachments).toHaveLength(1);
+      expect(event.attachments[0].name).toBe("valid.txt");
     });
 
     it("should not call callback for different channel", async () => {
