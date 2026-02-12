@@ -10,6 +10,8 @@ const {
   MockAttachmentBuilder,
   mockReactionUsersRemove,
   mockReactionResolve,
+  mockGuildMembersList,
+  mockPermissionsFor,
   getReactionHandler,
   setReactionHandler,
   getMessageHandler,
@@ -67,6 +69,9 @@ const {
     },
   };
 
+  const mockGuildMembersList = vi.fn();
+  const mockPermissionsFor = vi.fn();
+
   // Mock TextChannel class for instanceof checks
   class MockTextChannel {
     id = "channel-456";
@@ -75,6 +80,8 @@ const {
     bulkDelete = mockTextChannelData.bulkDelete;
     messages = mockTextChannelData.messages;
     threads = mockTextChannelData.threads;
+    guild = { members: { list: mockGuildMembersList } };
+    permissionsFor = mockPermissionsFor;
   }
 
   class MockAttachmentBuilder {
@@ -115,6 +122,8 @@ const {
     MockAttachmentBuilder,
     mockReactionUsersRemove,
     mockReactionResolve,
+    mockGuildMembersList,
+    mockPermissionsFor,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
       reactionHandler = handler;
@@ -137,6 +146,7 @@ vi.mock("discord.js", () => ({
   Client: vi.fn().mockImplementation(() => mockClient),
   GatewayIntentBits: {
     Guilds: 1,
+    GuildMembers: 5,
     GuildMessages: 2,
     GuildMessageReactions: 3,
     MessageContent: 4,
@@ -258,6 +268,8 @@ describe("DiscordChatClient", () => {
       threads: new Map([["thread-2", { id: "thread-2" }]]),
     });
     mockClient.destroy.mockResolvedValue(undefined);
+    mockGuildMembersList.mockResolvedValue(new Map());
+    mockPermissionsFor.mockReturnValue({ has: () => true });
 
     client = new DiscordChatClient(config);
   });
@@ -1478,16 +1490,23 @@ describe("DiscordChatClient", () => {
     });
   });
 
-  describe("MessageContent intent", () => {
+  describe("Gateway intents", () => {
     it("should include MessageContent in gateway intents", async () => {
-      // Import the mocked Client constructor
       const discordJs = await import("discord.js");
       const ClientMock = vi.mocked(discordJs.Client);
 
-      // The Client was constructed in beforeEach when creating DiscordChatClient
       expect(ClientMock).toHaveBeenCalled();
       const callArgs = ClientMock.mock.calls[0][0] as { intents: number[] };
       expect(callArgs.intents).toContain(4); // GatewayIntentBits.MessageContent = 4
+    });
+
+    it("should include GuildMembers in gateway intents", async () => {
+      const discordJs = await import("discord.js");
+      const ClientMock = vi.mocked(discordJs.Client);
+
+      expect(ClientMock).toHaveBeenCalled();
+      const callArgs = ClientMock.mock.calls[0][0] as { intents: number[] };
+      expect(callArgs.intents).toContain(5); // GatewayIntentBits.GuildMembers = 5
     });
   });
 
@@ -1619,6 +1638,112 @@ describe("DiscordChatClient", () => {
       expect(threads[0].id).toBe("thread-1");
       expect(threads[1].id).toBe("thread-2");
       expect(threads[0].platform).toBe("discord");
+    });
+  });
+
+  describe("Channel.getMembers()", () => {
+    it("should return members who can view the channel", async () => {
+      mockGuildMembersList.mockResolvedValue(
+        new Map([
+          [
+            "user-1",
+            {
+              id: "user-1",
+              user: { username: "alice" },
+              displayName: "Alice A",
+            },
+          ],
+          [
+            "user-2",
+            {
+              id: "user-2",
+              user: { username: "bob" },
+              displayName: "Bob B",
+            },
+          ],
+        ])
+      );
+      mockPermissionsFor.mockReturnValue({ has: () => true });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members).toHaveLength(2);
+      expect(members[0]).toEqual({
+        id: "user-1",
+        username: "alice",
+        displayName: "Alice A",
+        mention: "<@user-1>",
+      });
+      expect(members[1]).toEqual({
+        id: "user-2",
+        username: "bob",
+        displayName: "Bob B",
+        mention: "<@user-2>",
+      });
+    });
+
+    it("should filter out members without ViewChannel permission", async () => {
+      mockGuildMembersList.mockResolvedValue(
+        new Map([
+          [
+            "user-1",
+            {
+              id: "user-1",
+              user: { username: "alice" },
+              displayName: "Alice",
+            },
+          ],
+          [
+            "user-2",
+            {
+              id: "user-2",
+              user: { username: "bob" },
+              displayName: "Bob",
+            },
+          ],
+        ])
+      );
+      // First member can view, second cannot
+      mockPermissionsFor.mockImplementation((member: { id: string }) => ({
+        has: (perm: string) => perm === "ViewChannel" && member.id === "user-1",
+      }));
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members).toHaveLength(1);
+      expect(members[0].username).toBe("alice");
+    });
+
+    it("should return empty array when no members can view the channel", async () => {
+      mockGuildMembersList.mockResolvedValue(new Map());
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members).toEqual([]);
+    });
+
+    it("should produce mention strings in <@id> format", async () => {
+      mockGuildMembersList.mockResolvedValue(
+        new Map([
+          [
+            "12345",
+            {
+              id: "12345",
+              user: { username: "testuser" },
+              displayName: "Test User",
+            },
+          ],
+        ])
+      );
+      mockPermissionsFor.mockReturnValue({ has: () => true });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members[0].mention).toBe("<@12345>");
     });
   });
 

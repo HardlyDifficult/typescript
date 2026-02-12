@@ -9,6 +9,7 @@ import type {
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
+  Member,
   MessageCallback,
   MessageContent,
   MessageData,
@@ -20,6 +21,8 @@ import type {
   User,
 } from "../types.js";
 import { isDocument } from "../utils.js";
+
+import { fetchChannelMembers } from "./fetchChannelMembers.js";
 
 /**
  * Slack chat client implementation using @slack/bolt
@@ -478,6 +481,10 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     }
 
     return threads;
+  }
+
+  async getMembers(channelId: string): Promise<Member[]> {
+    return fetchChannelMembers(this.app, channelId);
   }
 
   /**

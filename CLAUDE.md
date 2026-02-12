@@ -59,3 +59,5 @@ When adding, removing, or changing any public method or type:
 ESLint enforces `max-lines: 400` (skipping blanks and comments). Hitting this limit signals that a file is doing too much — extract repeated patterns into helpers or split distinct concerns into separate modules. Don't just trim comments to fit.
 
 **Example:** Discord's `fetchTextChannel` helper eliminated 9 copies of the same fetch-and-validate boilerplate so each new operation doesn't grow the file.
+
+When adding a new method to both platform clients (`DiscordChatClient`, `SlackChatClient`) would push either file over the limit, extract the implementation into a dedicated helper file in the platform directory (e.g., `discord/fetchChannelMembers.ts`, `slack/fetchChannelMembers.ts`). The client method becomes a thin delegation call. This keeps distinct concerns in separate modules rather than compacting code to fit.

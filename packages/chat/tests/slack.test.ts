@@ -10,6 +10,8 @@ const {
   mockFilesUploadV2,
   mockConversationsHistory,
   mockConversationsReplies,
+  mockConversationsMembers,
+  mockUsersInfo,
   mockStart,
   mockStop,
   mockEvent,
@@ -34,6 +36,8 @@ const {
   const mockFilesUploadV2 = vi.fn();
   const mockConversationsHistory = vi.fn();
   const mockConversationsReplies = vi.fn();
+  const mockConversationsMembers = vi.fn();
+  const mockUsersInfo = vi.fn();
   const mockStart = vi.fn();
   const mockStop = vi.fn();
   const mockEvent = vi.fn();
@@ -56,6 +60,10 @@ const {
       conversations: {
         history: mockConversationsHistory,
         replies: mockConversationsReplies,
+        members: mockConversationsMembers,
+      },
+      users: {
+        info: mockUsersInfo,
       },
     },
   };
@@ -76,6 +84,8 @@ const {
     mockFilesUploadV2,
     mockConversationsHistory,
     mockConversationsReplies,
+    mockConversationsMembers,
+    mockUsersInfo,
     mockStart,
     mockStop,
     mockEvent,
@@ -155,6 +165,11 @@ describe("SlackChatClient", () => {
     });
     mockConversationsHistory.mockResolvedValue({ messages: [] });
     mockConversationsReplies.mockResolvedValue({ messages: [] });
+    mockConversationsMembers.mockResolvedValue({
+      members: [],
+      response_metadata: {},
+    });
+    mockUsersInfo.mockResolvedValue({ user: null });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockEvent.mockImplementation((eventName: string, handler: any) => {
       if (eventName === "reaction_added") {
@@ -1631,6 +1646,136 @@ describe("SlackChatClient", () => {
       expect(threads).toHaveLength(2);
       expect(threads[0].id).toBe("111.111");
       expect(threads[1].id).toBe("333.333");
+    });
+  });
+
+  describe("Channel.getMembers()", () => {
+    it("should return members with user info", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U111", "U222"],
+        response_metadata: {},
+      });
+      mockUsersInfo
+        .mockResolvedValueOnce({
+          user: {
+            name: "alice",
+            real_name: "Alice Adams",
+            profile: { display_name: "Ali" },
+          },
+        })
+        .mockResolvedValueOnce({
+          user: {
+            name: "bob",
+            real_name: "Bob Brown",
+            profile: { display_name: "Bobby" },
+          },
+        });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members).toHaveLength(2);
+      expect(members[0]).toEqual({
+        id: "U111",
+        username: "alice",
+        displayName: "Ali",
+        mention: "<@U111>",
+      });
+      expect(members[1]).toEqual({
+        id: "U222",
+        username: "bob",
+        displayName: "Bobby",
+        mention: "<@U222>",
+      });
+    });
+
+    it("should fall back to real_name when display_name is empty", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U111"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: {
+          name: "alice",
+          real_name: "Alice Adams",
+          profile: { display_name: "" },
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members[0].displayName).toBe("Alice Adams");
+    });
+
+    it("should fall back to name when display_name and real_name are empty", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U111"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: {
+          name: "alice",
+          profile: { display_name: "" },
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members[0].displayName).toBe("alice");
+    });
+
+    it("should paginate through all members", async () => {
+      mockConversationsMembers
+        .mockResolvedValueOnce({
+          members: ["U111"],
+          response_metadata: { next_cursor: "cursor123" },
+        })
+        .mockResolvedValueOnce({
+          members: ["U222"],
+          response_metadata: {},
+        });
+      mockUsersInfo
+        .mockResolvedValueOnce({
+          user: { name: "alice", real_name: "Alice", profile: {} },
+        })
+        .mockResolvedValueOnce({
+          user: { name: "bob", real_name: "Bob", profile: {} },
+        });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(mockConversationsMembers).toHaveBeenCalledTimes(2);
+      expect(members).toHaveLength(2);
+    });
+
+    it("should return empty array when channel has no members", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: [],
+        response_metadata: {},
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members).toEqual([]);
+    });
+
+    it("should produce mention strings in <@id> format", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U999"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: { name: "tester", real_name: "Tester", profile: {} },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(members[0].mention).toBe("<@U999>");
     });
   });
 

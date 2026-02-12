@@ -21,6 +21,7 @@ import type {
   DiscordConfig,
   ErrorCallback,
   FileAttachment,
+  Member,
   MessageCallback,
   MessageContent,
   MessageData,
@@ -31,6 +32,8 @@ import type {
   User,
 } from "../types.js";
 import { isDocument } from "../utils.js";
+
+import { fetchChannelMembers } from "./fetchChannelMembers.js";
 
 /**
  * Discord chat client implementation using discord.js
@@ -51,6 +54,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
     const intents = [
       GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.MessageContent,
@@ -510,6 +514,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
 
     return threads;
+  }
+
+  async getMembers(channelId: string): Promise<Member[]> {
+    const channel = await this.fetchTextChannel(channelId);
+    return fetchChannelMembers(channel);
   }
 
   /**

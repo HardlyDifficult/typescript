@@ -2,6 +2,7 @@
 export {
   type Attachment,
   type User,
+  type Member,
   type DiscordConfig,
   type SlackConfig,
   type ChatConfig,
