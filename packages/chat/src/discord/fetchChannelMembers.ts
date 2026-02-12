@@ -14,7 +14,9 @@ export async function fetchChannelMembers(
 
   for (;;) {
     const batch = await channel.guild.members.list({ limit: 1000, after });
-    if (batch.size === 0) break;
+    if (batch.size === 0) {
+      break;
+    }
 
     for (const [, member] of batch) {
       if (channel.permissionsFor(member).has("ViewChannel")) {
@@ -27,7 +29,9 @@ export async function fetchChannelMembers(
       }
     }
 
-    if (batch.size < 1000) break;
+    if (batch.size < 1000) {
+      break;
+    }
     after = batch.lastKey();
   }
 

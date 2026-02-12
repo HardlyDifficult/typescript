@@ -26,9 +26,7 @@ export async function fetchChannelMembers(
 
     const nextCursor = result.response_metadata?.next_cursor;
     cursor =
-      nextCursor !== undefined && nextCursor !== ""
-        ? nextCursor
-        : undefined;
+      nextCursor !== undefined && nextCursor !== "" ? nextCursor : undefined;
   } while (cursor !== undefined);
 
   const members: Member[] = [];
@@ -36,12 +34,10 @@ export async function fetchChannelMembers(
     const info = await app.client.users.info({ user: userId });
     if (info.user) {
       const u = info.user;
-      const profile = u.profile as
-        | { display_name?: string }
-        | undefined;
-      const name = (u.name as string | undefined) ?? userId;
+      const profile = u.profile as { display_name?: string } | undefined;
+      const name = u.name ?? userId;
       const rawDisplayName = profile?.display_name;
-      const rawRealName = u.real_name as string | undefined;
+      const rawRealName = u.real_name;
       const displayName =
         (rawDisplayName !== undefined && rawDisplayName !== ""
           ? rawDisplayName
