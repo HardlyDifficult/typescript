@@ -233,7 +233,6 @@ export class GitHubClient {
 
     const pattern = /repos\/([^/]+)\/([^/]+)$/;
 
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const prResults = await this.octokit.search.issuesAndPullRequests({
       q: `${query} is:pr`,
       per_page: 100,
@@ -263,7 +262,6 @@ export class GitHubClient {
   > {
     const pattern = /repos\/([^/]+)\/([^/]+)$/;
 
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const response = await this.octokit.search.issuesAndPullRequests({
       q: `is:pr is:open author:${this.username}`,
       per_page: 100,
