@@ -98,24 +98,24 @@ Always format URLs as clickable markdown links:
 - PR link: `[PR #123](https://github.com/owner/repo/pull/123)`
 - Any other URLs should also be linked
 
-### Monitor CI
+### GitHub CLI Authentication
 
-Use `gh` CLI to monitor CI status. If CI fails:
+Always prefix `gh` commands with the PAT env var:
+```bash
+GH_TOKEN="$GH_PAT" gh <command>
+```
 
-1. Investigate the failure
-2. Fix the issue
-3. Push the fix
-4. Repeat until CI passes
+### Monitor PR After Every Push
 
-### After CI Passes
+After every push to a PR branch, **always** monitor CI and review comments:
 
-Check PR for auto-fixable review feedback:
+1. **Check CI status** using `GH_TOKEN="$GH_PAT" gh pr checks <number> --repo <owner>/<repo>`
+2. If CI fails: investigate, fix, push, and repeat
+3. **Fetch review comments** using `GH_TOKEN="$GH_PAT" gh api repos/<owner>/<repo>/pulls/<number>/comments`
+4. Address actionable feedback (fix code, add tests, etc.)
+5. Push fixes and repeat until CI is green and no unresolved comments remain
 
-1. Fetch PR comments and reviews using `gh api`
-2. Review bot feedback for actionable suggestions
-3. Fix issues that can be resolved without human input
-4. Push fixes and reply to comments acknowledging changes
-5. Repeat until no more auto-fixable feedback remains
+This monitoring step is **not optional** — always do it after pushing.
 
 ---
 
