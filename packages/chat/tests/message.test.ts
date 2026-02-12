@@ -5,6 +5,7 @@ import type { MessageOperations } from "../src/Message.js";
 describe("Message", () => {
   const createMockOperations = (): MessageOperations => ({
     addReaction: vi.fn().mockResolvedValue(undefined),
+    removeReaction: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue({
@@ -265,6 +266,61 @@ describe("Message", () => {
       const result = msg.addReactions(["thumbsup"]);
 
       expect(result).toBe(msg);
+    });
+  });
+
+  describe("removeReactions (inherited behavior)", () => {
+    it("should call removeReaction for each emoji", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.removeReactions(["thumbsup", "heart"]);
+
+      await msg.waitForReactions();
+
+      expect(mockOperations.removeReaction).toHaveBeenCalledTimes(2);
+      expect(mockOperations.removeReaction).toHaveBeenNthCalledWith(
+        1,
+        "msg-1",
+        "ch-1",
+        "thumbsup"
+      );
+      expect(mockOperations.removeReaction).toHaveBeenNthCalledWith(
+        2,
+        "msg-1",
+        "ch-1",
+        "heart"
+      );
+    });
+
+    it("should return this for chaining", () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const result = msg.removeReactions(["thumbsup"]);
+
+      expect(result).toBe(msg);
+    });
+
+    it("should chain with addReactions", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.addReactions(["thumbsup"]).removeReactions(["thumbsup"]);
+
+      await msg.waitForReactions();
+
+      expect(mockOperations.addReaction).toHaveBeenCalledTimes(1);
+      expect(mockOperations.removeReaction).toHaveBeenCalledTimes(1);
     });
   });
 

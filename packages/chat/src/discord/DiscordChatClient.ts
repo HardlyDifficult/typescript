@@ -199,22 +199,19 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     });
   }
 
-  /**
-   * Connect to Discord and return a channel object
-   * @param channelId - Discord channel ID
-   * @returns Channel object for interacting with the channel
-   */
-  async connect(channelId: string): Promise<Channel> {
-    await this.client.login(this.token);
-
-    const discordChannel = await this.client.channels.fetch(channelId);
-
-    if (!discordChannel || !(discordChannel instanceof TextChannel)) {
+  private async fetchTextChannel(channelId: string): Promise<TextChannel> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (!channel || !(channel instanceof TextChannel)) {
       throw new Error(
         `Channel ${channelId} not found or is not a text channel`
       );
     }
+    return channel;
+  }
 
+  async connect(channelId: string): Promise<Channel> {
+    await this.client.login(this.token);
+    await this.fetchTextChannel(channelId);
     return new Channel(channelId, "discord", this);
   }
 
@@ -245,12 +242,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       linkPreviews?: boolean;
     }
   ): Promise<MessageData> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
+    const channel = await this.fetchTextChannel(channelId);
 
     let messageOptions: {
       content?: string;
@@ -322,13 +314,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     content: MessageContent
   ): Promise<void> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
 
     if (isDocument(content)) {
@@ -346,13 +332,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param channelId - Channel containing the message
    */
   async deleteMessage(messageId: string, channelId: string): Promise<void> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
 
     // Delete the thread (and all its messages) if one exists
@@ -374,16 +354,28 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     emoji: string
   ): Promise<void> {
-    const channel = await this.client.channels.fetch(channelId);
-
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
     await message.react(emoji);
+  }
+
+  /**
+   * Remove the bot's own reaction from a message
+   * @param messageId - Message to remove reaction from
+   * @param channelId - Channel containing the message
+   * @param emoji - Emoji to remove
+   */
+  async removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void> {
+    const channel = await this.fetchTextChannel(channelId);
+    const message = await channel.messages.fetch(messageId);
+    const reaction = message.reactions.resolve(emoji);
+    if (reaction) {
+      await reaction.users.remove();
+    }
   }
 
   /**
@@ -447,13 +439,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param channelId - Channel to send typing indicator in
    */
   async sendTyping(channelId: string): Promise<void> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     await channel.sendTyping();
   }
 
@@ -471,13 +457,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     name: string,
     autoArchiveDuration?: number
   ): Promise<ThreadData> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
     const thread = await message.startThread({
       name,
@@ -503,13 +483,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @returns Number of messages actually deleted
    */
   async bulkDelete(channelId: string, count: number): Promise<number> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const deleted = await channel.bulkDelete(count, true);
     return deleted.size;
   }
@@ -520,13 +494,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @returns Array of thread data
    */
   async getThreads(channelId: string): Promise<ThreadData[]> {
-    const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
-      throw new Error(
-        `Channel ${channelId} not found or is not a text channel`
-      );
-    }
-
+    const channel = await this.fetchTextChannel(channelId);
     const threads: ThreadData[] = [];
 
     // Fetch active threads
