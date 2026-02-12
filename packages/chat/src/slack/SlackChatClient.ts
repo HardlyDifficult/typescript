@@ -151,7 +151,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
   ): Promise<MessageData> {
     let text: string;
     let blocks: SlackBlock[] | undefined;
@@ -162,6 +166,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     } else {
       text = convertMarkdown(content, "slack");
     }
+
+    // Suppress link preview unfurling by default
+    const unfurl =
+      options?.linkPreviews === true
+        ? {}
+        : { unfurl_links: false, unfurl_media: false };
 
     // If files are provided, upload them and attach to the message
     if (options?.files && options.files.length > 0) {
@@ -187,6 +197,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
           text,
           blocks,
           thread_ts: options.threadTs,
+          ...unfurl,
         });
         if (result.ts === undefined) {
           throw new Error("Slack API did not return a message timestamp");
@@ -204,6 +215,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       text,
       blocks,
       thread_ts: options?.threadTs,
+      ...unfurl,
     });
 
     if (result.ts === undefined) {

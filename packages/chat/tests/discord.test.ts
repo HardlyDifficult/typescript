@@ -133,6 +133,9 @@ vi.mock("discord.js", () => ({
     GuildMessageReactions: 3,
     MessageContent: 4,
   },
+  MessageFlags: {
+    SuppressEmbeds: 4,
+  },
   TextChannel: MockTextChannel,
   AttachmentBuilder: MockAttachmentBuilder,
 }));
@@ -362,6 +365,7 @@ describe("DiscordChatClient", () => {
 
       expect(mockTextChannelData.send).toHaveBeenCalledWith({
         content: "Hello, world!",
+        flags: 4,
       });
     });
 
@@ -395,6 +399,26 @@ describe("DiscordChatClient", () => {
       await waitForMessage(message);
 
       expect(message.platform).toBe("discord");
+    });
+
+    it("should suppress link previews by default", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com");
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.flags).toBe(4);
+    });
+
+    it("should not suppress link previews when linkPreviews is true", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com", {
+        linkPreviews: true,
+      });
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.flags).toBeUndefined();
     });
   });
 
