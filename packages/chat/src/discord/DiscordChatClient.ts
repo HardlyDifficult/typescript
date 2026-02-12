@@ -286,7 +286,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
 
     // Suppress link preview embeds by default
-    if (!options?.linkPreviews) {
+    if (options?.linkPreviews !== true) {
       messageOptions.flags = MessageFlags.SuppressEmbeds;
     }
 

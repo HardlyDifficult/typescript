@@ -168,9 +168,10 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     }
 
     // Suppress link preview unfurling by default
-    const unfurl = options?.linkPreviews
-      ? {}
-      : { unfurl_links: false, unfurl_media: false };
+    const unfurl =
+      options?.linkPreviews === true
+        ? {}
+        : { unfurl_links: false, unfurl_media: false };
 
     // If files are provided, upload them and attach to the message
     if (options?.files && options.files.length > 0) {
