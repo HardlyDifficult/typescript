@@ -6,6 +6,7 @@ import type {
   MessageCallback,
   MessageContent,
   MessageData,
+  MessageEvent,
   Platform,
   ReactionCallback,
   ThreadData,
@@ -18,7 +19,11 @@ export interface ChannelOperations {
   postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
   ): Promise<MessageData>;
   updateMessage(
     messageId: string,
@@ -27,6 +32,11 @@ export interface ChannelOperations {
   ): Promise<void>;
   deleteMessage(messageId: string, channelId: string): Promise<void>;
   addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  removeReaction(
     messageId: string,
     channelId: string,
     emoji: string
@@ -80,7 +90,7 @@ export class Channel {
    */
   postMessage(
     content: MessageContent,
-    options?: { files?: FileAttachment[] }
+    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
   ): Message & PromiseLike<Message> {
     const messagePromise = this.operations.postMessage(
       this.id,
@@ -144,6 +154,8 @@ export class Channel {
     return {
       addReaction: (messageId: string, channelId: string, emoji: string) =>
         this.operations.addReaction(messageId, channelId, emoji),
+      removeReaction: (messageId: string, channelId: string, emoji: string) =>
+        this.operations.removeReaction(messageId, channelId, emoji),
       updateMessage: (
         messageId: string,
         channelId: string,
@@ -175,11 +187,28 @@ export class Channel {
 
   /**
    * Subscribe to incoming messages in this channel
-   * @param callback - Function called when a new message is received
+   * @param callback - Function called with a Message object for each incoming message
    * @returns Unsubscribe function
    */
-  onMessage(callback: MessageCallback): () => void {
-    return this.operations.subscribeToMessages(this.id, callback);
+  onMessage(callback: (message: Message) => void | Promise<void>): () => void {
+    return this.operations.subscribeToMessages(
+      this.id,
+      (event: MessageEvent) => {
+        const message = new Message(
+          {
+            id: event.id,
+            channelId: event.channelId,
+            platform: this.platform,
+            content: event.content,
+            author: event.author,
+            timestamp: event.timestamp,
+            attachments: event.attachments,
+          },
+          this.createMessageOperations()
+        );
+        return callback(message);
+      }
+    );
   }
 
   /**
@@ -273,6 +302,22 @@ class PendingMessage extends Message implements PromiseLike<Message> {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
         this.operations.addReaction(this.id, this.channelId, emoji)
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Override removeReactions to wait for post to complete first
+   */
+  override removeReactions(emojis: string[]): this {
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.postPromise.then(
+      () => currentPendingReactions
+    );
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
     return this;

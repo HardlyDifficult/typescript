@@ -1,9 +1,11 @@
 import type {
+  Attachment,
   MessageContent,
   MessageData,
   Platform,
   ReactionCallback,
   ThreadData,
+  User,
 } from "./types";
 
 /**
@@ -11,6 +13,11 @@ import type {
  */
 export interface MessageOperations {
   addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  removeReaction(
     messageId: string,
     channelId: string,
     emoji: string
@@ -45,6 +52,10 @@ export class Message {
   public readonly id: string;
   public readonly channelId: string;
   public readonly platform: Platform;
+  public readonly content?: string;
+  public readonly author?: User;
+  public readonly timestamp?: Date;
+  public readonly attachments?: Attachment[];
 
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
@@ -54,6 +65,10 @@ export class Message {
     this.id = data.id;
     this.channelId = data.channelId;
     this.platform = data.platform;
+    this.content = data.content;
+    this.author = data.author;
+    this.timestamp = data.timestamp;
+    this.attachments = data.attachments;
     this.operations = operations;
   }
 
@@ -63,7 +78,15 @@ export class Message {
    */
   protected toSnapshot(): Message {
     const msg = new Message(
-      { id: this.id, channelId: this.channelId, platform: this.platform },
+      {
+        id: this.id,
+        channelId: this.channelId,
+        platform: this.platform,
+        content: this.content,
+        author: this.author,
+        timestamp: this.timestamp,
+        attachments: this.attachments,
+      },
       this.operations
     );
     msg.reactionUnsubscribers = this.reactionUnsubscribers;
@@ -79,6 +102,20 @@ export class Message {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
         this.operations.addReaction(this.id, this.channelId, emoji)
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Remove multiple emoji reactions from this message
+   * @param emojis - Array of emojis to remove
+   * @returns this for chaining
+   */
+  removeReactions(emojis: string[]): this {
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
     return this;
@@ -228,6 +265,22 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
     for (const emoji of emojis) {
       this.pendingReactions = this.pendingReactions.then(() =>
         this.operations.addReaction(this.id, this.channelId, emoji)
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Override removeReactions to wait for reply to complete first
+   */
+  override removeReactions(emojis: string[]): this {
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.replyPromise.then(
+      () => currentPendingReactions
+    );
+    for (const emoji of emojis) {
+      this.pendingReactions = this.pendingReactions.then(() =>
+        this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
     return this;

@@ -1,9 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import type {
-  SlackConfig,
-  ReactionEvent,
-  MessageEvent as ChatMessageEvent,
-} from "../src/types.js";
+import type { SlackConfig, ReactionEvent } from "../src/types.js";
 
 // Define mocks at module level - Vitest hoists vi.mock() calls automatically
 // Use vi.hoisted() to ensure mocks are available before mock setup
@@ -367,6 +363,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: text,
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -379,6 +377,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is *bold* text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -391,6 +391,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is _italic_ text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -403,6 +405,8 @@ describe("SlackChatClient", () => {
       expect(mockPostMessage).toHaveBeenCalledWith({
         channel: channelId,
         text: "This is ~struck~ text",
+        unfurl_links: false,
+        unfurl_media: false,
       });
     });
 
@@ -418,6 +422,31 @@ describe("SlackChatClient", () => {
       expect(message.id).toBe(expectedTs);
       expect(message.channelId).toBe(channelId);
       expect(message.platform).toBe("slack");
+    });
+
+    it("should suppress link previews by default", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com");
+      await waitForMessage(message);
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          unfurl_links: false,
+          unfurl_media: false,
+        })
+      );
+    });
+
+    it("should not suppress link previews when linkPreviews is true", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com", {
+        linkPreviews: true,
+      });
+      await waitForMessage(message);
+
+      const callArgs = mockPostMessage.mock.calls[0][0];
+      expect(callArgs.unfurl_links).toBeUndefined();
+      expect(callArgs.unfurl_media).toBeUndefined();
     });
   });
 
@@ -1135,10 +1164,141 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
-      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      const event = callback.mock.calls[0][0] as Message;
       expect(event.content).toBe("Hello from user");
       expect(event.author.id).toBe("U999");
       expect(event.channelId).toBe(channelId);
+      expect(event.attachments).toEqual([]);
+    });
+
+    it("should include file attachments from the message", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Here are some files",
+          files: [
+            {
+              url_private: "https://files.slack.com/file1.png",
+              name: "screenshot.png",
+              mimetype: "image/png",
+              size: 12345,
+            },
+            {
+              url_private: "https://files.slack.com/file2.txt",
+              name: "notes.txt",
+              mimetype: "text/plain",
+              size: 256,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as Message;
+      expect(event.attachments).toHaveLength(2);
+      expect(event.attachments[0]).toEqual({
+        url: "https://files.slack.com/file1.png",
+        name: "screenshot.png",
+        contentType: "image/png",
+        size: 12345,
+      });
+      expect(event.attachments[1]).toEqual({
+        url: "https://files.slack.com/file2.txt",
+        name: "notes.txt",
+        contentType: "text/plain",
+        size: 256,
+      });
+    });
+
+    it("should set contentType to undefined when mimetype is null, undefined, or empty", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Files with missing mimetypes",
+          files: [
+            {
+              url_private: "https://files.slack.com/file1.bin",
+              name: "data.bin",
+              mimetype: null,
+              size: 100,
+            },
+            {
+              url_private: "https://files.slack.com/file2.bin",
+              name: "blob.bin",
+              size: 200,
+            },
+            {
+              url_private: "https://files.slack.com/file3.bin",
+              name: "empty.bin",
+              mimetype: "",
+              size: 300,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as Message;
+      expect(event.attachments).toHaveLength(3);
+      expect(event.attachments[0].contentType).toBeUndefined();
+      expect(event.attachments[1].contentType).toBeUndefined();
+      expect(event.attachments[2].contentType).toBeUndefined();
+    });
+
+    it("should skip files missing url or name", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "Partial files",
+          files: [
+            {
+              url_private: "https://files.slack.com/valid.txt",
+              name: "valid.txt",
+              mimetype: "text/plain",
+              size: 10,
+            },
+            {
+              name: "no-url.txt",
+              mimetype: "text/plain",
+              size: 20,
+            },
+            {
+              url_private: "https://files.slack.com/no-name.txt",
+              mimetype: "text/plain",
+              size: 30,
+            },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event = callback.mock.calls[0][0] as Message;
+      expect(event.attachments).toHaveLength(1);
+      expect(event.attachments[0].name).toBe("valid.txt");
     });
 
     it("should not call callback for different channel", async () => {
@@ -1199,6 +1359,97 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("should allow deleting a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      mockConversationsReplies.mockResolvedValue({
+        messages: [{ ts: "1234567890.111111" }],
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!help",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await receivedMessage!.delete();
+
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "1234567890.111111",
+      });
+    });
+
+    it("should allow reacting to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!ping",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      receivedMessage!.addReactions(["white_check_mark"]);
+      await receivedMessage!.waitForReactions();
+
+      expect(mockReactionsAdd).toHaveBeenCalledWith({
+        channel: channelId,
+        timestamp: "1234567890.111111",
+        name: "white_check_mark",
+      });
+    });
+
+    it("should allow replying to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!info",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      const reply = receivedMessage!.reply("Here is the info");
+      await waitForMessage(reply);
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: channelId,
+          text: "Here is the info",
+          thread_ts: "1234567890.111111",
+        })
+      );
     });
   });
 

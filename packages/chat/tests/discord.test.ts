@@ -1,9 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import type {
-  DiscordConfig,
-  ReactionEvent,
-  MessageEvent,
-} from "../src/types.js";
+import type { DiscordConfig, ReactionEvent } from "../src/types.js";
 
 // Use vi.hoisted to define mocks that are used in vi.mock()
 const {
@@ -12,6 +8,8 @@ const {
   mockClient,
   MockTextChannel,
   MockAttachmentBuilder,
+  mockReactionUsersRemove,
+  mockReactionResolve,
   getReactionHandler,
   setReactionHandler,
   getMessageHandler,
@@ -29,6 +27,11 @@ const {
     name: "Test Thread",
   };
 
+  const mockReactionUsersRemove = vi.fn().mockResolvedValue(undefined);
+  const mockReactionResolve = vi.fn().mockReturnValue({
+    users: { remove: mockReactionUsersRemove },
+  });
+
   const mockDiscordMessage = {
     id: "msg-123",
     channelId: "channel-456",
@@ -36,6 +39,9 @@ const {
     delete: vi.fn().mockResolvedValue(undefined),
     thread: null as { delete: ReturnType<typeof vi.fn> } | null,
     startThread: vi.fn().mockResolvedValue(mockThread),
+    reactions: {
+      resolve: mockReactionResolve,
+    },
   };
 
   const mockTextChannelData = {
@@ -107,6 +113,8 @@ const {
     mockClient,
     MockTextChannel,
     MockAttachmentBuilder,
+    mockReactionUsersRemove,
+    mockReactionResolve,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
       reactionHandler = handler;
@@ -132,6 +140,9 @@ vi.mock("discord.js", () => ({
     GuildMessages: 2,
     GuildMessageReactions: 3,
     MessageContent: 4,
+  },
+  MessageFlags: {
+    SuppressEmbeds: 4,
   },
   TextChannel: MockTextChannel,
   AttachmentBuilder: MockAttachmentBuilder,
@@ -225,6 +236,10 @@ describe("DiscordChatClient", () => {
     mockDiscordMessage.react.mockResolvedValue(undefined);
     mockDiscordMessage.delete.mockResolvedValue(undefined);
     mockDiscordMessage.thread = null;
+    mockReactionUsersRemove.mockResolvedValue(undefined);
+    mockReactionResolve.mockReturnValue({
+      users: { remove: mockReactionUsersRemove },
+    });
     mockDiscordMessage.startThread.mockResolvedValue({
       id: "thread-001",
       name: "Test Thread",
@@ -362,6 +377,7 @@ describe("DiscordChatClient", () => {
 
       expect(mockTextChannelData.send).toHaveBeenCalledWith({
         content: "Hello, world!",
+        flags: 4,
       });
     });
 
@@ -395,6 +411,26 @@ describe("DiscordChatClient", () => {
       await waitForMessage(message);
 
       expect(message.platform).toBe("discord");
+    });
+
+    it("should suppress link previews by default", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com");
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.flags).toBe(4);
+    });
+
+    it("should not suppress link previews when linkPreviews is true", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Check https://example.com", {
+        linkPreviews: true,
+      });
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.flags).toBeUndefined();
     });
   });
 
@@ -504,6 +540,70 @@ describe("DiscordChatClient", () => {
 
       // Reset the mock to prevent interference with other tests
       mockDiscordMessage.react.mockResolvedValue(undefined);
+    });
+  });
+
+  describe("Message.removeReactions()", () => {
+    it("should resolve the reaction and call users.remove()", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+
+      message.removeReactions(["thumbsup"]);
+      await waitForMessage(message);
+
+      expect(mockReactionResolve).toHaveBeenCalledWith("thumbsup");
+      expect(mockReactionUsersRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it("should remove multiple reactions sequentially", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+
+      message.removeReactions(["thumbsup", "heart"]);
+      await waitForMessage(message);
+
+      expect(mockReactionResolve).toHaveBeenCalledTimes(2);
+      expect(mockReactionResolve).toHaveBeenNthCalledWith(1, "thumbsup");
+      expect(mockReactionResolve).toHaveBeenNthCalledWith(2, "heart");
+      expect(mockReactionUsersRemove).toHaveBeenCalledTimes(2);
+    });
+
+    it("should not throw when reaction does not exist on message", async () => {
+      mockReactionResolve.mockReturnValue(null);
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+
+      message.removeReactions(["nonexistent"]);
+      await waitForMessage(message);
+
+      expect(mockReactionResolve).toHaveBeenCalledWith("nonexistent");
+      expect(mockReactionUsersRemove).not.toHaveBeenCalled();
+    });
+
+    it("should return the Message instance for chaining", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test message");
+      await waitForMessage(message);
+      const returnedMessage = message.removeReactions(["thumbsup"]);
+
+      expect(returnedMessage).toBe(message);
+    });
+
+    it("should chain with addReactions", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel
+        .postMessage("Test message")
+        .addReactions(["thumbsup"])
+        .removeReactions(["thumbsup"]);
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("thumbsup");
+      expect(mockReactionResolve).toHaveBeenCalledWith("thumbsup");
+      expect(mockReactionUsersRemove).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -948,6 +1048,40 @@ describe("DiscordChatClient", () => {
     });
   });
 
+  describe("removeReaction() (direct client method)", () => {
+    it("should fetch the message and call reactions.resolve().users.remove()", async () => {
+      await client.connect(channelId);
+
+      await client.removeReaction("msg-123", channelId, "thumbsup");
+
+      expect(mockTextChannelData.messages.fetch).toHaveBeenCalledWith(
+        "msg-123"
+      );
+      expect(mockReactionResolve).toHaveBeenCalledWith("thumbsup");
+      expect(mockReactionUsersRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not throw when reaction does not exist", async () => {
+      mockReactionResolve.mockReturnValue(null);
+      await client.connect(channelId);
+
+      await expect(
+        client.removeReaction("msg-123", channelId, "nonexistent")
+      ).resolves.toBeUndefined();
+    });
+
+    it("should throw if channel is not found", async () => {
+      await client.connect(channelId);
+      mockClient.channels.fetch.mockResolvedValue(null);
+
+      await expect(
+        client.removeReaction("msg-123", channelId, "thumbsup")
+      ).rejects.toThrow(
+        "Channel channel-456 not found or is not a text channel"
+      );
+    });
+  });
+
   describe("User object", () => {
     it("should be a plain object with id and username properties", async () => {
       const channel = await client.connect(channelId);
@@ -1044,6 +1178,7 @@ describe("DiscordChatClient", () => {
         content: "Hello there",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1053,11 +1188,11 @@ describe("DiscordChatClient", () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
-    it("should provide correct MessageEvent data", async () => {
+    it("should provide correct message data", async () => {
       const channel = await client.connect(channelId);
-      let receivedEvent: MessageEvent | null = null;
-      const callback = vi.fn().mockImplementation((event: MessageEvent) => {
-        receivedEvent = event;
+      let receivedMessage: Message | null = null;
+      const callback = vi.fn().mockImplementation((msg: Message) => {
+        receivedMessage = msg;
       });
       channel.onMessage(callback);
 
@@ -1067,20 +1202,81 @@ describe("DiscordChatClient", () => {
         content: "Hello there",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date("2025-01-01"),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
       await handler!(mockMessage);
 
-      expect(receivedEvent).not.toBeNull();
-      expect(receivedEvent!.id).toBe("msg-new-1");
-      expect(receivedEvent!.content).toBe("Hello there");
-      expect(receivedEvent!.author).toEqual({
+      expect(receivedMessage).not.toBeNull();
+      expect(receivedMessage).toBeInstanceOf(Message);
+      expect(receivedMessage!.id).toBe("msg-new-1");
+      expect(receivedMessage!.content).toBe("Hello there");
+      expect(receivedMessage!.author).toEqual({
         id: "user-001",
         username: "TestUser",
       });
-      expect(receivedEvent!.channelId).toBe(channelId);
-      expect(receivedEvent!.timestamp).toEqual(new Date("2025-01-01"));
+      expect(receivedMessage!.channelId).toBe(channelId);
+      expect(receivedMessage!.platform).toBe("discord");
+      expect(receivedMessage!.timestamp).toEqual(new Date("2025-01-01"));
+      expect(receivedMessage!.attachments).toEqual([]);
+    });
+
+    it("should include attachments from the message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      const callback = vi.fn().mockImplementation((msg: Message) => {
+        receivedMessage = msg;
+      });
+      channel.onMessage(callback);
+
+      const mockAttachments = new Map([
+        [
+          "att-1",
+          {
+            url: "https://cdn.discord.com/file1.png",
+            name: "screenshot.png",
+            contentType: "image/png",
+            size: 12345,
+          },
+        ],
+        [
+          "att-2",
+          {
+            url: "https://cdn.discord.com/file2.txt",
+            name: "notes.txt",
+            contentType: null,
+            size: 256,
+          },
+        ],
+      ]);
+
+      const mockMessage = {
+        id: "msg-att-1",
+        channelId: channelId,
+        content: "Check these files",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: mockAttachments,
+      };
+
+      const handler = getMessageHandler();
+      await handler!(mockMessage);
+
+      expect(receivedMessage).not.toBeNull();
+      expect(receivedMessage!.attachments).toHaveLength(2);
+      expect(receivedMessage!.attachments![0]).toEqual({
+        url: "https://cdn.discord.com/file1.png",
+        name: "screenshot.png",
+        contentType: "image/png",
+        size: 12345,
+      });
+      expect(receivedMessage!.attachments![1]).toEqual({
+        url: "https://cdn.discord.com/file2.txt",
+        name: "notes.txt",
+        contentType: undefined,
+        size: 256,
+      });
     });
 
     it("should ignore messages from the bot itself", async () => {
@@ -1132,6 +1328,7 @@ describe("DiscordChatClient", () => {
         content: "First message",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1157,6 +1354,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1184,6 +1382,7 @@ describe("DiscordChatClient", () => {
         content: "Hello",
         author: { id: "user-001", username: "TestUser" },
         createdAt: new Date(),
+        attachments: new Map(),
       };
 
       const handler = getMessageHandler();
@@ -1198,6 +1397,84 @@ describe("DiscordChatClient", () => {
         );
       });
       consoleErrorSpy.mockRestore();
+    });
+
+    it("should allow deleting a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-1",
+        channelId: channelId,
+        content: "!help",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await receivedMessage!.delete();
+
+      expect(mockTextChannelData.messages.fetch).toHaveBeenCalledWith(
+        "msg-cmd-1"
+      );
+      expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it("should allow reacting to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-2",
+        channelId: channelId,
+        content: "!ping",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      receivedMessage!.addReactions(["white_check_mark"]);
+      await receivedMessage!.waitForReactions();
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("white_check_mark");
+    });
+
+    it("should allow replying to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-3",
+        channelId: channelId,
+        content: "!info",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await Promise.resolve(receivedMessage!.reply("Here is the info"));
+
+      expect(mockTextChannelData.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Here is the info",
+          messageReference: { messageId: "msg-cmd-3" },
+        })
+      );
     });
   });
 

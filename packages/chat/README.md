@@ -20,8 +20,8 @@ const channel = await client.connect(channelId);
 await channel.postMessage("Hello!");
 
 // Listen for incoming messages
-channel.onMessage((event) => {
-  console.log(`${event.author.username}: ${event.content}`);
+channel.onMessage((msg) => {
+  console.log(`${msg.author.username}: ${msg.content}`);
 });
 ```
 
@@ -39,12 +39,20 @@ createChatClient({ type: "slack", token: "...", appToken: "..." });
 
 ## Incoming Messages
 
-Subscribe to new messages in a channel. Returns an unsubscribe function.
+Subscribe to new messages in a channel. The callback receives a full `Message` object — you can delete it, react to it, or reply in its thread.
 
 ```typescript
-const unsubscribe = channel.onMessage((event) => {
-  // event.id, event.content, event.author, event.channelId, event.timestamp
-  console.log(`${event.author.username}: ${event.content}`);
+const unsubscribe = channel.onMessage((msg) => {
+  console.log(`${msg.author.username}: ${msg.content}`);
+
+  // Delete the user's command message
+  msg.delete();
+
+  // React to it
+  msg.addReactions(["white_check_mark"]);
+
+  // Reply in the message's thread
+  msg.reply("Got it!");
 });
 
 // Later: stop listening
@@ -106,6 +114,9 @@ const msg = await channel
   });
 
 msg.offReaction(); // stop listening
+
+// Remove the bot's own reactions
+msg.removeReactions(["👍", "👎"]);
 ```
 
 ### Threads

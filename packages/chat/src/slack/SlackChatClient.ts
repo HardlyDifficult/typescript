@@ -5,6 +5,7 @@ import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
 import type {
+  Attachment,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -107,6 +108,28 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         username: undefined,
       };
 
+      const attachments: Attachment[] = [];
+      if ("files" in event && Array.isArray(event.files)) {
+        for (const file of event.files) {
+          const f = file as unknown as Record<string, unknown>;
+          const url = typeof f.url_private === "string" ? f.url_private : "";
+          const name = typeof f.name === "string" ? f.name : "";
+
+          if (url === "" || name === "") {
+            continue;
+          }
+
+          const mimetype =
+            typeof f.mimetype === "string" ? f.mimetype : undefined;
+          attachments.push({
+            url,
+            name,
+            contentType: mimetype === "" ? undefined : mimetype,
+            size: typeof f.size === "number" ? f.size : undefined,
+          });
+        }
+      }
+
       const messageEvent: MessageEvent = {
         id: "ts" in event ? event.ts : "",
         content: "text" in event ? (event.text ?? "") : "",
@@ -114,6 +137,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         channelId,
         timestamp:
           "ts" in event ? new Date(parseFloat(event.ts) * 1000) : new Date(),
+        attachments,
       };
 
       for (const callback of callbacks) {
@@ -151,7 +175,11 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async postMessage(
     channelId: string,
     content: MessageContent,
-    options?: { threadTs?: string; files?: FileAttachment[] }
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
   ): Promise<MessageData> {
     let text: string;
     let blocks: SlackBlock[] | undefined;
@@ -162,6 +190,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     } else {
       text = convertMarkdown(content, "slack");
     }
+
+    // Suppress link preview unfurling by default
+    const unfurl =
+      options?.linkPreviews === true
+        ? {}
+        : { unfurl_links: false, unfurl_media: false };
 
     // If files are provided, upload them and attach to the message
     if (options?.files && options.files.length > 0) {
@@ -187,6 +221,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
           text,
           blocks,
           thread_ts: options.threadTs,
+          ...unfurl,
         });
         if (result.ts === undefined) {
           throw new Error("Slack API did not return a message timestamp");
@@ -204,6 +239,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       text,
       blocks,
       thread_ts: options?.threadTs,
+      ...unfurl,
     });
 
     if (result.ts === undefined) {
@@ -283,6 +319,23 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     const emojiName = emoji.replace(/^:|:$/g, "");
 
     await this.app.client.reactions.add({
+      channel: channelId,
+      timestamp: messageId,
+      name: emojiName,
+    });
+  }
+
+  /**
+   * Remove a reaction from a message
+   */
+  async removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void> {
+    const emojiName = emoji.replace(/^:|:$/g, "");
+
+    await this.app.client.reactions.remove({
       channel: channelId,
       timestamp: messageId,
       name: emojiName,

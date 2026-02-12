@@ -1,5 +1,6 @@
 // Types
 export {
+  type Attachment,
   type User,
   type DiscordConfig,
   type SlackConfig,
@@ -8,7 +9,6 @@ export {
   type ReactionEvent,
   type ReactionCallback,
   type MessageEvent,
-  type MessageCallback,
   type MessageContent,
   type FileAttachment,
   type ThreadData,

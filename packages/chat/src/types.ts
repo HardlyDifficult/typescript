@@ -56,6 +56,20 @@ export interface ReactionEvent {
 export type ReactionCallback = (event: ReactionEvent) => void | Promise<void>;
 
 /**
+ * An attachment on an incoming message
+ */
+export interface Attachment {
+  /** URL to download the attachment */
+  url: string;
+  /** Filename including extension */
+  name: string;
+  /** MIME type of the attachment */
+  contentType?: string;
+  /** File size in bytes */
+  size?: number;
+}
+
+/**
  * Data provided to incoming message callbacks
  */
 export interface MessageEvent {
@@ -69,6 +83,8 @@ export interface MessageEvent {
   channelId: string;
   /** Timestamp of the message */
   timestamp: Date;
+  /** File attachments on the message */
+  attachments: Attachment[];
 }
 
 /**
@@ -111,6 +127,10 @@ export interface MessageData {
   id: string;
   channelId: string;
   platform: Platform;
+  content?: string;
+  author?: User;
+  timestamp?: Date;
+  attachments?: Attachment[];
 }
 
 /**
