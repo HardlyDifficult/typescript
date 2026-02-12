@@ -9,7 +9,6 @@ export {
   type ReactionEvent,
   type ReactionCallback,
   type MessageEvent,
-  type MessageCallback,
   type MessageContent,
   type FileAttachment,
   type ThreadData,

@@ -6,6 +6,7 @@ import type {
   MessageCallback,
   MessageContent,
   MessageData,
+  MessageEvent,
   Platform,
   ReactionCallback,
   ThreadData,
@@ -186,11 +187,30 @@ export class Channel {
 
   /**
    * Subscribe to incoming messages in this channel
-   * @param callback - Function called when a new message is received
+   * @param callback - Function called with a Message object for each incoming message
    * @returns Unsubscribe function
    */
-  onMessage(callback: MessageCallback): () => void {
-    return this.operations.subscribeToMessages(this.id, callback);
+  onMessage(
+    callback: (message: Message) => void | Promise<void>
+  ): () => void {
+    return this.operations.subscribeToMessages(
+      this.id,
+      (event: MessageEvent) => {
+        const message = new Message(
+          {
+            id: event.id,
+            channelId: event.channelId,
+            platform: this.platform,
+            content: event.content,
+            author: event.author,
+            timestamp: event.timestamp,
+            attachments: event.attachments,
+          },
+          this.createMessageOperations()
+        );
+        return callback(message);
+      }
+    );
   }
 
   /**

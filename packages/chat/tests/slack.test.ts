@@ -1,9 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import type {
-  SlackConfig,
-  ReactionEvent,
-  MessageEvent as ChatMessageEvent,
-} from "../src/types.js";
+import type { SlackConfig, ReactionEvent } from "../src/types.js";
 
 // Define mocks at module level - Vitest hoists vi.mock() calls automatically
 // Use vi.hoisted() to ensure mocks are available before mock setup
@@ -1168,7 +1164,7 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
-      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      const event = callback.mock.calls[0][0] as Message;
       expect(event.content).toBe("Hello from user");
       expect(event.author.id).toBe("U999");
       expect(event.channelId).toBe(channelId);
@@ -1206,7 +1202,7 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
-      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      const event = callback.mock.calls[0][0] as Message;
       expect(event.attachments).toHaveLength(2);
       expect(event.attachments[0]).toEqual({
         url: "https://files.slack.com/file1.png",
@@ -1258,7 +1254,7 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
-      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      const event = callback.mock.calls[0][0] as Message;
       expect(event.attachments).toHaveLength(3);
       expect(event.attachments[0].contentType).toBeUndefined();
       expect(event.attachments[1].contentType).toBeUndefined();
@@ -1300,7 +1296,7 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
-      const event = callback.mock.calls[0][0] as ChatMessageEvent;
+      const event = callback.mock.calls[0][0] as Message;
       expect(event.attachments).toHaveLength(1);
       expect(event.attachments[0].name).toBe("valid.txt");
     });
@@ -1363,6 +1359,97 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("should allow deleting a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      mockConversationsReplies.mockResolvedValue({
+        messages: [{ ts: "1234567890.111111" }],
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!help",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await receivedMessage!.delete();
+
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "1234567890.111111",
+      });
+    });
+
+    it("should allow reacting to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!ping",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      receivedMessage!.addReactions(["white_check_mark"]);
+      await receivedMessage!.waitForReactions();
+
+      expect(mockReactionsAdd).toHaveBeenCalledWith({
+        channel: channelId,
+        timestamp: "1234567890.111111",
+        name: "white_check_mark",
+      });
+    });
+
+    it("should allow replying to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "1234567890.111111",
+          text: "!info",
+        },
+        context: {},
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      const reply = receivedMessage!.reply("Here is the info");
+      await waitForMessage(reply);
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: channelId,
+          text: "Here is the info",
+          thread_ts: "1234567890.111111",
+        })
+      );
     });
   });
 

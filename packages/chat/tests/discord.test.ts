@@ -1,9 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import type {
-  DiscordConfig,
-  ReactionEvent,
-  MessageEvent,
-} from "../src/types.js";
+import type { DiscordConfig, ReactionEvent } from "../src/types.js";
 
 // Use vi.hoisted to define mocks that are used in vi.mock()
 const {
@@ -1192,11 +1188,11 @@ describe("DiscordChatClient", () => {
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
-    it("should provide correct MessageEvent data", async () => {
+    it("should provide correct message data", async () => {
       const channel = await client.connect(channelId);
-      let receivedEvent: MessageEvent | null = null;
-      const callback = vi.fn().mockImplementation((event: MessageEvent) => {
-        receivedEvent = event;
+      let receivedMessage: Message | null = null;
+      const callback = vi.fn().mockImplementation((msg: Message) => {
+        receivedMessage = msg;
       });
       channel.onMessage(callback);
 
@@ -1212,23 +1208,25 @@ describe("DiscordChatClient", () => {
       const handler = getMessageHandler();
       await handler!(mockMessage);
 
-      expect(receivedEvent).not.toBeNull();
-      expect(receivedEvent!.id).toBe("msg-new-1");
-      expect(receivedEvent!.content).toBe("Hello there");
-      expect(receivedEvent!.author).toEqual({
+      expect(receivedMessage).not.toBeNull();
+      expect(receivedMessage).toBeInstanceOf(Message);
+      expect(receivedMessage!.id).toBe("msg-new-1");
+      expect(receivedMessage!.content).toBe("Hello there");
+      expect(receivedMessage!.author).toEqual({
         id: "user-001",
         username: "TestUser",
       });
-      expect(receivedEvent!.channelId).toBe(channelId);
-      expect(receivedEvent!.timestamp).toEqual(new Date("2025-01-01"));
-      expect(receivedEvent!.attachments).toEqual([]);
+      expect(receivedMessage!.channelId).toBe(channelId);
+      expect(receivedMessage!.platform).toBe("discord");
+      expect(receivedMessage!.timestamp).toEqual(new Date("2025-01-01"));
+      expect(receivedMessage!.attachments).toEqual([]);
     });
 
     it("should include attachments from the message", async () => {
       const channel = await client.connect(channelId);
-      let receivedEvent: MessageEvent | null = null;
-      const callback = vi.fn().mockImplementation((event: MessageEvent) => {
-        receivedEvent = event;
+      let receivedMessage: Message | null = null;
+      const callback = vi.fn().mockImplementation((msg: Message) => {
+        receivedMessage = msg;
       });
       channel.onMessage(callback);
 
@@ -1265,15 +1263,15 @@ describe("DiscordChatClient", () => {
       const handler = getMessageHandler();
       await handler!(mockMessage);
 
-      expect(receivedEvent).not.toBeNull();
-      expect(receivedEvent!.attachments).toHaveLength(2);
-      expect(receivedEvent!.attachments[0]).toEqual({
+      expect(receivedMessage).not.toBeNull();
+      expect(receivedMessage!.attachments).toHaveLength(2);
+      expect(receivedMessage!.attachments![0]).toEqual({
         url: "https://cdn.discord.com/file1.png",
         name: "screenshot.png",
         contentType: "image/png",
         size: 12345,
       });
-      expect(receivedEvent!.attachments[1]).toEqual({
+      expect(receivedMessage!.attachments![1]).toEqual({
         url: "https://cdn.discord.com/file2.txt",
         name: "notes.txt",
         contentType: undefined,
@@ -1399,6 +1397,86 @@ describe("DiscordChatClient", () => {
         );
       });
       consoleErrorSpy.mockRestore();
+    });
+
+    it("should allow deleting a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-1",
+        channelId: channelId,
+        content: "!help",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await receivedMessage!.delete();
+
+      expect(mockTextChannelData.messages.fetch).toHaveBeenCalledWith(
+        "msg-cmd-1"
+      );
+      expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it("should allow reacting to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-2",
+        channelId: channelId,
+        content: "!ping",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      receivedMessage!.addReactions(["white_check_mark"]);
+      await receivedMessage!.waitForReactions();
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith(
+        "white_check_mark"
+      );
+    });
+
+    it("should allow replying to a received message", async () => {
+      const channel = await client.connect(channelId);
+      let receivedMessage: Message | null = null;
+      channel.onMessage((msg) => {
+        receivedMessage = msg;
+      });
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-cmd-3",
+        channelId: channelId,
+        content: "!info",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(receivedMessage).not.toBeNull();
+      await Promise.resolve(receivedMessage!.reply("Here is the info"));
+
+      expect(mockTextChannelData.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Here is the info",
+          messageReference: { messageId: "msg-cmd-3" },
+        })
+      );
     });
   });
 
