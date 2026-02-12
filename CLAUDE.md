@@ -45,3 +45,11 @@ Always run from the **repo root** so turbo handles dependency ordering (e.g. bui
 - **Lint:** `npx turbo run lint --filter=@hardlydifficult/chat`
 
 Avoid running `npm run build` or `npx vitest run` directly from a package directory — that bypasses turbo and will fail if upstream packages (like `document-generator`) haven't been built yet.
+
+## Checklist for API Changes
+
+When adding, removing, or changing any public method or type:
+
+1. Update the package's `README.md` with usage examples
+2. Add or update tests covering the new behavior
+3. Implement for **both** Discord and Slack (both platform clients must satisfy the shared interfaces)

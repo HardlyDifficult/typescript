@@ -106,6 +106,9 @@ const msg = await channel
   });
 
 msg.offReaction(); // stop listening
+
+// Remove the bot's own reactions
+msg.removeReactions(["👍", "👎"]);
 ```
 
 ### Threads
