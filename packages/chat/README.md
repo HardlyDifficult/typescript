@@ -1,4 +1,3 @@
-
 # @hardlydifficult/chat
 
 Unified API for Discord and Slack messaging with rich document support.
