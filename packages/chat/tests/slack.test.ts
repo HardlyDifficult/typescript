@@ -7,6 +7,8 @@ const {
   mockPostMessage,
   mockChatDelete,
   mockReactionsAdd,
+  mockReactionsRemove,
+  mockReactionsGet,
   mockFilesUploadV2,
   mockConversationsHistory,
   mockConversationsReplies,
@@ -33,6 +35,8 @@ const {
   const mockPostMessage = vi.fn();
   const mockChatDelete = vi.fn();
   const mockReactionsAdd = vi.fn();
+  const mockReactionsRemove = vi.fn();
+  const mockReactionsGet = vi.fn();
   const mockFilesUploadV2 = vi.fn();
   const mockConversationsHistory = vi.fn();
   const mockConversationsReplies = vi.fn();
@@ -55,6 +59,8 @@ const {
       },
       reactions: {
         add: mockReactionsAdd,
+        remove: mockReactionsRemove,
+        get: mockReactionsGet,
       },
       filesUploadV2: mockFilesUploadV2,
       conversations: {
@@ -81,6 +87,8 @@ const {
     mockPostMessage,
     mockChatDelete,
     mockReactionsAdd,
+    mockReactionsRemove,
+    mockReactionsGet,
     mockFilesUploadV2,
     mockConversationsHistory,
     mockConversationsReplies,
@@ -158,6 +166,8 @@ describe("SlackChatClient", () => {
     mockStop.mockResolvedValue(undefined);
     mockPostMessage.mockResolvedValue({ ts: "1234567890.123456" });
     mockReactionsAdd.mockResolvedValue({ ok: true });
+    mockReactionsRemove.mockResolvedValue({ ok: true });
+    mockReactionsGet.mockResolvedValue({ message: { reactions: [] } });
     mockChatDelete.mockResolvedValue({ ok: true });
     mockFilesUploadV2.mockResolvedValue({
       ok: true,
@@ -638,6 +648,126 @@ describe("SlackChatClient", () => {
 
       // Reactions should be sequential: start-1, end-1, start-2, end-2
       expect(callOrder).toEqual(["start-1", "end-1", "start-2", "end-2"]);
+    });
+  });
+
+  describe("Message.removeAllReactions()", () => {
+    it("should fetch reactions and remove each one", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: {
+          reactions: [
+            { name: "thumbsup", count: 2 },
+            { name: "heart", count: 1 },
+          ],
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test");
+      await waitForMessage(message);
+
+      message.removeAllReactions();
+      await waitForMessage(message);
+
+      expect(mockReactionsGet).toHaveBeenCalledWith({
+        channel: channelId,
+        timestamp: message.id,
+      });
+      expect(mockReactionsRemove).toHaveBeenCalledTimes(2);
+      expect(mockReactionsRemove).toHaveBeenNthCalledWith(1, {
+        channel: channelId,
+        timestamp: message.id,
+        name: "thumbsup",
+      });
+      expect(mockReactionsRemove).toHaveBeenNthCalledWith(2, {
+        channel: channelId,
+        timestamp: message.id,
+        name: "heart",
+      });
+    });
+
+    it("should handle no reactions gracefully", async () => {
+      mockReactionsGet.mockResolvedValue({ message: {} });
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test");
+      await waitForMessage(message);
+
+      message.removeAllReactions();
+      await waitForMessage(message);
+
+      expect(mockReactionsRemove).not.toHaveBeenCalled();
+    });
+
+    it("should ignore errors when bot has not reacted with an emoji", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: {
+          reactions: [{ name: "thumbsup", count: 1 }],
+        },
+      });
+      mockReactionsRemove.mockRejectedValue(new Error("no_reaction"));
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test");
+      await waitForMessage(message);
+
+      message.removeAllReactions();
+      await waitForMessage(message);
+
+      expect(mockReactionsRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return the Message instance for chaining", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Test");
+      await waitForMessage(message);
+
+      const returnedMessage = message.removeAllReactions();
+
+      expect(returnedMessage).toBe(message);
+    });
+
+    it("should chain with addReactions", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: {
+          reactions: [{ name: "thumbsup", count: 1 }],
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const message = channel
+        .postMessage("Test")
+        .addReactions(["thumbsup"])
+        .removeAllReactions()
+        .addReactions(["heart"]);
+      await waitForMessage(message);
+
+      expect(mockReactionsAdd).toHaveBeenCalledTimes(2);
+      expect(mockReactionsGet).toHaveBeenCalledTimes(1);
+      expect(mockReactionsRemove).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("removeAllReactions() (direct client method)", () => {
+    it("should fetch and remove all reactions", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: {
+          reactions: [{ name: "thumbsup", count: 1 }],
+        },
+      });
+
+      await client.connect(channelId);
+      await client.removeAllReactions("1234567890.123456", channelId);
+
+      expect(mockReactionsGet).toHaveBeenCalledWith({
+        channel: channelId,
+        timestamp: "1234567890.123456",
+      });
+      expect(mockReactionsRemove).toHaveBeenCalledWith({
+        channel: channelId,
+        timestamp: "1234567890.123456",
+        name: "thumbsup",
+      });
     });
   });
 

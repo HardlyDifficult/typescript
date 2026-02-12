@@ -22,6 +22,7 @@ export interface MessageOperations {
     channelId: string,
     emoji: string
   ): Promise<void>;
+  removeAllReactions(messageId: string, channelId: string): Promise<void>;
   updateMessage(
     messageId: string,
     channelId: string,
@@ -118,6 +119,17 @@ export class Message {
         this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
+    return this;
+  }
+
+  /**
+   * Remove all reactions from this message (from all users)
+   * @returns this for chaining
+   */
+  removeAllReactions(): this {
+    this.pendingReactions = this.pendingReactions.then(() =>
+      this.operations.removeAllReactions(this.id, this.channelId)
+    );
     return this;
   }
 
@@ -283,6 +295,20 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
         this.operations.removeReaction(this.id, this.channelId, emoji)
       );
     }
+    return this;
+  }
+
+  /**
+   * Override removeAllReactions to wait for reply to complete first
+   */
+  override removeAllReactions(): this {
+    const currentPendingReactions = this.pendingReactions;
+    this.pendingReactions = this.replyPromise.then(
+      () => currentPendingReactions
+    );
+    this.pendingReactions = this.pendingReactions.then(() =>
+      this.operations.removeAllReactions(this.id, this.channelId)
+    );
     return this;
   }
 

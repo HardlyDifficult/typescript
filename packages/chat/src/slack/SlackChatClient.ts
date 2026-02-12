@@ -23,6 +23,7 @@ import type {
 import { isDocument } from "../utils.js";
 
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { removeAllReactions } from "./removeAllReactions.js";
 
 /**
  * Slack chat client implementation using @slack/bolt
@@ -343,6 +344,17 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       timestamp: messageId,
       name: emojiName,
     });
+  }
+
+  /**
+   * Remove all of the bot's reactions from a message.
+   * Slack only allows removing the authenticated user's own reactions.
+   */
+  async removeAllReactions(
+    messageId: string,
+    channelId: string
+  ): Promise<void> {
+    await removeAllReactions(this.app, messageId, channelId);
   }
 
   /**
