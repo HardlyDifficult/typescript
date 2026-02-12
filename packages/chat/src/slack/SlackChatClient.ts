@@ -495,6 +495,14 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     return threads;
   }
 
+  /**
+   * Delete a thread in a Slack channel.
+   * Deletes the parent message and all replies.
+   */
+  async deleteThread(threadId: string, channelId: string): Promise<void> {
+    await this.deleteMessage(threadId, channelId);
+  }
+
   async getMembers(channelId: string): Promise<Member[]> {
     return fetchChannelMembers(this.app, channelId);
   }

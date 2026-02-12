@@ -1777,6 +1777,38 @@ describe("SlackChatClient", () => {
       expect(threads[0].id).toBe("111.111");
       expect(threads[1].id).toBe("333.333");
     });
+
+    it("should delete a thread via thread.delete()", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [{ ts: "111.111", reply_count: 2 }],
+      });
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "111.111" },
+          { ts: "111.222" },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+
+      await threads[0].delete();
+
+      expect(mockConversationsReplies).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "111.111",
+      });
+      // Reply + parent = 2 deletes
+      expect(mockChatDelete).toHaveBeenCalledTimes(2);
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "111.222",
+      });
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "111.111",
+      });
+    });
   });
 
   describe("Channel.getMembers()", () => {

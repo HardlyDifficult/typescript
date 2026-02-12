@@ -21,6 +21,7 @@ export {
 export { ChatClient } from "./ChatClient";
 export { Channel } from "./Channel";
 export { Message } from "./Message";
+export { Thread } from "./Thread";
 
 // Platform implementations
 export { DiscordChatClient } from "./discord";
