@@ -1,4 +1,5 @@
 export { GitHubClient, RepoClient, PRClient } from "./GitHubClient.js";
+export { PRWatcher } from "./PRWatcher.js";
 export type {
   PullRequest,
   Repository,
@@ -11,4 +12,9 @@ export type {
   Label,
   ContributionRepo,
   MergeableState,
+  WatchOptions,
+  PREvent,
+  CommentEvent,
+  ReviewEvent,
+  CheckRunEvent,
 } from "./types.js";

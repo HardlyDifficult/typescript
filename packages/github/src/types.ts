@@ -136,3 +136,28 @@ export interface PullRequestCommit {
   readonly author: User | null;
   readonly html_url: string;
 }
+
+// --- Watcher types ---
+
+export interface WatchOptions {
+  readonly repos?: readonly string[];
+  readonly myPRs?: boolean;
+  readonly intervalMs?: number;
+}
+
+export interface PREvent {
+  readonly pr: PullRequest;
+  readonly repo: { readonly owner: string; readonly name: string };
+}
+
+export interface CommentEvent extends PREvent {
+  readonly comment: PullRequestComment;
+}
+
+export interface ReviewEvent extends PREvent {
+  readonly review: PullRequestReview;
+}
+
+export interface CheckRunEvent extends PREvent {
+  readonly checkRun: CheckRun;
+}

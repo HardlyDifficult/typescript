@@ -42,6 +42,51 @@ const contributed = await github.getContributedRepos(30);
 const myPRs = await github.getMyOpenPRs();
 ```
 
+### Watching for PR activity
+
+Poll repos and your open PRs for real-time updates — no webhooks required.
+
+```typescript
+const watcher = github.watch({
+  repos: ["owner/repo1", "owner/repo2"],
+  myPRs: true,
+  intervalMs: 30_000, // default
+});
+
+watcher.onNewPR((event) => {
+  console.log(`New PR: ${event.pr.title} in ${event.repo.owner}/${event.repo.name}`);
+});
+
+watcher.onComment((event) => {
+  console.log(`${event.comment.user.login} commented on #${event.pr.number}`);
+});
+
+watcher.onReview((event) => {
+  console.log(`${event.review.user.login} ${event.review.state} #${event.pr.number}`);
+});
+
+watcher.onCheckRun((event) => {
+  console.log(`${event.checkRun.name}: ${event.checkRun.status} (${event.checkRun.conclusion})`);
+});
+
+watcher.onMerged((event) => {
+  console.log(`PR #${event.pr.number} was merged`);
+});
+
+watcher.onClosed((event) => {
+  console.log(`PR #${event.pr.number} was closed`);
+});
+
+watcher.onError((error) => {
+  console.error("Watcher error:", error);
+});
+
+await watcher.start(); // initial poll + begins interval
+watcher.stop();        // stop polling
+```
+
+The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent polls fire granular events for new comments, reviews, check run changes, and state transitions.
+
 ## API
 
 ### `GitHubClient`
@@ -50,6 +95,7 @@ const myPRs = await github.getMyOpenPRs();
 |--------|-------------|
 | `static create(token?)` | Create client (token defaults to `GH_PAT` env var) |
 | `repo(owner, name)` | Get a `RepoClient` scoped to owner/repo |
+| `watch(options)` | Create a `PRWatcher` for polling PR activity |
 | `getOwnerRepos(owner)` | List repos for a user or org |
 | `getContributedRepos(days)` | Find repos the user contributed to recently |
 | `getMyOpenPRs()` | Find open PRs by the authenticated user |
@@ -76,6 +122,30 @@ const myPRs = await github.getMyOpenPRs();
 | `postComment(body)` | Post a comment on the PR |
 | `merge(title)` | Squash-merge the PR |
 
+### `PRWatcher`
+
+Created via `github.watch(options)`. All `on*` methods return an unsubscribe function.
+
+| Method | Description |
+|--------|-------------|
+| `onNewPR(callback)` | New PR appeared in a watched repo or user's PRs |
+| `onComment(callback)` | New comment posted on a tracked PR |
+| `onReview(callback)` | New review submitted on a tracked PR |
+| `onCheckRun(callback)` | Check run created or status changed on a tracked PR |
+| `onMerged(callback)` | Tracked PR was merged |
+| `onClosed(callback)` | Tracked PR was closed without merge |
+| `onError(callback)` | Polling or callback error |
+| `start()` | Begin polling (initial poll + interval) |
+| `stop()` | Stop polling |
+
+### `WatchOptions`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `repos` | `string[]` | `[]` | Repos to watch (`"owner/repo"` format) |
+| `myPRs` | `boolean` | `false` | Also watch all open PRs by the authenticated user |
+| `intervalMs` | `number` | `30000` | Polling interval in milliseconds |
+
 ### Types
 
-`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`
+`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`
