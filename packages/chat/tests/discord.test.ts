@@ -1794,8 +1794,12 @@ describe("DiscordChatClient", () => {
 
       let resolve1!: () => void;
       let resolve2!: () => void;
-      const work1 = new Promise<void>((r) => { resolve1 = r; });
-      const work2 = new Promise<void>((r) => { resolve2 = r; });
+      const work1 = new Promise<void>((r) => {
+        resolve1 = r;
+      });
+      const work2 = new Promise<void>((r) => {
+        resolve2 = r;
+      });
 
       const p1 = channel.withTyping(() => work1);
       const p2 = channel.withTyping(() => work2);
