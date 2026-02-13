@@ -21,6 +21,7 @@ export {
 export { ChatClient } from "./ChatClient";
 export { Channel } from "./Channel";
 export { Message } from "./Message";
+export { StreamingReply } from "./StreamingReply";
 export { Thread } from "./Thread";
 
 // Platform implementations

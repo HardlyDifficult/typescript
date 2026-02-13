@@ -157,6 +157,28 @@ const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive
 
 > **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.reply()` to populate the thread.
 
+### Streaming Replies
+
+Buffer text and flush it as thread replies at a regular interval. Useful for commands that produce output over time (e.g., streaming CLI output). Long text is automatically chunked to fit within platform message limits.
+
+```typescript
+const msg = await channel.postMessage("Running...");
+const stream = msg.streamReply(2000); // flush every 2s
+
+stream.append("output line 1\n");
+stream.append("output line 2\n");
+// ... text is batched and sent as replies every 2 seconds
+
+await stream.stop(); // flushes remaining text and stops the timer
+```
+
+`flush()` sends buffered text immediately without waiting for the next interval:
+
+```typescript
+stream.append("important output");
+await stream.flush();
+```
+
 ## Mentions
 
 Get channel members and @mention them in messages.

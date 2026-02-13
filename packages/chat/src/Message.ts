@@ -1,3 +1,4 @@
+import { StreamingReply } from "./StreamingReply";
 import { Thread } from "./Thread";
 import type {
   Attachment,
@@ -208,6 +209,21 @@ export class Message {
       content
     );
     return new ReplyMessage(replyPromise, this.operations, this.platform);
+  }
+
+  /**
+   * Stream replies to this message's thread by buffering text and
+   * flushing it at a fixed interval. Long text is automatically
+   * chunked to fit within platform message limits.
+   * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @returns StreamingReply with append/flush/stop methods
+   */
+  streamReply(flushIntervalMs: number): StreamingReply {
+    return new StreamingReply(
+      (content) => this.reply(content),
+      this.platform,
+      flushIntervalMs
+    );
   }
 
   /**
