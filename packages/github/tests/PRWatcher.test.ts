@@ -3,10 +3,12 @@ import { PRWatcher } from "../src/PRWatcher.js";
 import type {
   PREvent,
   PRUpdatedEvent,
+  PRStatusEvent,
   PollCompleteEvent,
   CommentEvent,
   ReviewEvent,
   CheckRunEvent,
+  StatusChangedEvent,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
@@ -983,6 +985,364 @@ describe("PRWatcher", () => {
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(watcher.getWatchedPRs()).toHaveLength(0);
+    });
+  });
+
+  describe("classifyPR", () => {
+    it("calls classifyPR with PR event and activity data on new PR", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      const comment = makeComment({ id: 101 });
+      stubActivity([comment], [], []);
+
+      const classifyPR = vi.fn().mockReturnValue("needs_review");
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        classifyPR,
+      });
+      await watcher.start();
+
+      expect(classifyPR).toHaveBeenCalledOnce();
+      expect(classifyPR).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pr,
+          repo: { owner: "owner", name: "repo" },
+        }),
+        expect.objectContaining({
+          comments: [comment],
+          reviews: [],
+          checkRuns: [],
+        })
+      );
+    });
+
+    it("returns initial statuses from start()", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        classifyPR: () => "approved",
+      });
+      const initial = await watcher.start();
+
+      expect(initial).toHaveLength(1);
+      expect(initial[0].status).toBe("approved");
+      expect(initial[0].pr.number).toBe(42);
+    });
+
+    it("returns empty status when classifyPR is not provided", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      const initial = await watcher.start();
+
+      expect(initial).toHaveLength(1);
+      expect(initial[0].status).toBe("");
+    });
+
+    it("calls classifyPR on each poll for existing PRs", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const classifyPR = vi.fn().mockReturnValue("needs_review");
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        classifyPR,
+      });
+      await watcher.start();
+      expect(classifyPR).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(classifyPR).toHaveBeenCalledTimes(2);
+    });
+
+    it("supports async classifyPR", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        classifyPR: async () => Promise.resolve("ci_running"),
+      });
+      const initial = await watcher.start();
+
+      expect(initial[0].status).toBe("ci_running");
+    });
+  });
+
+  describe("onStatusChanged", () => {
+    it("fires when classifyPR returns a different status on subsequent poll", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      let callCount = 0;
+      const classifyPR = () => {
+        callCount++;
+        return callCount === 1 ? "needs_review" : "approved";
+      };
+
+      const events: StatusChangedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        classifyPR,
+      });
+      watcher.onStatusChanged((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].previousStatus).toBe("needs_review");
+      expect(events[0].status).toBe("approved");
+      expect(events[0].pr.number).toBe(42);
+    });
+
+    it("does not fire when status is unchanged", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: StatusChangedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        classifyPR: () => "needs_review",
+      });
+      watcher.onStatusChanged((e) => events.push(e));
+      await watcher.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(0);
+    });
+
+    it("does not fire during first poll", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: StatusChangedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        classifyPR: () => "approved",
+      });
+      watcher.onStatusChanged((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(0);
+    });
+
+    it("fires for each status transition", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      let callCount = 0;
+      const statuses = ["needs_review", "ci_running", "approved"];
+      const classifyPR = () => {
+        const status = statuses[callCount] ?? "approved";
+        callCount++;
+        return status;
+      };
+
+      const events: StatusChangedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        classifyPR,
+      });
+      watcher.onStatusChanged((e) => events.push(e));
+      await watcher.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].previousStatus).toBe("needs_review");
+      expect(events[0].status).toBe("ci_running");
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(2);
+      expect(events[1].previousStatus).toBe("ci_running");
+      expect(events[1].status).toBe("approved");
+    });
+
+    it("unsubscribe removes callback", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      let callCount = 0;
+      const classifyPR = () => {
+        callCount++;
+        return callCount === 1 ? "needs_review" : "approved";
+      };
+
+      const events: StatusChangedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        classifyPR,
+      });
+      const unsub = watcher.onStatusChanged((e) => events.push(e));
+      await watcher.start();
+
+      unsub();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(0);
+    });
+  });
+
+  describe("discoverRepos", () => {
+    it("adds discovered repos to the watch list each poll", async () => {
+      const prFromOriginal = makePR({ number: 1 });
+      const prFromNew = makePR({ number: 2, title: "Discovered repo PR" });
+
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockImplementation(
+        (args: { owner: string; repo: string }) => {
+          if (args.owner === "owner" && args.repo === "repo") {
+            return Promise.resolve({ data: [prFromOriginal] });
+          }
+          if (args.owner === "discovered" && args.repo === "lib") {
+            return Promise.resolve({ data: [prFromNew] });
+          }
+          return Promise.resolve({ data: [] });
+        }
+      );
+      stubEmptyActivity();
+
+      let discoverCallCount = 0;
+      const discoverRepos = vi.fn().mockImplementation(() => {
+        discoverCallCount++;
+        return discoverCallCount >= 2 ? ["discovered/lib"] : [];
+      });
+
+      const newPREvents: PREvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        discoverRepos,
+      });
+      watcher.onNewPR((e) => newPREvents.push(e));
+      await watcher.start();
+
+      expect(newPREvents).toHaveLength(1);
+      expect(newPREvents[0].pr.number).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(newPREvents).toHaveLength(2);
+      expect(newPREvents[1].pr.number).toBe(2);
+      expect(newPREvents[1].repo).toEqual({
+        owner: "discovered",
+        name: "lib",
+      });
+    });
+
+    it("is called on every poll cycle", async () => {
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      stubEmptyActivity();
+
+      const discoverRepos = vi.fn().mockResolvedValue([]);
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        discoverRepos,
+      });
+      await watcher.start();
+      expect(discoverRepos).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(discoverRepos).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(discoverRepos).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("stalePRThresholdMs", () => {
+    it("removes snapshots older than threshold", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const pollEvents: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        stalePRThresholdMs: 5000,
+      });
+      watcher.onPollComplete((e) => pollEvents.push(e));
+      await watcher.start();
+      expect(pollEvents[0].prs).toHaveLength(1);
+
+      // PR disappears from the list but isn't merged/closed
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      // Mock the pulls.get call for removed PR detection
+      (mockOctokit.pulls.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: makePR({ state: "open" }),
+      });
+
+      // Advance past the stale threshold
+      vi.setSystemTime(Date.now() + 6000);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const lastPoll = pollEvents[pollEvents.length - 1];
+      expect(lastPoll.prs).toHaveLength(0);
+    });
+
+    it("does not remove snapshots within threshold", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const pollEvents: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        stalePRThresholdMs: 60000,
+      });
+      watcher.onPollComplete((e) => pollEvents.push(e));
+      await watcher.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(pollEvents[pollEvents.length - 1].prs).toHaveLength(1);
     });
   });
 });

@@ -1,31 +1,30 @@
 import type { Octokit } from "@octokit/rest";
 
-import { fetchPRActivity, type PRActivity } from "./polling/fetchPRActivity.js";
+import { fetchPRActivity } from "./polling/fetchPRActivity.js";
 import { fetchWatchedPRs, type WatchedPR } from "./polling/fetchWatchedPRs.js";
+import {
+  buildSnapshot,
+  detectPRChanges,
+  type PRSnapshot,
+} from "./polling/processSnapshot.js";
+import { classifyAndDetectChange } from "./polling/statusTracker.js";
 import type {
   CheckRun,
   CheckRunEvent,
+  ClassifyPR,
   CommentEvent,
-  Label,
-  MergeableState,
+  DiscoverRepos,
   PollCompleteEvent,
   PREvent,
+  PRStatusEvent,
   PRUpdatedEvent,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
   ReviewEvent,
+  StatusChangedEvent,
   WatchOptions,
 } from "./types.js";
-
-interface PRSnapshot {
-  pr: PullRequest;
-  owner: string;
-  name: string;
-  commentIds: Set<number>;
-  reviewIds: Set<number>;
-  checkRuns: Map<number, { status: string; conclusion: string | null }>;
-}
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
@@ -35,6 +34,9 @@ export class PRWatcher {
   private repos: string[];
   private readonly myPRs: boolean;
   private readonly intervalMs: number;
+  private readonly classifyPR: ClassifyPR | undefined;
+  private readonly discoverRepos: DiscoverRepos | undefined;
+  private readonly stalePRThresholdMs: number | undefined;
 
   private readonly newPRCallbacks = new Set<(event: PREvent) => void>();
   private readonly commentCallbacks = new Set<(event: CommentEvent) => void>();
@@ -50,6 +52,9 @@ export class PRWatcher {
   private readonly pollCompleteCallbacks = new Set<
     (event: PollCompleteEvent) => void
   >();
+  private readonly statusChangedCallbacks = new Set<
+    (event: StatusChangedEvent) => void
+  >();
   private readonly errorCallbacks = new Set<(error: Error) => void>();
 
   private readonly snapshots = new Map<string, PRSnapshot>();
@@ -64,6 +69,9 @@ export class PRWatcher {
     this.repos = [...(options.repos ?? [])];
     this.myPRs = options.myPRs ?? false;
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
+    this.classifyPR = options.classifyPR;
+    this.discoverRepos = options.discoverRepos;
+    this.stalePRThresholdMs = options.stalePRThresholdMs;
   }
 
   onNewPR(callback: (event: PREvent) => void): () => void {
@@ -106,16 +114,26 @@ export class PRWatcher {
     return () => this.pollCompleteCallbacks.delete(callback);
   }
 
+  onStatusChanged(callback: (event: StatusChangedEvent) => void): () => void {
+    this.statusChangedCallbacks.add(callback);
+    return () => this.statusChangedCallbacks.delete(callback);
+  }
+
   onError(callback: (error: Error) => void): () => void {
     this.errorCallbacks.add(callback);
     return () => this.errorCallbacks.delete(callback);
   }
 
-  async start(): Promise<void> {
+  async start(): Promise<readonly PRStatusEvent[]> {
     await this.poll();
     this.timer = setInterval(() => {
       void this.poll();
     }, this.intervalMs);
+    return [...this.snapshots.values()].map((s) => ({
+      pr: s.pr,
+      repo: { owner: s.owner, name: s.name },
+      status: s.status ?? "",
+    }));
   }
 
   stop(): void {
@@ -152,6 +170,13 @@ export class PRWatcher {
     this.fetching = true;
 
     try {
+      if (this.discoverRepos) {
+        const repos = await this.discoverRepos();
+        for (const repo of repos) {
+          this.addRepo(repo);
+        }
+      }
+
       const prs = await fetchWatchedPRs(
         this.octokit,
         this.username,
@@ -185,6 +210,16 @@ export class PRWatcher {
     }
 
     await this.handleRemovedPRs(currentKeys);
+
+    if (this.stalePRThresholdMs !== undefined) {
+      const cutoff = Date.now() - this.stalePRThresholdMs;
+      for (const [key, snapshot] of this.snapshots) {
+        if (snapshot.lastSeen < cutoff) {
+          this.snapshots.delete(key);
+        }
+      }
+    }
+
     this.initialized = true;
 
     const prs = [...this.snapshots.values()].map((s) => ({
@@ -207,7 +242,17 @@ export class PRWatcher {
       pr.number,
       pr.head.sha
     );
-    this.snapshots.set(key, buildSnapshot(pr, owner, name, activity));
+    let status: string | null = null;
+    if (this.classifyPR) {
+      ({ status } = await classifyAndDetectChange(
+        this.classifyPR,
+        { pr, repo: { owner, name } },
+        activity,
+        undefined,
+        this.initialized
+      ));
+    }
+    this.snapshots.set(key, buildSnapshot(pr, owner, name, activity, status));
     this.emit(this.newPRCallbacks, { pr, repo: { owner, name } });
   }
 
@@ -232,7 +277,10 @@ export class PRWatcher {
     }
 
     if (this.initialized) {
-      this.emitPRUpdated(pr, previous.pr, { owner, name });
+      const updateEvent = detectPRChanges(pr, previous.pr, repo);
+      if (updateEvent) {
+        this.emit(this.updatedCallbacks, updateEvent);
+      }
     }
 
     const activity = await fetchPRActivity(
@@ -249,7 +297,22 @@ export class PRWatcher {
       this.emitCheckRunChanges(activity.checkRuns, previous, pr, repo);
     }
 
-    this.snapshots.set(key, buildSnapshot(pr, owner, name, activity));
+    let status: string | null = null;
+    if (this.classifyPR) {
+      const result = await classifyAndDetectChange(
+        this.classifyPR,
+        { pr, repo },
+        activity,
+        previous,
+        this.initialized
+      );
+      ({ status } = result);
+      if (result.changed) {
+        this.emit(this.statusChangedCallbacks, result.changed);
+      }
+    }
+
+    this.snapshots.set(key, buildSnapshot(pr, owner, name, activity, status));
   }
 
   private async handleRemovedPRs(currentKeys: Set<string>): Promise<void> {
@@ -323,59 +386,6 @@ export class PRWatcher {
     }
   }
 
-  private emitPRUpdated(
-    current: PullRequest,
-    previous: PullRequest,
-    repo: { owner: string; name: string }
-  ): void {
-    const changes: PRUpdatedEvent["changes"] = {};
-    let hasChanges = false;
-
-    if (current.draft !== previous.draft) {
-      (changes as { draft: { from: boolean; to: boolean } }).draft = {
-        from: previous.draft,
-        to: current.draft,
-      };
-      hasChanges = true;
-    }
-
-    if (current.mergeable_state !== previous.mergeable_state) {
-      (
-        changes as {
-          mergeable_state: { from: MergeableState; to: MergeableState };
-        }
-      ).mergeable_state = {
-        from: previous.mergeable_state,
-        to: current.mergeable_state,
-      };
-      hasChanges = true;
-    }
-
-    const prevLabels = previous.labels
-      .map((l) => l.id)
-      .sort()
-      .join(",");
-    const currLabels = current.labels
-      .map((l) => l.id)
-      .sort()
-      .join(",");
-    if (prevLabels !== currLabels) {
-      (
-        changes as {
-          labels: { from: readonly Label[]; to: readonly Label[] };
-        }
-      ).labels = {
-        from: previous.labels,
-        to: current.labels,
-      };
-      hasChanges = true;
-    }
-
-    if (hasChanges) {
-      this.emit(this.updatedCallbacks, { pr: current, repo, changes });
-    }
-  }
-
   private emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
     for (const callback of callbacks) {
       try {
@@ -397,25 +407,4 @@ export class PRWatcher {
 
 function prKey(owner: string, name: string, prNumber: number): string {
   return `${owner}/${name}#${String(prNumber)}`;
-}
-
-function buildSnapshot(
-  pr: PullRequest,
-  owner: string,
-  name: string,
-  activity: PRActivity
-): PRSnapshot {
-  return {
-    pr,
-    owner,
-    name,
-    commentIds: new Set(activity.comments.map((c) => c.id)),
-    reviewIds: new Set(activity.reviews.map((r) => r.id)),
-    checkRuns: new Map(
-      activity.checkRuns.map((cr) => [
-        cr.id,
-        { status: cr.status, conclusion: cr.conclusion },
-      ])
-    ),
-  };
 }
