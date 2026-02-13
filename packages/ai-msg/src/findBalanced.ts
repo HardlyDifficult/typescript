@@ -60,7 +60,9 @@ export function findAllBalanced(
   while (offset < text.length) {
     const remaining = text.slice(offset);
     const match = findBalanced(remaining, openChar, closeChar);
-    if (match === null) break;
+    if (match === null) {
+      break;
+    }
 
     results.push(match);
     const matchStart = remaining.indexOf(openChar);
