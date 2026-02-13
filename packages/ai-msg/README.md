@@ -1,3 +1,4 @@
+
 # @hardlydifficult/ai-msg
 
 Opinionated utilities for extracting structured output from AI text responses.
