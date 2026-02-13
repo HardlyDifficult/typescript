@@ -6,6 +6,7 @@ import type {
   CheckRun,
   CheckRunEvent,
   CommentEvent,
+  PollCompleteEvent,
   PREvent,
   PullRequest,
   PullRequestComment,
@@ -40,6 +41,9 @@ export class PRWatcher {
   >();
   private readonly mergedCallbacks = new Set<(event: PREvent) => void>();
   private readonly closedCallbacks = new Set<(event: PREvent) => void>();
+  private readonly pollCompleteCallbacks = new Set<
+    (event: PollCompleteEvent) => void
+  >();
   private readonly errorCallbacks = new Set<(error: Error) => void>();
 
   private readonly snapshots = new Map<string, PRSnapshot>();
@@ -84,6 +88,11 @@ export class PRWatcher {
   onClosed(callback: (event: PREvent) => void): () => void {
     this.closedCallbacks.add(callback);
     return () => this.closedCallbacks.delete(callback);
+  }
+
+  onPollComplete(callback: (event: PollCompleteEvent) => void): () => void {
+    this.pollCompleteCallbacks.add(callback);
+    return () => this.pollCompleteCallbacks.delete(callback);
   }
 
   onError(callback: (error: Error) => void): () => void {
@@ -146,6 +155,12 @@ export class PRWatcher {
 
     await this.handleRemovedPRs(currentKeys);
     this.initialized = true;
+
+    const prs = [...this.snapshots.values()].map((s) => ({
+      pr: s.pr,
+      repo: { owner: s.owner, name: s.name },
+    }));
+    this.emit(this.pollCompleteCallbacks, { prs });
   }
 
   private async handleNewPR(

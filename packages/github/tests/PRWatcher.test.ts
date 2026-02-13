@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PRWatcher } from "../src/PRWatcher.js";
 import type {
   PREvent,
+  PollCompleteEvent,
   CommentEvent,
   ReviewEvent,
   CheckRunEvent,
@@ -564,6 +565,80 @@ describe("PRWatcher", () => {
 
       expect(events).toHaveLength(1);
       expect(events[0].repo).toEqual({ owner: "other", name: "lib" });
+    });
+  });
+
+  describe("onPollComplete", () => {
+    it("fires after each poll with current tracked PRs", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPollComplete((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(1);
+      expect(events[0].prs).toHaveLength(1);
+      expect(events[0].prs[0].pr.number).toBe(42);
+      expect(events[0].prs[0].repo).toEqual({ owner: "owner", name: "repo" });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(2);
+      expect(events[1].prs).toHaveLength(1);
+    });
+
+    it("fires with empty array when no PRs are tracked", async () => {
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      stubEmptyActivity();
+
+      const events: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPollComplete((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(1);
+      expect(events[0].prs).toHaveLength(0);
+    });
+
+    it("reflects PRs removed after merge", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPollComplete((e) => events.push(e));
+      await watcher.start();
+
+      expect(events[0].prs).toHaveLength(1);
+
+      const mergedPR = makePR({
+        state: "closed",
+        merged_at: "2024-01-02T00:00:00Z",
+        closed_at: "2024-01-02T00:00:00Z",
+      });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [mergedPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events[1].prs).toHaveLength(0);
     });
   });
 
