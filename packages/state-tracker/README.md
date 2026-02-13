@@ -1,6 +1,6 @@
 # @hardlydifficult/state-tracker
 
-File-based state persistence for recovery across restarts.
+Atomic JSON state persistence with sync and async APIs, auto-save, and graceful degradation.
 
 ## Installation
 
@@ -8,30 +8,84 @@ File-based state persistence for recovery across restarts.
 npm install @hardlydifficult/state-tracker
 ```
 
-## Quick Start
+## Usage
+
+### Server context (async with auto-save)
+
+For long-running servers, use `loadAsync()` + `autoSaveMs` + `update()`. State degrades gracefully to in-memory if disk is unavailable.
 
 ```typescript
-import { StateTracker } from '@hardlydifficult/state-tracker';
+import { StateTracker } from "@hardlydifficult/state-tracker";
 
-const tracker = new StateTracker({ key: 'last-sync', default: 0 });
+interface AppState {
+  requestCount: number;
+  lastActiveAt: string;
+}
 
-// Load persisted value (or default on first run)
-const lastSync = tracker.load();
+const store = new StateTracker<AppState>({
+  key: "my-service",
+  default: { requestCount: 0, lastActiveAt: "" },
+  stateDirectory: "/var/data",
+  autoSaveMs: 5000,
+  onEvent: ({ level, message }) => console.log(`[${level}] ${message}`),
+});
 
-// Save updated value (atomic write)
-tracker.save(Date.now());
+await store.loadAsync();
+
+store.state.requestCount; // read current state
+store.update({ requestCount: store.state.requestCount + 1 }); // partial update
+store.set({ requestCount: 0, lastActiveAt: new Date().toISOString() }); // full replace
+await store.saveAsync(); // force immediate save
+```
+
+### Simple context (sync)
+
+For tools and scripts, use the sync `load()`/`save()` API.
+
+```typescript
+const store = new StateTracker<number>({
+  key: "counter",
+  default: 0,
+});
+
+const count = store.load();
+store.save(count + 1);
 ```
 
 ## Options
 
-| Option | Description |
+| Option | Type | Description |
+|--------|------|-------------|
+| `key` | `string` | Unique identifier for the state file (required) |
+| `default` | `T` | Default value when no state file exists (required) |
+| `stateDirectory` | `string` | Directory for state files (default: `$STATE_TRACKER_DIR` or `~/.app-state`) |
+| `autoSaveMs` | `number` | Auto-save interval after `update()`/`set()`/`reset()` (default: 0 = disabled) |
+| `onEvent` | `function` | Event callback for logging (`{ level, message, context }`) |
+
+## Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `state` | `Readonly<T>` | Current in-memory state |
+| `isPersistent` | `boolean` | Whether disk storage is available |
+
+## Methods
+
+| Method | Description |
 |--------|-------------|
-| `key` | Unique identifier for the state file (alphanumeric, hyphens, underscores) |
-| `default` | Default value returned when no state exists (also sets the type) |
-| `stateDirectory?` | Custom directory for state files (default: `~/.app-state` or `STATE_TRACKER_DIR` env) |
+| `loadAsync()` | Async load with graceful degradation (safe to call multiple times) |
+| `saveAsync()` | Async atomic save (temp file + rename) |
+| `load()` | Sync load |
+| `save(value)` | Sync save |
+| `update(changes)` | Shallow merge for object state, triggers auto-save |
+| `set(newState)` | Replace entire state, triggers auto-save |
+| `reset()` | Restore to defaults, triggers auto-save |
 
 ## Features
 
 - **Type inference** from the default value
 - **Atomic writes** via temp file + rename to prevent corruption
 - **Key sanitization** to prevent path traversal
+- **Graceful degradation** — runs in-memory when disk is unavailable
+- **Auto-save** — debounced saves after state mutations
+- **Legacy format support** — reads both v1 envelope and raw formats
