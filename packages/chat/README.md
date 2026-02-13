@@ -151,15 +151,23 @@ Each `Member` has `id`, `username`, `displayName`, and `mention` (a ready-to-use
 
 ## Typing Indicator
 
-Show a "typing" indicator while processing.
+Show a "typing" indicator while processing. `withTyping` sends the indicator immediately, refreshes it every 8 seconds, and cleans up automatically when the function completes.
+
+```typescript
+const result = await channel.withTyping(async () => {
+  // typing indicator stays active during this work
+  return await doExpensiveWork();
+});
+await channel.postMessage(result);
+```
+
+For one-shot use, `sendTyping()` sends a single indicator without automatic refresh:
 
 ```typescript
 await channel.sendTyping();
-// ... do work ...
-await channel.postMessage("Done!");
 ```
 
-> **Slack note:** Slack does not support bot typing indicators. `sendTyping()` is a no-op on Slack.
+> **Slack note:** Slack does not support bot typing indicators. Both methods are no-ops on Slack.
 
 ## Bulk Operations
 

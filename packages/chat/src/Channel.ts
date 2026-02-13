@@ -228,6 +228,27 @@ export class Channel {
   }
 
   /**
+   * Show a typing indicator while executing a function.
+   * The indicator is sent immediately and refreshed every 8 seconds
+   * until the function completes. Cleanup is guaranteed even if fn throws.
+   * @param fn - Async function to execute while typing indicator is shown
+   * @returns The return value of fn
+   */
+  async withTyping<T>(fn: () => Promise<T>): Promise<T> {
+    await this.operations.sendTyping(this.id);
+    const interval = setInterval(() => {
+      this.operations.sendTyping(this.id).catch(() => {
+        // Ignore errors from typing refresh
+      });
+    }, 8000);
+    try {
+      return await fn();
+    } finally {
+      clearInterval(interval);
+    }
+  }
+
+  /**
    * Bulk delete messages in this channel
    * @param count - Number of recent messages to delete
    * @returns Number of messages actually deleted

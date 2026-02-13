@@ -1612,6 +1612,96 @@ describe("DiscordChatClient", () => {
     });
   });
 
+  describe("Channel.withTyping()", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should send typing indicator and return fn result", async () => {
+      const channel = await client.connect(channelId);
+      const result = await channel.withTyping(async () => "done");
+
+      expect(result).toBe("done");
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+    });
+
+    it("should refresh typing indicator on interval", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let resolve!: () => void;
+      const workPromise = new Promise<void>((r) => {
+        resolve = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+
+      // Flush microtasks so the initial sendTyping resolves through the async chain
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      // Advance 8 seconds — should refresh
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(2);
+
+      // Advance another 8 seconds — should refresh again
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(3);
+
+      resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await typingPromise;
+    });
+
+    it("should stop refreshing after fn completes", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let resolve!: () => void;
+      const workPromise = new Promise<void>((r) => {
+        resolve = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+      await vi.advanceTimersByTimeAsync(0);
+
+      resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await typingPromise;
+
+      mockTextChannelData.sendTyping.mockClear();
+      await vi.advanceTimersByTimeAsync(16000);
+
+      // No further calls after fn completed
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+
+    it("should stop refreshing if fn throws", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let reject!: (err: Error) => void;
+      const workPromise = new Promise<void>((_resolve, r) => {
+        reject = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+      // Prevent Node's unhandled rejection warning
+      const caught = typingPromise.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      reject(new Error("work failed"));
+      await vi.advanceTimersByTimeAsync(0);
+      await caught;
+      await expect(typingPromise).rejects.toThrow("work failed");
+
+      mockTextChannelData.sendTyping.mockClear();
+      await vi.advanceTimersByTimeAsync(16000);
+
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+  });
+
   describe("File attachments", () => {
     it("should post a message with file attachments", async () => {
       const channel = await client.connect(channelId);

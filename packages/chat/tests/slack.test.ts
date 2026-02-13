@@ -1606,6 +1606,25 @@ describe("SlackChatClient", () => {
     });
   });
 
+  describe("Channel.withTyping()", () => {
+    it("should execute fn and return its result", async () => {
+      const channel = await client.connect(channelId);
+      const result = await channel.withTyping(async () => "done");
+
+      expect(result).toBe("done");
+    });
+
+    it("should propagate errors from fn", async () => {
+      const channel = await client.connect(channelId);
+
+      await expect(
+        channel.withTyping(async () => {
+          throw new Error("work failed");
+        })
+      ).rejects.toThrow("work failed");
+    });
+  });
+
   describe("File attachments", () => {
     it("should upload text files via filesUploadV2 with content field", async () => {
       const channel = await client.connect(channelId);
