@@ -1612,6 +1612,96 @@ describe("DiscordChatClient", () => {
     });
   });
 
+  describe("Channel.withTyping()", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should send typing indicator and return fn result", async () => {
+      const channel = await client.connect(channelId);
+      const result = await channel.withTyping(async () => "done");
+
+      expect(result).toBe("done");
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+    });
+
+    it("should refresh typing indicator on interval", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let resolve!: () => void;
+      const workPromise = new Promise<void>((r) => {
+        resolve = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+
+      // Flush microtasks so the initial sendTyping resolves through the async chain
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      // Advance 8 seconds — should refresh
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(2);
+
+      // Advance another 8 seconds — should refresh again
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(3);
+
+      resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await typingPromise;
+    });
+
+    it("should stop refreshing after fn completes", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let resolve!: () => void;
+      const workPromise = new Promise<void>((r) => {
+        resolve = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+      await vi.advanceTimersByTimeAsync(0);
+
+      resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await typingPromise;
+
+      mockTextChannelData.sendTyping.mockClear();
+      await vi.advanceTimersByTimeAsync(16000);
+
+      // No further calls after fn completed
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+
+    it("should stop refreshing if fn throws", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let reject!: (err: Error) => void;
+      const workPromise = new Promise<void>((_resolve, r) => {
+        reject = r;
+      });
+
+      const typingPromise = channel.withTyping(() => workPromise);
+      // Prevent Node's unhandled rejection warning
+      const caught = typingPromise.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      reject(new Error("work failed"));
+      await vi.advanceTimersByTimeAsync(0);
+      await caught;
+      await expect(typingPromise).rejects.toThrow("work failed");
+
+      mockTextChannelData.sendTyping.mockClear();
+      await vi.advanceTimersByTimeAsync(16000);
+
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+  });
+
   describe("File attachments", () => {
     it("should post a message with file attachments", async () => {
       const channel = await client.connect(channelId);
@@ -1851,6 +1941,173 @@ describe("DiscordChatClient", () => {
       const members = await channel.getMembers();
 
       expect(members[0].mention).toBe("<@12345>");
+    });
+  });
+
+  describe("Message.setReactions()", () => {
+    it("should add emojis and register handler", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel
+        .postMessage("Test")
+        .setReactions(["👍", "👎"], callback);
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(1, "👍");
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(2, "👎");
+    });
+
+    it("should diff emojis on subsequent calls", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      message.setReactions(["👍", "👎"]);
+      await message.waitForReactions();
+      mockDiscordMessage.react.mockClear();
+
+      message.setReactions(["👍", "🔥"]);
+      await message.waitForReactions();
+
+      // Should remove 👎 and add 🔥
+      expect(mockReactionResolve).toHaveBeenCalledWith("👎");
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("🔥");
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(1);
+    });
+
+    it("should replace reaction handler", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = await channel.postMessage("Test");
+      message.setReactions(["👍"], handler1);
+      message.setReactions(["👍"], handler2);
+      await message.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Channel.postDismissable()", () => {
+    it("should post message with trash reaction", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable(
+        "Dismissable message",
+        "owner-id"
+      );
+      await msg.waitForReactions();
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("🗑️");
+    });
+
+    it("should delete message when owner reacts with trash", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "🗑️", id: null },
+      };
+      const mockUser = { id: "owner-id", username: "owner" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      await waitFor(() => {
+        expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("should ignore reactions from non-owners", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "🗑️", id: null },
+      };
+      const mockUser = { id: "other-user", username: "other" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(mockDiscordMessage.delete).not.toHaveBeenCalled();
+    });
+
+    it("should ignore non-trash reactions from owner", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "owner-id", username: "owner" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(mockDiscordMessage.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("PendingMessage offReaction fix", () => {
+    it("should clear deferred callbacks when offReaction is called", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = channel.postMessage("Test");
+      message.onReaction(handler1);
+      message.offReaction();
+      message.onReaction(handler2);
+      await waitForMessage(message);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+
+    it("should subscribe directly after message resolves", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      const callback = vi.fn();
+      message.onReaction(callback);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 

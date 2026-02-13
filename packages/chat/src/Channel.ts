@@ -228,6 +228,50 @@ export class Channel {
   }
 
   /**
+   * Show a typing indicator while executing a function.
+   * The indicator is sent immediately and refreshed every 8 seconds
+   * until the function completes. Cleanup is guaranteed even if fn throws.
+   * @param fn - Async function to execute while typing indicator is shown
+   * @returns The return value of fn
+   */
+  async withTyping<T>(fn: () => Promise<T>): Promise<T> {
+    await this.operations.sendTyping(this.id);
+    const interval = setInterval(() => {
+      this.operations.sendTyping(this.id).catch(() => {
+        // Ignore errors from typing refresh
+      });
+    }, 8000);
+    try {
+      return await fn();
+    } finally {
+      clearInterval(interval);
+    }
+  }
+
+  /**
+   * Post a message with a trash can reaction that the owner can click to dismiss.
+   * @param content - Message content (string or Document)
+   * @param ownerId - User ID of the person allowed to dismiss the message
+   * @returns Message object that callers can interact with before dismissal
+   */
+  async postDismissable(
+    content: MessageContent,
+    ownerId: string
+  ): Promise<Message> {
+    const emoji = this.platform === "slack" ? ":wastebasket:" : "🗑️";
+    const emojiMatch = this.platform === "slack" ? "wastebasket" : "🗑️";
+    const msg = await this.postMessage(content);
+    msg.addReactions([emoji]).onReaction(async (event) => {
+      if (event.user.id !== ownerId || event.emoji !== emojiMatch) {
+        return;
+      }
+      msg.offReaction();
+      await msg.delete();
+    });
+    return msg;
+  }
+
+  /**
    * Bulk delete messages in this channel
    * @param count - Number of recent messages to delete
    * @returns Number of messages actually deleted
@@ -281,6 +325,7 @@ export class Channel {
 class PendingMessage extends Message implements PromiseLike<Message> {
   private postPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
+  private resolved = false;
 
   constructor(
     postPromise: Promise<MessageData>,
@@ -307,6 +352,7 @@ class PendingMessage extends Message implements PromiseLike<Message> {
           );
           this.reactionUnsubscribers.push(unsubscribe);
         }
+        this.resolved = true;
       })
       .catch(() => {
         // Errors surfaced when awaited via then()
@@ -364,8 +410,20 @@ class PendingMessage extends Message implements PromiseLike<Message> {
    * Override onReaction to defer subscription until post completes
    */
   override onReaction(callback: ReactionCallback): this {
-    this.deferredReactionCallbacks.push(callback);
+    if (this.resolved) {
+      super.onReaction(callback);
+    } else {
+      this.deferredReactionCallbacks.push(callback);
+    }
     return this;
+  }
+
+  /**
+   * Override offReaction to also clear deferred callbacks
+   */
+  override offReaction(): void {
+    this.deferredReactionCallbacks = [];
+    super.offReaction();
   }
 
   /**

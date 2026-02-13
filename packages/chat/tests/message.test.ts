@@ -372,6 +372,96 @@ describe("Message", () => {
     });
   });
 
+  describe("setReactions", () => {
+    it("should add all emojis on first call", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.setReactions(["👍", "👎"]);
+      await msg.waitForReactions();
+
+      expect(mockOperations.addReaction).toHaveBeenCalledTimes(2);
+      expect(mockOperations.removeReaction).not.toHaveBeenCalled();
+    });
+
+    it("should diff emojis on subsequent calls", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.setReactions(["👍", "👎"]);
+      await msg.waitForReactions();
+
+      (mockOperations.addReaction as Mock).mockClear();
+      msg.setReactions(["👍", "🔥"]);
+      await msg.waitForReactions();
+
+      // Should remove 👎 and add 🔥, but not re-add 👍
+      expect(mockOperations.removeReaction).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        "👎"
+      );
+      expect(mockOperations.addReaction).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        "🔥"
+      );
+      expect(mockOperations.addReaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("should swap reaction handler", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+      msg.setReactions(["👍"], handler1);
+      msg.setReactions(["👍"], handler2);
+
+      // subscribeToReactions called twice (once per setReactions with handler)
+      // but the first subscription was unsubscribed by the second setReactions
+      expect(mockOperations.subscribeToReactions).toHaveBeenCalledTimes(2);
+    });
+
+    it("should return this for chaining", () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const result = msg.setReactions(["👍"]);
+      expect(result).toBe(msg);
+    });
+
+    it("should clear all emojis when called with empty array", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      msg.setReactions(["👍", "👎"]);
+      await msg.waitForReactions();
+      (mockOperations.addReaction as Mock).mockClear();
+
+      msg.setReactions([]);
+      await msg.waitForReactions();
+
+      expect(mockOperations.removeReaction).toHaveBeenCalledTimes(2);
+      expect(mockOperations.addReaction).not.toHaveBeenCalled();
+    });
+  });
+
   describe("integration", () => {
     it("should support chaining addReactions with update and delete", async () => {
       const mockOperations = createMockOperations();
@@ -402,6 +492,50 @@ describe("Message", () => {
 
       expect(mockOperations.reply).toHaveBeenCalled();
       expect(mockOperations.updateMessage).toHaveBeenCalled();
+    });
+  });
+
+  describe("ReplyMessage offReaction fix", () => {
+    it("should clear deferred callbacks when offReaction is called before resolution", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+      const reply = msg.reply("text");
+      reply.onReaction(handler1);
+      reply.offReaction();
+      reply.onReaction(handler2);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Only handler2 should be subscribed, not handler1
+      expect(mockOperations.subscribeToReactions).toHaveBeenCalledTimes(1);
+      expect(mockOperations.subscribeToReactions).toHaveBeenCalledWith(
+        "reply-123",
+        handler2
+      );
+    });
+
+    it("should subscribe directly after reply resolves", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      const reply = await msg.reply("text");
+      // After resolution, onReaction should work immediately
+      const handler = vi.fn();
+      reply.onReaction(handler);
+
+      expect(mockOperations.subscribeToReactions).toHaveBeenCalledWith(
+        "reply-123",
+        handler
+      );
     });
   });
 });

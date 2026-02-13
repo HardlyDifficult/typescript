@@ -124,6 +124,28 @@ msg.removeAllReactions();
 
 > **Slack note:** Slack only allows removing the bot's own reactions. `removeAllReactions()` removes the bot's reactions for every emoji on the message but cannot remove other users' reactions.
 
+### Declarative Reactions
+
+`setReactions` manages the full reaction state on a message. It diffs against the previous `setReactions` call, removing stale emojis and adding new ones, and replaces any existing reaction handler.
+
+```typescript
+const msg = await channel.postMessage("PR #42: open");
+
+// Set initial reactions
+msg.setReactions(["🟡"], (event) => handlePending(event));
+
+// Later: update to merged state — removes 🟡, adds 🟢, swaps handler
+msg.setReactions(["🟢"], (event) => handleMerged(event));
+```
+
+### Dismissable Messages
+
+Post a message that the specified user can dismiss by clicking the trash reaction.
+
+```typescript
+await channel.postDismissable("Build complete!", user.id);
+```
+
 ### Threads
 
 Create a thread from an existing message.
@@ -151,15 +173,23 @@ Each `Member` has `id`, `username`, `displayName`, and `mention` (a ready-to-use
 
 ## Typing Indicator
 
-Show a "typing" indicator while processing.
+Show a "typing" indicator while processing. `withTyping` sends the indicator immediately, refreshes it every 8 seconds, and cleans up automatically when the function completes.
+
+```typescript
+const result = await channel.withTyping(async () => {
+  // typing indicator stays active during this work
+  return await doExpensiveWork();
+});
+await channel.postMessage(result);
+```
+
+For one-shot use, `sendTyping()` sends a single indicator without automatic refresh:
 
 ```typescript
 await channel.sendTyping();
-// ... do work ...
-await channel.postMessage("Done!");
 ```
 
-> **Slack note:** Slack does not support bot typing indicators. `sendTyping()` is a no-op on Slack.
+> **Slack note:** Slack does not support bot typing indicators. Both methods are no-ops on Slack.
 
 ## Bulk Operations
 
@@ -217,14 +247,14 @@ Both callbacks return an unsubscribe function.
 
 ## Platform Differences
 
-| Feature | Discord | Slack |
-|---|---|---|
-| Incoming messages | Full support | Full support |
-| Typing indicator | Full support | No-op (unsupported by Slack bot API) |
-| File attachments | `AttachmentBuilder` | `filesUploadV2` |
-| Thread creation | Creates named thread on message | Returns message timestamp (threads are implicit) |
-| Bulk delete | Native `bulkDelete` API (fast) | One-by-one deletion (slower, may partially fail) |
-| Get threads | `fetchActive` + `fetchArchived` | Scans channel history for threaded messages |
-| Delete thread | `ThreadChannel.delete()` | Deletes parent message and all replies |
-| Get members | Guild members filtered by channel permissions | `conversations.members` + `users.info` |
-| Auto-reconnect | Handled by discord.js | Handled by `@slack/bolt` Socket Mode |
+| Feature           | Discord                                       | Slack                                            |
+| ----------------- | --------------------------------------------- | ------------------------------------------------ |
+| Incoming messages | Full support                                  | Full support                                     |
+| Typing indicator  | Full support                                  | No-op (unsupported by Slack bot API)             |
+| File attachments  | `AttachmentBuilder`                           | `filesUploadV2`                                  |
+| Thread creation   | Creates named thread on message               | Returns message timestamp (threads are implicit) |
+| Bulk delete       | Native `bulkDelete` API (fast)                | One-by-one deletion (slower, may partially fail) |
+| Get threads       | `fetchActive` + `fetchArchived`               | Scans channel history for threaded messages      |
+| Delete thread     | `ThreadChannel.delete()`                      | Deletes parent message and all replies           |
+| Get members       | Guild members filtered by channel permissions | `conversations.members` + `users.info`           |
+| Auto-reconnect    | Handled by discord.js                         | Handled by `@slack/bolt` Socket Mode             |

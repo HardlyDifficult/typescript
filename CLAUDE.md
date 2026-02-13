@@ -70,6 +70,22 @@ When adding, removing, or changing any public method or type:
 2. Add or update tests covering the new behavior
 3. Implement for **both** Discord and Slack (both platform clients must satisfy the shared interfaces)
 
+### Adding Channel/Message convenience methods
+
+Higher-level convenience methods (like `withTyping`, `setReactions`, `postDismissable`) can live on the `Channel` or `Message` class directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations.
+
+### Platform emoji differences
+
+Discord uses unicode emoji (`'🗑️'`) while Slack uses text names (`':wastebasket:'`). Reaction events return `'🗑️'` on Discord vs `'wastebasket'` on Slack. Any method that hardcodes emoji must handle both via `this.platform`.
+
+### Slack reaction events lack usernames
+
+Slack reaction events only provide a user ID — `event.user.username` is always `undefined`. Use `event.user.id` for cross-platform user matching, not `event.user.username`.
+
+### Testing with fake timers (vitest)
+
+When using `vi.useFakeTimers()` with async code that chains multiple `await`s (like the Discord client's `sendTyping` → `fetchTextChannel` → `channel.sendTyping`), call `await vi.advanceTimersByTimeAsync(0)` to flush microtasks before asserting. Always restore real timers in `afterEach` to prevent cascading timeouts if a test fails. Use deferred promises (`new Promise` with external `resolve`/`reject`) instead of `async () => { throw ... }` to avoid unhandled rejection warnings.
+
 ## Code Size Limits
 
 ESLint enforces `max-lines: 400` (skipping blanks and comments). Hitting this limit signals that a file is doing too much — extract repeated patterns into helpers or split distinct concerns into separate modules. Don't just trim comments to fit.
