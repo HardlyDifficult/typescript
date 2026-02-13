@@ -1,6 +1,6 @@
-# Shared Claude Skills
+# Claude Skills
 
-Reusable Claude Code skills for common development workflows.
+Claude Code skills for common development workflows.
 
 ## Available Skills
 
@@ -20,32 +20,3 @@ Reusable Claude Code skills for common development workflows.
 
 - **`browser-automation`** - Headless browser testing with agent-browser
 - **`ui-testing`** - Visual UI testing, screenshots, and bug documentation
-
-## Usage
-
-Install `@hardlydifficult/shared-config` and the skills will be automatically available in your `.claude/skills/` directory through the package's postinstall script.
-
-```bash
-npm install @hardlydifficult/shared-config
-```
-
-## Skill Design Principles
-
-These skills follow [Anthropic's skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices):
-
-- **Concise** - Assume Claude is smart, only provide what's needed
-- **Third-person descriptions** - Injected into system prompts
-- **Gerund naming** - Activity-based names (verb + -ing)
-- **Progressive disclosure** - Reference files loaded only when needed
-- **One level deep** - No deeply nested references
-- **Structured output** - Clear formats for reporting results
-
-## Contributing
-
-When adding new shared skills:
-
-1. Use gerund form for naming (e.g., `processing-data`, not `data-processor`)
-2. Write descriptions in third person ("Processes data..." not "I process data...")
-3. Keep skills under 500 lines (split into reference files if longer)
-4. Test with Haiku, Sonnet, and Opus models
-5. Remove all repo-specific references

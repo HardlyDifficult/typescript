@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
 
 function findRepoRoot(): string | null {
@@ -29,24 +29,6 @@ function findFilesDir(): string | null {
   }
 
   return null;
-}
-
-function copyDirMerge(src: string, dest: string): void {
-  if (!existsSync(dest)) {
-    mkdirSync(dest, { recursive: true });
-  }
-
-  for (const entry of readdirSync(src)) {
-    const srcPath = join(src, entry);
-    const destPath = join(dest, entry);
-    const stat = statSync(srcPath);
-
-    if (stat.isDirectory()) {
-      copyDirMerge(srcPath, destPath);
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
-  }
 }
 
 function copyFileWithDir(src: string, dest: string): void {
@@ -80,12 +62,6 @@ function main(): void {
   const dependabotSrc = join(filesDir, ".github", "dependabot.yml");
   if (existsSync(dependabotSrc)) {
     copyFileWithDir(dependabotSrc, join(repoRoot, ".github", "dependabot.yml"));
-  }
-
-  // Merge .claude/ (additive only - never delete local files)
-  const claudeSrc = join(filesDir, ".claude");
-  if (existsSync(claudeSrc)) {
-    copyDirMerge(claudeSrc, join(repoRoot, ".claude"));
   }
 }
 
