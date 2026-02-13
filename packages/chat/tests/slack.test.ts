@@ -2025,4 +2025,174 @@ describe("SlackChatClient", () => {
       expect(reactions[0].user.id).toBe("U_VOTER");
     });
   });
+
+  describe("Message.setReactions()", () => {
+    it("should add emojis on first call", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel
+        .postMessage("Test")
+        .setReactions([":thumbsup:", ":heart:"]);
+      await waitForMessage(message);
+
+      expect(mockReactionsAdd).toHaveBeenCalledTimes(2);
+    });
+
+    it("should diff emojis on subsequent calls", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      message.setReactions([":thumbsup:", ":heart:"]);
+      await message.waitForReactions();
+      mockReactionsAdd.mockClear();
+
+      message.setReactions([":thumbsup:", ":rocket:"]);
+      await message.waitForReactions();
+
+      // Should remove :heart: and add :rocket:
+      expect(mockReactionsRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "heart" })
+      );
+      expect(mockReactionsAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "rocket" })
+      );
+      expect(mockReactionsAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it("should replace reaction handler", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = await channel.postMessage("Test");
+      message.setReactions([":thumbsup:"], handler1);
+      message.setReactions([":thumbsup:"], handler2);
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "thumbsup",
+          user: "U123",
+          item: { channel: channelId, ts: message.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Channel.postDismissable()", () => {
+    it("should post message with wastebasket reaction", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "U_OWNER");
+      await msg.waitForReactions();
+
+      expect(mockPostMessage).toHaveBeenCalledTimes(1);
+      expect(mockReactionsAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "wastebasket" })
+      );
+    });
+
+    it("should delete message when owner reacts with wastebasket", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "U_OWNER");
+      await msg.waitForReactions();
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "wastebasket",
+          user: "U_OWNER",
+          item: { channel: channelId, ts: msg.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(mockChatDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it("should ignore reactions from non-owners", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "U_OWNER");
+      await msg.waitForReactions();
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "wastebasket",
+          user: "U_OTHER",
+          item: { channel: channelId, ts: msg.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(mockChatDelete).not.toHaveBeenCalled();
+    });
+
+    it("should ignore non-wastebasket reactions from owner", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "U_OWNER");
+      await msg.waitForReactions();
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "thumbsup",
+          user: "U_OWNER",
+          item: { channel: channelId, ts: msg.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(mockChatDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("PendingMessage offReaction fix", () => {
+    it("should clear deferred callbacks when offReaction is called", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = channel.postMessage("Test");
+      message.onReaction(handler1);
+      message.offReaction();
+      message.onReaction(handler2);
+      await waitForMessage(message);
+
+      const reactionHandler = getReactionHandler();
+      await reactionHandler!({
+        event: {
+          reaction: "thumbsup",
+          user: "U123",
+          item: { channel: channelId, ts: message.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+
+    it("should subscribe directly after message resolves", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      const callback = vi.fn();
+      message.onReaction(callback);
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "thumbsup",
+          user: "U123",
+          item: { channel: channelId, ts: message.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
 });

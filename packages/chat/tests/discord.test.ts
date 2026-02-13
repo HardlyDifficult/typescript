@@ -1944,6 +1944,173 @@ describe("DiscordChatClient", () => {
     });
   });
 
+  describe("Message.setReactions()", () => {
+    it("should add emojis and register handler", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel
+        .postMessage("Test")
+        .setReactions(["👍", "👎"], callback);
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(1, "👍");
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(2, "👎");
+    });
+
+    it("should diff emojis on subsequent calls", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      message.setReactions(["👍", "👎"]);
+      await message.waitForReactions();
+      mockDiscordMessage.react.mockClear();
+
+      message.setReactions(["👍", "🔥"]);
+      await message.waitForReactions();
+
+      // Should remove 👎 and add 🔥
+      expect(mockReactionResolve).toHaveBeenCalledWith("👎");
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("🔥");
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(1);
+    });
+
+    it("should replace reaction handler", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = await channel.postMessage("Test");
+      message.setReactions(["👍"], handler1);
+      message.setReactions(["👍"], handler2);
+      await message.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Channel.postDismissable()", () => {
+    it("should post message with trash reaction", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable(
+        "Dismissable message",
+        "owner-id"
+      );
+      await msg.waitForReactions();
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);
+      expect(mockDiscordMessage.react).toHaveBeenCalledWith("🗑️");
+    });
+
+    it("should delete message when owner reacts with trash", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "🗑️", id: null },
+      };
+      const mockUser = { id: "owner-id", username: "owner" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      await waitFor(() => {
+        expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("should ignore reactions from non-owners", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "🗑️", id: null },
+      };
+      const mockUser = { id: "other-user", username: "other" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(mockDiscordMessage.delete).not.toHaveBeenCalled();
+    });
+
+    it("should ignore non-trash reactions from owner", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postDismissable("Dismissable", "owner-id");
+      await msg.waitForReactions();
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "owner-id", username: "owner" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(mockDiscordMessage.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("PendingMessage offReaction fix", () => {
+    it("should clear deferred callbacks when offReaction is called", async () => {
+      const channel = await client.connect(channelId);
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      const message = channel.postMessage("Test");
+      message.onReaction(handler1);
+      message.offReaction();
+      message.onReaction(handler2);
+      await waitForMessage(message);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledTimes(1);
+    });
+
+    it("should subscribe directly after message resolves", async () => {
+      const channel = await client.connect(channelId);
+      const message = await channel.postMessage("Test");
+
+      const callback = vi.fn();
+      message.onReaction(callback);
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId },
+        emoji: { name: "👍", id: null },
+      };
+      const mockUser = { id: "user-001", username: "alice" };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, mockUser);
+
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("Connection resilience", () => {
     it("should register onDisconnect callback", async () => {
       const callback = vi.fn();

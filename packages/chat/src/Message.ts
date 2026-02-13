@@ -63,6 +63,7 @@ export class Message {
   protected pendingReactions: Promise<void> = Promise.resolve();
   protected operations: MessageOperations;
   protected reactionUnsubscribers: (() => void)[] = [];
+  private trackedEmojis: string[] = [];
 
   constructor(data: MessageData, operations: MessageOperations) {
     this.id = data.id;
@@ -93,6 +94,7 @@ export class Message {
       this.operations
     );
     msg.reactionUnsubscribers = this.reactionUnsubscribers;
+    msg.trackedEmojis = this.trackedEmojis;
     return msg;
   }
 
@@ -164,6 +166,34 @@ export class Message {
       unsub();
     }
     this.reactionUnsubscribers = [];
+  }
+
+  /**
+   * Declaratively set the reactions on this message.
+   * Computes the diff from the previous `setReactions` call, removing stale
+   * emojis and adding new ones. Replaces any existing reaction handler.
+   * @param emojis - The complete set of emojis that should be on this message
+   * @param handler - Optional callback for when users react to this message
+   * @returns this for chaining
+   */
+  setReactions(emojis: string[], handler?: ReactionCallback): this {
+    const toRemove = this.trackedEmojis.filter((e) => !emojis.includes(e));
+    const toAdd = emojis.filter((e) => !this.trackedEmojis.includes(e));
+    this.trackedEmojis = [...emojis];
+
+    if (toRemove.length > 0) {
+      this.removeReactions(toRemove);
+    }
+    if (toAdd.length > 0) {
+      this.addReactions(toAdd);
+    }
+
+    this.offReaction();
+    if (handler) {
+      this.onReaction(handler);
+    }
+
+    return this;
   }
 
   /**
@@ -239,6 +269,7 @@ export class Message {
 export class ReplyMessage extends Message implements PromiseLike<Message> {
   private replyPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
+  private resolved = false;
 
   constructor(
     replyPromise: Promise<MessageData>,
@@ -264,6 +295,7 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
           );
           this.reactionUnsubscribers.push(unsubscribe);
         }
+        this.resolved = true;
       })
       .catch(() => {
         // Errors surfaced when awaited via then()
@@ -321,8 +353,20 @@ export class ReplyMessage extends Message implements PromiseLike<Message> {
    * Override onReaction to defer subscription until reply completes
    */
   override onReaction(callback: ReactionCallback): this {
-    this.deferredReactionCallbacks.push(callback);
+    if (this.resolved) {
+      super.onReaction(callback);
+    } else {
+      this.deferredReactionCallbacks.push(callback);
+    }
     return this;
+  }
+
+  /**
+   * Override offReaction to also clear deferred callbacks
+   */
+  override offReaction(): void {
+    this.deferredReactionCallbacks = [];
+    super.offReaction();
   }
 
   /**

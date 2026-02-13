@@ -249,6 +249,29 @@ export class Channel {
   }
 
   /**
+   * Post a message with a trash can reaction that the owner can click to dismiss.
+   * @param content - Message content (string or Document)
+   * @param ownerId - User ID of the person allowed to dismiss the message
+   * @returns Message object that callers can interact with before dismissal
+   */
+  async postDismissable(
+    content: MessageContent,
+    ownerId: string
+  ): Promise<Message> {
+    const emoji = this.platform === "slack" ? ":wastebasket:" : "🗑️";
+    const emojiMatch = this.platform === "slack" ? "wastebasket" : "🗑️";
+    const msg = await this.postMessage(content);
+    msg.addReactions([emoji]).onReaction(async (event) => {
+      if (event.user.id !== ownerId || event.emoji !== emojiMatch) {
+        return;
+      }
+      msg.offReaction();
+      await msg.delete();
+    });
+    return msg;
+  }
+
+  /**
    * Bulk delete messages in this channel
    * @param count - Number of recent messages to delete
    * @returns Number of messages actually deleted
@@ -302,6 +325,7 @@ export class Channel {
 class PendingMessage extends Message implements PromiseLike<Message> {
   private postPromise: Promise<MessageData>;
   private deferredReactionCallbacks: ReactionCallback[] = [];
+  private resolved = false;
 
   constructor(
     postPromise: Promise<MessageData>,
@@ -328,6 +352,7 @@ class PendingMessage extends Message implements PromiseLike<Message> {
           );
           this.reactionUnsubscribers.push(unsubscribe);
         }
+        this.resolved = true;
       })
       .catch(() => {
         // Errors surfaced when awaited via then()
@@ -385,8 +410,20 @@ class PendingMessage extends Message implements PromiseLike<Message> {
    * Override onReaction to defer subscription until post completes
    */
   override onReaction(callback: ReactionCallback): this {
-    this.deferredReactionCallbacks.push(callback);
+    if (this.resolved) {
+      super.onReaction(callback);
+    } else {
+      this.deferredReactionCallbacks.push(callback);
+    }
     return this;
+  }
+
+  /**
+   * Override offReaction to also clear deferred callbacks
+   */
+  override offReaction(): void {
+    this.deferredReactionCallbacks = [];
+    super.offReaction();
   }
 
   /**
