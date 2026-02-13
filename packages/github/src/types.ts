@@ -162,6 +162,20 @@ export interface CheckRunEvent extends PREvent {
   readonly checkRun: CheckRun;
 }
 
+export interface PRUpdatedEvent extends PREvent {
+  readonly changes: {
+    readonly draft?: { readonly from: boolean; readonly to: boolean };
+    readonly labels?: {
+      readonly from: readonly Label[];
+      readonly to: readonly Label[];
+    };
+    readonly mergeable_state?: {
+      readonly from: MergeableState;
+      readonly to: MergeableState;
+    };
+  };
+}
+
 export interface PollCompleteEvent {
   readonly prs: readonly PREvent[];
 }

@@ -69,6 +69,12 @@ watcher.onCheckRun((event) => {
   console.log(`${event.checkRun.name}: ${event.checkRun.status} (${event.checkRun.conclusion})`);
 });
 
+watcher.onPRUpdated((event) => {
+  if (event.changes.draft) {
+    console.log(`PR #${event.pr.number} ${event.changes.draft.to ? "converted to draft" : "marked ready"}`);
+  }
+});
+
 watcher.onMerged((event) => {
   console.log(`PR #${event.pr.number} was merged`);
 });
@@ -89,7 +95,7 @@ await watcher.start(); // initial poll + begins interval
 watcher.stop();        // stop polling
 ```
 
-The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent polls fire granular events for new comments, reviews, check run changes, and state transitions.
+The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent polls fire granular events for new comments, reviews, check run changes, metadata updates (draft, labels, mergeable state), and state transitions.
 
 ## API
 
@@ -136,12 +142,16 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 | `onComment(callback)` | New comment posted on a tracked PR |
 | `onReview(callback)` | New review submitted on a tracked PR |
 | `onCheckRun(callback)` | Check run created or status changed on a tracked PR |
+| `onPRUpdated(callback)` | PR metadata changed (draft, labels, mergeable state) |
 | `onMerged(callback)` | Tracked PR was merged |
 | `onClosed(callback)` | Tracked PR was closed without merge |
 | `onPollComplete(callback)` | Poll cycle finished — receives snapshot of all tracked PRs |
 | `onError(callback)` | Polling or callback error |
 | `start()` | Begin polling (initial poll + interval) |
 | `stop()` | Stop polling |
+| `getWatchedPRs()` | Returns current snapshot of all tracked PRs |
+| `addRepo(repo)` | Start watching a new repo (`"owner/repo"` format) |
+| `removeRepo(repo)` | Stop watching a repo |
 
 ### `WatchOptions`
 
@@ -153,4 +163,4 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 
 ### Types
 
-`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PollCompleteEvent`
+`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PRUpdatedEvent`, `PollCompleteEvent`
