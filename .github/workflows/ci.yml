@@ -39,9 +39,6 @@ jobs:
       - name: Auto-fix lint and format
         run: npm run fix
 
-      - name: Log local .claude skills
-        run: node packages/ci-scripts/dist/log-local-skills.js
-
       - name: Commit and push fixes
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
