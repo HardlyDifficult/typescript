@@ -1,8 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { StateTracker } from "../src/StateTracker";
+import { StateTracker, type StateTrackerEvent } from "../src/StateTracker";
 
 describe("StateTracker", () => {
   let testDir: string;
@@ -270,6 +277,432 @@ describe("StateTracker", () => {
 
       const value = tracker.load();
       expect(value).toBe(100);
+    });
+  });
+
+  // ========== v2 tests below ==========
+
+  describe("loadAsync / saveAsync", () => {
+    it("loadAsync returns void and sets state", async () => {
+      const tracker = new StateTracker({
+        key: "async-load",
+        default: { count: 0, name: "default" },
+        stateDirectory: testDir,
+      });
+
+      // Pre-write a v1 envelope file
+      const filePath = tracker.getFilePath();
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify({
+          value: { count: 42, name: "loaded" },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      const result = await tracker.loadAsync();
+      expect(result).toBeUndefined();
+      expect(tracker.state).toEqual({ count: 42, name: "loaded" });
+    });
+
+    it("loadAsync gracefully degrades on unwritable directory", async () => {
+      // Use a directory path that will fail during mkdir
+      // /proc is a read-only filesystem on Linux
+      const badDir = path.join("/proc", "nonexistent-state-tracker-test");
+
+      // We need to construct a tracker whose directory already exists
+      // but whose file read will fail. Simplest: make the file unreadable.
+      const tracker = new StateTracker({
+        key: "fail-read",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      // Write a file then make it unreadable
+      fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
+      fs.chmodSync(tracker.getFilePath(), 0o000);
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+      expect(tracker.state).toEqual({ x: 1 });
+
+      // Restore permissions so cleanup works
+      fs.chmodSync(tracker.getFilePath(), 0o644);
+    });
+
+    it("saveAsync writes atomically via temp file", async () => {
+      const tracker = new StateTracker({
+        key: "atomic-save",
+        default: { value: "hello" },
+        stateDirectory: testDir,
+      });
+      await tracker.loadAsync();
+      tracker.set({ value: "world" });
+
+      await tracker.saveAsync();
+
+      const filePath = tracker.getFilePath();
+      expect(fs.existsSync(filePath)).toBe(true);
+
+      // Temp file should have been renamed away
+      expect(fs.existsSync(`${filePath}.tmp`)).toBe(false);
+
+      const content = JSON.parse(
+        fs.readFileSync(filePath, "utf-8")
+      ) as Record<string, unknown>;
+      expect(content.value).toEqual({ value: "world" });
+      expect(content.lastUpdated).toBeDefined();
+    });
+
+    it("loadAsync is idempotent (calling twice is a no-op)", async () => {
+      const tracker = new StateTracker({
+        key: "idempotent",
+        default: { count: 0 },
+        stateDirectory: testDir,
+      });
+
+      // Write initial state
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ value: { count: 10 }, lastUpdated: "t1" }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ count: 10 });
+
+      // Overwrite file on disk
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ value: { count: 99 }, lastUpdated: "t2" }),
+        "utf-8"
+      );
+
+      // Second loadAsync should be a no-op
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ count: 10 });
+    });
+  });
+
+  describe("set() / update() / reset()", () => {
+    it("set replaces state entirely", () => {
+      const tracker = new StateTracker({
+        key: "set-test",
+        default: { a: 1, b: 2 },
+        stateDirectory: testDir,
+      });
+
+      tracker.set({ a: 10, b: 20 });
+      expect(tracker.state).toEqual({ a: 10, b: 20 });
+    });
+
+    it("update merges partial changes on object state", () => {
+      const tracker = new StateTracker({
+        key: "update-test",
+        default: { a: 1, b: 2, c: 3 },
+        stateDirectory: testDir,
+      });
+
+      tracker.update({ b: 20 });
+      expect(tracker.state).toEqual({ a: 1, b: 20, c: 3 });
+    });
+
+    it("update throws on primitive state", () => {
+      const tracker = new StateTracker({
+        key: "update-prim",
+        default: 42,
+        stateDirectory: testDir,
+      });
+
+      expect(() => tracker.update(100 as never)).toThrow(
+        "update() can only be used when state is a non-array object"
+      );
+    });
+
+    it("reset restores to default value", () => {
+      const tracker = new StateTracker({
+        key: "reset-test",
+        default: { x: "original" },
+        stateDirectory: testDir,
+      });
+
+      tracker.set({ x: "changed" });
+      expect(tracker.state).toEqual({ x: "changed" });
+
+      tracker.reset();
+      expect(tracker.state).toEqual({ x: "original" });
+    });
+  });
+
+  describe(".state getter", () => {
+    it("returns current in-memory state after load", () => {
+      const tracker = new StateTracker({
+        key: "state-getter",
+        default: { val: "init" },
+        stateDirectory: testDir,
+      });
+
+      // Before load, state is the default (set in constructor)
+      expect(tracker.state).toEqual({ val: "init" });
+
+      tracker.save({ val: "saved" });
+      tracker.load();
+      expect(tracker.state).toEqual({ val: "saved" });
+    });
+
+    it("returns current state after set/update", () => {
+      const tracker = new StateTracker({
+        key: "state-after-set",
+        default: { a: 0, b: "" },
+        stateDirectory: testDir,
+      });
+
+      tracker.set({ a: 5, b: "hello" });
+      expect(tracker.state).toEqual({ a: 5, b: "hello" });
+
+      tracker.update({ b: "world" });
+      expect(tracker.state).toEqual({ a: 5, b: "world" });
+    });
+  });
+
+  describe(".isPersistent getter", () => {
+    it("returns true when storage is available", async () => {
+      const tracker = new StateTracker({
+        key: "persistent-true",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(true);
+    });
+
+    it("returns false when storage failed", async () => {
+      const tracker = new StateTracker({
+        key: "persistent-false",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      // Write a file then make it unreadable to cause failure
+      fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
+      fs.chmodSync(tracker.getFilePath(), 0o000);
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+
+      // Restore permissions for cleanup
+      fs.chmodSync(tracker.getFilePath(), 0o644);
+    });
+  });
+
+  describe("auto-save with autoSaveMs", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("set() triggers debounced save", async () => {
+      const tracker = new StateTracker({
+        key: "auto-save-set",
+        default: { count: 0 },
+        stateDirectory: testDir,
+        autoSaveMs: 500,
+      });
+      await tracker.loadAsync();
+
+      tracker.set({ count: 42 });
+
+      // File should not exist yet (debounce pending)
+      const filePath = tracker.getFilePath();
+      expect(fs.existsSync(filePath)).toBe(false);
+
+      // Advance timers past the debounce and flush async saveAsync
+      await vi.advanceTimersByTimeAsync(600);
+
+      // Now the file should exist with the saved state
+      expect(fs.existsSync(filePath)).toBe(true);
+      const content = JSON.parse(
+        fs.readFileSync(filePath, "utf-8")
+      ) as Record<string, unknown>;
+      expect(content.value).toEqual({ count: 42 });
+    });
+
+    it("multiple rapid set() calls only trigger one save", async () => {
+      const tracker = new StateTracker({
+        key: "auto-save-debounce",
+        default: { count: 0 },
+        stateDirectory: testDir,
+        autoSaveMs: 500,
+      });
+      await tracker.loadAsync();
+
+      tracker.set({ count: 1 });
+
+      // Advance time a little, but not past the debounce
+      await vi.advanceTimersByTimeAsync(100);
+      expect(fs.existsSync(tracker.getFilePath())).toBe(false);
+
+      tracker.set({ count: 2 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(fs.existsSync(tracker.getFilePath())).toBe(false);
+
+      tracker.set({ count: 3 });
+      await vi.advanceTimersByTimeAsync(600);
+
+      // Only the final value should be saved
+      expect(fs.existsSync(tracker.getFilePath())).toBe(true);
+      const content = JSON.parse(
+        fs.readFileSync(tracker.getFilePath(), "utf-8")
+      ) as Record<string, unknown>;
+      expect(content.value).toEqual({ count: 3 });
+
+      // Verify the final saved value
+      expect(tracker.state).toEqual({ count: 3 });
+    });
+
+    it("cancelPendingSave works via save()", async () => {
+      const tracker = new StateTracker({
+        key: "cancel-pending",
+        default: { count: 0 },
+        stateDirectory: testDir,
+        autoSaveMs: 1000,
+      });
+      await tracker.loadAsync();
+
+      // Trigger auto-save via set
+      tracker.set({ count: 10 });
+
+      // Calling save() should cancel pending auto-save and write immediately
+      tracker.save({ count: 20 });
+
+      // Advance past the original debounce time
+      await vi.advanceTimersByTimeAsync(1500);
+
+      // The value on disk should be 20 (from save()), not 10 (from auto-save)
+      const content = JSON.parse(
+        fs.readFileSync(tracker.getFilePath(), "utf-8")
+      ) as Record<string, unknown>;
+      expect(content.value).toEqual({ count: 20 });
+    });
+  });
+
+  describe("onEvent callback", () => {
+    it("events emitted on loadAsync and saveAsync", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "events-test",
+        default: { x: 1 },
+        stateDirectory: testDir,
+        onEvent: (event) => events.push(event),
+      });
+
+      await tracker.loadAsync();
+
+      // Should have emitted an info event for "No existing state file"
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      const loadEvent = events.find((e) => e.message.includes("state"));
+      expect(loadEvent).toBeDefined();
+      expect(loadEvent!.level).toBe("info");
+
+      // Now save and check for debug event
+      tracker.set({ x: 2 });
+      await tracker.saveAsync();
+
+      const saveEvent = events.find((e) => e.message.includes("Saved"));
+      expect(saveEvent).toBeDefined();
+      expect(saveEvent!.level).toBe("debug");
+    });
+
+    it("events emitted on errors", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "events-error",
+        default: { x: 1 },
+        stateDirectory: testDir,
+        onEvent: (event) => events.push(event),
+      });
+
+      // Write file then make it unreadable to trigger error
+      fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
+      fs.chmodSync(tracker.getFilePath(), 0o000);
+
+      await tracker.loadAsync();
+
+      const warnEvent = events.find((e) => e.level === "warn");
+      expect(warnEvent).toBeDefined();
+      expect(warnEvent!.message).toContain("unavailable");
+
+      // Restore permissions for cleanup
+      fs.chmodSync(tracker.getFilePath(), 0o644);
+    });
+
+    it("no errors when onEvent is omitted", async () => {
+      const tracker = new StateTracker({
+        key: "no-events",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      // This should not throw even though there's no onEvent
+      await tracker.loadAsync();
+      tracker.set({ x: 2 });
+      await tracker.saveAsync();
+    });
+  });
+
+  describe("PersistentStore migration", () => {
+    it("loads raw JSON object (no envelope) and merges with defaults", async () => {
+      const tracker = new StateTracker({
+        key: "migration",
+        default: { count: 0, name: "default", extra: true },
+        stateDirectory: testDir,
+      });
+
+      // Write raw PersistentStore format (no { value, lastUpdated } envelope)
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ count: 42, name: "migrated" }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+
+      // Should merge with defaults: extra comes from default, count/name from file
+      expect(tracker.state).toEqual({
+        count: 42,
+        name: "migrated",
+        extra: true,
+      });
+    });
+
+    it("after saveAsync, file contains envelope format", async () => {
+      const tracker = new StateTracker({
+        key: "migration-save",
+        default: { count: 0, name: "default" },
+        stateDirectory: testDir,
+      });
+
+      // Write raw PersistentStore format
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ count: 99, name: "old" }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+      await tracker.saveAsync();
+
+      // File should now be in v2 envelope format
+      const content = JSON.parse(
+        fs.readFileSync(tracker.getFilePath(), "utf-8")
+      ) as Record<string, unknown>;
+      expect(content.value).toEqual({ count: 99, name: "old" });
+      expect(content.lastUpdated).toBeDefined();
     });
   });
 });

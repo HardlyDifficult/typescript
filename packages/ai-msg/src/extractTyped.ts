@@ -1,10 +1,16 @@
-import { type ZodType } from "zod";
-
 import { extractJson } from "./extractJson.js";
+
+/**
+ * Any schema with a safeParse method (e.g. Zod 3, Zod 4, or custom).
+ * Using a structural type avoids coupling to a specific Zod version.
+ */
+export interface SchemaLike<T> {
+  safeParse(data: unknown): { success: true; data: T } | { success: false; error?: unknown };
+}
 
 export function extractTyped<T>(
   text: string,
-  schema: ZodType<T>,
+  schema: SchemaLike<T>,
   sentinel?: string
 ): T[] {
   const results = extractJson(text, sentinel);
