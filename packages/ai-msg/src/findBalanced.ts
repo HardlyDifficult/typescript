@@ -48,3 +48,24 @@ export function findBalanced(
 
   return null;
 }
+
+export function findAllBalanced(
+  text: string,
+  openChar: string,
+  closeChar: string
+): string[] {
+  const results: string[] = [];
+  let offset = 0;
+
+  while (offset < text.length) {
+    const remaining = text.slice(offset);
+    const match = findBalanced(remaining, openChar, closeChar);
+    if (match === null) break;
+
+    results.push(match);
+    const matchStart = remaining.indexOf(openChar);
+    offset += matchStart + match.length;
+  }
+
+  return results;
+}
