@@ -8,10 +8,39 @@ description: Tests web UI using browser automation, captures and annotates scree
 ## Workflow Overview
 
 1. Start dev server (if needed)
-2. Navigate and test with browser tools
-3. Capture screenshots of issues
-4. Annotate screenshots to highlight problems
-5. Document findings
+2. Test API endpoints first (catch backend issues before browser testing)
+3. Navigate and test with browser tools
+4. Capture screenshots of issues
+5. Annotate screenshots to highlight problems
+6. Document findings
+
+## API-First Testing
+
+Before browser testing, verify API endpoints with `curl`. This catches backend errors (DB schema mismatches, timeouts, wrong table names) faster than clicking through the UI.
+
+**Pattern:**
+
+```bash
+# 1. Check what API routes exist
+find src/app/api -name "route.ts" | sort
+
+# 2. Test each endpoint with curl
+curl -s "http://localhost:3000/api/endpoint" | jq .
+
+# 3. Check for common issues
+# - HTTP 500 with SQL errors (wrong table/column names)
+# - Timeouts (>30s responses indicate missing pagination/caching)
+# - Empty responses with no error (missing data vs broken query)
+```
+
+**Common backend issues:**
+
+| Issue | Symptom | Root Cause |
+| ----- | ------- | ---------- |
+| Wrong table name | `relation "X" does not exist` | Query uses old/incorrect table name |
+| Missing column | `column X does not exist` | Query assumes column exists on wrong table |
+| Timeout | No response after 30s+ | Missing pagination, large data set, slow upstream API |
+| Empty response | `{"data":[]}` with 200 status | No data, or broken query silently returns nothing |
 
 ## Browser Testing
 
@@ -33,6 +62,13 @@ browser_navigate → browser_snapshot → browser_click/type → browser_screens
 3. Verify expected elements exist
 4. Interact with elements
 5. Screenshot any issues found
+
+### Per-Page Checklist
+
+- [ ] Page loads without errors (check browser console)
+- [ ] Data displays correctly (not empty, not mock/static data)
+- [ ] No spinners stuck indefinitely
+- [ ] Empty states have explanatory messages
 
 ## Screenshot Annotation
 
@@ -81,6 +117,29 @@ Explanation of the impact/UX issue.
 Brief justification for priority level.
 ```
 
+## Bug Reporting Strategy
+
+When testing uncovers multiple issues across many pages, use the **Investigation Pattern**:
+
+1. **Test all pages first** — gather the full picture before creating issues
+2. **Create a parent issue** — summarize scope (e.g., "UI testing — broken pages")
+3. **Create one subtask per affected page** — even if a page has multiple problems
+4. **Each subtask includes:**
+   - Root cause analysis (SQL error, timeout, missing data, static mock data)
+   - Affected API routes and source files
+   - Proposed fix with specific code changes
+5. **Priority guide:** Default to Normal. Use Low for cosmetic/empty-state issues.
+
+## Quick Reference
+
+| Task | Tool/Method |
+|------|-------------|
+| Navigate to page | `browser_navigate` |
+| Get element refs | `browser_snapshot` |
+| Click element | `browser_click` with ref |
+| Take screenshot | `browser_screenshot` |
+| Annotate image | Python/Pillow |
+
 ## Notes
 
 - Always take snapshot before interactions
@@ -88,3 +147,4 @@ Brief justification for priority level.
 - Use thick lines (width=4-6) and bright colors (red) for visibility
 - Connect related issues with lines to guide the eye
 - Keep bug descriptions concise with inline screenshots
+- Test against production-scale data when possible — issues hidden on small datasets often surface with larger ones

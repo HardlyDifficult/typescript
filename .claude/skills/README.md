@@ -6,7 +6,7 @@ Claude Code skills for common development workflows.
 
 ### Development Workflows
 
-- **`git-workflows`** - Git and GitHub operations (pull, commit, PR, reset)
+- **`git-workflows`** - Git and GitHub operations (pull, commit, PR, review loop, reset)
 - **`creating-task-files`** - Structured task documentation for AI-assisted work
 - **`coordinating-subagents`** - Parallel agent coordination and context management
 - **`capturing-learnings`** - Document session learnings and patterns
@@ -14,7 +14,7 @@ Claude Code skills for common development workflows.
 ### Code Quality
 
 - **`typescript-strict`** - Strict TypeScript typing and best practices
-- **`processing-bot-reviews`** - Systematic processing of AI bot review findings
+- **`processing-bot-reviews`** - Systematic triage of AI bot review findings
 
 ### Testing & Debugging
 
