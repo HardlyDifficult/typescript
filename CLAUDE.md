@@ -8,6 +8,11 @@ Monorepo of opinionated TypeScript libraries under the `@hardlydifficult` scope.
 
 - `packages/chat` — Unified Discord/Slack messaging API
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
+- `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError
+- `packages/text` — Error formatting, template replacement, text chunking
+- `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
+- `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
+- `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 
 ## Design Philosophy
 

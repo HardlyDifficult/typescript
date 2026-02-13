@@ -12,14 +12,6 @@
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "peerDependencies": {
-    "zod": ">=3.0.0"
-  },
-  "peerDependenciesMeta": {
-    "zod": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "typescript": "5.8.3",
     "vitest": "1.6.1",
