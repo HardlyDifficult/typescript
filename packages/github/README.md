@@ -77,6 +77,10 @@ watcher.onClosed((event) => {
   console.log(`PR #${event.pr.number} was closed`);
 });
 
+watcher.onPollComplete((event) => {
+  console.log(`Poll complete — tracking ${event.prs.length} PRs`);
+});
+
 watcher.onError((error) => {
   console.error("Watcher error:", error);
 });
@@ -134,6 +138,7 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 | `onCheckRun(callback)` | Check run created or status changed on a tracked PR |
 | `onMerged(callback)` | Tracked PR was merged |
 | `onClosed(callback)` | Tracked PR was closed without merge |
+| `onPollComplete(callback)` | Poll cycle finished — receives snapshot of all tracked PRs |
 | `onError(callback)` | Polling or callback error |
 | `start()` | Begin polling (initial poll + interval) |
 | `stop()` | Stop polling |
@@ -148,4 +153,4 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 
 ### Types
 
-`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`
+`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PollCompleteEvent`

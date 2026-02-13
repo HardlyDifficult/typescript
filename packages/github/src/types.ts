@@ -161,3 +161,7 @@ export interface ReviewEvent extends PREvent {
 export interface CheckRunEvent extends PREvent {
   readonly checkRun: CheckRun;
 }
+
+export interface PollCompleteEvent {
+  readonly prs: readonly PREvent[];
+}
