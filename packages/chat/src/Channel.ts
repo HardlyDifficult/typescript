@@ -67,6 +67,9 @@ export interface ChannelOperations {
 /**
  * Represents a connected channel with messaging capabilities
  */
+/** Default interval (ms) for refreshing the typing indicator. Discord expires after ~10s. */
+const TYPING_REFRESH_MS = 8000;
+
 export class Channel {
   public readonly id: string;
   public readonly platform: Platform;
@@ -74,6 +77,8 @@ export class Channel {
   private operations: ChannelOperations;
   private messageReactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private unsubscribeFromPlatform: (() => void) | null = null;
+  private typingRefCount = 0;
+  private typingInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(id: string, platform: Platform, operations: ChannelOperations) {
     this.id = id;
@@ -221,30 +226,62 @@ export class Channel {
   }
 
   /**
-   * Send a typing indicator in this channel
+   * Send a one-shot typing indicator in this channel.
+   * Prefer beginTyping/endTyping for long-running work.
    */
   async sendTyping(): Promise<void> {
     await this.operations.sendTyping(this.id);
   }
 
   /**
+   * Mark the start of work that should show a typing indicator.
+   * The indicator is sent immediately and auto-refreshed until a matching
+   * endTyping() call brings the count back to zero. Multiple callers
+   * can overlap — the indicator stays active until the last one ends.
+   */
+  beginTyping(): void {
+    this.typingRefCount++;
+    if (this.typingRefCount === 1) {
+      this.operations.sendTyping(this.id).catch(() => {
+        // Ignore typing indicator failures
+      });
+      this.typingInterval = setInterval(() => {
+        if (this.typingRefCount > 0) {
+          this.operations.sendTyping(this.id).catch(() => {
+            // Ignore typing indicator failures
+          });
+        }
+      }, TYPING_REFRESH_MS);
+    }
+  }
+
+  /**
+   * Mark the end of one unit of work. When all outstanding beginTyping()
+   * calls have been balanced by endTyping(), the refresh interval stops.
+   */
+  endTyping(): void {
+    if (this.typingRefCount > 0) {
+      this.typingRefCount--;
+    }
+    if (this.typingRefCount === 0 && this.typingInterval) {
+      clearInterval(this.typingInterval);
+      this.typingInterval = null;
+    }
+  }
+
+  /**
    * Show a typing indicator while executing a function.
-   * The indicator is sent immediately and refreshed every 8 seconds
-   * until the function completes. Cleanup is guaranteed even if fn throws.
+   * Uses the ref-counted beginTyping/endTyping internally, so multiple
+   * concurrent withTyping calls share a single refresh interval.
    * @param fn - Async function to execute while typing indicator is shown
    * @returns The return value of fn
    */
   async withTyping<T>(fn: () => Promise<T>): Promise<T> {
-    await this.operations.sendTyping(this.id);
-    const interval = setInterval(() => {
-      this.operations.sendTyping(this.id).catch(() => {
-        // Ignore errors from typing refresh
-      });
-    }, 8000);
+    this.beginTyping();
     try {
       return await fn();
     } finally {
-      clearInterval(interval);
+      this.endTyping();
     }
   }
 
@@ -311,6 +348,11 @@ export class Channel {
       this.unsubscribeFromPlatform = null;
     }
     this.messageReactionCallbacks.clear();
+    if (this.typingInterval) {
+      clearInterval(this.typingInterval);
+      this.typingInterval = null;
+    }
+    this.typingRefCount = 0;
   }
 }
 
