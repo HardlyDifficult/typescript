@@ -1,0 +1,31 @@
+{
+  "name": "@hardlydifficult/ai-msg",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "zod": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "vitest": "1.6.1",
+    "zod": "3.24.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
