@@ -12,6 +12,13 @@ description: Strict typing and readability guidelines for TypeScript code. Use w
 3. **Optimize for maintainability** — Prefer clear code over clever types
 4. **Fail fast** — Validate inputs immediately, don't use placeholders
 
+## Preferred Patterns
+
+- **Type guards** over type assertions: `function isMyType(v: unknown): v is MyType`
+- **Typed generics** over untyped arrays: `function transform<T>(items: HasValue<T>[]): T[]`
+- **`instanceof` checks** in catch blocks: `if (error instanceof Error)`
+- **Explicit return types** on public functions
+
 ## Type Safety
 
 ### Bad: Using `any` or `unknown`
@@ -131,6 +138,12 @@ try {
   }
 }
 ```
+
+## When Blocked
+
+If the root cause of a type issue can't be fixed:
+1. Stop and document why
+2. Ask for guidance rather than using `as any`
 
 ## Verification
 

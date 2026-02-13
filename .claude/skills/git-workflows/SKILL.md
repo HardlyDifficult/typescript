@@ -1,6 +1,6 @@
 ---
 name: git-workflows
-description: Git and GitHub workflows for pull, sync, commit, push, and PR operations. Use for git operations, branch management, or when pull requests are mentioned.
+description: Git and GitHub workflows for pull, sync, commit, push, PR, review loop, and reset. Use for git operations, branch management, PR creation, "run the review loop", "wait for bot feedback", "iterate on PR", or when pull requests are mentioned.
 ---
 
 # Git & GitHub Workflows
@@ -12,6 +12,7 @@ description: Git and GitHub workflows for pull, sync, commit, push, and PR opera
 | Sync with remote | "pull", "sync", "update from main" |
 | Commit changes | "commit", "save changes" |
 | Create pull request | "PR", "create a PR", "submit for review" |
+| Run review loop | "run the review loop", "wait for bot feedback", "iterate on PR", "check PR status" |
 | Reset to main | "reset to main", "start fresh" |
 
 ## Workflow Composition
@@ -19,11 +20,12 @@ description: Git and GitHub workflows for pull, sync, commit, push, and PR opera
 Workflows build on each other:
 
 ```
-PR → Commit → Pull
+PR Review Loop → PR → Commit → Pull
 ```
 
 - Creating PR first commits changes
 - Committing first pulls latest from main
+- After PR creation, enter the PR Review Loop
 
 ---
 
@@ -105,17 +107,137 @@ Always prefix `gh` commands with the PAT env var:
 GH_TOKEN="$GH_PAT" gh <command>
 ```
 
-### Monitor PR After Every Push
+### After PR Creation
 
-After every push to a PR branch, **always** monitor CI and review comments:
+Enter the **PR Review Loop** below to monitor CI, process bot feedback, and iterate until ready for human review.
 
-1. **Check CI status** using `GH_TOKEN="$GH_PAT" gh pr checks <number> --repo <owner>/<repo>`
-2. If CI fails: investigate, fix, push, and repeat
-3. **Fetch review comments** using `GH_TOKEN="$GH_PAT" gh api repos/<owner>/<repo>/pulls/<number>/comments`
-4. Address actionable feedback (fix code, add tests, etc.)
-5. Push fixes and repeat until CI is green and no unresolved comments remain
+---
 
-This monitoring step is **not optional** — always do it after pushing.
+## PR Review Loop
+
+Automates the post-push review cycle: push → wait for bots → analyze feedback → fix → repeat.
+
+### Prerequisites
+
+- Active PR branch checked out
+- `gh` CLI authenticated
+
+### Step 1: Push and get PR info
+
+```bash
+git push
+GH_TOKEN="$GH_PAT" gh pr view --json number,url -q '{number: .number, url: .url}'
+```
+
+If no PR exists for the current branch, create one using the PR Workflow above.
+
+### Step 2: Wait for bot reviews
+
+Poll until all checks complete:
+
+```bash
+GH_TOKEN="$GH_PAT" gh pr view <PR_NUMBER> --json statusCheckRollup -q '.statusCheckRollup[]? | select(.name != null) | "\(.status) | \(.conclusion // "pending") | \(.name)"' | sort
+```
+
+| Status | Conclusion | Action |
+|--------|------------|--------|
+| `IN_PROGRESS` | — | Wait, re-check in 30-60s |
+| `COMPLETED` | `SUCCESS` | Passed |
+| `COMPLETED` | `FAILURE` | Fetch feedback (Step 3) |
+| `COMPLETED` | `SKIPPED` | Ignore |
+
+Quick summary:
+
+```bash
+PR_NUMBER=$(GH_TOKEN="$GH_PAT" gh pr view --json number -q '.number')
+IN_PROGRESS=$(GH_TOKEN="$GH_PAT" gh pr view "$PR_NUMBER" --json statusCheckRollup -q '[.statusCheckRollup[]? | select(.status == "IN_PROGRESS")] | length')
+FAILED=$(GH_TOKEN="$GH_PAT" gh pr view "$PR_NUMBER" --json statusCheckRollup -q '[.statusCheckRollup[]? | select(.conclusion == "FAILURE")] | length')
+SUCCESS=$(GH_TOKEN="$GH_PAT" gh pr view "$PR_NUMBER" --json statusCheckRollup -q '[.statusCheckRollup[]? | select(.conclusion == "SUCCESS")] | length')
+echo "Passed: $SUCCESS | Failed: $FAILED | In Progress: $IN_PROGRESS"
+```
+
+### Step 3: Fetch bot feedback
+
+```bash
+REPO=$(GH_TOKEN="$GH_PAT" gh repo view --json nameWithOwner -q '.nameWithOwner')
+
+# Issue comments (bot summary feedback)
+GH_TOKEN="$GH_PAT" gh api "repos/$REPO/issues/<PR_NUMBER>/comments" \
+  -q '.[-3:] | .[] | select(.user.login | test("bot|codex|claude|github-actions"; "i")) | {user: .user.login, created: .created_at, body: .body[0:2500]}'
+
+# Review comments (inline code feedback)
+GH_TOKEN="$GH_PAT" gh api "repos/$REPO/pulls/<PR_NUMBER>/comments" \
+  -q '.[-5:] | .[] | {user: .user.login, path: .path, line: .line, body: .body[0:1000]}'
+```
+
+### Step 4: Analyze and prioritize
+
+| Priority | Type | Action |
+|----------|------|--------|
+| **High** | Bugs, security, broken tests, build failures | Must fix |
+| **Medium** | Code quality, missing error handling | Should fix |
+| **Low** | Style nits, minor suggestions | Fix if quick |
+
+Skip: approval messages, status updates without concrete feedback, duplicate bot comments.
+
+### Step 5: Fix and verify
+
+1. Fix **High** first, then **Medium**
+2. Run lint and tests locally
+3. Verify fixes resolve the flagged issues
+
+### Step 6: Push and repeat
+
+```bash
+git add -A && git commit -m "Address review feedback" && git push
+```
+
+Return to **Step 2**.
+
+### Exit conditions
+
+Stop when **all** true:
+1. All checks `COMPLETED` + `SUCCESS`
+2. No new High/Medium issues in latest feedback
+3. Bot feedback says "No blocking issues" or equivalent
+
+**Safety valve:** After **5 iterations** on the same issue, summarize blockers for human input.
+
+### Breaking review cycles
+
+If bots keep flagging the same issue:
+1. Read the **full** error output — fix may be incomplete
+2. Check the pushed diff (not just local state) to confirm fix is included
+3. After 2-3 cycles on same issue, escalate to human review
+
+### Output template
+
+```markdown
+## PR Review Summary
+
+**PR:** #<number> - <title>
+**Iterations:** <count>
+
+### Fixed Issues
+1. [High] <description>
+2. [Medium] <description>
+
+### Remaining Items
+- <item> — <reason>
+
+### Status Checks
+- lint-and-test: ✓/✗
+- claude-review: ✓/✗
+- github-actions: ✓/✗
+
+**Ready for human review:** Yes/No
+```
+
+### Tips
+
+- 429 errors: wait 60s before retrying
+- Open PR in browser: `GH_TOKEN="$GH_PAT" gh pr view <PR_NUMBER> --web`
+- Full CI logs: `GH_TOKEN="$GH_PAT" gh run list --branch <branch>` then `GH_TOKEN="$GH_PAT" gh run view <run-id> --log-failed`
 
 ---
 
