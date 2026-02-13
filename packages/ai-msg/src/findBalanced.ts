@@ -4,7 +4,9 @@ export function findBalanced(
   closeChar: string
 ): string | null {
   const start = text.indexOf(openChar);
-  if (start === -1) return null;
+  if (start === -1) {
+    return null;
+  }
 
   let depth = 0;
   let inString = false;
@@ -19,7 +21,9 @@ export function findBalanced(
     }
 
     if (ch === "\\") {
-      if (inString) escaped = true;
+      if (inString) {
+        escaped = true;
+      }
       continue;
     }
 
@@ -28,7 +32,9 @@ export function findBalanced(
       continue;
     }
 
-    if (inString) continue;
+    if (inString) {
+      continue;
+    }
 
     if (ch === openChar) {
       depth++;

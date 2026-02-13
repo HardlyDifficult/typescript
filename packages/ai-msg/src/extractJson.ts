@@ -12,29 +12,39 @@ function tryParse(text: string): unknown {
 export function extractJson(text: string): unknown {
   // Pass 1: try the whole text
   const direct = tryParse(text.trim());
-  if (direct !== undefined) return direct;
+  if (direct !== undefined) {
+    return direct;
+  }
 
   // Pass 2: code blocks — json-tagged first, then any
   for (const block of extractCodeBlock(text, "json")) {
     const parsed = tryParse(block.trim());
-    if (parsed !== undefined) return parsed;
+    if (parsed !== undefined) {
+      return parsed;
+    }
   }
   for (const block of extractCodeBlock(text)) {
     const parsed = tryParse(block.trim());
-    if (parsed !== undefined) return parsed;
+    if (parsed !== undefined) {
+      return parsed;
+    }
   }
 
   // Pass 3: balanced braces / brackets
   const obj = findBalanced(text, "{", "}");
   if (obj !== null) {
     const parsed = tryParse(obj);
-    if (parsed !== undefined) return parsed;
+    if (parsed !== undefined) {
+      return parsed;
+    }
   }
 
   const arr = findBalanced(text, "[", "]");
   if (arr !== null) {
     const parsed = tryParse(arr);
-    if (parsed !== undefined) return parsed;
+    if (parsed !== undefined) {
+      return parsed;
+    }
   }
 
   return null;
