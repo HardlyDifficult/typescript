@@ -56,11 +56,6 @@ Before committing, always verify these pass (CI runs all of them):
 2. `npm run lint` — ESLint (includes `max-lines: 400` per file)
 3. `npm run format:check` — Prettier formatting
 4. `npm run test` — All tests
-5. `git restore .claude/skills/external/` — Undo build side effects (see below)
-
-## Build Side Effects
-
-Running `npm run build` (or `npm run test`, which builds first) triggers the `shared-config` package's prebuild step, which tries to `git clone` external skill repos from github.com. In environments without external network access, this fails and **deletes** the cached skill files under `.claude/skills/external/`. After building or testing, always run `git restore .claude/skills/external/` (or `git checkout -- .claude/skills/external/`) to undo these changes before committing.
 
 ## Checklist for API Changes
 
