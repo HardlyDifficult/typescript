@@ -1612,14 +1612,102 @@ describe("DiscordChatClient", () => {
     });
   });
 
+  describe("Channel.beginTyping() / endTyping()", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should send typing immediately on beginTyping", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+      channel.beginTyping();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+      channel.endTyping();
+    });
+
+    it("should refresh typing on interval while active", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+      channel.beginTyping();
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(3);
+
+      channel.endTyping();
+    });
+
+    it("should stop refreshing after endTyping", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+      channel.beginTyping();
+      await vi.advanceTimersByTimeAsync(0);
+
+      channel.endTyping();
+      mockTextChannelData.sendTyping.mockClear();
+
+      await vi.advanceTimersByTimeAsync(16000);
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+
+    it("should keep typing active until all callers end", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      channel.beginTyping(); // refcount = 1
+      channel.beginTyping(); // refcount = 2
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      channel.endTyping(); // refcount = 1
+      mockTextChannelData.sendTyping.mockClear();
+
+      // Still active — should keep refreshing
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      channel.endTyping(); // refcount = 0
+      mockTextChannelData.sendTyping.mockClear();
+
+      // Now stopped
+      await vi.advanceTimersByTimeAsync(16000);
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+
+    it("should not go below zero on extra endTyping calls", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+      channel.endTyping(); // no-op, already at 0
+      channel.endTyping(); // still no-op
+
+      channel.beginTyping();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      // Single endTyping should still stop it
+      channel.endTyping();
+    });
+  });
+
   describe("Channel.withTyping()", () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
     it("should send typing indicator and return fn result", async () => {
+      vi.useFakeTimers();
       const channel = await client.connect(channelId);
       const result = await channel.withTyping(async () => "done");
+
+      // Flush the fire-and-forget sendTyping promise
+      await vi.advanceTimersByTimeAsync(0);
 
       expect(result).toBe("done");
       expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
@@ -1636,7 +1724,6 @@ describe("DiscordChatClient", () => {
 
       const typingPromise = channel.withTyping(() => workPromise);
 
-      // Flush microtasks so the initial sendTyping resolves through the async chain
       await vi.advanceTimersByTimeAsync(0);
       expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
 
@@ -1698,6 +1785,41 @@ describe("DiscordChatClient", () => {
       mockTextChannelData.sendTyping.mockClear();
       await vi.advanceTimersByTimeAsync(16000);
 
+      expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
+    });
+
+    it("should share a single interval across overlapping withTyping calls", async () => {
+      vi.useFakeTimers();
+      const channel = await client.connect(channelId);
+
+      let resolve1!: () => void;
+      let resolve2!: () => void;
+      const work1 = new Promise<void>((r) => { resolve1 = r; });
+      const work2 = new Promise<void>((r) => { resolve2 = r; });
+
+      const p1 = channel.withTyping(() => work1);
+      const p2 = channel.withTyping(() => work2);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Only one initial send (second beginTyping sees refcount already > 0)
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      // First work completes — typing should continue (second still active)
+      resolve1();
+      await vi.advanceTimersByTimeAsync(0);
+      await p1;
+      mockTextChannelData.sendTyping.mockClear();
+
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(mockTextChannelData.sendTyping).toHaveBeenCalledTimes(1);
+
+      // Second work completes — typing stops
+      resolve2();
+      await vi.advanceTimersByTimeAsync(0);
+      await p2;
+      mockTextChannelData.sendTyping.mockClear();
+
+      await vi.advanceTimersByTimeAsync(16000);
       expect(mockTextChannelData.sendTyping).not.toHaveBeenCalled();
     });
   });
