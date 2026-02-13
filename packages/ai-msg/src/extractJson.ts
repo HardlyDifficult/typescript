@@ -1,7 +1,7 @@
 import { extractCodeBlock } from "./extractCodeBlock.js";
 import { findBalanced } from "./findBalanced.js";
 
-function tryParse(text: string): unknown | undefined {
+function tryParse(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
@@ -9,7 +9,7 @@ function tryParse(text: string): unknown | undefined {
   }
 }
 
-export function extractJson(text: string): unknown | null {
+export function extractJson(text: string): unknown {
   // Pass 1: try the whole text
   const direct = tryParse(text.trim());
   if (direct !== undefined) return direct;
@@ -26,13 +26,13 @@ export function extractJson(text: string): unknown | null {
 
   // Pass 3: balanced braces / brackets
   const obj = findBalanced(text, "{", "}");
-  if (obj) {
+  if (obj !== null) {
     const parsed = tryParse(obj);
     if (parsed !== undefined) return parsed;
   }
 
   const arr = findBalanced(text, "[", "]");
-  if (arr) {
+  if (arr !== null) {
     const parsed = tryParse(arr);
     if (parsed !== undefined) return parsed;
   }
