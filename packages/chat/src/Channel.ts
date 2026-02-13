@@ -242,10 +242,14 @@ export class Channel {
   beginTyping(): void {
     this.typingRefCount++;
     if (this.typingRefCount === 1) {
-      this.operations.sendTyping(this.id).catch(() => {});
+      this.operations.sendTyping(this.id).catch(() => {
+        // Ignore typing indicator failures
+      });
       this.typingInterval = setInterval(() => {
         if (this.typingRefCount > 0) {
-          this.operations.sendTyping(this.id).catch(() => {});
+          this.operations.sendTyping(this.id).catch(() => {
+            // Ignore typing indicator failures
+          });
         }
       }, TYPING_REFRESH_MS);
     }
