@@ -6,8 +6,11 @@ import type {
   CheckRun,
   CheckRunEvent,
   CommentEvent,
+  Label,
+  MergeableState,
   PollCompleteEvent,
   PREvent,
+  PRUpdatedEvent,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
@@ -29,7 +32,7 @@ const DEFAULT_INTERVAL_MS = 30_000;
 export class PRWatcher {
   private readonly octokit: Octokit;
   private readonly username: string;
-  private readonly repos: readonly string[];
+  private repos: string[];
   private readonly myPRs: boolean;
   private readonly intervalMs: number;
 
@@ -41,6 +44,9 @@ export class PRWatcher {
   >();
   private readonly mergedCallbacks = new Set<(event: PREvent) => void>();
   private readonly closedCallbacks = new Set<(event: PREvent) => void>();
+  private readonly updatedCallbacks = new Set<
+    (event: PRUpdatedEvent) => void
+  >();
   private readonly pollCompleteCallbacks = new Set<
     (event: PollCompleteEvent) => void
   >();
@@ -55,7 +61,7 @@ export class PRWatcher {
   constructor(octokit: Octokit, username: string, options: WatchOptions) {
     this.octokit = octokit;
     this.username = username;
-    this.repos = options.repos ?? [];
+    this.repos = [...(options.repos ?? [])];
     this.myPRs = options.myPRs ?? false;
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   }
@@ -90,6 +96,11 @@ export class PRWatcher {
     return () => this.closedCallbacks.delete(callback);
   }
 
+  onPRUpdated(callback: (event: PRUpdatedEvent) => void): () => void {
+    this.updatedCallbacks.add(callback);
+    return () => this.updatedCallbacks.delete(callback);
+  }
+
   onPollComplete(callback: (event: PollCompleteEvent) => void): () => void {
     this.pollCompleteCallbacks.add(callback);
     return () => this.pollCompleteCallbacks.delete(callback);
@@ -111,6 +122,26 @@ export class PRWatcher {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;
+    }
+  }
+
+  getWatchedPRs(): readonly PREvent[] {
+    return [...this.snapshots.values()].map((s) => ({
+      pr: s.pr,
+      repo: { owner: s.owner, name: s.name },
+    }));
+  }
+
+  addRepo(repo: string): void {
+    if (!this.repos.includes(repo)) {
+      this.repos.push(repo);
+    }
+  }
+
+  removeRepo(repo: string): void {
+    const index = this.repos.indexOf(repo);
+    if (index !== -1) {
+      this.repos.splice(index, 1);
     }
   }
 
@@ -200,6 +231,10 @@ export class PRWatcher {
       return;
     }
 
+    if (this.initialized) {
+      this.emitPRUpdated(pr, previous.pr, { owner, name });
+    }
+
     const activity = await fetchPRActivity(
       this.octokit,
       owner,
@@ -285,6 +320,59 @@ export class PRWatcher {
       if (changed) {
         this.emit(this.checkRunCallbacks, { checkRun, pr, repo });
       }
+    }
+  }
+
+  private emitPRUpdated(
+    current: PullRequest,
+    previous: PullRequest,
+    repo: { owner: string; name: string }
+  ): void {
+    const changes: PRUpdatedEvent["changes"] = {};
+    let hasChanges = false;
+
+    if (current.draft !== previous.draft) {
+      (changes as { draft: { from: boolean; to: boolean } }).draft = {
+        from: previous.draft,
+        to: current.draft,
+      };
+      hasChanges = true;
+    }
+
+    if (current.mergeable_state !== previous.mergeable_state) {
+      (
+        changes as {
+          mergeable_state: { from: MergeableState; to: MergeableState };
+        }
+      ).mergeable_state = {
+        from: previous.mergeable_state,
+        to: current.mergeable_state,
+      };
+      hasChanges = true;
+    }
+
+    const prevLabels = previous.labels
+      .map((l) => l.id)
+      .sort()
+      .join(",");
+    const currLabels = current.labels
+      .map((l) => l.id)
+      .sort()
+      .join(",");
+    if (prevLabels !== currLabels) {
+      (
+        changes as {
+          labels: { from: readonly Label[]; to: readonly Label[] };
+        }
+      ).labels = {
+        from: previous.labels,
+        to: current.labels,
+      };
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      this.emit(this.updatedCallbacks, { pr: current, repo, changes });
     }
   }
 

@@ -17,5 +17,6 @@ export type {
   CommentEvent,
   ReviewEvent,
   CheckRunEvent,
+  PRUpdatedEvent,
   PollCompleteEvent,
 } from "./types.js";

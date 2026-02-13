@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PRWatcher } from "../src/PRWatcher.js";
 import type {
   PREvent,
+  PRUpdatedEvent,
   PollCompleteEvent,
   CommentEvent,
   ReviewEvent,
@@ -10,6 +11,7 @@ import type {
   PullRequestComment,
   PullRequestReview,
   CheckRun,
+  Label,
 } from "../src/types.js";
 
 vi.mock("@octokit/rest", () => ({
@@ -473,6 +475,167 @@ describe("PRWatcher", () => {
     });
   });
 
+  describe("onPRUpdated", () => {
+    function makeLabel(overrides: Partial<Label> = {}): Label {
+      return {
+        id: 1,
+        name: "bug",
+        color: "d73a4a",
+        description: null,
+        ...overrides,
+      };
+    }
+
+    it("fires when draft changes to ready", async () => {
+      const pr = makePR({ draft: true });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      const readyPR = makePR({ draft: false });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [readyPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].changes.draft).toEqual({ from: true, to: false });
+    });
+
+    it("fires when labels change", async () => {
+      const pr = makePR({ labels: [] });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      const label = makeLabel({ id: 10, name: "enhancement" });
+      const labeledPR = makePR({ labels: [label] });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [labeledPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].changes.labels).toEqual({
+        from: [],
+        to: [label],
+      });
+    });
+
+    it("fires when mergeable_state changes", async () => {
+      const pr = makePR({ mergeable_state: "mergeable" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      const conflictingPR = makePR({ mergeable_state: "conflicting" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [conflictingPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].changes.mergeable_state).toEqual({
+        from: "mergeable",
+        to: "conflicting",
+      });
+    });
+
+    it("does not fire when metadata is unchanged", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(0);
+    });
+
+    it("does not fire on initial poll", async () => {
+      const pr = makePR({ draft: true });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(0);
+    });
+
+    it("includes multiple changes in single event", async () => {
+      const pr = makePR({ draft: true, labels: [] });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRUpdatedEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPRUpdated((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      const label = makeLabel({ id: 5, name: "urgent" });
+      const updatedPR = makePR({ draft: false, labels: [label] });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(1);
+      expect(events[0].changes.draft).toEqual({ from: true, to: false });
+      expect(events[0].changes.labels).toEqual({ from: [], to: [label] });
+    });
+  });
+
   describe("onError", () => {
     it("fires when polling fails", async () => {
       (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockRejectedValue(
@@ -663,6 +826,163 @@ describe("PRWatcher", () => {
       expect(
         (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mock.calls.length
       ).toBe(callCount);
+    });
+  });
+
+  describe("dynamic repos", () => {
+    it("addRepo picks up PRs from new repo on next poll", async () => {
+      const prFromOriginal = makePR({ number: 1 });
+      const prFromNew = makePR({ number: 2, title: "New repo PR" });
+
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockImplementation(
+        (args: { owner: string; repo: string }) => {
+          if (args.owner === "owner" && args.repo === "repo") {
+            return Promise.resolve({ data: [prFromOriginal] });
+          }
+          if (args.owner === "other" && args.repo === "lib") {
+            return Promise.resolve({ data: [prFromNew] });
+          }
+          return Promise.resolve({ data: [] });
+        }
+      );
+      stubEmptyActivity();
+
+      const events: PREvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onNewPR((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(1);
+      expect(events[0].pr.number).toBe(1);
+
+      watcher.addRepo("other/lib");
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(2);
+      expect(events[1].pr.number).toBe(2);
+      expect(events[1].repo).toEqual({ owner: "other", name: "lib" });
+    });
+
+    it("removeRepo stops watching removed repo", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const newEvents: PREvent[] = [];
+      const pollEvents: PollCompleteEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onNewPR((e) => newEvents.push(e));
+      watcher.onPollComplete((e) => pollEvents.push(e));
+      await watcher.start();
+
+      expect(newEvents).toHaveLength(1);
+      expect(pollEvents[0].prs).toHaveLength(1);
+
+      watcher.removeRepo("owner/repo");
+
+      const freshPR = makePR({
+        state: "closed",
+        merged_at: "2024-01-02T00:00:00Z",
+      });
+      (mockOctokit.pulls.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: freshPR,
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const lastPoll = pollEvents[pollEvents.length - 1];
+      expect(lastPoll.prs).toHaveLength(0);
+    });
+
+    it("addRepo does not add duplicates", async () => {
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      const callsBefore = (mockOctokit.pulls.list as ReturnType<typeof vi.fn>)
+        .mock.calls.length;
+
+      watcher.addRepo("owner/repo");
+      watcher.addRepo("owner/repo");
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const callsAfter = (mockOctokit.pulls.list as ReturnType<typeof vi.fn>)
+        .mock.calls.length;
+      const callsDuringPoll = callsAfter - callsBefore;
+      expect(callsDuringPoll).toBe(1);
+    });
+  });
+
+  describe("getWatchedPRs", () => {
+    it("returns empty array before start", () => {
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+
+      const result = watcher.getWatchedPRs();
+      expect(result).toEqual([]);
+    });
+
+    it("returns tracked PRs after start", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      await watcher.start();
+
+      const result = watcher.getWatchedPRs();
+      expect(result).toHaveLength(1);
+      expect(result[0].pr.number).toBe(42);
+      expect(result[0].repo).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("reflects removals after merge", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      expect(watcher.getWatchedPRs()).toHaveLength(1);
+
+      const mergedPR = makePR({
+        state: "closed",
+        merged_at: "2024-01-02T00:00:00Z",
+        closed_at: "2024-01-02T00:00:00Z",
+      });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [mergedPR],
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(watcher.getWatchedPRs()).toHaveLength(0);
     });
   });
 });
