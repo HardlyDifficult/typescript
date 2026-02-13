@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 
+import { PRWatcher } from "./PRWatcher.js";
 import type {
   CheckRun,
   ContributionRepo,
@@ -9,6 +10,7 @@ import type {
   PullRequestFile,
   PullRequestReview,
   Repository,
+  WatchOptions,
 } from "./types.js";
 
 export class PRClient {
@@ -184,6 +186,10 @@ export class GitHubClient {
 
   repo(owner: string, name: string): RepoClient {
     return new RepoClient(this.octokit, owner, name);
+  }
+
+  watch(options: WatchOptions): PRWatcher {
+    return new PRWatcher(this.octokit, this.username, options);
   }
 
   async getOwnerRepos(owner: string): Promise<readonly ContributionRepo[]> {
