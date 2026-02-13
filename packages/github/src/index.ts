@@ -1,5 +1,6 @@
 export { GitHubClient, RepoClient, PRClient } from "./GitHubClient.js";
 export { PRWatcher } from "./PRWatcher.js";
+export type { PRActivity } from "./polling/fetchPRActivity.js";
 export type {
   PullRequest,
   Repository,
@@ -19,4 +20,8 @@ export type {
   CheckRunEvent,
   PRUpdatedEvent,
   PollCompleteEvent,
+  ClassifyPR,
+  DiscoverRepos,
+  PRStatusEvent,
+  StatusChangedEvent,
 } from "./types.js";

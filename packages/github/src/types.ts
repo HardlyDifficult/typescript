@@ -139,15 +139,37 @@ export interface PullRequestCommit {
 
 // --- Watcher types ---
 
+import type { PRActivity } from "./polling/fetchPRActivity.js";
+
+export type ClassifyPR = (
+  event: PREvent,
+  activity: PRActivity
+) => string | Promise<string>;
+
+export type DiscoverRepos = () =>
+  | readonly string[]
+  | Promise<readonly string[]>;
+
 export interface WatchOptions {
   readonly repos?: readonly string[];
   readonly myPRs?: boolean;
   readonly intervalMs?: number;
+  readonly classifyPR?: ClassifyPR;
+  readonly discoverRepos?: DiscoverRepos;
+  readonly stalePRThresholdMs?: number;
 }
 
 export interface PREvent {
   readonly pr: PullRequest;
   readonly repo: { readonly owner: string; readonly name: string };
+}
+
+export interface PRStatusEvent extends PREvent {
+  readonly status: string;
+}
+
+export interface StatusChangedEvent extends PRStatusEvent {
+  readonly previousStatus: string;
 }
 
 export interface CommentEvent extends PREvent {
