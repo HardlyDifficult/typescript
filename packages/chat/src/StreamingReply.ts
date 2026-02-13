@@ -78,7 +78,9 @@ export class StreamingReply {
    * No-op if the buffer is empty or whitespace-only.
    */
   async flush(): Promise<void> {
-    if (!this.buffer.trim()) return;
+    if (!this.buffer.trim()) {
+      return;
+    }
     const text = this.buffer;
     this.buffer = "";
     const limit = MESSAGE_LIMITS[this.platform];
