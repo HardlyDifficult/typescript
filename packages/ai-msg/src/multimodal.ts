@@ -4,7 +4,7 @@
  */
 export interface MultimodalMessage {
   role: "system" | "user" | "assistant";
-  content: string | Array<{ type: string; text?: string }>;
+  content: string | { type: string; text?: string }[];
 }
 
 /**
@@ -12,7 +12,7 @@ export interface MultimodalMessage {
  * Handles both plain string and multimodal content arrays.
  */
 export function extractTextContent(
-  content: MultimodalMessage["content"],
+  content: MultimodalMessage["content"]
 ): string {
   if (typeof content === "string") {
     return content;
@@ -20,7 +20,7 @@ export function extractTextContent(
   return content
     .filter(
       (c): c is { type: "text"; text: string } =>
-        c.type === "text" && typeof c.text === "string",
+        c.type === "text" && typeof c.text === "string"
     )
     .map((c) => c.text)
     .join("\n");
@@ -31,8 +31,8 @@ export function extractTextContent(
  * Flattens any multimodal content arrays to plain text strings.
  */
 export function toPlainTextMessages(
-  messages: MultimodalMessage[],
-): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  messages: MultimodalMessage[]
+): { role: "system" | "user" | "assistant"; content: string }[] {
   return messages.map((m) => ({
     role: m.role,
     content: extractTextContent(m.content),

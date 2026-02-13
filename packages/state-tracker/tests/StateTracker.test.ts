@@ -1,11 +1,4 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -348,9 +341,10 @@ describe("StateTracker", () => {
       // Temp file should have been renamed away
       expect(fs.existsSync(`${filePath}.tmp`)).toBe(false);
 
-      const content = JSON.parse(
-        fs.readFileSync(filePath, "utf-8")
-      ) as Record<string, unknown>;
+      const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
+        string,
+        unknown
+      >;
       expect(content.value).toEqual({ value: "world" });
       expect(content.lastUpdated).toBeDefined();
     });
@@ -526,9 +520,10 @@ describe("StateTracker", () => {
 
       // Now the file should exist with the saved state
       expect(fs.existsSync(filePath)).toBe(true);
-      const content = JSON.parse(
-        fs.readFileSync(filePath, "utf-8")
-      ) as Record<string, unknown>;
+      const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
+        string,
+        unknown
+      >;
       expect(content.value).toEqual({ count: 42 });
     });
 

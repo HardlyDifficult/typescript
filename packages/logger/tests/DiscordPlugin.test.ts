@@ -5,7 +5,7 @@ import type { LogEntry } from "../src/types.js";
 function makeEntry(
   level: LogEntry["level"],
   message: string,
-  context?: Record<string, unknown>,
+  context?: Record<string, unknown>
 ): LogEntry {
   return {
     level,
@@ -109,7 +109,7 @@ describe("DiscordPlugin", () => {
       });
       plugin.setSender(throwingSender);
       expect(() =>
-        plugin.log(makeEntry("error", "should not throw")),
+        plugin.log(makeEntry("error", "should not throw"))
       ).not.toThrow();
     });
 

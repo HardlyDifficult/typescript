@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getErrorMessage, formatError, formatErrorForLog } from "../src/errors.js";
+import {
+  getErrorMessage,
+  formatError,
+  formatErrorForLog,
+} from "../src/errors.js";
 
 describe("getErrorMessage", () => {
   it("extracts message from Error instance", () => {
@@ -28,7 +32,9 @@ describe("formatError", () => {
 
   it("formats error with context", () => {
     const err = new Error("disk full");
-    expect(formatError(err, "Failed to save")).toBe("Failed to save: disk full");
+    expect(formatError(err, "Failed to save")).toBe(
+      "Failed to save: disk full"
+    );
   });
 });
 

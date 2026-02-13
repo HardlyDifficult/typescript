@@ -5,7 +5,9 @@ import { extractJson } from "./extractJson.js";
  * Using a structural type avoids coupling to a specific Zod version.
  */
 export interface SchemaLike<T> {
-  safeParse(data: unknown): { success: true; data: T } | { success: false; error?: unknown };
+  safeParse(
+    data: unknown
+  ): { success: true; data: T } | { success: false; error?: unknown };
 }
 
 export function extractTyped<T>(

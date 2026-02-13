@@ -19,7 +19,9 @@ describe("getBackoffDelay", () => {
 
   it("should cap at maxDelay", () => {
     expect(getBackoffDelay(100)).toBe(60000);
-    expect(getBackoffDelay(10, { initialDelayMs: 1000, maxDelayMs: 5000 })).toBe(5000);
+    expect(
+      getBackoffDelay(10, { initialDelayMs: 1000, maxDelayMs: 5000 })
+    ).toBe(5000);
   });
 });
 

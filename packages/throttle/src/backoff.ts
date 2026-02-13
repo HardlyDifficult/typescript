@@ -20,7 +20,10 @@ const DEFAULT_MAX_DELAY_MS = 60000;
  * @param options - Configuration options
  * @returns Delay in milliseconds
  */
-export function getBackoffDelay(attempt: number, options: BackoffOptions = {}): number {
+export function getBackoffDelay(
+  attempt: number,
+  options: BackoffOptions = {}
+): number {
   const initialDelay = options.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
   const maxDelay = options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
   const delay = initialDelay * Math.pow(2, attempt);
@@ -31,7 +34,9 @@ export function getBackoffDelay(attempt: number, options: BackoffOptions = {}): 
  * Sleep for the specified duration
  */
 export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 /**

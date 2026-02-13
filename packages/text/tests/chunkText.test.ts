@@ -23,11 +23,7 @@ describe("chunkText", () => {
   it("forces a hard break when no good break point exists", () => {
     const text = "abcdefghijklmnopqrstuvwxyz";
     const chunks = chunkText(text, 10);
-    expect(chunks).toEqual([
-      "abcdefghij",
-      "klmnopqrst",
-      "uvwxyz",
-    ]);
+    expect(chunks).toEqual(["abcdefghij", "klmnopqrst", "uvwxyz"]);
   });
 
   it("returns empty array for empty string", () => {

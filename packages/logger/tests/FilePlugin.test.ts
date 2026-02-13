@@ -8,7 +8,7 @@ import type { LogEntry } from "../src/types.js";
 function makeEntry(
   level: LogEntry["level"],
   message: string,
-  context?: Record<string, unknown>,
+  context?: Record<string, unknown>
 ): LogEntry {
   return {
     level,
@@ -83,6 +83,8 @@ describe("FilePlugin", () => {
     // Make the file path invalid after construction by removing the directory
     rmSync(tempDir, { recursive: true, force: true });
 
-    expect(() => plugin.log(makeEntry("info", "should not throw"))).not.toThrow();
+    expect(() =>
+      plugin.log(makeEntry("info", "should not throw"))
+    ).not.toThrow();
   });
 });

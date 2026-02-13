@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  extractTextContent,
-  toPlainTextMessages,
-} from "../src/multimodal.js";
+import { extractTextContent, toPlainTextMessages } from "../src/multimodal.js";
 
 describe("extractTextContent", () => {
   it("returns the string when given a plain string", () => {
@@ -77,9 +74,7 @@ describe("toPlainTextMessages", () => {
   });
 
   it("passes through already-string content unchanged", () => {
-    const messages = [
-      { role: "user" as const, content: "plain string" },
-    ];
+    const messages = [{ role: "user" as const, content: "plain string" }];
     const result = toPlainTextMessages(messages);
     expect(result).toEqual([{ role: "user", content: "plain string" }]);
   });

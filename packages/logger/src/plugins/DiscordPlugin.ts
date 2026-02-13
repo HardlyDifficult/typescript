@@ -10,8 +10,12 @@ export class DiscordPlugin implements LoggerPlugin {
   }
 
   log(entry: LogEntry): void {
-    if (!this.sender) return;
-    if (entry.level !== "warn" && entry.level !== "error") return;
+    if (!this.sender) {
+      return;
+    }
+    if (entry.level !== "warn" && entry.level !== "error") {
+      return;
+    }
 
     const prefix = entry.level === "error" ? "\u{1f6a8}" : "\u{26a0}\u{fe0f}";
     const discordMessage =
@@ -27,7 +31,9 @@ export class DiscordPlugin implements LoggerPlugin {
   }
 
   notify(message: string): void {
-    if (!this.sender) return;
+    if (!this.sender) {
+      return;
+    }
     try {
       this.sender(message);
     } catch {

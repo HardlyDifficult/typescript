@@ -201,8 +201,7 @@ export class StateTracker<T> {
       }
     } catch (err) {
       this._storageAvailable = false;
-      const errorMessage =
-        err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       this.emit("warn", "Storage unavailable, running in-memory", {
         error: errorMessage,
         path: this.filePath,
@@ -235,8 +234,7 @@ export class StateTracker<T> {
       await fsPromises.rename(tempFilePath, this.filePath);
       this.emit("debug", "Saved state to disk", { path: this.filePath });
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
       this.emit("error", "Failed to save state", {
         error: errorMessage,
       });
@@ -293,18 +291,13 @@ export class StateTracker<T> {
           lastUpdated: new Date().toISOString(),
         };
         const tempFilePath = `${this.filePath}.tmp`;
-        fs.writeFileSync(
-          tempFilePath,
-          JSON.stringify(state, null, 2),
-          "utf-8"
-        );
+        fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf-8");
         fs.renameSync(tempFilePath, this.filePath);
         this.emit("debug", "Auto-saved state to disk", {
           path: this.filePath,
         });
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : String(err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
         this.emit("error", "Failed to auto-save state", {
           error: errorMessage,
         });

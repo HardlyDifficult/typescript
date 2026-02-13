@@ -10,7 +10,10 @@
  * @param values - Object mapping variable names to their values
  * @returns The template with placeholders replaced
  */
-export function replaceTemplate(template: string, values: Record<string, string>): string {
+export function replaceTemplate(
+  template: string,
+  values: Record<string, string>
+): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
     if (Object.prototype.hasOwnProperty.call(values, key)) {
       return values[key] ?? match;

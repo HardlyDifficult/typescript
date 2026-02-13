@@ -3,7 +3,9 @@ import { replaceTemplate, extractPlaceholders } from "../src/template.js";
 
 describe("replaceTemplate", () => {
   it("replaces a single placeholder", () => {
-    expect(replaceTemplate("Hello {{name}}!", { name: "World" })).toBe("Hello World!");
+    expect(replaceTemplate("Hello {{name}}!", { name: "World" })).toBe(
+      "Hello World!"
+    );
   });
 
   it("replaces multiple placeholders", () => {

@@ -10,7 +10,7 @@ describe("formatEntry", () => {
       timestamp: "2025-01-15T10:30:00.000Z",
     };
     expect(formatEntry(entry)).toBe(
-      "[2025-01-15T10:30:00.000Z] INFO: hello world",
+      "[2025-01-15T10:30:00.000Z] INFO: hello world"
     );
   });
 
@@ -23,7 +23,7 @@ describe("formatEntry", () => {
     };
     const result = formatEntry(entry);
     expect(result).toBe(
-      '[2025-01-15T10:30:00.000Z] ERROR: something broke {"code":500,"detail":"timeout"}',
+      '[2025-01-15T10:30:00.000Z] ERROR: something broke {"code":500,"detail":"timeout"}'
     );
   });
 
@@ -35,7 +35,7 @@ describe("formatEntry", () => {
       context: {},
     };
     expect(formatEntry(entry)).toBe(
-      "[2025-01-15T10:30:00.000Z] WARN: empty ctx",
+      "[2025-01-15T10:30:00.000Z] WARN: empty ctx"
     );
   });
 
@@ -123,7 +123,7 @@ describe("ConsolePlugin", () => {
     };
     plugin.log(entry);
     expect(logSpy).toHaveBeenCalledWith(
-      '[2025-01-15T10:30:00.000Z] INFO: formatted test {"a":1}',
+      '[2025-01-15T10:30:00.000Z] INFO: formatted test {"a":1}'
     );
   });
 });

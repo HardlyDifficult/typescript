@@ -14,6 +14,7 @@ export class ConsolePlugin implements LoggerPlugin {
     switch (entry.level) {
       case "debug":
       case "info":
+        // eslint-disable-next-line no-console
         console.log(formatted);
         break;
       case "warn":
@@ -21,6 +22,9 @@ export class ConsolePlugin implements LoggerPlugin {
         break;
       case "error":
         console.error(formatted);
+        break;
+      default:
+        console.warn(formatted);
         break;
     }
   }

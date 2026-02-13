@@ -1,4 +1,4 @@
-import type { LogLevel, LogEntry, LoggerPlugin } from "./types.js";
+import type { LogEntry, LoggerPlugin, LogLevel } from "./types.js";
 
 const LOG_LEVELS: Readonly<Record<LogLevel, number>> = {
   debug: 0,
@@ -55,9 +55,11 @@ export class Logger {
   private log(
     level: LogLevel,
     message: string,
-    context?: Readonly<Record<string, unknown>>,
+    context?: Readonly<Record<string, unknown>>
   ): void {
-    if (!this.shouldLog(level)) return;
+    if (!this.shouldLog(level)) {
+      return;
+    }
 
     const entry: LogEntry =
       context !== undefined

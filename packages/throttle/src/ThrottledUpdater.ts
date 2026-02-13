@@ -50,7 +50,9 @@ export function createThrottledUpdater(
   let stopped = false;
 
   const doUpdate = async (text: string): Promise<void> => {
-    if (stopped) return;
+    if (stopped) {
+      return;
+    }
     lastUpdateTime = Date.now();
     pendingText = null;
     try {
@@ -61,7 +63,9 @@ export function createThrottledUpdater(
   };
 
   const scheduleUpdate = (): void => {
-    if (timeoutId || stopped || pendingText === null) return;
+    if (timeoutId || stopped || pendingText === null) {
+      return;
+    }
 
     const elapsed = Date.now() - lastUpdateTime;
     const delay = Math.max(0, intervalMs - elapsed);
@@ -76,7 +80,9 @@ export function createThrottledUpdater(
 
   return {
     update(text: string): void {
-      if (stopped) return;
+      if (stopped) {
+        return;
+      }
 
       const now = Date.now();
       if (now - lastUpdateTime >= intervalMs) {
@@ -90,7 +96,9 @@ export function createThrottledUpdater(
     },
 
     async flush(): Promise<void> {
-      if (stopped) return;
+      if (stopped) {
+        return;
+      }
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;

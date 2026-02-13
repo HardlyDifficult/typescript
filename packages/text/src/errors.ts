@@ -17,7 +17,10 @@ export function getErrorMessage(err: unknown): string {
  */
 export function formatError(err: unknown, context?: string): string {
   const message = getErrorMessage(err);
-  return context ? `${context}: ${message}` : message;
+  if (context !== undefined && context !== "") {
+    return `${context}: ${message}`;
+  }
+  return message;
 }
 
 /**
