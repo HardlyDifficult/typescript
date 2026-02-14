@@ -2536,5 +2536,52 @@ describe("DiscordChatClient", () => {
       expect(typeof thread.offReply).toBe("function");
       expect(typeof thread.delete).toBe("function");
     });
+
+    it("should reconnect to an existing thread via channel.openThread()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("thread-001");
+
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe("thread-001");
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe("discord");
+    });
+
+    it("should post messages via openThread()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("thread-001");
+
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      const msg = await thread.post("Reconnected message");
+
+      expect(mockThreadSend).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "Reconnected message" })
+      );
+      expect(msg).toBeInstanceOf(Message);
+    });
+
+    it("should receive replies via openThread().onReply()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("thread-001");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "reply-msg-1",
+        channelId: "thread-001",
+        content: "Reply to reopened thread",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const msg = callback.mock.calls[0][0] as Message;
+      expect(msg.content).toBe("Reply to reopened thread");
+    });
   });
 });

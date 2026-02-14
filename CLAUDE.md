@@ -49,7 +49,7 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 
 ### Thread Messaging
 
-`Thread` is the primary interface for thread interactions. Create one via `channel.createThread()` or `msg.startThread()`. All threading internals (threadId, thread_ts) are hidden — Thread handles routing.
+`Thread` is the primary interface for thread interactions. Create one via `channel.createThread()` or `msg.startThread()`. Reconnect to an existing thread via `channel.openThread(threadId)`. All threading internals (threadId, thread_ts) are hidden — Thread handles routing.
 
 ```typescript
 const thread = await channel.createThread("Starting a session!", "Session");
@@ -62,6 +62,10 @@ thread.onReply(async (msg) => {
 
 thread.offReply();
 await thread.delete();
+
+// Reconnect to an existing thread by ID (e.g., after a restart)
+const existing = channel.openThread(savedThreadId);
+await existing.post("I'm back!");
 ```
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
