@@ -2,6 +2,8 @@
 
 Focused, opinionated, easy-to-use npm packages.
 
+[API Docs](https://hardlydifficult.github.io/typescript/) | [llms.txt](https://hardlydifficult.github.io/typescript/llms.txt)
+
 ## Packages
 
 | Package | Description |
