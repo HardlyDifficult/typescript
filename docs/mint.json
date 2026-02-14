@@ -32,6 +32,22 @@
         "introduction",
         "installation"
       ]
+    },
+    {
+      "group": "Packages",
+      "pages": [
+        "api/ai-msg",
+        "api/chat",
+        "api/date-time",
+        "api/document-generator",
+        "api/github",
+        "api/logger",
+        "api/poller",
+        "api/state-tracker",
+        "api/text",
+        "api/throttle",
+        "api/workflow-engine"
+      ]
     }
   ],
   "footerSocials": {

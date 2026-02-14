@@ -66,7 +66,7 @@ msg.reply("Thread reply");
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Docs**: Add the package card to `docs/introduction.mdx` linking to the package directory on GitHub.
+3. **Docs**: Add the package to `docs/mint.json` navigation, create `docs/api/{package}.mdx` by copying the README with frontmatter, and add a card to `docs/introduction.mdx`.
 
 4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
 
@@ -75,8 +75,10 @@ msg.reply("Thread reply");
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
-- Package's `README.md` — API docs and examples (single source of truth)
-- `docs/introduction.mdx` — add package card linking to GitHub
+- Package's `README.md` — API docs and examples (source of truth)
+- `docs/api/{package}.mdx` — copy of README with frontmatter (keep in sync)
+- `docs/mint.json` — add package to navigation
+- `docs/introduction.mdx` — add package card
 - Root `README.md` — package table
 - `CLAUDE.md` Packages list — add new packages
 - AI repo `CLAUDE.md` package table — if the AI repo will use it
