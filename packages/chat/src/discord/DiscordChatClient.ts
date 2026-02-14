@@ -1,20 +1,19 @@
 import {
-  AttachmentBuilder,
   Client,
   type Message as DiscordMessage,
   type User as DiscordUser,
   GatewayIntentBits,
-  MessageFlags,
   type MessageReaction,
   type PartialMessage,
   type PartialMessageReaction,
   type PartialUser,
   TextChannel,
+  ThreadChannel,
 } from "discord.js";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
-import { type DiscordEmbed, toDiscordEmbed } from "../outputters/discord.js";
+import { toDiscordEmbed } from "../outputters/discord.js";
 import type {
   Attachment,
   DisconnectCallback,
@@ -33,8 +32,9 @@ import type {
 } from "../types.js";
 import { isDocument } from "../utils.js";
 
-import { deleteThread } from "./deleteThread.js";
+import { buildMessagePayload } from "./buildMessagePayload.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
 /**
  * Discord chat client implementation using discord.js
@@ -204,9 +204,14 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     });
   }
 
-  private async fetchTextChannel(channelId: string): Promise<TextChannel> {
+  private async fetchTextChannel(
+    channelId: string
+  ): Promise<TextChannel | ThreadChannel> {
     const channel = await this.client.channels.fetch(channelId);
-    if (!channel || !(channel instanceof TextChannel)) {
+    if (
+      !channel ||
+      (!(channel instanceof TextChannel) && !(channel instanceof ThreadChannel))
+    ) {
       throw new Error(
         `Channel ${channelId} not found or is not a text channel`
       );
@@ -248,64 +253,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
   ): Promise<MessageData> {
     const channel = await this.fetchTextChannel(channelId);
-
-    let messageOptions: {
-      content?: string;
-      embeds?: DiscordEmbed[];
-      messageReference?: { messageId: string };
-      files?: AttachmentBuilder[];
-      flags?: typeof MessageFlags.SuppressEmbeds;
-    };
-
-    if (isDocument(content)) {
-      const embed = toDiscordEmbed(content.getBlocks());
-      // Check if embed has any content - Discord rejects empty embeds
-      const hasEmbedContent =
-        embed.title !== undefined ||
-        embed.description !== undefined ||
-        embed.footer !== undefined ||
-        embed.image !== undefined;
-
-      if (hasEmbedContent) {
-        messageOptions = { embeds: [embed] };
-      } else {
-        // Fallback to empty content for documents with no visible blocks
-        messageOptions = { content: "\u200B" };
-      }
-    } else {
-      messageOptions = { content };
-    }
-
-    // If threadTs is provided (non-empty), use it as a reply reference
-    if (options?.threadTs !== undefined && options.threadTs !== "") {
-      messageOptions.messageReference = { messageId: options.threadTs };
-    }
-
-    // Add file attachments
-    if (options?.files && options.files.length > 0) {
-      messageOptions.files = options.files.map(
-        (file) =>
-          new AttachmentBuilder(
-            typeof file.content === "string"
-              ? Buffer.from(file.content)
-              : file.content,
-            { name: file.name }
-          )
-      );
-    }
-
-    // Suppress link preview embeds by default
-    if (options?.linkPreviews !== true) {
-      messageOptions.flags = MessageFlags.SuppressEmbeds;
-    }
-
-    const message = await channel.send(messageOptions);
-
-    return {
-      id: message.id,
-      channelId,
-      platform: "discord",
-    };
+    const payload = buildMessagePayload(content, options);
+    const message = await channel.send(payload);
+    return { id: message.id, channelId, platform: "discord" };
   }
 
   /**
@@ -407,13 +357,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: ReactionCallback
   ): () => void {
-    if (!this.reactionListeners.has(channelId)) {
-      this.reactionListeners.set(channelId, new Set());
-    }
-
-    const callbacks = this.reactionListeners.get(channelId);
+    let callbacks = this.reactionListeners.get(channelId);
     if (!callbacks) {
-      throw new Error(`Callbacks not found for channel ${channelId}`);
+      callbacks = new Set();
+      this.reactionListeners.set(channelId, callbacks);
     }
     callbacks.add(callback);
 
@@ -435,13 +382,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: MessageCallback
   ): () => void {
-    if (!this.messageListeners.has(channelId)) {
-      this.messageListeners.set(channelId, new Set());
-    }
-
-    const callbacks = this.messageListeners.get(channelId);
+    let callbacks = this.messageListeners.get(channelId);
     if (!callbacks) {
-      throw new Error(`Callbacks not found for channel ${channelId}`);
+      callbacks = new Set();
+      this.messageListeners.set(channelId, callbacks);
     }
     callbacks.add(callback);
 
@@ -477,22 +421,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     autoArchiveDuration?: number
   ): Promise<ThreadData> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    const thread = await message.startThread({
-      name,
-      autoArchiveDuration: autoArchiveDuration as
-        | 60
-        | 1440
-        | 4320
-        | 10080
-        | undefined,
-    });
-
-    return {
-      id: thread.id,
+    return startThread(
+      channel,
+      messageId,
       channelId,
-      platform: "discord",
-    };
+      name,
+      autoArchiveDuration
+    );
   }
 
   /**
@@ -503,6 +438,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    */
   async bulkDelete(channelId: string, count: number): Promise<number> {
     const channel = await this.fetchTextChannel(channelId);
+    if (!(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} is not a text channel`);
+    }
     const deleted = await channel.bulkDelete(count, true);
     return deleted.size;
   }
@@ -514,21 +452,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    */
   async getThreads(channelId: string): Promise<ThreadData[]> {
     const channel = await this.fetchTextChannel(channelId);
-    const threads: ThreadData[] = [];
-
-    // Fetch active threads
-    const activeThreads = await channel.threads.fetchActive();
-    for (const [threadId] of activeThreads.threads) {
-      threads.push({ id: threadId, channelId, platform: "discord" });
+    if (!(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} is not a text channel`);
     }
-
-    // Fetch archived threads
-    const archivedThreads = await channel.threads.fetchArchived();
-    for (const [threadId] of archivedThreads.threads) {
-      threads.push({ id: threadId, channelId, platform: "discord" });
-    }
-
-    return threads;
+    return getThreads(channel, channelId);
   }
 
   /**
@@ -539,8 +466,36 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     await deleteThread(this.client, threadId);
   }
 
+  /**
+   * Post a message to a thread channel
+   * In Discord, the threadId IS the channel to post in (threads are channels)
+   */
+  async postToThread(
+    threadId: string,
+    _channelId: string,
+    content: MessageContent,
+    options?: { files?: FileAttachment[] }
+  ): Promise<MessageData> {
+    return this.postMessage(threadId, content, { files: options?.files });
+  }
+
+  /**
+   * Subscribe to messages in a specific thread
+   * In Discord, threadId IS the thread channel — reuse message subscription
+   */
+  subscribeToThread(
+    threadId: string,
+    _channelId: string,
+    callback: MessageCallback
+  ): () => void {
+    return this.subscribeToMessages(threadId, callback);
+  }
+
   async getMembers(channelId: string): Promise<Member[]> {
     const channel = await this.fetchTextChannel(channelId);
+    if (!(channel instanceof TextChannel)) {
+      throw new Error(`Channel ${channelId} is not a text channel`);
+    }
     return fetchChannelMembers(channel);
   }
 

@@ -115,6 +115,7 @@ vi.mock("@slack/bolt", () => ({
 import { SlackChatClient } from "../src/slack/SlackChatClient.js";
 import { Channel } from "../src/Channel.js";
 import { Message } from "../src/Message.js";
+import { Thread } from "../src/Thread.js";
 
 /**
  * Helper to wait for a PendingMessage without triggering the thenable infinite loop.
@@ -2193,6 +2194,274 @@ describe("SlackChatClient", () => {
       });
 
       expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Thread features", () => {
+    it("should create a thread via channel.createThread()", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "parent-ts" });
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Thread root", "Session");
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: channelId,
+          text: "Thread root",
+        })
+      );
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe("parent-ts");
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe("slack");
+    });
+
+    it("should post messages in a thread with correct thread_ts", async () => {
+      mockPostMessage
+        .mockResolvedValueOnce({ ts: "parent-ts" }) // createThread root
+        .mockResolvedValueOnce({ ts: "thread-reply-ts" }); // thread.post
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+      const msg = await thread.post("Hello from thread");
+
+      expect(mockPostMessage).toHaveBeenCalledTimes(2);
+      expect(mockPostMessage).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          channel: channelId,
+          text: "Hello from thread",
+          thread_ts: "parent-ts",
+        })
+      );
+      expect(msg).toBeInstanceOf(Message);
+      expect(msg.id).toBe("thread-reply-ts");
+    });
+
+    it("should fire thread.onReply() when thread reply arrives", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "parent-ts" });
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      // Simulate a thread reply: thread_ts !== ts
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-ts",
+          thread_ts: "parent-ts",
+          text: "A thread reply",
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const msg = callback.mock.calls[0][0] as Message;
+      expect(msg.content).toBe("A thread reply");
+      expect(msg).toBeInstanceOf(Message);
+    });
+
+    it("should NOT fire channel.onMessage() for thread replies", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "parent-ts" });
+
+      const channel = await client.connect(channelId);
+      const channelCallback = vi.fn();
+      channel.onMessage(channelCallback);
+
+      const thread = await channel.createThread("Root", "Session");
+      const threadCallback = vi.fn();
+      thread.onReply(threadCallback);
+
+      // Thread reply: thread_ts exists and differs from ts
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-ts",
+          thread_ts: "parent-ts",
+          text: "Thread reply",
+        },
+        context: {},
+      });
+
+      expect(threadCallback).toHaveBeenCalledTimes(1);
+      expect(channelCallback).not.toHaveBeenCalled();
+    });
+
+    it("should fire onMessage for parent messages (thread_ts === ts)", async () => {
+      const channel = await client.connect(channelId);
+      const channelCallback = vi.fn();
+      channel.onMessage(channelCallback);
+
+      // A message where thread_ts === ts is still a parent message
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "parent-ts",
+          thread_ts: "parent-ts",
+          text: "Parent with replies",
+        },
+        context: {},
+      });
+
+      expect(channelCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it("should stop listening when thread.offReply() is called", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "parent-ts" });
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-1",
+          thread_ts: "parent-ts",
+          text: "First reply",
+        },
+        context: {},
+      });
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      thread.offReply();
+
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-2",
+          thread_ts: "parent-ts",
+          text: "Second reply",
+        },
+        context: {},
+      });
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it("should delete thread and stop listeners via thread.delete()", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "parent-ts" });
+      mockConversationsReplies.mockResolvedValue({
+        messages: [{ ts: "parent-ts" }],
+      });
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      await thread.delete();
+
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: "parent-ts",
+      });
+
+      // Listener should be cleaned up
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-after-delete",
+          thread_ts: "parent-ts",
+          text: "Should not fire",
+        },
+        context: {},
+      });
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("should post with file attachments via thread.post()", async () => {
+      mockPostMessage
+        .mockResolvedValueOnce({ ts: "parent-ts" })
+        .mockResolvedValueOnce({ ts: "file-msg-ts" });
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      await thread.post("Report", [{ content: "# Report", name: "report.md" }]);
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel_id: channelId,
+          filename: "report.md",
+          content: "# Report",
+          thread_ts: "parent-ts",
+        })
+      );
+    });
+
+    it("should pass files through msg.reply(content, files)", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Hello");
+
+      const reply = msg.reply("Reply with file", [
+        { content: "file data", name: "data.txt" },
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await (reply as any).replyPromise;
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel_id: channelId,
+          filename: "data.txt",
+          content: "file data",
+          thread_ts: msg.id,
+        })
+      );
+    });
+
+    it("should wire thread message reply() to post in the same thread", async () => {
+      mockPostMessage
+        .mockResolvedValueOnce({ ts: "parent-ts" }) // createThread root
+        .mockResolvedValueOnce({ ts: "first-msg-ts" }) // thread.post
+        .mockResolvedValueOnce({ ts: "reply-ts" }); // msg.reply
+
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+      const threadMsg = await thread.post("First message");
+
+      // Reply to thread message — should stay in the same thread
+      await Promise.resolve(threadMsg.reply("Reply in thread"));
+
+      // The reply should use the parent thread_ts, not the message's own ts
+      expect(mockPostMessage).toHaveBeenCalledTimes(3);
+      expect(mockPostMessage).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          channel: channelId,
+          text: "Reply in thread",
+          thread_ts: "parent-ts",
+        })
+      );
+    });
+
+    it("should return enhanced Thread from msg.startThread()", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Start thread here");
+      const thread = await msg.startThread("Thread Name");
+
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe(msg.id);
+      expect(typeof thread.post).toBe("function");
+      expect(typeof thread.onReply).toBe("function");
+      expect(typeof thread.offReply).toBe("function");
+      expect(typeof thread.delete).toBe("function");
     });
   });
 });

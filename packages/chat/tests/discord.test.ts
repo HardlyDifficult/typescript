@@ -15,6 +15,7 @@ const {
   mockGuildMembersList,
   mockPermissionsFor,
   mockThreadChannelDelete,
+  mockThreadSend,
   getReactionHandler,
   setReactionHandler,
   getMessageHandler,
@@ -90,9 +91,13 @@ const {
   }
 
   const mockThreadChannelDelete = vi.fn().mockResolvedValue(undefined);
+  const mockThreadSend = vi.fn();
 
   class MockThreadChannel {
     id: string;
+    send = mockThreadSend;
+    sendTyping = vi.fn().mockResolvedValue(undefined);
+    messages = { fetch: vi.fn() };
     delete = mockThreadChannelDelete;
     constructor(id = "thread-1") {
       this.id = id;
@@ -142,6 +147,7 @@ const {
     mockGuildMembersList,
     mockPermissionsFor,
     mockThreadChannelDelete,
+    mockThreadSend,
     getReactionHandler: () => reactionHandler,
     setReactionHandler: (handler: typeof reactionHandler) => {
       reactionHandler = handler;
@@ -181,6 +187,7 @@ vi.mock("discord.js", () => ({
 import { DiscordChatClient } from "../src/discord/DiscordChatClient.js";
 import { Channel } from "../src/Channel.js";
 import { Message } from "../src/Message.js";
+import { Thread } from "../src/Thread.js";
 
 /**
  * Helper to wait for a PendingMessage without triggering the thenable infinite loop.
@@ -291,6 +298,7 @@ describe("DiscordChatClient", () => {
     mockGuildMembersList.mockResolvedValue(new Map());
     mockPermissionsFor.mockReturnValue({ has: () => true });
     mockThreadChannelDelete.mockResolvedValue(undefined);
+    mockThreadSend.mockResolvedValue({ id: "thread-msg-1" });
 
     client = new DiscordChatClient(config);
   });
@@ -2310,6 +2318,223 @@ describe("DiscordChatClient", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Thread features", () => {
+    it("should create a thread via channel.createThread()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread(
+        "Thread root message",
+        "My Thread"
+      );
+
+      expect(mockTextChannelData.send).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "Thread root message" })
+      );
+      expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
+        name: "My Thread",
+        autoArchiveDuration: undefined,
+      });
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe("thread-001");
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe("discord");
+    });
+
+    it("should post messages in a thread via thread.post()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      // postToThread calls postMessage(threadId, ...) which fetches the thread channel
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      const msg = await thread.post("Hello from thread");
+
+      expect(mockThreadSend).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "Hello from thread" })
+      );
+      expect(msg).toBeInstanceOf(Message);
+      expect(msg.id).toBe("thread-msg-1");
+    });
+
+    it("should fire thread.onReply() when message arrives in thread channel", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      // Discord thread messages have channelId = thread channel ID
+      const handler = getMessageHandler();
+      await handler!({
+        id: "reply-msg-1",
+        channelId: "thread-001",
+        content: "A thread reply",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const msg = callback.mock.calls[0][0] as Message;
+      expect(msg.content).toBe("A thread reply");
+      expect(msg).toBeInstanceOf(Message);
+    });
+
+    it("should NOT fire channel.onMessage() for thread messages", async () => {
+      const channel = await client.connect(channelId);
+      const channelCallback = vi.fn();
+      channel.onMessage(channelCallback);
+
+      const thread = await channel.createThread("Root", "Session");
+      const threadCallback = vi.fn();
+      thread.onReply(threadCallback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "thread-reply-1",
+        channelId: "thread-001",
+        content: "Thread reply",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+
+      expect(threadCallback).toHaveBeenCalledTimes(1);
+      expect(channelCallback).not.toHaveBeenCalled();
+    });
+
+    it("should stop listening when thread.offReply() is called", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-1",
+        channelId: "thread-001",
+        content: "First",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      thread.offReply();
+
+      await handler!({
+        id: "msg-2",
+        channelId: "thread-001",
+        content: "Second",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it("should delete thread and stop listeners via thread.delete()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      await thread.delete();
+
+      expect(mockThreadChannelDelete).toHaveBeenCalledTimes(1);
+
+      const handler = getMessageHandler();
+      await handler!({
+        id: "msg-after-delete",
+        channelId: "thread-001",
+        content: "Should not fire",
+        author: { id: "user-001", username: "TestUser" },
+        createdAt: new Date(),
+        attachments: new Map(),
+      });
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("should post with file attachments via thread.post()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      await thread.post("Report", [{ content: "# Report", name: "report.md" }]);
+
+      expect(mockThreadSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Report",
+          files: expect.arrayContaining([expect.any(MockAttachmentBuilder)]),
+        })
+      );
+    });
+
+    it("should pass files through msg.reply(content, files)", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Hello");
+
+      await Promise.resolve(
+        msg.reply("Reply with file", [
+          { content: Buffer.from("data"), name: "file.bin" },
+        ])
+      );
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(2);
+      const replyArgs = mockTextChannelData.send.mock.calls[1][0];
+      expect(replyArgs.files).toHaveLength(1);
+      expect(replyArgs.files[0]).toBeInstanceOf(MockAttachmentBuilder);
+      expect(replyArgs.messageReference).toEqual({ messageId: "msg-123" });
+    });
+
+    it("should wire thread message reply() to post in the same thread", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("Root", "Session");
+
+      // Post a message in the thread
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      const threadMsg = await thread.post("First message");
+
+      // Reply to that thread message — should go to the same thread
+      mockClient.channels.fetch.mockResolvedValueOnce(
+        new MockThreadChannel("thread-001")
+      );
+      await Promise.resolve(threadMsg.reply("Reply in thread"));
+
+      expect(mockThreadSend).toHaveBeenCalledTimes(2);
+      expect(mockThreadSend).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ content: "First message" })
+      );
+      expect(mockThreadSend).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ content: "Reply in thread" })
+      );
+    });
+
+    it("should return enhanced Thread from msg.startThread()", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Start thread here");
+      const thread = await msg.startThread("My Thread");
+
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe("thread-001");
+      expect(typeof thread.post).toBe("function");
+      expect(typeof thread.onReply).toBe("function");
+      expect(typeof thread.offReply).toBe("function");
+      expect(typeof thread.delete).toBe("function");
     });
   });
 });

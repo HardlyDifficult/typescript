@@ -1,12 +1,12 @@
 import { StreamingReply } from "./StreamingReply";
-import { Thread } from "./Thread";
+import type { Thread } from "./Thread";
 import type {
   Attachment,
+  FileAttachment,
   MessageContent,
   MessageData,
   Platform,
   ReactionCallback,
-  ThreadData,
   User,
 } from "./types";
 
@@ -34,7 +34,8 @@ export interface MessageOperations {
   reply(
     channelId: string,
     threadTs: string,
-    content: MessageContent
+    content: MessageContent,
+    files?: FileAttachment[]
   ): Promise<MessageData>;
   subscribeToReactions(
     messageId: string,
@@ -45,8 +46,7 @@ export interface MessageOperations {
     channelId: string,
     name: string,
     autoArchiveDuration?: number
-  ): Promise<ThreadData>;
-  deleteThread(threadId: string, channelId: string): Promise<void>;
+  ): Promise<Thread>;
 }
 
 /**
@@ -200,13 +200,18 @@ export class Message {
   /**
    * Reply in this message's thread
    * @param content - Reply content (string or Document)
+   * @param files - Optional file attachments
    * @returns ReplyMessage that can be awaited to handle success/failure
    */
-  reply(content: MessageContent): Message & PromiseLike<Message> {
+  reply(
+    content: MessageContent,
+    files?: FileAttachment[]
+  ): Message & PromiseLike<Message> {
     const replyPromise = this.operations.reply(
       this.channelId,
       this.id,
-      content
+      content,
+      files
     );
     return new ReplyMessage(replyPromise, this.operations, this.platform);
   }
@@ -230,20 +235,17 @@ export class Message {
    * Create a thread from this message
    * @param name - Thread name
    * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
-   * @returns Thread with delete capability
+   * @returns Thread with post, onReply, and delete capabilities
    */
   async startThread(
     name: string,
     autoArchiveDuration?: number
   ): Promise<Thread> {
-    const data = await this.operations.startThread(
+    return this.operations.startThread(
       this.id,
       this.channelId,
       name,
       autoArchiveDuration
-    );
-    return new Thread(data, () =>
-      this.operations.deleteThread(data.id, data.channelId)
     );
   }
 

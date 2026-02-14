@@ -99,6 +99,8 @@ export interface MessageEvent {
   timestamp: Date;
   /** File attachments on the message */
   attachments: Attachment[];
+  /** Thread identifier (present only for thread messages, used internally for routing) */
+  threadId?: string;
 }
 
 /**
