@@ -35,7 +35,8 @@ describe("Message", () => {
       expect(mockOperations.reply).toHaveBeenCalledWith(
         "ch-1",
         "msg-1",
-        "Reply content"
+        "Reply content",
+        undefined
       );
       expect(reply).toBeInstanceOf(Message);
     });
@@ -100,7 +101,8 @@ describe("Message", () => {
       expect(mockOperations.reply).toHaveBeenCalledWith(
         "ch-1",
         "msg-1",
-        document
+        document,
+        undefined
       );
     });
 

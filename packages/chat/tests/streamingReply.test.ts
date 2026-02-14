@@ -312,7 +312,6 @@ describe("Message.streamReply", () => {
       channelId: "ch-1",
       platform: "discord" as const,
     }),
-    deleteThread: vi.fn().mockResolvedValue(undefined),
   });
 
   it("should return a StreamingReply", () => {
@@ -341,7 +340,12 @@ describe("Message.streamReply", () => {
     stream.append("streamed output");
     await stream.stop();
 
-    expect(ops.reply).toHaveBeenCalledWith("ch-1", "msg-1", "streamed output");
+    expect(ops.reply).toHaveBeenCalledWith(
+      "ch-1",
+      "msg-1",
+      "streamed output",
+      undefined
+    );
   });
 
   it("should use the correct platform for chunking", async () => {

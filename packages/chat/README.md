@@ -148,14 +148,49 @@ await channel.postDismissable("Build complete!", user.id);
 
 ### Threads
 
-Create a thread from an existing message.
+Create a thread, post messages, and listen for replies. The `Thread` object is the primary interface — all threading internals are hidden.
+
+```typescript
+// Create a thread (posts root message + starts thread)
+const thread = await channel.createThread("Starting a session!", "Session");
+
+// Post in the thread
+const msg = await thread.post("How can I help?");
+
+// Listen for replies
+thread.onReply(async (msg) => {
+  await thread.post(`Got: ${msg.content}`);
+  // msg.reply() also posts in the same thread
+  await msg.reply("Thanks!");
+});
+
+// Post with file attachments
+await thread.post("Here's the report", [
+  { content: "# Report\n...", name: "report.md" },
+]);
+
+// Stop listening and clean up
+thread.offReply();
+await thread.delete();
+```
+
+You can also create a thread from an existing message:
 
 ```typescript
 const msg = await channel.postMessage("Starting a discussion");
 const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive in minutes
 ```
 
-> **Slack note:** Slack threads are implicit — calling `startThread()` returns the message's timestamp as the thread ID. Post replies with `msg.reply()` to populate the thread.
+`msg.reply()` supports file attachments:
+
+```typescript
+const msg = await channel.postMessage("Processing...");
+await msg.reply("Done!", [{ content: resultData, name: "result.json" }]);
+```
+
+> **Note:** `channel.onMessage()` only fires for top-level channel messages, not thread replies. Use `thread.onReply()` to listen for thread messages.
+
+> **Slack note:** Slack threads are implicit — `createThread()` posts a root message and uses its timestamp as the thread ID.
 
 ### Streaming Replies
 
@@ -274,7 +309,8 @@ Both callbacks return an unsubscribe function.
 | Incoming messages | Full support                                  | Full support                                     |
 | Typing indicator  | Full support                                  | No-op (unsupported by Slack bot API)             |
 | File attachments  | `AttachmentBuilder`                           | `filesUploadV2`                                  |
-| Thread creation   | Creates named thread on message               | Returns message timestamp (threads are implicit) |
+| Thread creation   | Creates named thread channel on message       | Returns message timestamp (threads are implicit) |
+| Thread replies    | Messages arrive with `channelId = threadId`   | Messages arrive with `thread_ts` on parent channel |
 | Bulk delete       | Native `bulkDelete` API (fast)                | One-by-one deletion (slower, may partially fail) |
 | Get threads       | `fetchActive` + `fetchArchived`               | Scans channel history for threaded messages      |
 | Delete thread     | `ThreadChannel.delete()`                      | Deletes parent message and all replies           |

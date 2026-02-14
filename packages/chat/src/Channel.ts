@@ -1,5 +1,5 @@
 import { Message, type MessageOperations } from "./Message";
-import { Thread } from "./Thread";
+import { Thread, type ThreadOperations } from "./Thread";
 import type {
   DisconnectCallback,
   ErrorCallback,
@@ -62,6 +62,17 @@ export interface ChannelOperations {
   getMembers(channelId: string): Promise<Member[]>;
   onDisconnect(callback: DisconnectCallback): () => void;
   onError(callback: ErrorCallback): () => void;
+  subscribeToThread(
+    threadId: string,
+    channelId: string,
+    callback: MessageCallback
+  ): () => void;
+  postToThread(
+    threadId: string,
+    channelId: string,
+    content: MessageContent,
+    options?: { files?: FileAttachment[] }
+  ): Promise<MessageData>;
 }
 
 /** Default interval (ms) for refreshing the typing indicator. Discord expires after ~10s. */
@@ -112,6 +123,29 @@ export class Channel {
       this.createMessageOperations(),
       this.platform
     );
+  }
+
+  /**
+   * Create a thread: posts a root message, starts a thread on it,
+   * and returns a Thread with post/onReply/delete capabilities.
+   * @param content - Root message content (string or Document)
+   * @param name - Thread name (used by Discord, ignored by Slack)
+   * @param autoArchiveDuration - Auto-archive in minutes (Discord only: 60, 1440, 4320, 10080)
+   * @returns Thread object
+   */
+  async createThread(
+    content: MessageContent,
+    name: string,
+    autoArchiveDuration?: number
+  ): Promise<Thread> {
+    const rootMsg = await this.operations.postMessage(this.id, content);
+    const threadData = await this.operations.startThread(
+      rootMsg.id,
+      this.id,
+      name,
+      autoArchiveDuration
+    );
+    return this.buildThread(threadData);
   }
 
   /**
@@ -176,24 +210,62 @@ export class Channel {
       reply: async (
         channelId: string,
         threadTs: string,
-        content: MessageContent
-      ) => this.operations.postMessage(channelId, content, { threadTs }),
+        content: MessageContent,
+        files?: FileAttachment[]
+      ) => this.operations.postMessage(channelId, content, { threadTs, files }),
       subscribeToReactions: (messageId: string, callback: ReactionCallback) =>
         this.subscribeToMessageReactions(messageId, callback),
-      startThread: (
+      startThread: async (
         messageId: string,
         channelId: string,
         name: string,
         autoArchiveDuration?: number
-      ) =>
-        this.operations.startThread(
+      ) => {
+        const data = await this.operations.startThread(
           messageId,
           channelId,
           name,
           autoArchiveDuration
-        ),
-      deleteThread: (threadId: string, channelId: string) =>
-        this.operations.deleteThread(threadId, channelId),
+        );
+        return this.buildThread(data);
+      },
+    };
+  }
+
+  /**
+   * Build a Thread with full messaging operations
+   */
+  private buildThread(data: ThreadData): Thread {
+    const ops: ThreadOperations = {
+      delete: () => this.operations.deleteThread(data.id, data.channelId),
+      post: (content: MessageContent, files?: FileAttachment[]) =>
+        this.operations.postToThread(data.id, data.channelId, content, {
+          files,
+        }),
+      subscribe: (callback: MessageCallback) =>
+        this.operations.subscribeToThread(data.id, data.channelId, callback),
+      createMessageOps: () => this.createThreadMessageOps(data),
+    };
+    return new Thread(data, ops);
+  }
+
+  /**
+   * Create MessageOperations for messages inside a thread.
+   * reply() is wired to post in the same thread.
+   */
+  private createThreadMessageOps(data: ThreadData): MessageOperations {
+    const baseOps = this.createMessageOperations();
+    return {
+      ...baseOps,
+      reply: async (
+        _channelId: string,
+        _threadTs: string,
+        content: MessageContent,
+        files?: FileAttachment[]
+      ) =>
+        this.operations.postToThread(data.id, data.channelId, content, {
+          files,
+        }),
     };
   }
 
@@ -321,12 +393,7 @@ export class Channel {
    */
   async getThreads(): Promise<Thread[]> {
     const threadsData = await this.operations.getThreads(this.id);
-    return threadsData.map(
-      (data) =>
-        new Thread(data, () =>
-          this.operations.deleteThread(data.id, data.channelId)
-        )
-    );
+    return threadsData.map((data) => this.buildThread(data));
   }
 
   /**

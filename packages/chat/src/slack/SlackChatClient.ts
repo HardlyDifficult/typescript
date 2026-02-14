@@ -5,7 +5,6 @@ import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
 import type {
-  Attachment,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -13,7 +12,6 @@ import type {
   MessageCallback,
   MessageContent,
   MessageData,
-  MessageEvent,
   ReactionCallback,
   ReactionEvent,
   SlackConfig,
@@ -22,7 +20,12 @@ import type {
 } from "../types.js";
 import { isDocument } from "../utils.js";
 
+import {
+  buildMessageEvent,
+  type SlackMessagePayload,
+} from "./buildMessageEvent.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { getThreads } from "./getThreads.js";
 import { removeAllReactions } from "./removeAllReactions.js";
 
 /**
@@ -32,6 +35,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   private app: App;
   private reactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private messageCallbacks = new Map<string, Set<MessageCallback>>();
+  private threadCallbacks = new Map<string, Set<MessageCallback>>();
   private disconnectCallbacks = new Set<DisconnectCallback>();
   private errorCallbacks = new Set<ErrorCallback>();
 
@@ -89,66 +93,49 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     });
 
     // Set up global message event listener
+    // @slack/bolt's message event is a complex union — narrow to our typed subset
     this.app.event("message", async ({ event, context }) => {
-      const channelId = event.channel;
-      const callbacks = this.messageCallbacks.get(channelId);
-
-      if (!callbacks || callbacks.size === 0) {
-        return;
-      }
+      const payload = event as SlackMessagePayload;
 
       // Skip bot's own messages
       if (
         context.botId !== undefined &&
         context.botId !== "" &&
-        "bot_id" in event &&
-        event.bot_id === context.botId
+        payload.bot_id === context.botId
       ) {
         return;
       }
 
-      const user: User = {
-        id: "user" in event ? (event.user ?? "") : "",
-        username: undefined,
-      };
+      const messageEvent = buildMessageEvent(payload);
 
-      const attachments: Attachment[] = [];
-      if ("files" in event && Array.isArray(event.files)) {
-        for (const file of event.files) {
-          const f = file as unknown as Record<string, unknown>;
-          const url = typeof f.url_private === "string" ? f.url_private : "";
-          const name = typeof f.name === "string" ? f.name : "";
+      // Determine if this is a thread reply (thread_ts present and differs from ts)
+      const { thread_ts: threadTs } = payload;
+      const isThreadReply = threadTs !== undefined && threadTs !== payload.ts;
 
-          if (url === "" || name === "") {
-            continue;
-          }
-
-          const mimetype =
-            typeof f.mimetype === "string" ? f.mimetype : undefined;
-          attachments.push({
-            url,
-            name,
-            contentType: mimetype === "" ? undefined : mimetype,
-            size: typeof f.size === "number" ? f.size : undefined,
-          });
+      if (isThreadReply) {
+        const callbacks = this.threadCallbacks.get(threadTs);
+        if (!callbacks || callbacks.size === 0) {
+          return;
         }
-      }
-
-      const messageEvent: MessageEvent = {
-        id: "ts" in event ? event.ts : "",
-        content: "text" in event ? (event.text ?? "") : "",
-        author: user,
-        channelId,
-        timestamp:
-          "ts" in event ? new Date(parseFloat(event.ts) * 1000) : new Date(),
-        attachments,
-      };
-
-      for (const callback of callbacks) {
-        try {
-          await Promise.resolve(callback(messageEvent));
-        } catch (err) {
-          console.error("Message callback error:", err);
+        messageEvent.threadId = threadTs;
+        for (const callback of callbacks) {
+          try {
+            await Promise.resolve(callback(messageEvent));
+          } catch (err) {
+            console.error("Message callback error:", err);
+          }
+        }
+      } else {
+        const callbacks = this.messageCallbacks.get(payload.channel);
+        if (!callbacks || callbacks.size === 0) {
+          return;
+        }
+        for (const callback of callbacks) {
+          try {
+            await Promise.resolve(callback(messageEvent));
+          } catch (err) {
+            console.error("Message callback error:", err);
+          }
         }
       }
     });
@@ -169,6 +156,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     await this.app.stop();
     this.reactionCallbacks.clear();
     this.messageCallbacks.clear();
+    this.threadCallbacks.clear();
     this.disconnectCallbacks.clear();
     this.errorCallbacks.clear();
   }
@@ -468,31 +456,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Get all threads in a Slack channel
    */
   async getThreads(channelId: string): Promise<ThreadData[]> {
-    const threads: ThreadData[] = [];
-
-    const history = await this.app.client.conversations.history({
-      channel: channelId,
-      limit: 200,
-    });
-
-    if (history.messages) {
-      for (const msg of history.messages) {
-        if (
-          msg.reply_count !== undefined &&
-          msg.reply_count > 0 &&
-          msg.ts !== undefined &&
-          msg.ts !== ""
-        ) {
-          threads.push({
-            id: msg.ts,
-            channelId,
-            platform: "slack",
-          });
-        }
-      }
-    }
-
-    return threads;
+    return getThreads(this.app, channelId);
   }
 
   /**
@@ -505,6 +469,49 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
 
   async getMembers(channelId: string): Promise<Member[]> {
     return fetchChannelMembers(this.app, channelId);
+  }
+
+  /**
+   * Post a message to a thread
+   * Slack posts to the parent channel with thread_ts
+   */
+  async postToThread(
+    threadId: string,
+    channelId: string,
+    content: MessageContent,
+    options?: { files?: FileAttachment[] }
+  ): Promise<MessageData> {
+    return this.postMessage(channelId, content, {
+      threadTs: threadId,
+      files: options?.files,
+    });
+  }
+
+  /**
+   * Subscribe to messages in a specific thread
+   * Callbacks are keyed by threadId (parent message ts)
+   */
+  subscribeToThread(
+    threadId: string,
+    _channelId: string,
+    callback: MessageCallback
+  ): () => void {
+    let callbacks = this.threadCallbacks.get(threadId);
+    if (!callbacks) {
+      callbacks = new Set();
+      this.threadCallbacks.set(threadId, callbacks);
+    }
+    callbacks.add(callback);
+
+    return () => {
+      const cbs = this.threadCallbacks.get(threadId);
+      if (cbs) {
+        cbs.delete(callback);
+        if (cbs.size === 0) {
+          this.threadCallbacks.delete(threadId);
+        }
+      }
+    };
   }
 
   /**
