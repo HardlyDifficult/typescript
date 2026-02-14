@@ -29,11 +29,11 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 
 - `packages/chat` — Unified Discord/Slack messaging API
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
-- `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError
-- `packages/text` — Error formatting, template replacement, text chunking
+- `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError, eventRequest
+- `packages/text` — Error formatting, template replacement, text chunking, slugify
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
-- `packages/workflow-engine` — State machine with typed statuses, validated transitions, and StateTracker persistence
+- `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 
 Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
@@ -46,6 +46,7 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 - **Minimal public API surface.** Don't export internal interfaces (`ChannelOperations`, `MessageOperations`), implementation types, or options bags when a simple parameter works.
 - **Flat parameters over options objects.** Only use options objects when there are 3+ optional fields.
 - **Consistent patterns.** All event subscriptions return an unsubscribe function or use `on`/`off` pairs.
+- **No backward compatibility.** Always break things to make the end product better. No legacy support, redirects, migration logic, or any mention of the old way. Only optimize for the best design going forward.
 
 ### Thread Messaging
 
@@ -66,6 +67,11 @@ await thread.delete();
 // Reconnect to an existing thread by ID (e.g., after a restart)
 const existing = channel.openThread(savedThreadId);
 await existing.post("I'm back!");
+
+// Stream output into a thread (no placeholder message needed)
+const stream = thread.stream(2000);
+stream.append("Processing...\n");
+await stream.stop();
 ```
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
