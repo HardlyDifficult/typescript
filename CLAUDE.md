@@ -53,6 +53,29 @@ const msg = await channel.postMessage("Hello");
 msg.reply("Thread reply");
 ```
 
+## Creating a New Package
+
+1. Create `packages/{name}/` with these files:
+   - `package.json` — name `@hardlydifficult/{name}`, main `./dist/index.js`, types `./dist/index.d.ts`, files `["dist"]`. Pin exact versions: `typescript: "5.8.3"`, `vitest: "1.6.1"`, `@types/node: "20.19.31"`
+   - `tsconfig.json` — extends `../../tsconfig.base.json`, outDir `./dist`, rootDir `./src`
+   - `vitest.config.ts` — copy from any existing package (identical across all)
+   - `src/index.ts` — barrel exports with `.js` extensions
+   - `tests/*.test.ts` — one test file per source module
+   - `README.md` — installation, API reference, examples
+
+2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
+
+3. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
+
+4. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
+
+## Keeping Docs Current
+
+When adding or changing packages, update:
+- Package's `README.md` — API docs and examples
+- `CLAUDE.md` Packages list — add new packages
+- AI repo `CLAUDE.md` package table — if the AI repo will use it
+
 ## API Change Checklist
 
 1. Update the package's `README.md` with usage examples
