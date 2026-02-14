@@ -24,4 +24,5 @@ export type {
   DiscoverRepos,
   PRStatusEvent,
   StatusChangedEvent,
+  TreeEntry,
 } from "./types.js";

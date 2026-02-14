@@ -30,6 +30,7 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 - `packages/text` — Error formatting, template replacement, text chunking
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
+- `packages/workflow-engine` — State machine with typed statuses, validated transitions, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 
 Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
@@ -52,6 +53,31 @@ The **only** way to post to a thread is `msg.reply()`. Never use `channel.postMe
 const msg = await channel.postMessage("Hello");
 msg.reply("Thread reply");
 ```
+
+## Creating a New Package
+
+1. Create `packages/{name}/` with these files:
+   - `package.json` — name `@hardlydifficult/{name}`, main `./dist/index.js`, types `./dist/index.d.ts`, files `["dist"]`. Pin exact versions: `typescript: "5.8.3"`, `vitest: "1.6.1"`, `@types/node: "20.19.31"`
+   - `tsconfig.json` — extends `../../tsconfig.base.json`, outDir `./dist`, rootDir `./src`
+   - `vitest.config.ts` — copy from any existing package (identical across all)
+   - `src/index.ts` — barrel exports with `.js` extensions
+   - `tests/*.test.ts` — one test file per source module
+   - `README.md` — installation, API reference, examples
+
+2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
+
+3. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
+
+4. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
+
+## Keeping Docs Current
+
+When adding or changing packages, update the relevant docs so future sessions start fast:
+- Package's `README.md` — API docs and examples
+- Root `README.md` — package table
+- `CLAUDE.md` Packages list — add new packages
+- AI repo `CLAUDE.md` package table — if the AI repo will use it
+- AI repo `CLAUDE.md` Architecture — if the AI repo adds new agents/services using it
 
 ## API Change Checklist
 
@@ -77,6 +103,11 @@ Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live 
 ## Code Size Limits
 
 ESLint enforces `max-lines: 400` (skipping blanks/comments). When over the limit, extract helpers or split into platform-specific files (e.g., `discord/fetchChannelMembers.ts`). Don't trim comments to fit.
+
+## API Tokens
+
+- `$GH_PAT` — GitHub PAT for API access and PR operations. Use with `gh`: `GH_TOKEN="$GH_PAT" gh pr view`
+- `$TRELLO_API_KEY` / `$TRELLO_API_TOKEN` — Trello API for creating cards directly
 
 ## Skills
 

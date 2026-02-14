@@ -16,6 +16,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
+| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, and persistence |
 
 ## GitHub Actions Setup
 

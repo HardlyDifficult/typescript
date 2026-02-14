@@ -10,6 +10,7 @@ import type {
   PullRequestFile,
   PullRequestReview,
   Repository,
+  TreeEntry,
   WatchOptions,
 } from "./types.js";
 
@@ -160,6 +161,29 @@ export class RepoClient {
     });
 
     return response.data as unknown as Repository;
+  }
+
+  async getFileTree(sha = "HEAD"): Promise<readonly TreeEntry[]> {
+    const response = await this.octokit.git.getTree({
+      owner: this.owner,
+      repo: this.name,
+      tree_sha: sha,
+      recursive: "1",
+    });
+
+    return response.data.tree as unknown as readonly TreeEntry[];
+  }
+
+  async getFileContent(filePath: string, ref?: string): Promise<string> {
+    const response = await this.octokit.repos.getContent({
+      owner: this.owner,
+      repo: this.name,
+      path: filePath,
+      ...(ref !== undefined ? { ref } : {}),
+    });
+
+    const data = response.data as { content?: string; encoding?: string };
+    return Buffer.from(data.content ?? "", "base64").toString("utf-8");
   }
 }
 
