@@ -18,9 +18,6 @@ npm run lint            # ESLint (includes max-lines: 400)
 npm run format:check    # Prettier formatting
 npm run test            # All tests
 npm run fix             # Auto-fix lint + format issues
-npm run docs            # Build docs site (Astro Starlight + TypeDoc API reference)
-npm run docs:dev        # Local docs dev server with hot reload
-npm run docs:agent      # Generate llms.txt / llms-full.txt
 ```
 
 Always run from **repo root** — turbo handles dependency ordering (e.g. `document-generator` before `chat`).
@@ -69,7 +66,7 @@ msg.reply("Thread reply");
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Docs**: Add the package to `entryPoints` in `apps/docs/astro.config.mjs` and `LIBRARY_PACKAGES` in `packages/ci-scripts/src/generate-llms-txt.ts`.
+3. **Docs**: Add the package to `docs/mint.json` navigation and create `docs/api/{package}.mdx` based on the package's README.
 
 4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
 
@@ -78,7 +75,9 @@ msg.reply("Thread reply");
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
-- Package's `README.md` — API docs and examples
+- Package's `README.md` — API docs and examples (automatically converted to Mintlify docs)
+- `docs/mint.json` — add package to navigation
+- `docs/introduction.mdx` — add package to the card grid
 - Root `README.md` — package table
 - `CLAUDE.md` Packages list — add new packages
 - AI repo `CLAUDE.md` package table — if the AI repo will use it

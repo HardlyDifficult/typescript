@@ -1,0 +1,29 @@
+---
+title: "@hardlydifficult/date-time"
+description: "API reference for @hardlydifficult/date-time"
+---
+
+# @hardlydifficult/date-time
+
+Date and time utilities.
+
+## Installation
+
+```bash
+npm install @hardlydifficult/date-time
+```
+
+## TimeSpan
+
+Human-readable duration type with millisecond conversion.
+
+```typescript
+import { toMilliseconds, type TimeSpan } from '@hardlydifficult/date-time';
+
+const delay: TimeSpan = { value: 1.5, unit: 'minutes' };
+toMilliseconds(delay); // 90000
+```
+
+### Supported Units
+
+`milliseconds`, `seconds`, `minutes`, `hours`, `days`

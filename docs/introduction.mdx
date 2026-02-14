@@ -1,0 +1,77 @@
+---
+title: "@hardlydifficult TypeScript Libraries"
+description: "Opinionated TypeScript libraries. One right way to do each thing."
+---
+
+# @hardlydifficult TypeScript Libraries
+
+Monorepo of opinionated TypeScript libraries under the `@hardlydifficult` scope. **One right way to do each thing** — no flexible alternatives.
+
+## Packages
+
+<CardGroup cols={2}>
+  <Card title="ai-msg" icon="brain" href="/api/ai-msg">
+    AI response extraction — JSON, typed schemas, code blocks, multimodal
+  </Card>
+  <Card title="chat" icon="message" href="/api/chat">
+    Unified Discord/Slack messaging API
+  </Card>
+  <Card title="date-time" icon="clock" href="/api/date-time">
+    Timezone-aware date/time utilities
+  </Card>
+  <Card title="document-generator" icon="file-pen" href="/api/document-generator">
+    Rich document builder for Block Kit and Embeds
+  </Card>
+  <Card title="github" icon="github" href="/api/github">
+    GitHub API utilities and helpers
+  </Card>
+  <Card title="logger" icon="list" href="/api/logger">
+    Plugin-based structured logger with Console, Discord, and File plugins
+  </Card>
+  <Card title="poller" icon="arrows-rotate" href="/api/poller">
+    Polling utilities for async operations
+  </Card>
+  <Card title="state-tracker" icon="database" href="/api/state-tracker">
+    Atomic JSON state persistence with async API and auto-save
+  </Card>
+  <Card title="text" icon="text" href="/api/text">
+    Error formatting, template replacement, text chunking
+  </Card>
+  <Card title="throttle" icon="gauge" href="/api/throttle">
+    Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError
+  </Card>
+  <Card title="workflow-engine" icon="diagram-project" href="/api/workflow-engine">
+    State machine with typed statuses, validated transitions, and StateTracker persistence
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+```bash
+npm install && npm run build
+```
+
+All commands should be run from the **repo root** — turbo handles dependency ordering.
+
+## Design Philosophy
+
+### Key Principles
+
+- **One way to do each thing.** Never add optional parameters or alternate code paths for the same outcome.
+- **Minimal public API surface.** Don't export internal interfaces, implementation types, or options bags when a simple parameter works.
+- **Flat parameters over options objects.** Only use options objects when there are 3+ optional fields.
+- **Consistent patterns.** All event subscriptions return an unsubscribe function or use `on`/`off` pairs.
+
+## Verification
+
+Run all checks before committing (CI runs all of these):
+
+```bash
+npm run build           # TypeScript compilation
+npm run lint            # ESLint (includes max-lines: 400)
+npm run format:check    # Prettier formatting
+npm run test            # All tests
+npm run fix             # Auto-fix lint + format issues
+```
+
+Always run from **repo root** — turbo handles dependency ordering.

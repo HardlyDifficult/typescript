@@ -1,0 +1,108 @@
+---
+title: "@hardlydifficult/throttle"
+description: "API reference for @hardlydifficult/throttle"
+---
+
+# @hardlydifficult/throttle
+
+Rate limiting, exponential backoff, connection error detection, and throttled message updates.
+
+## Installation
+
+```bash
+npm install @hardlydifficult/throttle
+```
+
+## API
+
+### `Throttle`
+
+Token-bucket rate limiter with optional persistent state.
+
+```typescript
+import { Throttle } from "@hardlydifficult/throttle";
+
+const throttle = new Throttle({
+  unitsPerSecond: 10,
+  persistKey: "github-api", // optional: persist across restarts
+  stateDirectory: "/var/data", // optional: defaults to ~/.app-state
+  onSleep: (delayMs, info) => console.log(`Sleeping ${delayMs}ms`), // optional
+});
+
+await throttle.wait(); // waits if needed to stay within rate limit
+await throttle.wait(5); // consume 5 units
+```
+
+When `persistKey` is set, throttle state is written to `{stateDirectory}/{persistKey}.json`. The default `stateDirectory` is `~/.app-state` (override with the `STATE_TRACKER_DIR` environment variable).
+
+**Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `unitsPerSecond` | `number` | Rate limit (required) |
+| `persistKey` | `string` | Key for disk persistence (optional) |
+| `stateDirectory` | `string` | Directory for state files (optional) |
+| `onSleep` | `function` | Callback when throttle sleeps (optional) |
+
+### `getBackoffDelay(attempt: number, options?: BackoffOptions): number`
+
+Calculate exponential backoff delay: `min(initialDelay * 2^attempt, maxDelay)`.
+
+```typescript
+import { getBackoffDelay } from "@hardlydifficult/throttle";
+
+getBackoffDelay(0); // 1000
+getBackoffDelay(1); // 2000
+getBackoffDelay(2); // 4000
+getBackoffDelay(3, { initialDelayMs: 500, maxDelayMs: 10000 }); // 4000
+```
+
+### `sleep(ms: number): Promise<void>`
+
+Sleep for the specified duration.
+
+### `getRandomDelay(minMs: number, maxMs: number): number`
+
+Get a randomized delay between `minMs` and `maxMs` (inclusive).
+
+### `isConnectionError(error: unknown): boolean`
+
+Check if an error is a connection error (e.g., ECONNREFUSED). Walks the error chain (`cause`, `errors`, `lastError`) to find connection indicators.
+
+```typescript
+import { isConnectionError } from "@hardlydifficult/throttle";
+
+try {
+  await fetch("http://localhost:11434/api/generate");
+} catch (err) {
+  if (isConnectionError(err)) {
+    console.log("Service is not running");
+  }
+}
+```
+
+### `createThrottledUpdater(updateFn, intervalMs): ThrottledUpdater`
+
+Batch rapid updates to avoid rate limits while ensuring the final state is always sent.
+
+```typescript
+import { createThrottledUpdater } from "@hardlydifficult/throttle";
+
+const updater = createThrottledUpdater(
+  (text) => message.edit(text),
+  2000
+);
+
+updater.update("Step 1...");
+updater.update("Step 2...");
+updater.update("Step 3..."); // only this one gets sent
+
+await updater.flush(); // ensure final state is sent
+updater.stop(); // clean up
+```
+
+| Method | Description |
+|--------|-------------|
+| `update(text)` | Queue an update with the latest text |
+| `flush()` | Flush any pending update immediately |
+| `stop()` | Stop the updater and clear pending timeouts |

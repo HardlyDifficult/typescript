@@ -1,0 +1,62 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "@hardlydifficult",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/HardlyDifficult/typescript"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "npm",
+    "url": "https://www.npmjs.com/org/hardlydifficult"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "installation"
+      ]
+    },
+    {
+      "group": "Packages",
+      "pages": [
+        "api/ai-msg",
+        "api/chat",
+        "api/date-time",
+        "api/document-generator",
+        "api/github",
+        "api/logger",
+        "api/poller",
+        "api/state-tracker",
+        "api/text",
+        "api/throttle",
+        "api/workflow-engine"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/HardlyDifficult/typescript"
+  }
+}

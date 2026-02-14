@@ -1,0 +1,84 @@
+---
+title: "Installation"
+description: "How to install and use @hardlydifficult packages"
+---
+
+# Installation
+
+Each package is published independently on npm under the `@hardlydifficult` scope.
+
+## Installing Individual Packages
+
+Install the packages you need:
+
+```bash
+npm install @hardlydifficult/chat
+npm install @hardlydifficult/logger
+npm install @hardlydifficult/throttle
+# ... etc
+```
+
+## Available Packages
+
+All packages require **Node.js 20+** and **TypeScript 5.8+**.
+
+| Package | Description |
+|---------|-------------|
+| `@hardlydifficult/ai-msg` | AI response extraction (JSON, typed schemas, code blocks, multimodal) |
+| `@hardlydifficult/chat` | Unified Discord/Slack messaging API |
+| `@hardlydifficult/date-time` | Timezone-aware date/time utilities |
+| `@hardlydifficult/document-generator` | Rich document builder (Block Kit / Embeds) |
+| `@hardlydifficult/github` | GitHub API utilities and helpers |
+| `@hardlydifficult/logger` | Plugin-based structured logger (Console, Discord, File plugins) |
+| `@hardlydifficult/poller` | Polling utilities for async operations |
+| `@hardlydifficult/state-tracker` | Atomic JSON state persistence with async API and auto-save |
+| `@hardlydifficult/text` | Error formatting, template replacement, text chunking |
+| `@hardlydifficult/throttle` | Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError |
+| `@hardlydifficult/workflow-engine` | State machine with typed statuses, validated transitions, and StateTracker persistence |
+
+## Development Setup
+
+If you're contributing or developing locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/HardlyDifficult/typescript.git
+cd typescript
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Run tests
+npm test
+
+# Run linter
+npm run lint
+
+# Auto-fix issues
+npm run fix
+```
+
+## TypeScript Configuration
+
+All packages are written in TypeScript and include type definitions. Make sure your `tsconfig.json` has:
+
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2022",
+    "strict": true
+  }
+}
+```
+
+## Inter-package Dependencies
+
+Some packages depend on others:
+- `workflow-engine` depends on `state-tracker`
+- `chat` depends on `document-generator` and `throttle`
+- `logger` depends on `text`
+
+npm will automatically install peer dependencies when you install a package.
