@@ -2463,5 +2463,56 @@ describe("SlackChatClient", () => {
       expect(typeof thread.offReply).toBe("function");
       expect(typeof thread.delete).toBe("function");
     });
+
+    it("should reconnect to an existing thread via channel.openThread()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("parent-ts");
+
+      expect(thread).toBeInstanceOf(Thread);
+      expect(thread.id).toBe("parent-ts");
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe("slack");
+    });
+
+    it("should post messages via openThread() with correct thread_ts", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: "reply-ts" });
+
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("parent-ts");
+      const msg = await thread.post("Reconnected message");
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: channelId,
+          text: "Reconnected message",
+          thread_ts: "parent-ts",
+        })
+      );
+      expect(msg).toBeInstanceOf(Message);
+    });
+
+    it("should receive replies via openThread().onReply()", async () => {
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("parent-ts");
+
+      const callback = vi.fn();
+      thread.onReply(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U999",
+          ts: "reply-ts",
+          thread_ts: "parent-ts",
+          text: "Reply to reopened thread",
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const msg = callback.mock.calls[0][0] as Message;
+      expect(msg.content).toBe("Reply to reopened thread");
+    });
   });
 });

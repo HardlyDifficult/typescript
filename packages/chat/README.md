@@ -181,6 +181,14 @@ const msg = await channel.postMessage("Starting a discussion");
 const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive in minutes
 ```
 
+Reconnect to an existing thread by ID (e.g., after a restart):
+
+```typescript
+const thread = channel.openThread(savedThreadId);
+await thread.post("I'm back!");
+thread.onReply(async (msg) => { /* ... */ });
+```
+
 `msg.reply()` supports file attachments:
 
 ```typescript

@@ -49,7 +49,7 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 
 ### Thread Messaging
 
-`Thread` is the primary interface for thread interactions. Create one via `channel.createThread()` or `msg.startThread()`. All threading internals (threadId, thread_ts) are hidden — Thread handles routing.
+`Thread` is the primary interface for thread interactions. Create one via `channel.createThread()` or `msg.startThread()`. Reconnect to an existing thread via `channel.openThread(threadId)`. All threading internals (threadId, thread_ts) are hidden — Thread handles routing.
 
 ```typescript
 const thread = await channel.createThread("Starting a session!", "Session");
@@ -62,6 +62,10 @@ thread.onReply(async (msg) => {
 
 thread.offReply();
 await thread.delete();
+
+// Reconnect to an existing thread by ID (e.g., after a restart)
+const existing = channel.openThread(savedThreadId);
+await existing.post("I'm back!");
 ```
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
@@ -102,9 +106,9 @@ When adding or changing packages, update the relevant docs so future sessions st
 2. Add or update tests
 3. Implement for **both** Discord and Slack
 
-### Adding Channel/Message convenience methods
+### Adding Channel/Message/Thread convenience methods
 
-Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live on `Channel` or `Message` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations.
+Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
 
 ## Platform Gotchas
 
