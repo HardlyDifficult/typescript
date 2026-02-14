@@ -1,3 +1,4 @@
+/** Generic polling utility that periodically fetches data and invokes a callback when the result changes. */
 export class Poller<T> {
   private readonly fetchFn: () => Promise<T>;
   private readonly onChange: (current: T, previous: T | undefined) => void;

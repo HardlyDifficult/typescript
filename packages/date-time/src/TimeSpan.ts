@@ -18,6 +18,7 @@ const multipliers: Record<TimeUnit, number> = {
   days: 86_400_000,
 };
 
+/** Converts a TimeSpan to its equivalent value in milliseconds. */
 export function toMilliseconds(timeSpan: TimeSpan): number {
   return timeSpan.value * multipliers[timeSpan.unit];
 }

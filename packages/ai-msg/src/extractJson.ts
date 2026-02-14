@@ -9,6 +9,7 @@ function tryParse(text: string): unknown {
   }
 }
 
+/** Extracts JSON values from text using progressive strategies: direct parse, code blocks, then balanced-brace scanning. */
 export function extractJson(text: string, sentinel?: string): unknown[] {
   // Sentinel check — if the text contains the sentinel, treat as "no findings"
   if (sentinel !== undefined && text.includes(sentinel)) {

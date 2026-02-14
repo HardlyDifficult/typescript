@@ -18,6 +18,7 @@ export interface ThrottleOptions {
   onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
 }
 
+/** Rate limiter that enforces a maximum throughput by sleeping between calls, with optional persistent state. */
 export class Throttle {
   private nextAvailableAt: number;
   private readonly unitsPerSecond: number;

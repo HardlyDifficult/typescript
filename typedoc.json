@@ -1,0 +1,31 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPointStrategy": "packages",
+  "entryPoints": [
+    "packages/ai-msg",
+    "packages/chat",
+    "packages/date-time",
+    "packages/document-generator",
+    "packages/github",
+    "packages/logger",
+    "packages/poller",
+    "packages/state-tracker",
+    "packages/text",
+    "packages/throttle",
+    "packages/workflow-engine"
+  ],
+  "packageOptions": {
+    "entryPoints": ["src/index.ts"],
+    "readme": "README.md"
+  },
+  "out": "docs",
+  "name": "@hardlydifficult TypeScript Libraries",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "githubPages": true,
+  "navigation": {
+    "includeGroups": true
+  }
+}

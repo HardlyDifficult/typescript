@@ -18,6 +18,8 @@ npm run lint            # ESLint (includes max-lines: 400)
 npm run format:check    # Prettier formatting
 npm run test            # All tests
 npm run fix             # Auto-fix lint + format issues
+npm run docs            # Generate API docs site (TypeDoc)
+npm run docs:agent      # Generate llms.txt / llms-full.txt
 ```
 
 Always run from **repo root** — turbo handles dependency ordering (e.g. `document-generator` before `chat`).
@@ -66,9 +68,11 @@ msg.reply("Thread reply");
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
+3. **Docs**: Add the package to `entryPoints` in `typedoc.json` and `LIBRARY_PACKAGES` in `packages/ci-scripts/src/generate-llms-txt.ts`.
 
-4. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
+4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
+
+5. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
 
 ## Keeping Docs Current
 

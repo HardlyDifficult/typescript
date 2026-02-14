@@ -14,6 +14,7 @@ import type {
   WatchOptions,
 } from "./types.js";
 
+/** Client for interacting with a specific GitHub pull request (comments, reviews, check runs, merging). */
 export class PRClient {
   private readonly octokit: Octokit;
   private readonly owner: string;
@@ -127,6 +128,7 @@ export class PRClient {
   }
 }
 
+/** Client for interacting with a specific GitHub repository (PRs, file tree, file content). */
 export class RepoClient {
   private readonly octokit: Octokit;
   private readonly owner: string;
@@ -187,6 +189,7 @@ export class RepoClient {
   }
 }
 
+/** Top-level GitHub API client that provides access to repositories, PR watching, and user contribution queries. */
 export class GitHubClient {
   private readonly octokit: Octokit;
   private readonly username: string;

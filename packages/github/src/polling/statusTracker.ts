@@ -8,6 +8,7 @@ export interface StatusResult {
   changed: StatusChangedEvent | null;
 }
 
+/** Runs the user-provided classify function and detects whether the PR's status changed since the previous snapshot. */
 export async function classifyAndDetectChange(
   classifyPR: ClassifyPR,
   event: PREvent,
