@@ -1,4 +1,5 @@
 import { Message, type MessageOperations } from "./Message.js";
+import { StreamingReply } from "./StreamingReply.js";
 import type {
   FileAttachment,
   MessageCallback,
@@ -66,6 +67,30 @@ export class Thread {
   ): Promise<Message> {
     const data = await this.ops.post(content, files);
     return new Message(data, this.ops.createMessageOps());
+  }
+
+  /**
+   * Stream messages into this thread by buffering text and flushing
+   * at a fixed interval. Long text is automatically chunked to fit
+   * within platform message limits.
+   *
+   * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @returns StreamingReply with append/flush/stop methods
+   *
+   * @example
+   * ```typescript
+   * const stream = thread.stream(2000);
+   * stream.append("Processing...\n");
+   * stream.append("Done!\n");
+   * await stream.stop();
+   * ```
+   */
+  stream(flushIntervalMs: number): StreamingReply {
+    return new StreamingReply(
+      (content) => this.ops.post(content),
+      this.platform,
+      flushIntervalMs
+    );
   }
 
   /**

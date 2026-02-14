@@ -47,9 +47,10 @@ export interface WorkflowEngineOptions<TStatus extends string, TData> {
 }
 
 /**
- * Internal persisted shape: status + data together.
+ * Internal persisted shape: status + data + updatedAt together.
  */
 export interface PersistedState<TStatus extends string, TData> {
   status: TStatus;
   data: TData;
+  updatedAt: string;
 }
