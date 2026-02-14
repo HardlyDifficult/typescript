@@ -2,6 +2,8 @@ import { vi, describe, it, expect, afterEach } from "vitest";
 import { StreamingReply } from "../src/StreamingReply.js";
 import { Message } from "../src/Message.js";
 import type { MessageOperations } from "../src/Message.js";
+import { Thread } from "../src/Thread.js";
+import type { ThreadOperations } from "../src/Thread.js";
 
 describe("StreamingReply", () => {
   afterEach(() => {
@@ -364,5 +366,69 @@ describe("Message.streamReply", () => {
 
     // Should be a single reply (not chunked) on Slack
     expect(ops.reply).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Thread.stream", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const createMockThreadOps = (): ThreadOperations => ({
+    delete: vi.fn().mockResolvedValue(undefined),
+    post: vi.fn().mockResolvedValue({
+      id: "msg-1",
+      channelId: "ch-1",
+      platform: "discord" as const,
+    }),
+    subscribe: vi.fn().mockReturnValue(() => {}),
+    createMessageOps: vi.fn(),
+  });
+
+  it("should return a StreamingReply", () => {
+    vi.useFakeTimers();
+    const ops = createMockThreadOps();
+    const thread = new Thread(
+      { id: "thread-1", channelId: "ch-1", platform: "discord" },
+      ops
+    );
+
+    const stream = thread.stream(1000);
+    expect(stream).toBeInstanceOf(StreamingReply);
+
+    stream.stop();
+  });
+
+  it("should post via thread ops", async () => {
+    vi.useFakeTimers();
+    const ops = createMockThreadOps();
+    const thread = new Thread(
+      { id: "thread-1", channelId: "ch-1", platform: "discord" },
+      ops
+    );
+
+    const stream = thread.stream(1000);
+    stream.append("streamed output");
+    await stream.stop();
+
+    expect(ops.post).toHaveBeenCalledWith("streamed output");
+  });
+
+  it("should use the correct platform for chunking", async () => {
+    vi.useFakeTimers();
+    const ops = createMockThreadOps();
+    const thread = new Thread(
+      { id: "thread-1", channelId: "ch-1", platform: "slack" },
+      ops
+    );
+
+    const stream = thread.stream(1000);
+
+    // 3000 chars fits within Slack's 4000 limit but exceeds Discord's 2000
+    stream.append("a".repeat(3000));
+    await stream.stop();
+
+    // Should be a single post (not chunked) on Slack
+    expect(ops.post).toHaveBeenCalledTimes(1);
   });
 });
