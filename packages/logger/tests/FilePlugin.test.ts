@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  existsSync,
+  appendFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { FilePlugin } from "../src/plugins/FilePlugin.js";
@@ -86,5 +92,17 @@ describe("FilePlugin", () => {
     expect(() =>
       plugin.log(makeEntry("info", "should not throw"))
     ).not.toThrow();
+  });
+
+  it("swallows directory creation errors", () => {
+    // Use a path that will fail to create (e.g., within a file instead of a directory)
+    const invalidPath = join(tempDir, "file.txt", "nested", "log.jsonl");
+
+    // First create a regular file where we'll try to create a directory
+    const blockingFile = join(tempDir, "file.txt");
+    appendFileSync(blockingFile, "blocking");
+
+    // Constructor should not throw even though mkdirSync will fail
+    expect(() => new FilePlugin(invalidPath)).not.toThrow();
   });
 });
