@@ -31,6 +31,15 @@ When the user says "gg", review the session and update docs with anything useful
 5. Remove anything that turned out to be wrong or stale
 6. Commit: `docs: update with session learnings`
 
+## CLAUDE.md Maintenance
+
+Keep CLAUDE.md lean. Every line competes for attention with the actual task.
+
+- **Include**: gotchas agents can't figure out from code, verification commands, non-obvious rules
+- **Exclude**: standard conventions, info agents can read from files, detailed workflows (use skills)
+- **Structure**: "Start Here" + "Verification" at top, project-specific patterns in middle, skills listing at bottom
+- If content exists in a skill, don't duplicate it in CLAUDE.md — reference the skill instead
+
 ## Guidelines
 
 - **Concise and scannable** — bullet points over paragraphs
