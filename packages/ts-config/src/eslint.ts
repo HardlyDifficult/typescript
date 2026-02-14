@@ -4,8 +4,10 @@ import { type ESLint } from "eslint";
 import { defineConfig } from "eslint/config";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { importX } from "eslint-plugin-import-x";
+import jsdoc from "eslint-plugin-jsdoc";
 import tseslint from "typescript-eslint";
 
+/** Creates the shared ESLint flat config with TypeScript, import, and JSDoc rules for all packages. */
 export default function createConfig(projectRoot: string) {
   return defineConfig(
     {
@@ -27,6 +29,7 @@ export default function createConfig(projectRoot: string) {
     {
       plugins: {
         "import-x": importX as unknown as ESLint.Plugin,
+        jsdoc: jsdoc as unknown as ESLint.Plugin,
       },
     },
     {
@@ -170,6 +173,22 @@ export default function createConfig(projectRoot: string) {
         "@typescript-eslint/no-misused-promises": "error",
         "@typescript-eslint/prefer-nullish-coalescing": "error",
         "@typescript-eslint/prefer-optional-chain": "error",
+
+        // JSDoc — require on all exported symbols
+        "jsdoc/require-jsdoc": [
+          "error",
+          {
+            publicOnly: true,
+            require: {
+              FunctionDeclaration: true,
+              MethodDefinition: false,
+              ClassDeclaration: true,
+              ArrowFunctionExpression: false,
+              FunctionExpression: false,
+            },
+            checkConstructors: false,
+          },
+        ],
       },
     }
   );

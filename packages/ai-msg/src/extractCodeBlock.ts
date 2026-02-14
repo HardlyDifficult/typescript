@@ -1,5 +1,6 @@
 const codeBlockRegex = /^```(\w*)\s*\n([\s\S]*?)^```/gm;
 
+/** Extracts the contents of fenced code blocks from a string, optionally filtered by language tag. */
 export function extractCodeBlock(text: string, lang?: string): string[] {
   const results: string[] = [];
 

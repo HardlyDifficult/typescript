@@ -10,6 +10,7 @@ export interface SchemaLike<T> {
   ): { success: true; data: T } | { success: false; error?: unknown };
 }
 
+/** Extracts JSON from text and validates each result against a schema, returning only values that pass. */
 export function extractTyped<T>(
   text: string,
   schema: SchemaLike<T>,

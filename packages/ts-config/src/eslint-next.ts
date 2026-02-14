@@ -2,6 +2,7 @@ import type { Linter } from "eslint";
 
 import createConfig from "./eslint.js";
 
+/** Creates an ESLint flat config for Next.js projects by combining the base config with React-specific rules. */
 export default function createNextConfig(
   projectRoot: string,
   nextConfig: Linter.Config[]

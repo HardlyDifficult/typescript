@@ -7,6 +7,7 @@ const LOG_LEVELS: Readonly<Record<LogLevel, number>> = {
   error: 3,
 };
 
+/** Plugin-based structured logger that dispatches log entries to registered plugins based on a minimum log level. */
 export class Logger {
   private readonly minLevel: LogLevel;
   private readonly plugins: LoggerPlugin[] = [];

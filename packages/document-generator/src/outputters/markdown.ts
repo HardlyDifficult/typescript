@@ -1,5 +1,6 @@
 import type { Block } from "../types.js";
 
+/** Renders an array of Document blocks as a markdown-formatted string. */
 export function toMarkdown(blocks: Block[]): string {
   return blocks
     .map((block) => {

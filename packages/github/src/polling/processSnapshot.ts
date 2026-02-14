@@ -18,6 +18,7 @@ export interface PRSnapshot {
   lastSeen: number;
 }
 
+/** Creates a point-in-time snapshot of a PR's state including activity IDs for change detection. */
 export function buildSnapshot(
   pr: PullRequest,
   owner: string,
@@ -42,6 +43,7 @@ export function buildSnapshot(
   };
 }
 
+/** Compares two PR states and returns an event describing changes to draft status, mergeable state, or labels. */
 export function detectPRChanges(
   current: PullRequest,
   previous: PullRequest,

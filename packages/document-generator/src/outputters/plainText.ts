@@ -1,6 +1,7 @@
 import { stripMarkdown } from "../markdownConverter.js";
 import type { Block } from "../types.js";
 
+/** Renders an array of Document blocks as a plain-text string with markdown formatting stripped. */
 export function toPlainText(blocks: Block[]): string {
   return blocks
     .map((block) => {

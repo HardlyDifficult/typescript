@@ -14,6 +14,7 @@ export interface DiscordEmbed {
   footer?: { text: string };
 }
 
+/** Converts an array of Document blocks into a Discord embed object. */
 export function toDiscordEmbed(blocks: Block[]): DiscordEmbed {
   const embed: DiscordEmbed = {};
   const descriptionParts: string[] = [];

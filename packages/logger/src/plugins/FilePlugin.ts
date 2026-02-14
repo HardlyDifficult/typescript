@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 
 import type { LogEntry, LoggerPlugin } from "../types.js";
 
+/** Logger plugin that appends JSON-serialized log entries to a file on disk. */
 export class FilePlugin implements LoggerPlugin {
   private readonly filePath: string;
 

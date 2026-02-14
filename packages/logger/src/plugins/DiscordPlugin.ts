@@ -2,6 +2,7 @@ import type { LogEntry, LoggerPlugin } from "../types.js";
 
 export type DiscordSender = (message: string) => void;
 
+/** Logger plugin that forwards warn/error entries and notifications to a Discord channel via a configurable sender function. */
 export class DiscordPlugin implements LoggerPlugin {
   private sender: DiscordSender | null = null;
 

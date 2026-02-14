@@ -19,6 +19,7 @@ export interface StateTrackerOptions<T> {
   onEvent?: (event: StateTrackerEvent) => void;
 }
 
+/** Atomic JSON state persistence with file-based storage, auto-save, and graceful degradation to in-memory mode. */
 export class StateTracker<T> {
   private readonly filePath: string;
   private readonly defaultValue: T;

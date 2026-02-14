@@ -28,6 +28,7 @@ import type {
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
+/** Polls GitHub for open pull requests and emits events for new PRs, comments, reviews, check runs, merges, and status changes. */
 export class PRWatcher {
   private readonly octokit: Octokit;
   private readonly username: string;

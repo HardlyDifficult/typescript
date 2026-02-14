@@ -16,6 +16,7 @@ import type {
   TruncatedListOptions,
 } from "./types.js";
 
+/** A fluent builder for composing rich documents from typed blocks, with markdown and plain-text output. */
 export class Document {
   private blocks: Block[] = [];
 

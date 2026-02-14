@@ -1,3 +1,4 @@
+/** Finds the first substring enclosed by balanced open/close characters, respecting JSON string escaping. */
 export function findBalanced(
   text: string,
   openChar: string,
@@ -49,6 +50,7 @@ export function findBalanced(
   return null;
 }
 
+/** Finds all non-overlapping substrings enclosed by balanced open/close characters. */
 export function findAllBalanced(
   text: string,
   openChar: string,

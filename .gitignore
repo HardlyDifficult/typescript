@@ -1,8 +1,6 @@
 node_modules/
 dist/
 coverage/
-docs/
-llms.txt
 .turbo/
 *.log
 package-lock.json

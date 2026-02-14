@@ -12,6 +12,7 @@ export interface PRActivity {
   readonly checkRuns: readonly CheckRun[];
 }
 
+/** Fetches comments, reviews, and check runs for a pull request in parallel. */
 export async function fetchPRActivity(
   octokit: Octokit,
   owner: string,

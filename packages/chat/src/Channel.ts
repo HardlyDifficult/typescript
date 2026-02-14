@@ -64,12 +64,10 @@ export interface ChannelOperations {
   onError(callback: ErrorCallback): () => void;
 }
 
-/**
- * Represents a connected channel with messaging capabilities
- */
 /** Default interval (ms) for refreshing the typing indicator. Discord expires after ~10s. */
 const TYPING_REFRESH_MS = 8000;
 
+/** A platform-agnostic channel that provides messaging, reactions, typing indicators, and thread management. */
 export class Channel {
   public readonly id: string;
   public readonly platform: Platform;

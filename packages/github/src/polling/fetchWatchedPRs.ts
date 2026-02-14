@@ -8,6 +8,7 @@ export interface WatchedPR {
   readonly name: string;
 }
 
+/** Fetches all open PRs from the given repos, optionally including the authenticated user's own PRs across GitHub. */
 export async function fetchWatchedPRs(
   octokit: Octokit,
   username: string,
