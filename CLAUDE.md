@@ -72,10 +72,12 @@ msg.reply("Thread reply");
 
 ## Keeping Docs Current
 
-When adding or changing packages, update:
+When adding or changing packages, update the relevant docs so future sessions start fast:
 - Package's `README.md` — API docs and examples
+- Root `README.md` — package table
 - `CLAUDE.md` Packages list — add new packages
 - AI repo `CLAUDE.md` package table — if the AI repo will use it
+- AI repo `CLAUDE.md` Architecture — if the AI repo adds new agents/services using it
 
 ## API Change Checklist
 
@@ -101,6 +103,11 @@ Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live 
 ## Code Size Limits
 
 ESLint enforces `max-lines: 400` (skipping blanks/comments). When over the limit, extract helpers or split into platform-specific files (e.g., `discord/fetchChannelMembers.ts`). Don't trim comments to fit.
+
+## API Tokens
+
+- `$GH_PAT` — GitHub PAT for API access and PR operations. Use with `gh`: `GH_TOKEN="$GH_PAT" gh pr view`
+- `$TRELLO_API_KEY` / `$TRELLO_API_TOKEN` — Trello API for creating cards directly
 
 ## Skills
 

@@ -15,6 +15,12 @@ When the user says "gg", review the session and update docs with anything useful
 - **Architecture decisions** (where to add methods, when to override in subclasses)
 - **Pitfalls** and how to avoid them
 - **Successful workflows** worth repeating
+- **Improvement ideas** — things that would have made this session significantly better (tooling, docs, automation). Create Trello cards directly:
+  ```bash
+  curl -s -X POST "https://api.trello.com/1/cards?key=$TRELLO_API_KEY&token=$TRELLO_API_TOKEN" \
+    -d "idList=6984995d47be313411dd2247" -d "name=Idea title" -d "desc=Details"
+  ```
+  Boards: typescript TODO=`6984995d47be313411dd2247`, ai TODO=`697d734444c98f5fb0d26a04`
 
 ## Where to Update
 
