@@ -6,7 +6,8 @@
   "packageManager": "npm@10.9.4",
   "prettier": "@hardlydifficult/ts-config/prettier",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -18,7 +19,8 @@
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
     "clean": "turbo run clean",
-    "docs": "typedoc",
+    "docs": "npm run build:site -w apps/docs",
+    "docs:dev": "npm run dev -w apps/docs",
     "docs:agent": "node packages/ci-scripts/dist/generate-llms-txt.js"
   },
   "devDependencies": {
@@ -31,7 +33,6 @@
     "eslint-plugin-jsdoc": "62.5.4",
     "prettier": "3.5.3",
     "turbo": "2.8.2",
-    "typedoc": "0.28.17",
     "typescript": "5.8.3",
     "typescript-eslint": "8.55.0"
   },
