@@ -106,9 +106,9 @@ When adding or changing packages, update the relevant docs so future sessions st
 2. Add or update tests
 3. Implement for **both** Discord and Slack
 
-### Adding Channel/Message convenience methods
+### Adding Channel/Message/Thread convenience methods
 
-Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live on `Channel` or `Message` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations.
+Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
 
 ## Platform Gotchas
 
