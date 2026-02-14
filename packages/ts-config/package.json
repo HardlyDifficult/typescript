@@ -1,6 +1,6 @@
 {
   "name": "@hardlydifficult/ts-config",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "type": "module",
   "exports": {
     "./eslint": "./dist/eslint.js",
@@ -19,8 +19,8 @@
   },
   "peerDependencies": {
     "@eslint/compat": ">=2.0.0",
-    "@eslint/js": ">=9.0.0",
-    "eslint": ">=9.0.0",
+    "@eslint/js": ">=10.0.0",
+    "eslint": ">=10.0.0",
     "eslint-config-prettier": ">=10.0.0",
     "eslint-plugin-import-x": ">=4.0.0",
     "eslint-plugin-jsdoc": ">=62.0.0",
