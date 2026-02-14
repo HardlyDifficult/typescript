@@ -137,6 +137,15 @@ export interface PullRequestCommit {
   readonly html_url: string;
 }
 
+// --- Repo tree types ---
+
+export interface TreeEntry {
+  readonly path: string;
+  readonly type: string;
+  readonly sha: string;
+  readonly size?: number;
+}
+
 // --- Watcher types ---
 
 import type { PRActivity } from "./polling/fetchPRActivity.js";
