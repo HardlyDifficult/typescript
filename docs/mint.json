@@ -25,34 +25,12 @@
     "name": "npm",
     "url": "https://www.npmjs.com/org/hardlydifficult"
   },
-  "tabs": [
-    {
-      "name": "API Reference",
-      "url": "api"
-    }
-  ],
   "navigation": [
     {
       "group": "Getting Started",
       "pages": [
         "introduction",
         "installation"
-      ]
-    },
-    {
-      "group": "Packages",
-      "pages": [
-        "api/ai-msg",
-        "api/chat",
-        "api/date-time",
-        "api/document-generator",
-        "api/github",
-        "api/logger",
-        "api/poller",
-        "api/state-tracker",
-        "api/text",
-        "api/throttle",
-        "api/workflow-engine"
       ]
     }
   ],

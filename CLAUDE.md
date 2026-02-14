@@ -66,7 +66,7 @@ msg.reply("Thread reply");
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Docs**: Add the package to `docs/mint.json` navigation and create `docs/api/{package}.mdx` based on the package's README.
+3. **Docs**: Add the package card to `docs/introduction.mdx` linking to the package directory on GitHub.
 
 4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
 
@@ -75,9 +75,8 @@ msg.reply("Thread reply");
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
-- Package's `README.md` — API docs and examples (automatically converted to Mintlify docs)
-- `docs/mint.json` — add package to navigation
-- `docs/introduction.mdx` — add package to the card grid
+- Package's `README.md` — API docs and examples (single source of truth)
+- `docs/introduction.mdx` — add package card linking to GitHub
 - Root `README.md` — package table
 - `CLAUDE.md` Packages list — add new packages
 - AI repo `CLAUDE.md` package table — if the AI repo will use it
