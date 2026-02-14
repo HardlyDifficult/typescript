@@ -18,7 +18,8 @@ npm run lint            # ESLint (includes max-lines: 400)
 npm run format:check    # Prettier formatting
 npm run test            # All tests
 npm run fix             # Auto-fix lint + format issues
-npm run docs            # Generate API docs site (TypeDoc)
+npm run docs            # Build docs site (Astro Starlight + TypeDoc API reference)
+npm run docs:dev        # Local docs dev server with hot reload
 npm run docs:agent      # Generate llms.txt / llms-full.txt
 ```
 
@@ -68,7 +69,7 @@ msg.reply("Thread reply");
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Docs**: Add the package to `entryPoints` in `typedoc.json` and `LIBRARY_PACKAGES` in `packages/ci-scripts/src/generate-llms-txt.ts`.
+3. **Docs**: Add the package to `entryPoints` in `apps/docs/astro.config.mjs` and `LIBRARY_PACKAGES` in `packages/ci-scripts/src/generate-llms-txt.ts`.
 
 4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
 

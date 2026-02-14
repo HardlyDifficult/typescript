@@ -1,0 +1,46 @@
+---
+title: "@hardlydifficult TypeScript Libraries"
+description: "Opinionated TypeScript libraries. One right way to do each thing."
+template: splash
+hero:
+  title: "@hardlydifficult"
+  tagline: "Opinionated TypeScript libraries. One right way to do each thing — no flexible alternatives."
+  actions:
+    - text: API Reference
+      link: /typescript/api/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/HardlyDifficult/typescript
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <Card title="ai-msg" icon="document">
+    AI response extraction — JSON, typed schemas, code blocks, multimodal
+  </Card>
+  <Card title="chat" icon="comment">
+    Unified Discord/Slack messaging API
+  </Card>
+  <Card title="document-generator" icon="pencil">
+    Rich document builder for Block Kit and Embeds
+  </Card>
+  <Card title="throttle" icon="warning">
+    Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError
+  </Card>
+  <Card title="text" icon="information">
+    Error formatting, template replacement, text chunking
+  </Card>
+  <Card title="state-tracker" icon="setting">
+    Atomic JSON state persistence with async API and auto-save
+  </Card>
+  <Card title="workflow-engine" icon="rocket">
+    State machine with typed statuses, validated transitions, and StateTracker
+    persistence
+  </Card>
+  <Card title="logger" icon="list-format">
+    Plugin-based structured logger with Console, Discord, and File plugins
+  </Card>
+</CardGrid>

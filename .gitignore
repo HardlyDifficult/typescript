@@ -1,7 +1,8 @@
 node_modules/
 dist/
 coverage/
-docs/
+.astro/
+apps/docs/src/content/docs/api/
 llms.txt
 .turbo/
 *.log

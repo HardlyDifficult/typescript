@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Generates llms.txt and llms-full.txt in the docs/ directory.
+ * Generates llms.txt and llms-full.txt in the apps/docs/dist/ directory.
  *
  * llms.txt: Compact index of all library packages with descriptions and links.
  * llms-full.txt: Complete API reference with type signatures and README content
@@ -210,7 +210,7 @@ ${sections.join("\n\n---\n\n")}
 
 function main(): void {
   const rootDir = process.cwd();
-  const docsDir = join(rootDir, "docs");
+  const docsDir = join(rootDir, "apps", "docs", "dist");
 
   if (!existsSync(docsDir)) {
     mkdirSync(docsDir, { recursive: true });

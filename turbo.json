@@ -18,10 +18,6 @@
     },
     "clean": {
       "cache": false
-    },
-    "docs": {
-      "dependsOn": ["build"],
-      "outputs": ["docs/**"]
     }
   }
 }
