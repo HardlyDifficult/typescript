@@ -49,13 +49,25 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 
 ### Thread Messaging
 
-The **only** way to post to a thread is `msg.reply()`. Never use `channel.postMessage()` with a `threadTs` option — the API intentionally does not expose it.
+`Thread` is the primary interface for thread interactions. Create one via `channel.createThread()` or `msg.startThread()`. All threading internals (threadId, thread_ts) are hidden — Thread handles routing.
 
 ```typescript
-// Correct — the only way
-const msg = await channel.postMessage("Hello");
-msg.reply("Thread reply");
+const thread = await channel.createThread("Starting a session!", "Session");
+await thread.post("How can I help?");
+
+thread.onReply(async (msg) => {
+  await thread.post(`Got: ${msg.content}`);
+  await msg.reply("Thanks!"); // also posts in the same thread
+});
+
+thread.offReply();
+await thread.delete();
 ```
+
+- `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
+- `channel.onMessage()` only fires for top-level messages on **both** platforms
+- Discord threads are channels (`channelId = threadId`); Slack threads use `thread_ts` on the parent channel
+- Never use `channel.postMessage()` with a `threadTs` option — the API intentionally does not expose it
 
 ## Creating a New Package
 
@@ -98,6 +110,8 @@ Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live 
 
 - **Emoji:** Discord uses unicode (`'🗑️'`), Slack uses text names (`':wastebasket:'`). Reaction events return different formats per platform.
 - **Slack reactions lack usernames:** Use `event.user.id`, not `event.user.username`.
+- **Slack `mimetype` can be `null`:** The Slack API sends `null` (not `undefined`) for missing mime types. Always handle both.
+- **Slack bolt event types:** `app.event("message")` gives a complex union type. Define a strict `SlackMessagePayload` interface and cast at the boundary — don't spread `any` through the codebase.
 
 ## Testing with Fake Timers (vitest)
 
@@ -107,7 +121,7 @@ Higher-level methods (`withTyping`, `setReactions`, `postDismissable`) can live 
 
 ## Code Size Limits
 
-ESLint enforces `max-lines: 400` (skipping blanks/comments). When over the limit, extract helpers or split into platform-specific files (e.g., `discord/fetchChannelMembers.ts`). Don't trim comments to fit.
+ESLint enforces `max-lines: 400` (skipping blanks/comments). Treat this as an architecture nudge — split by **responsibility**, not just line count. Group related operations into themed modules (e.g., `discord/threadOperations.ts`, `discord/buildMessagePayload.ts`, `slack/buildMessageEvent.ts`). Don't trim comments to fit.
 
 ## API Tokens
 
