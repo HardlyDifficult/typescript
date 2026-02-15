@@ -2,11 +2,18 @@ export { createAI } from "./createAI.js";
 export { claude } from "./claude.js";
 export { ollama } from "./ollama.js";
 export type {
+  Agent,
+  AgentCallbacks,
+  AgentOptions,
+  AgentResult,
   AI,
   AIOptions,
   AITracker,
   ChatCall,
   ChatMessage,
+  Message,
+  ToolDefinition,
+  ToolMap,
   Usage,
 } from "./types.js";
 export { extractCodeBlock } from "./extractCodeBlock.js";

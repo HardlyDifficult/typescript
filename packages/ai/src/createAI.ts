@@ -2,12 +2,20 @@ import type { Logger } from "@hardlydifficult/logger";
 import { generateText, type LanguageModel, Output } from "ai";
 import type { z } from "zod";
 
+import { createAgent } from "./createAgent.js";
+import { runStream } from "./createStream.js";
 import type {
+  Agent,
+  AgentCallbacks,
+  AgentOptions,
+  AgentResult,
   AI,
   AIOptions,
   AITracker,
   ChatCall,
   ChatMessage,
+  Message,
+  ToolMap,
   Usage,
 } from "./types.js";
 
@@ -163,6 +171,7 @@ export function createAI(
   }
 
   const maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const temperature = options?.temperature;
 
   return {
     chat(prompt: string, systemPrompt?: string): ChatCall {
@@ -174,6 +183,29 @@ export function createAI(
         [{ role: "user", content: prompt }],
         systemPrompt
       );
+    },
+
+    stream(
+      messages: Message[],
+      onText: (text: string) => void
+    ): Promise<AgentResult> {
+      return runStream(
+        model,
+        tracker,
+        logger,
+        messages,
+        onText,
+        maxTokens,
+        temperature
+      );
+    },
+
+    agent(tools: ToolMap, agentOptions?: AgentOptions): Agent {
+      return createAgent(model, tools, tracker, logger, {
+        maxSteps: agentOptions?.maxSteps,
+        maxTokens: agentOptions?.maxTokens ?? maxTokens,
+        temperature: agentOptions?.temperature ?? temperature,
+      });
     },
   };
 }
