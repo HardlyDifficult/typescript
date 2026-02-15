@@ -29,11 +29,11 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 
 - `packages/chat` — Unified Discord/Slack messaging API
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
-- `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError
-- `packages/text` — Error formatting, template replacement, text chunking
+- `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError, eventRequest
+- `packages/text` — Error formatting, template replacement, text chunking, slugify
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
-- `packages/workflow-engine` — State machine with typed statuses, validated transitions, and StateTracker persistence
+- `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 - `packages/task-list` — Provider-agnostic task list management (Trello, Linear)
 
@@ -49,6 +49,7 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 - **Consistent patterns.** All event subscriptions return an unsubscribe function or use `on`/`off` pairs.
 - **Domain objects carry operations.** Write operations live on the objects they affect (`task.update()`, `list.createTask()`), not on the client. Params accept domain objects (`labels: [label]`), not raw IDs — the library extracts IDs internally. Internal `*Operations` interfaces (not exported) bridge domain classes to platform-specific API calls.
 - **Chainable finders throw on not found.** State classes like `BoardState.findList(name)` throw instead of returning `null` — enables clean chaining: `state.findBoard("x").findList("y").createTask("z")`.
+- **No backward compatibility.** Always break things to make the end product better. No legacy support, redirects, migration logic, or any mention of the old way. Only optimize for the best design going forward.
 
 ### Thread Messaging
 
@@ -69,6 +70,11 @@ await thread.delete();
 // Reconnect to an existing thread by ID (e.g., after a restart)
 const existing = channel.openThread(savedThreadId);
 await existing.post("I'm back!");
+
+// Stream output into a thread (no placeholder message needed)
+const stream = thread.stream(2000);
+stream.append("Processing...\n");
+await stream.stop();
 ```
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
@@ -120,6 +126,10 @@ Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThre
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
 - **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
+
+## Error Handling
+
+**Logger plugins**: All I/O operations (file writes, network calls) must be wrapped in try-catch and swallow errors. Logging infrastructure should never crash the application.
 
 ## Platform Gotchas
 

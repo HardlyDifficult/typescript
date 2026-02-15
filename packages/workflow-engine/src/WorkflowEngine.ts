@@ -34,7 +34,11 @@ export class WorkflowEngine<TStatus extends string, TData> {
 
     this.tracker = new StateTracker<PersistedState<TStatus, TData>>({
       key: options.key,
-      default: { status: initialStatus, data: options.initialData },
+      default: {
+        status: initialStatus,
+        data: options.initialData,
+        updatedAt: new Date().toISOString(),
+      },
       stateDirectory: options.stateDirectory,
       autoSaveMs: options.autoSaveMs ?? 5000,
     });
@@ -58,6 +62,11 @@ export class WorkflowEngine<TStatus extends string, TData> {
   /** Whether disk storage is available */
   get isPersistent(): boolean {
     return this.tracker.isPersistent;
+  }
+
+  /** ISO timestamp of the last transition or update */
+  get updatedAt(): string {
+    return this.tracker.state.updatedAt;
   }
 
   /** Whether the current status is terminal (no outgoing transitions) */
@@ -103,7 +112,11 @@ export class WorkflowEngine<TStatus extends string, TData> {
       updater(data);
     }
 
-    this.tracker.set({ status: to, data });
+    this.tracker.set({
+      status: to,
+      data,
+      updatedAt: new Date().toISOString(),
+    });
     await this.tracker.saveAsync();
 
     this.emitEvent("transition", from, to);
@@ -121,7 +134,11 @@ export class WorkflowEngine<TStatus extends string, TData> {
 
     updater(data);
 
-    this.tracker.set({ status: this.status, data });
+    this.tracker.set({
+      status: this.status,
+      data,
+      updatedAt: new Date().toISOString(),
+    });
     await this.tracker.saveAsync();
 
     this.emitEvent("update");

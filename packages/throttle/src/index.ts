@@ -17,3 +17,9 @@ export {
   createThrottledUpdater,
   type ThrottledUpdater,
 } from "./ThrottledUpdater";
+
+export {
+  eventRequest,
+  type EventSubscriber,
+  type EventRequestOptions,
+} from "./eventRequest";
