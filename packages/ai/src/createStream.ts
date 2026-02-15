@@ -1,5 +1,5 @@
 import type { Logger } from "@hardlydifficult/logger";
-import { streamText, type LanguageModel } from "ai";
+import { type LanguageModel, streamText } from "ai";
 
 import type { AgentResult, AITracker, Message, Usage } from "./types.js";
 
