@@ -37,6 +37,7 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, StateTracker persistence, and `DataCursor` for safe nested data navigation
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 - `packages/task-list` — Provider-agnostic task list management (Trello, Linear)
+- `packages/queue` — Prioritized FIFO queue (high/medium/low buckets, O(1) enqueue/dequeue)
 - `packages/teardown` — Idempotent resource teardown with signal trapping
 
 Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
