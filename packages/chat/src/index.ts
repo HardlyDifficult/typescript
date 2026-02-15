@@ -27,6 +27,7 @@ export { Message } from "./Message";
 export { EditableStreamReply } from "./EditableStreamReply";
 export { StreamingReply } from "./StreamingReply";
 export { Thread } from "./Thread";
+export { createMessageTracker, type MessageTracker } from "./MessageTracker";
 
 // Platform implementations
 export { DiscordChatClient } from "./discord";
