@@ -7,8 +7,8 @@
 
 import type {
   PullRequestComment,
-  PullRequestReview,
   PullRequestCommit,
+  PullRequestReview,
 } from "./types.js";
 
 export type TimelineEntryKind = "comment" | "review" | "commit";
@@ -101,7 +101,9 @@ function formatReviewState(state: string): string {
  *   [2024-01-15 11:30] ✅ @alice (review: approved): LGTM
  */
 export function formatTimeline(entries: readonly TimelineEntry[]): string {
-  if (entries.length === 0) return "No activity.";
+  if (entries.length === 0) {
+    return "No activity.";
+  }
 
   return entries
     .map((e) => {
@@ -119,6 +121,9 @@ export function formatTimeline(entries: readonly TimelineEntry[]): string {
           break;
         case "commit":
           label = `commit ${e.commitSha ?? ""}`;
+          break;
+        default:
+          label = e.kind;
           break;
       }
 
