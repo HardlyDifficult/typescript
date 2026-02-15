@@ -116,6 +116,10 @@ When adding or changing packages, update the relevant docs so future sessions st
 
 Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
 
+## Error Handling
+
+**Logger plugins**: All I/O operations (file writes, network calls) must be wrapped in try-catch and swallow errors. Logging infrastructure should never crash the application.
+
 ## Platform Gotchas
 
 - **Emoji:** Discord uses unicode (`'🗑️'`), Slack uses text names (`':wastebasket:'`). Reaction events return different formats per platform.
