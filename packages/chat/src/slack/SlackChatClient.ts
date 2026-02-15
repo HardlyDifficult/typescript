@@ -3,6 +3,7 @@ import { App } from "@slack/bolt";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
+import { MESSAGE_LIMITS } from "../constants.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
 import type {
   DisconnectCallback,
@@ -226,6 +227,18 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       return { id: "", channelId, platform: "slack" };
     }
 
+    // If text exceeds Slack's limit, upload as a file instead
+    if (text.length > MESSAGE_LIMITS.slack) {
+      await this.app.client.filesUploadV2({
+        channel_id: channelId,
+        filename: "message.txt",
+        initial_comment: "(Message too long \u2014 see attached file)",
+        thread_ts: options?.threadTs,
+        content: text,
+      });
+      return { id: "", channelId, platform: "slack" };
+    }
+
     const result = await this.app.client.chat.postMessage({
       channel: channelId,
       text,
@@ -260,6 +273,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       text = content.toPlainText().trim() || "Message";
     } else {
       text = convertMarkdown(content, "slack");
+    }
+
+    // Truncate if over limit (edits cannot attach files)
+    const limit = MESSAGE_LIMITS.slack;
+    if (text.length > limit) {
+      text = `${text.slice(0, limit - 1)}\u2026`;
     }
 
     await this.app.client.chat.update({
