@@ -1,5 +1,6 @@
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
+import { DataCursor } from "./DataCursor.js";
 import type {
   DataUpdater,
   PersistedState,
@@ -142,6 +143,13 @@ export class WorkflowEngine<TStatus extends string, TData> {
     await this.tracker.saveAsync();
 
     this.emitEvent("update");
+  }
+
+  /** Create a cursor for safe navigation into nested data. */
+  cursor<TItem>(
+    selector: (data: TData) => TItem | undefined
+  ): DataCursor<TStatus, TData, TItem> {
+    return new DataCursor(this, selector);
   }
 
   /** Check if a specific transition is allowed from current status */

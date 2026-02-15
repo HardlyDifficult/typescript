@@ -13,7 +13,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
 | [@hardlydifficult/document-generator](./packages/document-generator) | Platform-agnostic document builder |
-| [@hardlydifficult/github](./packages/github) | Typed GitHub API client (Octokit wrapper) |
+| [@hardlydifficult/github](./packages/github) | Typed GitHub API client with repo context gathering (Octokit wrapper) |
 | [@hardlydifficult/logger](./packages/logger) | Plugin-based structured logger (Console, Discord, File plugins) |
 | [@hardlydifficult/poller](./packages/poller) | Generic state-change poller with interval polling |
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared config files synced via postinstall |
@@ -24,7 +24,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Numeric metric accumulation with session/cumulative dual-tracking |
 | [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
-| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, and persistence |
+| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, persistence, and `DataCursor` for nested data access |
 
 ## Documentation
 

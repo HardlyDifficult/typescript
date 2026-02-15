@@ -75,8 +75,24 @@ engine.isTerminal; // true
 | `transition(to, updater?)` | Change status, optionally mutate data. Validates transition, persists immediately. |
 | `update(updater)` | Mutate data without changing status. Persists immediately. |
 | `save()` | Force-save current state to disk. |
+| `cursor(selector)` | Create a `DataCursor` for safe nested data access with `get()`, `find()`, `update()`. |
 | `canTransition(to)` | Check if a transition is allowed from current status. |
 | `allowedTransitions()` | List statuses reachable from current status. |
+
+### `cursor<TItem>(selector)`
+
+Creates a reusable cursor for safe navigation into nested engine data. Define the selector once, then use `get()`, `find()`, or `update()` without repeating navigation logic.
+
+```typescript
+interface Data { items: Array<{ name: string; done: boolean }>; currentIndex?: number; }
+
+const item = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
+
+item.get();       // returns item or throws "Cursor target not found"
+item.find();      // returns item or undefined
+await item.update((it) => { it.done = true; });            // persists, no-op if undefined
+await item.update((it, d) => { d.currentIndex = undefined; }); // access parent data too
+```
 
 ### Updater Pattern
 

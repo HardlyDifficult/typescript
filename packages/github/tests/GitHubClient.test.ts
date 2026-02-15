@@ -37,8 +37,12 @@ const mockOctokit = {
     listComments: vi.fn(),
     createComment: vi.fn(),
   },
+  git: {
+    getTree: vi.fn(),
+  },
   repos: {
     get: vi.fn(),
+    getContent: vi.fn(),
     listForOrg: vi.fn(),
     listForUser: vi.fn(),
   },
@@ -445,6 +449,92 @@ describe("GitHubClient", () => {
         per_page: 100,
         sort: "updated",
       });
+    });
+  });
+
+  describe("repo().gatherContext", () => {
+    it("returns file paths and key files", async () => {
+      mockOctokit.git.getTree.mockResolvedValue({
+        data: {
+          tree: [
+            { path: "src/index.ts", type: "blob", sha: "a1" },
+            { path: "src", type: "tree", sha: "a2" },
+            { path: "README.md", type: "blob", sha: "a3" },
+            { path: "package.json", type: "blob", sha: "a4" },
+          ],
+        },
+      });
+
+      const readmeContent = Buffer.from("# Hello World").toString("base64");
+      const pkgContent = Buffer.from('{"name": "test"}').toString("base64");
+
+      mockOctokit.repos.getContent
+        .mockResolvedValueOnce({ data: { content: readmeContent } })
+        .mockResolvedValueOnce({ data: { content: pkgContent } });
+
+      const result = await client
+        .repo("owner", "repo")
+        .gatherContext(["README.md", "package.json", "MISSING.md"], 5000);
+
+      // Filters out tree entries (only blobs)
+      expect(result.filePaths).toEqual([
+        "src/index.ts",
+        "README.md",
+        "package.json",
+      ]);
+
+      // Fetches files that exist, skips MISSING.md
+      expect(result.keyFiles).toHaveLength(2);
+      expect(result.keyFiles[0]).toEqual({
+        path: "README.md",
+        content: "# Hello World",
+      });
+      expect(result.keyFiles[1]).toEqual({
+        path: "package.json",
+        content: '{"name": "test"}',
+      });
+    });
+
+    it("truncates file content to maxFileChars", async () => {
+      mockOctokit.git.getTree.mockResolvedValue({
+        data: {
+          tree: [{ path: "README.md", type: "blob", sha: "a1" }],
+        },
+      });
+
+      const longContent = Buffer.from("A".repeat(100)).toString("base64");
+      mockOctokit.repos.getContent.mockResolvedValue({
+        data: { content: longContent },
+      });
+
+      const result = await client
+        .repo("owner", "repo")
+        .gatherContext(["README.md"], 10);
+
+      expect(result.keyFiles[0]!.content).toBe("A".repeat(10));
+    });
+
+    it("skips files that fail to fetch", async () => {
+      mockOctokit.git.getTree.mockResolvedValue({
+        data: {
+          tree: [
+            { path: "README.md", type: "blob", sha: "a1" },
+            { path: "SECRET.md", type: "blob", sha: "a2" },
+          ],
+        },
+      });
+
+      const readmeContent = Buffer.from("# Hello").toString("base64");
+      mockOctokit.repos.getContent
+        .mockResolvedValueOnce({ data: { content: readmeContent } })
+        .mockRejectedValueOnce(new Error("403 Forbidden"));
+
+      const result = await client
+        .repo("owner", "repo")
+        .gatherContext(["README.md", "SECRET.md"], 5000);
+
+      expect(result.keyFiles).toHaveLength(1);
+      expect(result.keyFiles[0]!.path).toBe("README.md");
     });
   });
 });

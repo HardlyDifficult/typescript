@@ -4,11 +4,13 @@ import { PRWatcher } from "./PRWatcher.js";
 import type {
   CheckRun,
   ContributionRepo,
+  KeyFile,
   PullRequest,
   PullRequestComment,
   PullRequestCommit,
   PullRequestFile,
   PullRequestReview,
+  RepoContext,
   Repository,
   TreeEntry,
   WatchOptions,
@@ -186,6 +188,31 @@ export class RepoClient {
 
     const data = response.data as { content?: string; encoding?: string };
     return Buffer.from(data.content ?? "", "base64").toString("utf-8");
+  }
+
+  /** Fetch the file tree and a set of key files for AI context gathering. */
+  async gatherContext(
+    filesToFetch: readonly string[],
+    maxFileChars: number
+  ): Promise<RepoContext> {
+    const tree = await this.getFileTree();
+    const filePaths = tree.filter((e) => e.type === "blob").map((e) => e.path);
+    const treePathSet = new Set(filePaths);
+    const keyFiles: KeyFile[] = [];
+
+    for (const path of filesToFetch) {
+      if (!treePathSet.has(path)) {
+        continue;
+      }
+      try {
+        const content = await this.getFileContent(path);
+        keyFiles.push({ path, content: content.slice(0, maxFileChars) });
+      } catch {
+        // File not accessible — skip
+      }
+    }
+
+    return { filePaths, keyFiles };
   }
 }
 
