@@ -25,6 +25,7 @@ const LIBRARY_PACKAGES = [
   "logger",
   "poller",
   "state-tracker",
+  "task-list",
   "text",
   "throttle",
   "workflow-engine",

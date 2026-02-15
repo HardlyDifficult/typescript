@@ -35,6 +35,7 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
+- `packages/task-list` — Provider-agnostic task list management (Trello, Linear)
 
 Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 
@@ -46,6 +47,8 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 - **Minimal public API surface.** Don't export internal interfaces (`ChannelOperations`, `MessageOperations`), implementation types, or options bags when a simple parameter works.
 - **Flat parameters over options objects.** Only use options objects when there are 3+ optional fields.
 - **Consistent patterns.** All event subscriptions return an unsubscribe function or use `on`/`off` pairs.
+- **Domain objects carry operations.** Write operations live on the objects they affect (`task.update()`, `list.createTask()`), not on the client. Params accept domain objects (`labels: [label]`), not raw IDs — the library extracts IDs internally. Internal `*Operations` interfaces (not exported) bridge domain classes to platform-specific API calls.
+- **Chainable finders throw on not found.** State classes like `BoardState.findList(name)` throw instead of returning `null` — enables clean chaining: `state.findBoard("x").findList("y").createTask("z")`.
 - **No backward compatibility.** Always break things to make the end product better. No legacy support, redirects, migration logic, or any mention of the old way. Only optimize for the best design going forward.
 
 ### Thread Messaging
@@ -97,6 +100,8 @@ await stream.stop();
 
 5. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
 
+6. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing.
+
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
@@ -115,6 +120,12 @@ When adding or changing packages, update the relevant docs so future sessions st
 ### Adding Channel/Message/Thread convenience methods
 
 Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
+
+## ESLint Strict Rules — Common Fixes
+
+- **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
+- **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
+- **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
 
 ## Error Handling
 

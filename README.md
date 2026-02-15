@@ -8,14 +8,18 @@ Focused, opinionated, easy-to-use npm packages.
 
 | Package | Description |
 |---------|-------------|
+| [@hardlydifficult/ai-msg](./packages/ai-msg) | AI response extraction (JSON, typed schemas, code blocks, multimodal) |
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
 | [@hardlydifficult/document-generator](./packages/document-generator) | Platform-agnostic document builder |
 | [@hardlydifficult/github](./packages/github) | Typed GitHub API client (Octokit wrapper) |
+| [@hardlydifficult/logger](./packages/logger) | Plugin-based structured logger (Console, Discord, File plugins) |
 | [@hardlydifficult/poller](./packages/poller) | Generic state-change poller with interval polling |
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared config files synced via postinstall |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
+| [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task list management (Trello, Linear) |
+| [@hardlydifficult/text](./packages/text) | Error formatting, template replacement, text chunking, slugify |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
 | [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, and persistence |
