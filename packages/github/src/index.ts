@@ -16,6 +16,7 @@ export type {
   ContributionRepo,
   MergeableState,
   WatchOptions,
+  WatchThrottle,
   PREvent,
   CommentEvent,
   ReviewEvent,

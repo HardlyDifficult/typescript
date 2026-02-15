@@ -16,6 +16,10 @@ export interface PRSnapshot {
   checkRuns: Map<number, { status: string; conclusion: string | null }>;
   status: string | null;
   lastSeen: number;
+  updatedAt: string;
+  headSha: string;
+  hasIncompleteChecks: boolean;
+  cachedActivity: PRActivity;
 }
 
 /** Creates a point-in-time snapshot of a PR's state including activity IDs for change detection. */
@@ -40,6 +44,12 @@ export function buildSnapshot(
     ),
     status,
     lastSeen: Date.now(),
+    updatedAt: pr.updated_at,
+    headSha: pr.head.sha,
+    hasIncompleteChecks: activity.checkRuns.some(
+      (cr) => cr.status !== "completed"
+    ),
+    cachedActivity: activity,
   };
 }
 

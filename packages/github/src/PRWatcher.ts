@@ -1,6 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
-import { fetchPRActivity } from "./polling/fetchPRActivity.js";
+import { fetchPRActivitySelective } from "./polling/fetchPRActivity.js";
 import { fetchWatchedPRs, type WatchedPR } from "./polling/fetchWatchedPRs.js";
 import {
   buildSnapshot,
@@ -24,6 +24,7 @@ import type {
   ReviewEvent,
   StatusChangedEvent,
   WatchOptions,
+  WatchThrottle,
 } from "./types.js";
 
 const DEFAULT_INTERVAL_MS = 30_000;
@@ -38,6 +39,7 @@ export class PRWatcher {
   private readonly classifyPR: ClassifyPR | undefined;
   private readonly discoverRepos: DiscoverRepos | undefined;
   private readonly stalePRThresholdMs: number | undefined;
+  private readonly throttle: WatchThrottle | undefined;
 
   private readonly newPRCallbacks = new Set<(event: PREvent) => void>();
   private readonly commentCallbacks = new Set<(event: CommentEvent) => void>();
@@ -73,6 +75,7 @@ export class PRWatcher {
     this.classifyPR = options.classifyPR;
     this.discoverRepos = options.discoverRepos;
     this.stalePRThresholdMs = options.stalePRThresholdMs;
+    this.throttle = options.throttle;
   }
 
   onNewPR(callback: (event: PREvent) => void): () => void {
@@ -182,7 +185,8 @@ export class PRWatcher {
         this.octokit,
         this.username,
         this.repos,
-        this.myPRs
+        this.myPRs,
+        this.throttle
       );
       await this.processUpdates(prs);
     } catch (error: unknown) {
@@ -236,12 +240,15 @@ export class PRWatcher {
     name: string,
     key: string
   ): Promise<void> {
-    const activity = await fetchPRActivity(
+    const { activity } = await fetchPRActivitySelective(
       this.octokit,
       owner,
       name,
       pr.number,
-      pr.head.sha
+      pr.head.sha,
+      pr.updated_at,
+      undefined,
+      this.throttle
     );
     let status: string | null = null;
     if (this.classifyPR) {
@@ -284,12 +291,15 @@ export class PRWatcher {
       }
     }
 
-    const activity = await fetchPRActivity(
+    const { activity } = await fetchPRActivitySelective(
       this.octokit,
       owner,
       name,
       pr.number,
-      pr.head.sha
+      pr.head.sha,
+      pr.updated_at,
+      previous,
+      this.throttle
     );
 
     if (this.initialized) {
@@ -323,6 +333,7 @@ export class PRWatcher {
       }
 
       try {
+        await this.throttle?.wait(1);
         const response = await this.octokit.pulls.get({
           owner: snapshot.owner,
           repo: snapshot.name,

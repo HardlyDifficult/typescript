@@ -171,6 +171,11 @@ export type DiscoverRepos = () =>
   | readonly string[]
   | Promise<readonly string[]>;
 
+/** Minimal throttle interface compatible with `@hardlydifficult/throttle`. */
+export interface WatchThrottle {
+  wait(weight?: number): Promise<void>;
+}
+
 export interface WatchOptions {
   readonly repos?: readonly string[];
   readonly myPRs?: boolean;
@@ -178,6 +183,7 @@ export interface WatchOptions {
   readonly classifyPR?: ClassifyPR;
   readonly discoverRepos?: DiscoverRepos;
   readonly stalePRThresholdMs?: number;
+  readonly throttle?: WatchThrottle;
 }
 
 export interface PREvent {
