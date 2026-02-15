@@ -150,6 +150,8 @@ Used by: `UsageTracker`. `WorkflowEngine` uses a similar pattern.
 
 **Logger plugins**: All I/O operations (file writes, network calls) must be wrapped in try-catch and swallow errors. Logging infrastructure should never crash the application.
 
+**Constructors must not throw on I/O.** If a constructor touches the filesystem (mkdir, stat), wrap it in try-catch. Downstream code (like `loadAsync()`) should handle graceful degradation. This matters because consumers use top-level `await` with `create()` factories — a throwing constructor crashes any module that imports the file, even indirectly (e.g., a validation script in CI).
+
 ## Platform Gotchas
 
 - **Emoji:** Discord uses unicode (`'🗑️'`), Slack uses text names (`':wastebasket:'`). Reaction events return different formats per platform.
