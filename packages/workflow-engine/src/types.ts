@@ -47,6 +47,25 @@ export interface WorkflowEngineOptions<TStatus extends string, TData> {
 }
 
 /**
+ * Listener callback for engine change events.
+ * Receives the same event as onTransition.
+ */
+export type ChangeListener<TStatus extends string, TData> = (
+  event: TransitionEvent<TStatus, TData>
+) => void;
+
+/**
+ * Read-only snapshot of an engine's current state.
+ * Useful for serialization or external consumers.
+ */
+export interface WorkflowSnapshot<TStatus extends string, TData> {
+  status: TStatus;
+  data: Readonly<TData>;
+  updatedAt: string;
+  isTerminal: boolean;
+}
+
+/**
  * Internal persisted shape: status + data + updatedAt together.
  */
 export interface PersistedState<TStatus extends string, TData> {

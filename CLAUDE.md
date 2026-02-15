@@ -34,7 +34,7 @@ npm run docs:agent      # Generate llms.txt / llms-full.txt
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
 - `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
-- `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, StateTracker persistence, and `DataCursor` for safe nested data navigation
+- `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, StateTracker persistence, `DataCursor` for safe nested data navigation, multi-listener `on()`, and `toSnapshot()` serialization
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 - `packages/task-list` — Provider-agnostic task list management (Trello, Linear)
 - `packages/queue` — Prioritized FIFO queue (high/medium/low buckets, O(1) enqueue/dequeue)
