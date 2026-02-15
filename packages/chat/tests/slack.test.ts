@@ -108,7 +108,9 @@ const {
 
 // Mock @slack/bolt
 vi.mock("@slack/bolt", () => ({
-  App: vi.fn().mockImplementation(() => mockApp),
+  App: vi.fn().mockImplementation(function () {
+    return mockApp;
+  }),
 }));
 
 // Import after mocking
