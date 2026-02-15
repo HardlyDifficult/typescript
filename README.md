@@ -19,6 +19,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared config files synced via postinstall |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task list management (Trello, Linear) |
+| [@hardlydifficult/teardown](./packages/teardown) | Idempotent resource teardown with signal trapping |
 | [@hardlydifficult/text](./packages/text) | Error formatting, template replacement, text chunking, slugify |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Numeric metric accumulation with session/cumulative dual-tracking |
