@@ -196,9 +196,7 @@ export class RepoClient {
     maxFileChars: number
   ): Promise<RepoContext> {
     const tree = await this.getFileTree();
-    const filePaths = tree
-      .filter((e) => e.type === "blob")
-      .map((e) => e.path);
+    const filePaths = tree.filter((e) => e.type === "blob").map((e) => e.path);
     const treePathSet = new Set(filePaths);
     const keyFiles: KeyFile[] = [];
 

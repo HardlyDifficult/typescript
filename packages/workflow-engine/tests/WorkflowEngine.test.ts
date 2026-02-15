@@ -507,15 +507,10 @@ describe("WorkflowEngine", () => {
     }
 
     it("get() returns the selected item", async () => {
-      const engine = createIndexedEngine(
-        [{ name: "a", status: "pending" }],
-        0
-      );
+      const engine = createIndexedEngine([{ name: "a", status: "pending" }], 0);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       expect(cursor.get()).toEqual({ name: "a", status: "pending" });
     });
@@ -524,23 +519,16 @@ describe("WorkflowEngine", () => {
       const engine = createIndexedEngine([], undefined);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       expect(() => cursor.get()).toThrow("Cursor target not found");
     });
 
     it("find() returns the selected item or undefined", async () => {
-      const engine = createIndexedEngine(
-        [{ name: "a", status: "pending" }],
-        0
-      );
+      const engine = createIndexedEngine([{ name: "a", status: "pending" }], 0);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       expect(cursor.find()).toEqual({ name: "a", status: "pending" });
     });
@@ -549,23 +537,16 @@ describe("WorkflowEngine", () => {
       const engine = createIndexedEngine([], undefined);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       expect(cursor.find()).toBeUndefined();
     });
 
     it("update() mutates the selected item and persists", async () => {
-      const engine = createIndexedEngine(
-        [{ name: "a", status: "pending" }],
-        0
-      );
+      const engine = createIndexedEngine([{ name: "a", status: "pending" }], 0);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       await cursor.update((item) => {
         item.status = "done";
@@ -580,15 +561,10 @@ describe("WorkflowEngine", () => {
     });
 
     it("update() receives both item and parent data", async () => {
-      const engine = createIndexedEngine(
-        [{ name: "a", status: "pending" }],
-        0
-      );
+      const engine = createIndexedEngine([{ name: "a", status: "pending" }], 0);
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       await cursor.update((item, data) => {
         item.status = "done";
@@ -606,9 +582,7 @@ describe("WorkflowEngine", () => {
       );
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       await cursor.update((item) => {
         item.status = "should-not-happen";
@@ -628,9 +602,7 @@ describe("WorkflowEngine", () => {
       );
       await engine.load();
 
-      const cursor = engine.cursor(
-        (d) => d.items[d.currentIndex ?? -1]
-      );
+      const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
       expect(cursor.get().name).toBe("a");
 
