@@ -43,6 +43,7 @@ const {
     id: "msg-123",
     channelId: "channel-456",
     react: vi.fn(),
+    edit: vi.fn().mockResolvedValue(undefined),
     delete: vi.fn().mockResolvedValue(undefined),
     thread: null as { delete: ReturnType<typeof vi.fn> } | null,
     startThread: vi.fn().mockResolvedValue(mockThread),
@@ -1875,6 +1876,68 @@ describe("DiscordChatClient", () => {
 
       const sendArgs = mockTextChannelData.send.mock.calls[0][0];
       expect(sendArgs.files).toHaveLength(2);
+    });
+  });
+
+  describe("Oversized message handling", () => {
+    it("should convert oversized string content to a file attachment", async () => {
+      const channel = await client.connect(channelId);
+      const longContent = "x".repeat(2001);
+      const message = channel.postMessage(longContent);
+      await waitForMessage(message);
+
+      expect(mockTextChannelData.send).toHaveBeenCalledTimes(1);
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.content).toBe(
+        "(Message too long \u2014 see attached file)"
+      );
+      expect(sendArgs.files).toHaveLength(1);
+      expect(sendArgs.files[0]).toBeInstanceOf(MockAttachmentBuilder);
+    });
+
+    it("should not convert content at exactly 2000 characters", async () => {
+      const channel = await client.connect(channelId);
+      const exactContent = "x".repeat(2000);
+      const message = channel.postMessage(exactContent);
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.content).toBe(exactContent);
+      expect(sendArgs.files).toBeUndefined();
+    });
+
+    it("should merge overflow attachment with user-provided files", async () => {
+      const channel = await client.connect(channelId);
+      const longContent = "x".repeat(2001);
+      const message = channel.postMessage(longContent, {
+        files: [{ content: Buffer.from("extra"), name: "extra.txt" }],
+      });
+      await waitForMessage(message);
+
+      const sendArgs = mockTextChannelData.send.mock.calls[0][0];
+      expect(sendArgs.files).toHaveLength(2);
+    });
+
+    it("should truncate oversized content on updateMessage", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("initial");
+      const longContent = "x".repeat(2001);
+      await msg.update(longContent);
+
+      expect(mockDiscordMessage.edit).toHaveBeenCalledTimes(1);
+      const editArgs = mockDiscordMessage.edit.mock.calls[0][0];
+      expect(editArgs.content).toHaveLength(2000);
+      expect(editArgs.content.endsWith("\u2026")).toBe(true);
+    });
+
+    it("should not truncate content at exactly 2000 chars on updateMessage", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("initial");
+      const exactContent = "x".repeat(2000);
+      await msg.update(exactContent);
+
+      const editArgs = mockDiscordMessage.edit.mock.calls[0][0];
+      expect(editArgs.content).toBe(exactContent);
     });
   });
 

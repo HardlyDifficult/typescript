@@ -80,6 +80,15 @@ const report = new Document()
 channel.postMessage(report);
 ```
 
+### Oversized Message Handling
+
+Messages that exceed platform limits (Discord: 2000 chars, Slack: 4000 chars) are handled automatically:
+
+- **`postMessage`**: Sends the full content as a `message.txt` file attachment instead of failing
+- **`update`**: Truncates with `…` (edits cannot attach files on either platform)
+
+No caller changes needed — the library handles this transparently.
+
 ### File Attachments
 
 Send files as message attachments.
@@ -314,6 +323,7 @@ Both callbacks return an unsubscribe function.
 
 | Feature           | Discord                                       | Slack                                            |
 | ----------------- | --------------------------------------------- | ------------------------------------------------ |
+| Message limit     | 2000 chars (auto-attaches as file if over)    | 4000 chars (auto-uploads as file if over)        |
 | Incoming messages | Full support                                  | Full support                                     |
 | Typing indicator  | Full support                                  | No-op (unsupported by Slack bot API)             |
 | File attachments  | `AttachmentBuilder`                           | `filesUploadV2`                                  |

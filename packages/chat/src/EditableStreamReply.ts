@@ -1,10 +1,6 @@
+import { MESSAGE_LIMITS } from "./constants.js";
 import type { Message } from "./Message.js";
 import type { Platform } from "./types.js";
-
-const MESSAGE_LIMITS: Record<Platform, number> = {
-  discord: 2000,
-  slack: 4000,
-};
 
 /**
  * Buffers text and periodically updates a single thread message in place.

@@ -1,9 +1,7 @@
-import { convertMarkdown } from "@hardlydifficult/document-generator";
 import { App } from "@slack/bolt";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
-import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
 import type {
   DisconnectCallback,
   ErrorCallback,
@@ -18,7 +16,6 @@ import type {
   ThreadData,
   User,
 } from "../types.js";
-import { isDocument } from "../utils.js";
 
 import {
   buildMessageEvent,
@@ -26,6 +23,11 @@ import {
 } from "./buildMessageEvent.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
 import { getThreads } from "./getThreads.js";
+import {
+  deleteMessage,
+  postMessage,
+  updateMessage,
+} from "./messageOperations.js";
 import { removeAllReactions } from "./removeAllReactions.js";
 
 /**
@@ -173,75 +175,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       linkPreviews?: boolean;
     }
   ): Promise<MessageData> {
-    let text: string;
-    let blocks: SlackBlock[] | undefined;
-
-    if (isDocument(content)) {
-      blocks = toSlackBlocks(content.getBlocks());
-      text = content.toPlainText().trim() || "Message"; // fallback text for accessibility
-    } else {
-      text = convertMarkdown(content, "slack");
-    }
-
-    // Suppress link preview unfurling by default
-    const unfurl =
-      options?.linkPreviews === true
-        ? {}
-        : { unfurl_links: false, unfurl_media: false };
-
-    // If files are provided, upload them and attach to the message
-    if (options?.files && options.files.length > 0) {
-      for (let i = 0; i < options.files.length; i++) {
-        const file = options.files[i];
-        await this.app.client.filesUploadV2({
-          channel_id: channelId,
-          filename: file.name,
-          // Only attach the text as initial_comment on the first file to avoid duplicates
-          ...(i === 0 ? { initial_comment: text } : {}),
-          thread_ts: options.threadTs,
-          // String content uses the content field; binary uses the file field
-          ...(typeof file.content === "string"
-            ? { content: file.content }
-            : { file: file.content }),
-        });
-      }
-
-      // Post the text message separately if there are also blocks (rich document)
-      if (blocks) {
-        const result = await this.app.client.chat.postMessage({
-          channel: channelId,
-          text,
-          blocks,
-          thread_ts: options.threadTs,
-          ...unfurl,
-        });
-        if (result.ts === undefined) {
-          throw new Error("Slack API did not return a message timestamp");
-        }
-        return { id: result.ts, channelId, platform: "slack" };
-      }
-
-      // File uploads create messages implicitly; the Slack API doesn't reliably
-      // return a message timestamp from filesUploadV2, so return empty ID.
-      return { id: "", channelId, platform: "slack" };
-    }
-
-    const result = await this.app.client.chat.postMessage({
-      channel: channelId,
-      text,
-      blocks,
-      thread_ts: options?.threadTs,
-      ...unfurl,
-    });
-
-    if (result.ts === undefined) {
-      throw new Error("Slack API did not return a message timestamp");
-    }
-    return {
-      id: result.ts,
-      channelId,
-      platform: "slack",
-    };
+    return postMessage(this.app, channelId, content, options);
   }
 
   /**
@@ -252,51 +186,14 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     content: MessageContent
   ): Promise<void> {
-    let text: string;
-    let blocks: SlackBlock[] | undefined;
-
-    if (isDocument(content)) {
-      blocks = toSlackBlocks(content.getBlocks());
-      text = content.toPlainText().trim() || "Message";
-    } else {
-      text = convertMarkdown(content, "slack");
-    }
-
-    await this.app.client.chat.update({
-      channel: channelId,
-      ts: messageId,
-      text,
-      blocks,
-    });
+    await updateMessage(this.app, messageId, channelId, content);
   }
 
   /**
    * Delete a message and its thread replies from a Slack channel
    */
   async deleteMessage(messageId: string, channelId: string): Promise<void> {
-    // Fetch and delete thread replies first
-    const replies = await this.app.client.conversations.replies({
-      channel: channelId,
-      ts: messageId,
-    });
-
-    if (replies.messages && replies.messages.length > 1) {
-      // First message is the parent — delete replies (rest) in reverse order
-      for (const reply of replies.messages.slice(1).reverse()) {
-        if (reply.ts !== undefined && reply.ts !== "") {
-          await this.app.client.chat.delete({
-            channel: channelId,
-            ts: reply.ts,
-          });
-        }
-      }
-    }
-
-    // Delete the parent message
-    await this.app.client.chat.delete({
-      channel: channelId,
-      ts: messageId,
-    });
+    await deleteMessage(this.app, messageId, channelId);
   }
 
   /**

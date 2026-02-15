@@ -1,5 +1,6 @@
 import { AttachmentBuilder, MessageFlags } from "discord.js";
 
+import { MESSAGE_LIMITS } from "../constants.js";
 import { type DiscordEmbed, toDiscordEmbed } from "../outputters/discord.js";
 import type { FileAttachment, MessageContent } from "../types.js";
 import { isDocument } from "../utils.js";
@@ -36,6 +37,14 @@ export function buildMessagePayload(
       embed.image !== undefined;
 
     payload = hasEmbedContent ? { embeds: [embed] } : { content: "\u200B" };
+  } else if (content.length > MESSAGE_LIMITS.discord) {
+    // Content exceeds Discord's limit — send as a .txt file attachment
+    payload = {
+      content: "(Message too long \u2014 see attached file)",
+      files: [
+        new AttachmentBuilder(Buffer.from(content), { name: "message.txt" }),
+      ],
+    };
   } else {
     payload = { content };
   }
@@ -45,9 +54,9 @@ export function buildMessagePayload(
     payload.messageReference = { messageId: options.threadTs };
   }
 
-  // Add file attachments
+  // Add file attachments (merge with any overflow attachment)
   if (options?.files && options.files.length > 0) {
-    payload.files = options.files.map(
+    const userFiles = options.files.map(
       (file) =>
         new AttachmentBuilder(
           typeof file.content === "string"
@@ -56,6 +65,7 @@ export function buildMessagePayload(
           { name: file.name }
         )
     );
+    payload.files = [...(payload.files ?? []), ...userFiles];
   }
 
   // Suppress link preview embeds by default

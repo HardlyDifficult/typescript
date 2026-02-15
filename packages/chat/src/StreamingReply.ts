@@ -1,9 +1,5 @@
+import { MESSAGE_LIMITS } from "./constants.js";
 import type { Platform } from "./types";
-
-const MESSAGE_LIMITS: Record<Platform, number> = {
-  discord: 2000,
-  slack: 4000,
-};
 
 /**
  * Splits text into chunks that fit within a message length limit,
