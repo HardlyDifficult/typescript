@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const LIBRARY_PACKAGES = [
-  "ai-msg",
+  "ai",
   "chat",
   "date-time",
   "document-generator",

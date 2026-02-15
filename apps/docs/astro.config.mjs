@@ -22,7 +22,7 @@ export default defineConfig({
       plugins: [
         starlightTypeDoc({
           entryPoints: [
-            "../../packages/ai-msg",
+            "../../packages/ai",
             "../../packages/chat",
             "../../packages/date-time",
             "../../packages/document-generator",

@@ -8,7 +8,7 @@ Focused, opinionated, easy-to-use npm packages.
 
 | Package | Description |
 |---------|-------------|
-| [@hardlydifficult/ai-msg](./packages/ai-msg) | AI response extraction (JSON, typed schemas, code blocks, multimodal) |
+| [@hardlydifficult/ai](./packages/ai) | Unified AI client with chainable structured output, usage tracking, and response parsing |
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
