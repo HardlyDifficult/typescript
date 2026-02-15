@@ -61,8 +61,13 @@ export class StateTracker<T> {
     const stateDirectory =
       options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
 
-    if (!fs.existsSync(stateDirectory)) {
-      fs.mkdirSync(stateDirectory, { recursive: true });
+    try {
+      if (!fs.existsSync(stateDirectory)) {
+        fs.mkdirSync(stateDirectory, { recursive: true });
+      }
+    } catch {
+      // Directory creation failed (e.g. EACCES in CI) — loadAsync() will
+      // retry and set _storageAvailable = false on failure.
     }
     this.filePath = path.join(stateDirectory, `${sanitizedKey}.json`);
   }
