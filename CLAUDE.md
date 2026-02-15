@@ -94,6 +94,8 @@ await existing.post("I'm back!");
 
 5. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
 
+6. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing.
+
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
@@ -112,6 +114,12 @@ When adding or changing packages, update the relevant docs so future sessions st
 ### Adding Channel/Message/Thread convenience methods
 
 Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
+
+## ESLint Strict Rules — Common Fixes
+
+- **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
+- **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
+- **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
 
 ## Platform Gotchas
 
