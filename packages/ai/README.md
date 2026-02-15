@@ -1,4 +1,3 @@
-
 # @hardlydifficult/ai
 
 Unified AI client with chainable structured output, callback-based streaming, tool-calling agent, required usage tracking, and response parsing utilities.
