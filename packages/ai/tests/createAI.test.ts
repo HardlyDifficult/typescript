@@ -244,6 +244,35 @@ describe("createAI", () => {
     });
   });
 
+  describe("text", () => {
+    it("returns text directly", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Hello world",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
+      const text = await ai.chat("Say hello").text();
+
+      expect(text).toBe("Hello world");
+    });
+
+    it("fires tracker for text calls", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "response",
+        usage: { inputTokens: 15, outputTokens: 8 },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
+      await ai.chat("prompt").text();
+
+      expect(tracker.calls).toHaveLength(1);
+      expect(tracker.calls[0].inputTokens).toBe(15);
+    });
+  });
+
   describe("zod", () => {
     it("returns structured data directly", async () => {
       mockGenerateText.mockResolvedValueOnce({

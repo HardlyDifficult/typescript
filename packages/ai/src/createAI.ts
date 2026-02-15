@@ -94,6 +94,24 @@ function createChatCall(
   }
 
   const call: ChatCall = {
+    text(): PromiseLike<string> {
+      return {
+        then<TResult1 = string, TResult2 = never>(
+          onfulfilled?:
+            | ((value: string) => TResult1 | PromiseLike<TResult1>)
+            | null,
+          onrejected?:
+            | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+            | null
+        ): PromiseLike<TResult1 | TResult2> {
+          return execute().then((msg) => {
+            return onfulfilled
+              ? onfulfilled(msg.text)
+              : (msg.text as unknown as TResult1);
+          }, onrejected);
+        },
+      };
+    },
     zod<TSchema extends z.ZodType>(
       schema: TSchema
     ): PromiseLike<z.infer<TSchema>> {

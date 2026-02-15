@@ -21,6 +21,7 @@ export interface ChatMessage {
 }
 
 export interface ChatCall extends PromiseLike<ChatMessage> {
+  text(): PromiseLike<string>;
   zod<TSchema extends z.ZodType>(
     schema: TSchema
   ): PromiseLike<z.infer<TSchema>>;
