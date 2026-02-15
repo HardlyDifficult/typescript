@@ -9,7 +9,11 @@ export class FilePlugin implements LoggerPlugin {
 
   constructor(filePath: string) {
     this.filePath = filePath;
-    mkdirSync(dirname(filePath), { recursive: true });
+    try {
+      mkdirSync(dirname(filePath), { recursive: true });
+    } catch {
+      /* swallow */
+    }
   }
 
   log(entry: LogEntry): void {
