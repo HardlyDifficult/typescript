@@ -76,6 +76,7 @@ export class Thread {
    * within platform message limits.
    *
    * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @param abortSignal - Optional signal to automatically stop the stream when aborted
    * @returns StreamingReply with append/flush/stop methods
    *
    * @example
@@ -86,11 +87,12 @@ export class Thread {
    * await stream.stop();
    * ```
    */
-  stream(flushIntervalMs: number): StreamingReply {
+  stream(flushIntervalMs: number, abortSignal?: AbortSignal): StreamingReply {
     return new StreamingReply(
       (content) => this.ops.post(content),
       this.platform,
-      flushIntervalMs
+      flushIntervalMs,
+      abortSignal
     );
   }
 
@@ -101,6 +103,7 @@ export class Thread {
    * platform's message-length limit, the beginning is truncated.
    *
    * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @param abortSignal - Optional signal to automatically stop the stream when aborted
    * @returns EditableStreamReply with append/flush/stop methods
    *
    * @example
@@ -111,11 +114,15 @@ export class Thread {
    * await stream.stop();
    * ```
    */
-  editableStream(flushIntervalMs: number): EditableStreamReply {
+  editableStream(
+    flushIntervalMs: number,
+    abortSignal?: AbortSignal
+  ): EditableStreamReply {
     return new EditableStreamReply(
       (content) => this.post(content),
       this.platform,
-      flushIntervalMs
+      flushIntervalMs,
+      abortSignal
     );
   }
 

@@ -48,6 +48,53 @@ describe("StreamingReply", () => {
     });
   });
 
+  describe("content getter", () => {
+    it("should return the full accumulated text", async () => {
+      vi.useFakeTimers();
+      const stream = new StreamingReply(createReplyFn(), "discord", 5000);
+
+      stream.append("hello ");
+      stream.append("world");
+
+      expect(stream.content).toBe("hello world");
+
+      await stream.stop();
+    });
+
+    it("should return empty string before any appends", async () => {
+      vi.useFakeTimers();
+      const stream = new StreamingReply(createReplyFn(), "discord", 5000);
+
+      expect(stream.content).toBe("");
+
+      await stream.stop();
+    });
+
+    it("should include text from previous flushes", async () => {
+      vi.useFakeTimers();
+      const stream = new StreamingReply(createReplyFn(), "discord", 60000);
+
+      stream.append("first");
+      await stream.flush();
+      stream.append(" second");
+
+      expect(stream.content).toBe("first second");
+
+      await stream.stop();
+    });
+
+    it("should include unflushed text", async () => {
+      vi.useFakeTimers();
+      const stream = new StreamingReply(createReplyFn(), "discord", 60000);
+
+      stream.append("pending");
+
+      expect(stream.content).toBe("pending");
+
+      await stream.stop();
+    });
+  });
+
   describe("automatic flush", () => {
     it("should flush on interval", async () => {
       vi.useFakeTimers();
@@ -290,6 +337,113 @@ describe("StreamingReply", () => {
       await stream.stop();
     });
   });
+
+  describe("abort signal", () => {
+    it("should stop flushing when signal is aborted", async () => {
+      vi.useFakeTimers();
+      const replyFn = createReplyFn();
+      const controller = new AbortController();
+      const stream = new StreamingReply(
+        replyFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("before abort");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(replyFn).toHaveBeenCalledWith("before abort");
+
+      stream.append("after abort");
+      await stream.stop();
+
+      expect(replyFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("should make append a no-op after abort", async () => {
+      vi.useFakeTimers();
+      const replyFn = createReplyFn();
+      const controller = new AbortController();
+      const stream = new StreamingReply(
+        replyFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("ignored");
+      await stream.stop();
+
+      expect(replyFn).not.toHaveBeenCalled();
+    });
+
+    it("should handle already-aborted signal", async () => {
+      vi.useFakeTimers();
+      const replyFn = createReplyFn();
+      const controller = new AbortController();
+      controller.abort();
+      const stream = new StreamingReply(
+        replyFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("ignored");
+      await stream.stop();
+
+      expect(replyFn).not.toHaveBeenCalled();
+    });
+
+    it("should not accumulate text in content after abort", async () => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const stream = new StreamingReply(
+        createReplyFn(),
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("kept");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("discarded");
+
+      expect(stream.content).toBe("kept");
+
+      await stream.stop();
+    });
+
+    it("should be safe to call stop after abort", async () => {
+      vi.useFakeTimers();
+      const replyFn = createReplyFn();
+      const controller = new AbortController();
+      const stream = new StreamingReply(
+        replyFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("data");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      await stream.stop();
+      await stream.stop();
+
+      expect(replyFn).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe("Message.streamReply", () => {
@@ -367,6 +521,26 @@ describe("Message.streamReply", () => {
     // Should be a single reply (not chunked) on Slack
     expect(ops.reply).toHaveBeenCalledTimes(1);
   });
+
+  it("should pass abort signal to StreamingReply", async () => {
+    vi.useFakeTimers();
+    const ops = createMockOperations();
+    const msg = new Message(
+      { id: "msg-1", channelId: "ch-1", platform: "discord" },
+      ops
+    );
+    const controller = new AbortController();
+
+    const stream = msg.streamReply(1000, controller.signal);
+    stream.append("text");
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
+
+    stream.append("ignored");
+    await stream.stop();
+
+    expect(ops.reply).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("Thread.stream", () => {
@@ -429,6 +603,26 @@ describe("Thread.stream", () => {
     await stream.stop();
 
     // Should be a single post (not chunked) on Slack
+    expect(ops.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("should pass abort signal to StreamingReply", async () => {
+    vi.useFakeTimers();
+    const ops = createMockThreadOps();
+    const thread = new Thread(
+      { id: "thread-1", channelId: "ch-1", platform: "discord" },
+      ops
+    );
+    const controller = new AbortController();
+
+    const stream = thread.stream(1000, controller.signal);
+    stream.append("text");
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
+
+    stream.append("ignored");
+    await stream.stop();
+
     expect(ops.post).toHaveBeenCalledTimes(1);
   });
 });
