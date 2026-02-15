@@ -1,10 +1,10 @@
 import type { Logger } from "@hardlydifficult/logger";
 import {
   generateText,
-  streamText,
+  type LanguageModel,
   tool as sdkTool,
   stepCountIs,
-  type LanguageModel,
+  streamText,
   type Tool,
 } from "ai";
 
@@ -30,8 +30,7 @@ function toCallbacks(
   return typeof handler === "function" ? { onText: handler } : handler;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tool generic defaults to any in the SDK
-type AnyToolRecord = Record<string, Tool<any, any>>;
+type AnyToolRecord = Record<string, Tool>;
 
 /** Convert ToolMap entries to AI SDK tool() calls, wrapping execute with logging + callbacks. */
 function convertTools(
@@ -42,9 +41,10 @@ function convertTools(
   const result: AnyToolRecord = {};
 
   for (const [name, def] of Object.entries(tools)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridging generic ToolDefinition to SDK tool
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK tool() requires explicit generic params for heterogeneous ToolMap
     result[name] = sdkTool<any, any>({
       description: def.description,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- ToolMap uses any to support heterogeneous schemas
       inputSchema: def.inputSchema,
       execute: async (args: Record<string, unknown>) => {
         logger.debug("Tool call", { tool: name, input: args });

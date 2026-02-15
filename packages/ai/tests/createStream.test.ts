@@ -28,7 +28,10 @@ function mockLogger(): {
 }
 
 /** Create a mock streamText result that yields the given chunks. */
-function mockStreamResult(chunks: string[], usage = { inputTokens: 10, outputTokens: 5 }) {
+function mockStreamResult(
+  chunks: string[],
+  usage = { inputTokens: 10, outputTokens: 5 }
+) {
   async function* textStream() {
     for (const chunk of chunks) yield chunk;
   }
@@ -126,9 +129,7 @@ describe("runStream", () => {
   });
 
   it("handles missing usage fields gracefully", async () => {
-    mockStreamText.mockReturnValueOnce(
-      mockStreamResult(["text"], {} as never)
-    );
+    mockStreamText.mockReturnValueOnce(mockStreamResult(["text"], {} as never));
 
     const tracker = createMockTracker();
     const result = await runStream(

@@ -6,7 +6,6 @@ import { createAgent } from "./createAgent.js";
 import { runStream } from "./createStream.js";
 import type {
   Agent,
-  AgentCallbacks,
   AgentOptions,
   AgentResult,
   AI,

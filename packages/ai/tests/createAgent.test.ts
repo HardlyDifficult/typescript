@@ -176,17 +176,19 @@ describe("createAgent", () => {
 
     it("auto-logs tool calls via logger", async () => {
       // Set up the mock so when generateText is called, it invokes the tool
-      mockGenerateText.mockImplementationOnce(async (opts: Record<string, unknown>) => {
-        const tools = opts.tools as Record<
-          string,
-          { execute: (args: Record<string, unknown>) => Promise<string> }
-        >;
-        await tools.read_file.execute({ path: "src/index.ts" });
-        return {
-          text: "done",
-          usage: { inputTokens: 10, outputTokens: 5 },
-        };
-      });
+      mockGenerateText.mockImplementationOnce(
+        async (opts: Record<string, unknown>) => {
+          const tools = opts.tools as Record<
+            string,
+            { execute: (args: Record<string, unknown>) => Promise<string> }
+          >;
+          await tools.read_file.execute({ path: "src/index.ts" });
+          return {
+            text: "done",
+            usage: { inputTokens: 10, outputTokens: 5 },
+          };
+        }
+      );
 
       const tracker = createMockTracker();
       const logger = mockLogger();
@@ -250,9 +252,7 @@ describe("createAgent", () => {
 
     it("calls onText for text deltas via callbacks object", async () => {
       mockStreamText.mockReturnValueOnce(
-        mockStreamResult([
-          { type: "text-delta", text: "Hi" },
-        ])
+        mockStreamResult([{ type: "text-delta", text: "Hi" }])
       );
 
       const tracker = createMockTracker();
@@ -264,10 +264,9 @@ describe("createAgent", () => {
         mockLogger() as never
       );
 
-      const result = await agent.stream(
-        [{ role: "user", content: "test" }],
-        { onText: (text) => chunks.push(text) }
-      );
+      const result = await agent.stream([{ role: "user", content: "test" }], {
+        onText: (text) => chunks.push(text),
+      });
 
       expect(chunks).toEqual(["Hi"]);
       expect(result.text).toBe("Hi");
@@ -275,10 +274,10 @@ describe("createAgent", () => {
 
     it("records usage via tracker", async () => {
       mockStreamText.mockReturnValueOnce(
-        mockStreamResult(
-          [{ type: "text-delta", text: "ok" }],
-          { inputTokens: 30, outputTokens: 15 }
-        )
+        mockStreamResult([{ type: "text-delta", text: "ok" }], {
+          inputTokens: 30,
+          outputTokens: 15,
+        })
       );
 
       const tracker = createMockTracker();
