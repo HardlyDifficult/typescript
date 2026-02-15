@@ -13,7 +13,7 @@ Monorepo of opinionated TypeScript libraries under the `@hardlydifficult` scope.
 **CRITICAL**: Before every commit, run `npm run fix` to auto-fix lint and format issues in one step:
 
 ```bash
-npm run fix             # ⭐ ALWAYS RUN FIRST — auto-fixes all lint + format issues
+npm run fix             # ⭐ ALWAYS RUN FIRST — auto-fixes all lint + format issues (includes unused import removal)
 npm run build           # TypeScript compilation
 npm run test            # All tests
 npm run lint            # ESLint validation (max-lines: 400)
@@ -119,6 +119,15 @@ Both `stream()` and `editableStream()` share the same `append()/stop()/content` 
 
 5. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing. **Gotcha**: If package A uses `file:` for a dep and package B uses npm for the same dep, TypeScript sees two separate type declarations — classes with private fields (like Logger's `minLevel`) become incompatible. Ensure all packages in the consumer resolve to the same copy.
 
+### Adding ESLint Plugins to the Monorepo
+
+To extend the shared ESLint config with new plugins (pattern used for `eslint-plugin-unused-imports`):
+
+1. **Root package.json**: Add to `devDependencies` with exact version (e.g., `"eslint-plugin-unused-imports": "4.1.4"`)
+2. **packages/ts-config/package.json**: Add to both `peerDependencies` (with range, e.g., `">=4.0.0"`) and `devDependencies` (exact version)
+3. **packages/ts-config/src/eslint.ts**: Import the plugin, register in `plugins` object, add rules
+4. **Build order**: Run `npx turbo run build --filter=@hardlydifficult/ts-config` before using new rules (root ESLint imports from `dist/`)
+
 ## Keeping Docs Current
 
 When adding or changing packages, update the relevant docs so future sessions start fast:
@@ -192,6 +201,7 @@ Used by: `createAI` in `@hardlydifficult/ai`.
 
 ## ESLint Strict Rules — Common Fixes
 
+- **Unused imports**: Auto-removed by `npm run fix` via `eslint-plugin-unused-imports`. Just run `npm run fix` and they're gone.
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
 - **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`. With optional chaining, `obj?.prop` returns `T | undefined` — use `obj?.prop === true` not `if (obj?.prop)`.

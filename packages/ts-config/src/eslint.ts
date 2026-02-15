@@ -5,6 +5,7 @@ import { defineConfig } from "eslint/config";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { importX } from "eslint-plugin-import-x";
 import jsdoc from "eslint-plugin-jsdoc";
+import unusedImports from "eslint-plugin-unused-imports";
 import tseslint from "typescript-eslint";
 
 /** Creates the shared ESLint flat config with TypeScript, import, and JSDoc rules for all packages. */
@@ -30,6 +31,7 @@ export default function createConfig(projectRoot: string) {
       plugins: {
         "import-x": importX as unknown as ESLint.Plugin,
         jsdoc: jsdoc as unknown as ESLint.Plugin,
+        "unused-imports": unusedImports as unknown as ESLint.Plugin,
       },
     },
     {
@@ -153,13 +155,20 @@ export default function createConfig(projectRoot: string) {
         ],
 
         // TypeScript rules
-        "@typescript-eslint/no-unused-vars": [
+        // Auto-remove unused imports
+        "unused-imports/no-unused-imports": "error",
+
+        // Detect unused variables (preserves _ prefix pattern)
+        "unused-imports/no-unused-vars": [
           "error",
           {
             argsIgnorePattern: "^_",
             varsIgnorePattern: "^_",
           },
         ],
+
+        // Disable the original TypeScript rule (replaced by unused-imports)
+        "@typescript-eslint/no-unused-vars": "off",
         "@typescript-eslint/consistent-type-imports": [
           "error",
           { prefer: "type-imports", fixStyle: "inline-type-imports" },
