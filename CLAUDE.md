@@ -22,6 +22,8 @@ npm run format:check    # Prettier formatting validation
 
 **Important**: Run `npm run fix` **before** `npm run build` — it catches and fixes ESLint errors that will block compilation. Always run from **repo root** — turbo handles dependency ordering.
 
+When upgrading `@hardlydifficult/*` packages in consumer repos, use `npm outdated | grep hardlydifficult` to find all outdated deps at once.
+
 ## Packages
 
 - `packages/chat` — Unified Discord/Slack messaging API
