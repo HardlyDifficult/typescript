@@ -33,6 +33,7 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 - `packages/text` — Error formatting, template replacement, text chunking, slugify
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
+- `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 - `packages/task-list` — Provider-agnostic task list management (Trello, Linear)
@@ -121,11 +122,29 @@ When adding or changing packages, update the relevant docs so future sessions st
 
 Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
 
+## Design Patterns
+
+### Static Factory for Async Init
+
+Classes that need async initialization (loading from disk, fetching config) should use a static `create()` factory method with a **private constructor**. This lets consumers declare and initialize in one line:
+
+```typescript
+// Good: one-line creation + async load
+const tracker = await UsageTracker.create({ key: 'my-usage', default: { ... } });
+
+// Bad: two-step init
+const tracker = new UsageTracker(...);
+await tracker.load();
+```
+
+Used by: `UsageTracker`. `WorkflowEngine` uses a similar pattern.
+
 ## ESLint Strict Rules — Common Fixes
 
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
 - **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
+- **`no-unnecessary-condition` with generics**: When iterating over generic object keys (e.g., `NumericRecord`), `typeof` checks get flagged because TypeScript narrows the type. Fix: cast to `Record<string, unknown>` at the function boundary so TypeScript accepts the runtime checks.
 
 ## Error Handling
 

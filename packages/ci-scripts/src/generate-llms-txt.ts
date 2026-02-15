@@ -28,6 +28,7 @@ const LIBRARY_PACKAGES = [
   "task-list",
   "text",
   "throttle",
+  "usage-tracker",
   "workflow-engine",
 ];
 

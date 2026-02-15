@@ -21,6 +21,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task list management (Trello, Linear) |
 | [@hardlydifficult/text](./packages/text) | Error formatting, template replacement, text chunking, slugify |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
+| [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Numeric metric accumulation with session/cumulative dual-tracking |
 | [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
 | [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, and persistence |
 
