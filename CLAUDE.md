@@ -73,10 +73,20 @@ const existing = channel.openThread(savedThreadId);
 await existing.post("I'm back!");
 
 // Stream output into a thread (no placeholder message needed)
+// stream() — posts a new message per flush (good for batched/chunked output)
 const stream = thread.stream(2000);
 stream.append("Processing...\n");
 await stream.stop();
+
+// editableStream() — edits one message in place (good for token-by-token LLM output)
+const editable = thread.editableStream(500);
+editable.append("token1 ");
+editable.append("token2 ");
+await editable.stop();
+console.log(editable.content); // "token1 token2 " — full accumulated text
 ```
+
+Both `stream()` and `editableStream()` share the same `append()/stop()` caller API. The difference is internal: `StreamingReply` posts new messages per flush, `EditableStreamReply` edits a single message in place. Use `editableStream()` when output arrives token-by-token and you want a single updating message. Use `stream()` when output arrives in larger batches and separate messages are fine.
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
 - `channel.onMessage()` only fires for top-level messages on **both** platforms
