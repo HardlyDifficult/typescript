@@ -244,6 +244,7 @@ stream.append("output line 2\n");
 // ... text is batched and sent as replies every 2 seconds
 
 await stream.stop(); // flushes remaining text and stops the timer
+console.log(stream.content); // full accumulated text across all flushes
 ```
 
 `flush()` sends buffered text immediately without waiting for the next interval:
@@ -251,6 +252,17 @@ await stream.stop(); // flushes remaining text and stops the timer
 ```typescript
 stream.append("important output");
 await stream.flush();
+```
+
+Both `streamReply()`, `thread.stream()`, and `thread.editableStream()` accept an optional `AbortSignal` to automatically stop the stream on cancellation. After abort, `append()` becomes a no-op and `stop()` is called automatically.
+
+```typescript
+const controller = new AbortController();
+const stream = thread.stream(2000, controller.signal);
+
+stream.append("working...\n");
+controller.abort(); // auto-stops, future appends are ignored
+console.log(stream.content); // "working...\n" — only pre-abort text
 ```
 
 ## Mentions

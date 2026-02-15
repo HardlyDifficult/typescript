@@ -373,6 +373,113 @@ describe("EditableStreamReply", () => {
       await stream.stop();
     });
   });
+
+  describe("abort signal", () => {
+    it("should stop flushing when signal is aborted", async () => {
+      vi.useFakeTimers();
+      const postFn = createPostFn();
+      const controller = new AbortController();
+      const stream = new EditableStreamReply(
+        postFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("before abort");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(postFn).toHaveBeenCalledWith("before abort");
+
+      stream.append("after abort");
+      await stream.stop();
+
+      expect(postFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("should make append a no-op after abort", async () => {
+      vi.useFakeTimers();
+      const postFn = createPostFn();
+      const controller = new AbortController();
+      const stream = new EditableStreamReply(
+        postFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("ignored");
+      await stream.stop();
+
+      expect(postFn).not.toHaveBeenCalled();
+    });
+
+    it("should handle already-aborted signal", async () => {
+      vi.useFakeTimers();
+      const postFn = createPostFn();
+      const controller = new AbortController();
+      controller.abort();
+      const stream = new EditableStreamReply(
+        postFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("ignored");
+      await stream.stop();
+
+      expect(postFn).not.toHaveBeenCalled();
+    });
+
+    it("should not accumulate text in content after abort", async () => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const stream = new EditableStreamReply(
+        createPostFn(),
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("kept");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      stream.append("discarded");
+
+      expect(stream.content).toBe("kept");
+
+      await stream.stop();
+    });
+
+    it("should be safe to call stop after abort", async () => {
+      vi.useFakeTimers();
+      const postFn = createPostFn();
+      const controller = new AbortController();
+      const stream = new EditableStreamReply(
+        postFn,
+        "discord",
+        5000,
+        controller.signal
+      );
+
+      stream.append("data");
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      await stream.stop();
+      await stream.stop();
+
+      expect(postFn).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe("Thread.editableStream", () => {
@@ -445,5 +552,25 @@ describe("Thread.editableStream", () => {
 
     // Should NOT be truncated on Slack
     expect(ops.post).toHaveBeenCalledWith("a".repeat(3000), undefined);
+  });
+
+  it("should pass abort signal to EditableStreamReply", async () => {
+    vi.useFakeTimers();
+    const ops = createMockThreadOps();
+    const thread = new Thread(
+      { id: "thread-1", channelId: "ch-1", platform: "discord" },
+      ops
+    );
+    const controller = new AbortController();
+
+    const stream = thread.editableStream(1000, controller.signal);
+    stream.append("text");
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
+
+    stream.append("ignored");
+    await stream.stop();
+
+    expect(stream.content).toBe("text");
   });
 });

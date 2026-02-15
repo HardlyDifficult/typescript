@@ -46,27 +46,58 @@ function chunkText(text: string, maxLength: number): string[] {
  */
 export class StreamingReply {
   private buffer = "";
+  private accumulated = "";
+  private readonly abortSignal?: AbortSignal;
   private intervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly replyFn: (content: string) => PromiseLike<unknown>,
     private readonly platform: Platform,
-    flushIntervalMs: number
+    flushIntervalMs: number,
+    abortSignal?: AbortSignal
   ) {
+    this.abortSignal = abortSignal;
     this.intervalId = setInterval(() => {
       this.flush().catch(() => {
         // Interval flush errors are swallowed; callers observe errors
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
+
+    if (abortSignal !== undefined) {
+      if (abortSignal.aborted) {
+        void this.stop();
+      } else {
+        abortSignal.addEventListener(
+          "abort",
+          () => {
+            void this.stop();
+          },
+          { once: true }
+        );
+      }
+    }
   }
 
   /**
    * Append text to the buffer. The text will be sent on the next
-   * flush (either automatic or manual).
+   * flush (either automatic or manual). No-op if the stream has
+   * been aborted.
    */
   append(text: string): void {
+    if (this.abortSignal?.aborted === true) {
+      return;
+    }
     this.buffer += text;
+    this.accumulated += text;
+  }
+
+  /**
+   * The full accumulated content, including text not yet flushed.
+   * Useful for reading back the complete response after {@link stop}.
+   */
+  get content(): string {
+    return this.accumulated;
   }
 
   /**

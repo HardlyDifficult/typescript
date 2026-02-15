@@ -79,6 +79,7 @@ await existing.post("I'm back!");
 const stream = thread.stream(2000);
 stream.append("Processing...\n");
 await stream.stop();
+console.log(stream.content); // "Processing...\n" — full accumulated text
 
 // editableStream() — edits one message in place (good for token-by-token LLM output)
 const editable = thread.editableStream(500);
@@ -86,9 +87,15 @@ editable.append("token1 ");
 editable.append("token2 ");
 await editable.stop();
 console.log(editable.content); // "token1 token2 " — full accumulated text
+
+// Both support AbortSignal for cancellation
+const controller = new AbortController();
+const cancellable = thread.stream(2000, controller.signal);
+cancellable.append("working...\n");
+controller.abort(); // auto-stops the stream, append() becomes a no-op
 ```
 
-Both `stream()` and `editableStream()` share the same `append()/stop()` caller API. The difference is internal: `StreamingReply` posts new messages per flush, `EditableStreamReply` edits a single message in place. Use `editableStream()` when output arrives token-by-token and you want a single updating message. Use `stream()` when output arrives in larger batches and separate messages are fine.
+Both `stream()` and `editableStream()` share the same `append()/stop()/content` caller API. The difference is internal: `StreamingReply` posts new messages per flush, `EditableStreamReply` edits a single message in place. Use `editableStream()` when output arrives token-by-token and you want a single updating message. Use `stream()` when output arrives in larger batches and separate messages are fine. Both accept an optional `AbortSignal` to auto-stop on cancellation.
 
 - `msg.reply()` always stays in the same thread (wired via `createThreadMessageOps`)
 - `channel.onMessage()` only fires for top-level messages on **both** platforms
@@ -170,7 +177,7 @@ Used by: `createThrottledUpdater`, `createTeardown`, `createMessageTracker`.
 
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
-- **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
+- **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`. With optional chaining, `obj?.prop` returns `T | undefined` — use `obj?.prop === true` not `if (obj?.prop)`.
 - **`no-non-null-assertion` on array indexing**: `entries[i]!` is unnecessary (and forbidden) because `noUncheckedIndexedAccess` is not enabled — TS already infers `Entry`, not `Entry | undefined`. Just remove the `!`.
 - **`no-unnecessary-condition` with arrays**: When checking array contents, prefer length check over undefined: `if (arr.length > 0)` not `if (arr[0] !== undefined)`. More idiomatic and passes strict checking.
 - **`no-unnecessary-condition` with generics**: When iterating over generic object keys (e.g., `NumericRecord`), `typeof` checks get flagged because TypeScript narrows the type. Fix: cast to `Record<string, unknown>` at the function boundary so TypeScript accepts the runtime checks.

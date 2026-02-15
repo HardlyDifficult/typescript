@@ -221,13 +221,18 @@ export class Message {
    * flushing it at a fixed interval. Long text is automatically
    * chunked to fit within platform message limits.
    * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @param abortSignal - Optional signal to automatically stop the stream when aborted
    * @returns StreamingReply with append/flush/stop methods
    */
-  streamReply(flushIntervalMs: number): StreamingReply {
+  streamReply(
+    flushIntervalMs: number,
+    abortSignal?: AbortSignal
+  ): StreamingReply {
     return new StreamingReply(
       (content) => this.reply(content),
       this.platform,
-      flushIntervalMs
+      flushIntervalMs,
+      abortSignal
     );
   }
 

@@ -18,26 +18,47 @@ export class EditableStreamReply {
   private lastFlushed = "";
   private currentMessage: Message | null = null;
   private flushing = false;
+  private readonly abortSignal?: AbortSignal;
   private intervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly postFn: (content: string) => Promise<Message>,
     private readonly platform: Platform,
-    flushIntervalMs: number
+    flushIntervalMs: number,
+    abortSignal?: AbortSignal
   ) {
+    this.abortSignal = abortSignal;
     this.intervalId = setInterval(() => {
       this.flush().catch(() => {
         // Interval flush errors are swallowed; callers observe errors
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
+
+    if (abortSignal !== undefined) {
+      if (abortSignal.aborted) {
+        void this.stop();
+      } else {
+        abortSignal.addEventListener(
+          "abort",
+          () => {
+            void this.stop();
+          },
+          { once: true }
+        );
+      }
+    }
   }
 
   /**
    * Append text to the accumulated buffer. The message will be updated
-   * on the next flush (either automatic or manual).
+   * on the next flush (either automatic or manual). No-op if the stream
+   * has been aborted.
    */
   append(text: string): void {
+    if (this.abortSignal?.aborted === true) {
+      return;
+    }
     this.buffer += text;
   }
 
