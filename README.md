@@ -16,6 +16,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/github](./packages/github) | Typed GitHub API client with repo context gathering (Octokit wrapper) |
 | [@hardlydifficult/logger](./packages/logger) | Plugin-based structured logger (Console, Discord, File plugins) |
 | [@hardlydifficult/poller](./packages/poller) | Generic state-change poller with interval polling |
+| [@hardlydifficult/queue](./packages/queue) | Prioritized FIFO queue with high/medium/low priority buckets |
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared config files synced via postinstall |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | File-based state persistence for recovery across restarts |
 | [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task list management (Trello, Linear) |
