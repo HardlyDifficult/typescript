@@ -172,6 +172,7 @@ Used by: `UsageTracker`. `WorkflowEngine` uses a similar pattern.
 - Call `await vi.advanceTimersByTimeAsync(0)` to flush microtasks before asserting
 - Always restore real timers in `afterEach`
 - Use deferred promises instead of `async () => { throw ... }` to avoid unhandled rejection warnings
+- **Spy assertions with optional params**: When a method has optional parameters (e.g., `post(content, files?)`), vitest records the call with `undefined` for omitted args. Use `toHaveBeenCalledWith("text", undefined)`, not `toHaveBeenCalledWith("text")`
 
 ## Code Size Limits
 
