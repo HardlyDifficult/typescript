@@ -18,10 +18,7 @@
     "format": "prettier --write \"packages/**/*.ts\"",
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
-    "clean": "turbo run clean",
-    "docs": "npm run build:site -w apps/docs",
-    "docs:dev": "npm run dev -w apps/docs",
-    "docs:agent": "node packages/ci-scripts/dist/generate-llms-txt.js"
+    "clean": "turbo run clean"
   },
   "devDependencies": {
     "@eslint/compat": "2.0.2",

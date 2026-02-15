@@ -1,9 +1,6 @@
 node_modules/
 dist/
 coverage/
-.astro/
-apps/docs/src/content/docs/api/
-llms.txt
 .turbo/
 *.log
 package-lock.json

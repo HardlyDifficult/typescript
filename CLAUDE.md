@@ -18,9 +18,6 @@ npm run build           # TypeScript compilation
 npm run test            # All tests
 npm run lint            # ESLint validation (max-lines: 400)
 npm run format:check    # Prettier formatting validation
-npm run docs            # Build docs site (Astro Starlight + TypeDoc API reference)
-npm run docs:dev        # Local docs dev server with hot reload
-npm run docs:agent      # Generate llms.txt / llms-full.txt
 ```
 
 **Important**: Run `npm run fix` **before** `npm run build` — it catches and fixes ESLint errors that will block compilation. Always run from **repo root** — turbo handles dependency ordering.
@@ -114,13 +111,11 @@ Both `stream()` and `editableStream()` share the same `append()/stop()/content` 
 
 2. **Inter-package dependencies**: Use `file:../` in devDependencies + peerDependencies (see `throttle` → `state-tracker` pattern)
 
-3. **Docs**: Add the package to `entryPoints` in `apps/docs/astro.config.mjs` and `LIBRARY_PACKAGES` in `packages/ci-scripts/src/generate-llms-txt.ts`.
+3. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
 
-4. **Auto-discovered**: Turbo finds new packages via workspace glob. No registration needed.
+4. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
 
-5. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
-
-6. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing.
+5. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing.
 
 ## Keeping Docs Current
 
