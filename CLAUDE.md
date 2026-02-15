@@ -173,6 +173,24 @@ export function createTeardown(): Teardown {
 
 Used by: `createThrottledUpdater`, `createTeardown`, `createMessageTracker`.
 
+### PromiseLike Builder for Deferred Execution
+
+When a method returns a value that can be directly awaited OR chained with modifiers before execution, implement `PromiseLike` with lazy execution. The `then()` method triggers actual work only when `await` is reached.
+
+```typescript
+interface ChatCall extends PromiseLike<ChatMessage> {
+  zod<T>(schema: z.ZodType<T>): PromiseLike<StructuredChatMessage<T>>;
+}
+
+// Usage: await triggers execution
+const msg = await ai.chat(prompt);              // plain text
+const msg = await ai.chat(prompt).zod(schema);  // structured output
+```
+
+The `ChatCall` object stores configuration (schema, etc.) until `then()` is called. Inside `then()`, call the actual async work and forward to the promise chain. This avoids separate methods for each variant (`chat`, `chatJson`, `chatStructured`) — one entry point with optional modifiers.
+
+Used by: `createAI` in `@hardlydifficult/ai`.
+
 ## ESLint Strict Rules — Common Fixes
 
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
