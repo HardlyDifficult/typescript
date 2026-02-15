@@ -31,6 +31,7 @@ export default defineConfig({
             "../../packages/poller",
             "../../packages/state-tracker",
             "../../packages/task-list",
+            "../../packages/teardown",
             "../../packages/text",
             "../../packages/throttle",
             "../../packages/usage-tracker",

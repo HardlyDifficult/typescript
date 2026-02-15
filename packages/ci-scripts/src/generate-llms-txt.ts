@@ -26,6 +26,7 @@ const LIBRARY_PACKAGES = [
   "poller",
   "state-tracker",
   "task-list",
+  "teardown",
   "text",
   "throttle",
   "usage-tracker",
