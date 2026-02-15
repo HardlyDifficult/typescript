@@ -30,6 +30,7 @@ export default defineConfig({
             "../../packages/logger",
             "../../packages/poller",
             "../../packages/state-tracker",
+            "../../packages/task-list",
             "../../packages/text",
             "../../packages/throttle",
             "../../packages/usage-tracker",

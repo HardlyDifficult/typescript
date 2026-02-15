@@ -426,6 +426,52 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("updatedAt", () => {
+    it("is set after load", async () => {
+      const engine = createEngine();
+      await engine.load();
+      expect(engine.updatedAt).toBeTruthy();
+      expect(new Date(engine.updatedAt).toISOString()).toBe(engine.updatedAt);
+    });
+
+    it("is updated on transition", async () => {
+      vi.useFakeTimers();
+      const engine = createEngine();
+      await engine.load();
+      const before = engine.updatedAt;
+
+      await vi.advanceTimersByTimeAsync(100);
+      await engine.transition("running");
+      expect(engine.updatedAt).not.toBe(before);
+      vi.useRealTimers();
+    });
+
+    it("is updated on update", async () => {
+      vi.useFakeTimers();
+      const engine = createEngine();
+      await engine.load();
+      const before = engine.updatedAt;
+
+      await vi.advanceTimersByTimeAsync(100);
+      await engine.update((d) => {
+        d.count = 1;
+      });
+      expect(engine.updatedAt).not.toBe(before);
+      vi.useRealTimers();
+    });
+
+    it("is persisted and restored", async () => {
+      const engine1 = createEngine();
+      await engine1.load();
+      await engine1.transition("running");
+      const savedUpdatedAt = engine1.updatedAt;
+
+      const engine2 = createEngine();
+      await engine2.load();
+      expect(engine2.updatedAt).toBe(savedUpdatedAt);
+    });
+  });
+
   describe("error messages", () => {
     it("includes current status in disallowed transition error", async () => {
       const engine = createEngine();
