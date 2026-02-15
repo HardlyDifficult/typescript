@@ -1,6 +1,6 @@
 # @hardlydifficult/ai
 
-Unified AI client with chainable structured output, required usage tracking, and response parsing utilities.
+Unified AI client with chainable structured output, callback-based streaming, tool-calling agent, required usage tracking, and response parsing utilities.
 
 ## Installation
 
@@ -10,15 +10,19 @@ npm install @hardlydifficult/ai
 
 ## AI Client
 
-### `createAI(model, tracker, options?)`
+### `createAI(model, tracker, logger, options?)`
 
-Creates an AI client. Usage tracking is **required** — every call automatically fires `tracker.record()`.
+Creates an AI client. Usage tracking and logging are **required** — every call automatically fires `tracker.record()` and logs via `logger`.
 
 ```typescript
-import { createAI, claude } from "@hardlydifficult/ai";
+import { createAI, claude, ollama } from "@hardlydifficult/ai";
+import { Logger, ConsolePlugin } from "@hardlydifficult/logger";
 
-const ai = createAI(claude("sonnet"), tracker);
+const logger = new Logger().use(new ConsolePlugin());
+const ai = createAI(claude("sonnet"), tracker, logger);
 ```
+
+Options: `{ maxTokens?: number, temperature?: number }`. Per-request AI instances are free — `createAI()` is a closure factory with zero async overhead.
 
 ### `chat(prompt, systemPrompt?)`
 
@@ -33,6 +37,12 @@ msg.usage; // { inputTokens: 50, outputTokens: 200, durationMs: 1200 }
 const msg = await ai.chat("Explain closures", "You are a TypeScript tutor");
 ```
 
+### `.text()` — String Shorthand
+
+```typescript
+const text = await ai.chat("Summarize this").text(); // → string
+```
+
 ### `.zod(schema)` — Structured Output
 
 Chain `.zod(schema)` to constrain the model's output format AND validate the result. The schema does triple duty: constrains output, validates response, provides TypeScript types.
@@ -45,8 +55,8 @@ const TaskSchema = z.object({
   priority: z.enum(["high", "medium", "low"]),
 });
 
-const msg = await ai.chat("Create a task for fixing the login bug").zod(TaskSchema);
-msg.data; // { title: "Fix login bug", priority: "high" } — typed as z.infer<typeof TaskSchema>
+const data = await ai.chat("Create a task for fixing the login bug").zod(TaskSchema);
+// { title: "Fix login bug", priority: "high" } — typed as z.infer<typeof TaskSchema>
 ```
 
 ### `.reply(prompt)` — Conversation
@@ -58,6 +68,46 @@ const msg1 = await ai.chat("What is a monad?");
 const msg2 = await msg1.reply("Give me a TypeScript example");
 const msg3 = await msg2.reply("Now formalize it").zod(DefinitionSchema);
 ```
+
+### `stream(messages, onText)` — Callback-Based Streaming
+
+Stream text deltas via callback. Returns accumulated text + usage when done.
+
+```typescript
+const result = await ai.stream(messages, (text) => process.stdout.write(text));
+result.text;  // full accumulated text
+result.usage; // { inputTokens, outputTokens, durationMs }
+```
+
+### `agent(tools, options?)` — Tool-Calling Agent
+
+Create a tool-calling agent. Tools are plain objects — no SDK imports needed. Tool calls and results are auto-logged via Logger.
+
+```typescript
+import type { ToolMap } from "@hardlydifficult/ai";
+
+const tools: ToolMap = {
+  read_file: {
+    description: "Read a file",
+    inputSchema: z.object({ path: z.string() }),
+    execute: async ({ path }) => fs.readFileSync(path, "utf-8"),
+  },
+};
+
+// Non-streaming
+const result = await ai.agent(tools).run(messages);
+
+// Streaming — function shorthand
+await ai.agent(tools).stream(messages, (text) => process.stdout.write(text));
+
+// Streaming — with tool call markers
+await ai.agent(tools, { maxSteps: 20 }).stream(messages, {
+  onText: (text) => process.stdout.write(text),
+  onToolCall: (name) => console.log(`Using tool: ${name}`),
+});
+```
+
+Agent options: `{ maxSteps?: number (default 10), temperature?: number (default 0.7), maxTokens?: number (default 4096) }`.
 
 ## Model Helpers
 
@@ -86,7 +136,7 @@ ollama("llama3.3");
 
 ## Usage Tracking
 
-`createAI` requires an `AITracker` — no AI without tracking. The tracker fires for every call (`chat`, `reply`, `zod`).
+`createAI` requires an `AITracker` — no AI without tracking. The tracker fires for every call (`chat`, `reply`, `zod`, `stream`, `agent`).
 
 ```typescript
 import type { AITracker } from "@hardlydifficult/ai";
@@ -98,7 +148,7 @@ const tracker: AITracker = {
   },
 };
 
-const ai = createAI(claude("sonnet"), tracker);
+const ai = createAI(claude("sonnet"), tracker, logger);
 ```
 
 ## Response Parsing
