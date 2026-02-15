@@ -472,6 +472,177 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("cursor", () => {
+    interface Item {
+      name: string;
+      status: string;
+    }
+    interface IndexedData {
+      items: Item[];
+      currentIndex?: number;
+      total: number;
+    }
+
+    type IndexedStatus = "idle" | "running" | "completed";
+
+    const indexedTransitions: TransitionMap<IndexedStatus> = {
+      idle: ["running"],
+      running: ["completed"],
+      completed: [],
+    };
+
+    function createIndexedEngine(
+      items: Item[] = [],
+      currentIndex?: number,
+      key = "cursor-test"
+    ): WorkflowEngine<IndexedStatus, IndexedData> {
+      return new WorkflowEngine<IndexedStatus, IndexedData>({
+        key,
+        initialStatus: "idle",
+        initialData: { items, currentIndex, total: 0 },
+        transitions: indexedTransitions,
+        stateDirectory: testDir,
+        autoSaveMs: 0,
+      });
+    }
+
+    it("get() returns the selected item", async () => {
+      const engine = createIndexedEngine(
+        [{ name: "a", status: "pending" }],
+        0
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      expect(cursor.get()).toEqual({ name: "a", status: "pending" });
+    });
+
+    it("get() throws when selector returns undefined", async () => {
+      const engine = createIndexedEngine([], undefined);
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      expect(() => cursor.get()).toThrow("Cursor target not found");
+    });
+
+    it("find() returns the selected item or undefined", async () => {
+      const engine = createIndexedEngine(
+        [{ name: "a", status: "pending" }],
+        0
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      expect(cursor.find()).toEqual({ name: "a", status: "pending" });
+    });
+
+    it("find() returns undefined when selector misses", async () => {
+      const engine = createIndexedEngine([], undefined);
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      expect(cursor.find()).toBeUndefined();
+    });
+
+    it("update() mutates the selected item and persists", async () => {
+      const engine = createIndexedEngine(
+        [{ name: "a", status: "pending" }],
+        0
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      await cursor.update((item) => {
+        item.status = "done";
+      });
+
+      expect(engine.data.items[0]!.status).toBe("done");
+
+      // Verify persistence
+      const engine2 = createIndexedEngine();
+      await engine2.load();
+      expect(engine2.data.items[0]!.status).toBe("done");
+    });
+
+    it("update() receives both item and parent data", async () => {
+      const engine = createIndexedEngine(
+        [{ name: "a", status: "pending" }],
+        0
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      await cursor.update((item, data) => {
+        item.status = "done";
+        data.total += 1;
+      });
+
+      expect(engine.data.items[0]!.status).toBe("done");
+      expect(engine.data.total).toBe(1);
+    });
+
+    it("update() is a no-op when selector returns undefined", async () => {
+      const engine = createIndexedEngine(
+        [{ name: "a", status: "pending" }],
+        undefined
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      await cursor.update((item) => {
+        item.status = "should-not-happen";
+      });
+
+      // Item should NOT have been mutated
+      expect(engine.data.items[0]!.status).toBe("pending");
+    });
+
+    it("reflects latest data after engine updates", async () => {
+      const engine = createIndexedEngine(
+        [
+          { name: "a", status: "pending" },
+          { name: "b", status: "pending" },
+        ],
+        0
+      );
+      await engine.load();
+
+      const cursor = engine.cursor(
+        (d) => d.items[d.currentIndex ?? -1]
+      );
+
+      expect(cursor.get().name).toBe("a");
+
+      // Change the current index
+      await engine.update((d) => {
+        d.currentIndex = 1;
+      });
+
+      expect(cursor.get().name).toBe("b");
+    });
+  });
+
   describe("error messages", () => {
     it("includes current status in disallowed transition error", async () => {
       const engine = createEngine();

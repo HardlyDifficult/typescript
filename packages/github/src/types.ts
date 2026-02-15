@@ -146,6 +146,18 @@ export interface TreeEntry {
   readonly size?: number;
 }
 
+// --- Repo context types ---
+
+export interface RepoContext {
+  readonly filePaths: readonly string[];
+  readonly keyFiles: readonly KeyFile[];
+}
+
+export interface KeyFile {
+  readonly path: string;
+  readonly content: string;
+}
+
 // --- Watcher types ---
 
 import type { PRActivity } from "./polling/fetchPRActivity.js";

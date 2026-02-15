@@ -25,4 +25,6 @@ export type {
   PRStatusEvent,
   StatusChangedEvent,
   TreeEntry,
+  RepoContext,
+  KeyFile,
 } from "./types.js";
