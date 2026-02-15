@@ -183,10 +183,12 @@ Used by: `createThrottledUpdater`, `createTeardown`.
 
 ## Platform Gotchas
 
+- **Message length limits:** Discord: 2000 chars, Slack: 4000 chars. `postMessage` auto-converts oversized content to file attachments. `updateMessage` truncates with `…` (edits can't attach files). Limits centralized in `packages/chat/src/constants.ts` as `MESSAGE_LIMITS`.
 - **Emoji:** Discord uses unicode (`'🗑️'`), Slack uses text names (`':wastebasket:'`). Reaction events return different formats per platform.
 - **Slack reactions lack usernames:** Use `event.user.id`, not `event.user.username`.
 - **Slack `mimetype` can be `null`:** The Slack API sends `null` (not `undefined`) for missing mime types. Always handle both.
 - **Slack bolt event types:** `app.event("message")` gives a complex union type. Define a strict `SlackMessagePayload` interface and cast at the boundary — don't spread `any` through the codebase.
+- **Slack file uploads return no message ID:** `filesUploadV2` doesn't reliably return a timestamp. Convention: return `{ id: "" }` for file-only uploads.
 
 ## Testing with Fake Timers (vitest)
 

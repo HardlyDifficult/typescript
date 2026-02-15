@@ -13,6 +13,7 @@ import {
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
+import { MESSAGE_LIMITS } from "../constants.js";
 import { toDiscordEmbed } from "../outputters/discord.js";
 import type {
   Attachment,
@@ -276,8 +277,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       const embed = toDiscordEmbed(content.getBlocks());
       await message.edit({ embeds: [embed] });
     } else {
-      // Clear embeds when switching to text
-      await message.edit({ content, embeds: [] });
+      // Clear embeds when switching to text; truncate if over limit
+      const limit = MESSAGE_LIMITS.discord;
+      const text =
+        content.length > limit
+          ? `${content.slice(0, limit - 1)}\u2026`
+          : content;
+      await message.edit({ content: text, embeds: [] });
     }
   }
 

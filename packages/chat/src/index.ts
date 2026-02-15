@@ -17,6 +17,9 @@ export {
   type ErrorCallback,
 } from "./types";
 
+// Constants
+export { MESSAGE_LIMITS } from "./constants";
+
 // Core classes
 export { ChatClient } from "./ChatClient";
 export { Channel } from "./Channel";

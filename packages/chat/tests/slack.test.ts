@@ -5,6 +5,7 @@ import type { SlackConfig, ReactionEvent } from "../src/types.js";
 // Use vi.hoisted() to ensure mocks are available before mock setup
 const {
   mockPostMessage,
+  mockChatUpdate,
   mockChatDelete,
   mockReactionsAdd,
   mockReactionsRemove,
@@ -33,6 +34,7 @@ const {
     | null = null;
 
   const mockPostMessage = vi.fn();
+  const mockChatUpdate = vi.fn();
   const mockChatDelete = vi.fn();
   const mockReactionsAdd = vi.fn();
   const mockReactionsRemove = vi.fn();
@@ -55,6 +57,7 @@ const {
     client: {
       chat: {
         postMessage: mockPostMessage,
+        update: mockChatUpdate,
         delete: mockChatDelete,
       },
       reactions: {
@@ -85,6 +88,7 @@ const {
 
   return {
     mockPostMessage,
+    mockChatUpdate,
     mockChatDelete,
     mockReactionsAdd,
     mockReactionsRemove,
@@ -1679,6 +1683,56 @@ describe("SlackChatClient", () => {
 
       // Slack filesUploadV2 doesn't reliably return a message timestamp
       expect(msg.id).toBe("");
+    });
+  });
+
+  describe("Oversized message handling", () => {
+    it("should upload oversized string content as a file", async () => {
+      const channel = await client.connect(channelId);
+      const longContent = "x".repeat(4001);
+      const msg = await channel.postMessage(longContent);
+
+      expect(mockFilesUploadV2).toHaveBeenCalledTimes(1);
+      const args = mockFilesUploadV2.mock.calls[0][0];
+      expect(args.filename).toBe("message.txt");
+      expect(args.initial_comment).toBe(
+        "(Message too long \u2014 see attached file)"
+      );
+      expect(args.content).toBe(longContent);
+      expect(mockPostMessage).not.toHaveBeenCalled();
+      expect(msg.id).toBe("");
+    });
+
+    it("should not convert content at exactly 4000 characters", async () => {
+      const channel = await client.connect(channelId);
+      const exactContent = "x".repeat(4000);
+      await channel.postMessage(exactContent);
+
+      expect(mockFilesUploadV2).not.toHaveBeenCalled();
+      expect(mockPostMessage).toHaveBeenCalledTimes(1);
+      expect(mockPostMessage.mock.calls[0][0].text).toBe(exactContent);
+    });
+
+    it("should truncate oversized content on updateMessage", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("initial");
+      const longContent = "x".repeat(4001);
+      await msg.update(longContent);
+
+      expect(mockChatUpdate).toHaveBeenCalledTimes(1);
+      const args = mockChatUpdate.mock.calls[0][0];
+      expect(args.text).toHaveLength(4000);
+      expect(args.text.endsWith("\u2026")).toBe(true);
+    });
+
+    it("should not truncate content at exactly 4000 chars on updateMessage", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("initial");
+      const exactContent = "x".repeat(4000);
+      await msg.update(exactContent);
+
+      const args = mockChatUpdate.mock.calls[0][0];
+      expect(args.text).toBe(exactContent);
     });
   });
 
