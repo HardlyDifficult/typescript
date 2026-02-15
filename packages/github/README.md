@@ -31,6 +31,7 @@ const commits = await pr.getCommits();
 const reviews = await pr.getReviews();
 const comments = await pr.getComments();
 const checkRuns = await pr.getCheckRuns();
+const timeline = await pr.getTimeline(); // merged comments + reviews + commits
 await pr.postComment("LGTM!");
 await pr.merge("feat: my feature (#42)");
 
@@ -128,6 +129,7 @@ The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent
 | `getCommits()` | List commits in the PR |
 | `getReviews()` | List reviews on the PR |
 | `getComments()` | List comments on the PR |
+| `getTimeline()` | Merged timeline of comments, reviews, and commits (sorted) |
 | `getCheckRuns()` | List check runs (auto-resolves head SHA) |
 | `postComment(body)` | Post a comment on the PR |
 | `merge(title)` | Squash-merge the PR |
@@ -163,4 +165,13 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 
 ### Types
 
-`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PRUpdatedEvent`, `PollCompleteEvent`
+`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PRUpdatedEvent`, `PollCompleteEvent`, `TimelineEntry`, `TimelineEntryKind`
+
+### Timeline Utilities
+
+| Function | Description |
+|----------|-------------|
+| `buildTimeline(comments, reviews, commits)` | Merge PR data into a sorted `TimelineEntry[]` |
+| `formatTimeline(entries)` | Render timeline as readable markdown text |
+
+These are also available standalone (no `PRClient` needed) for custom pipelines.

@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 
 import { PRWatcher } from "./PRWatcher.js";
+import { buildTimeline, type TimelineEntry } from "./timeline.js";
 import type {
   CheckRun,
   ContributionRepo,
@@ -117,6 +118,16 @@ export class PRClient {
       issue_number: this.number,
       body,
     });
+  }
+
+  /** Fetch comments, reviews, and commits in parallel, then merge into a sorted timeline. */
+  async getTimeline(): Promise<readonly TimelineEntry[]> {
+    const [comments, reviews, commits] = await Promise.all([
+      this.getComments(),
+      this.getReviews(),
+      this.getCommits(),
+    ]);
+    return buildTimeline(comments, reviews, commits);
   }
 
   async merge(title: string): Promise<void> {
