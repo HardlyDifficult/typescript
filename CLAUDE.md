@@ -10,20 +10,20 @@ Monorepo of opinionated TypeScript libraries under the `@hardlydifficult` scope.
 
 ## Verification
 
-**IMPORTANT**: Run all checks before committing (CI runs all of these):
+**CRITICAL**: Before every commit, run `npm run fix` to auto-fix lint and format issues in one step:
 
 ```bash
+npm run fix             # ⭐ ALWAYS RUN FIRST — auto-fixes all lint + format issues
 npm run build           # TypeScript compilation
-npm run lint            # ESLint (includes max-lines: 400)
-npm run format:check    # Prettier formatting
 npm run test            # All tests
-npm run fix             # Auto-fix lint + format issues
+npm run lint            # ESLint validation (max-lines: 400)
+npm run format:check    # Prettier formatting validation
 npm run docs            # Build docs site (Astro Starlight + TypeDoc API reference)
 npm run docs:dev        # Local docs dev server with hot reload
 npm run docs:agent      # Generate llms.txt / llms-full.txt
 ```
 
-Always run from **repo root** — turbo handles dependency ordering (e.g. `document-generator` before `chat`).
+**Important**: Run `npm run fix` **before** `npm run build` — it catches and fixes ESLint errors that will block compilation. Always run from **repo root** — turbo handles dependency ordering.
 
 ## Packages
 
@@ -172,6 +172,7 @@ Used by: `createThrottledUpdater`, `createTeardown`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
 - **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
 - **`no-non-null-assertion` on array indexing**: `entries[i]!` is unnecessary (and forbidden) because `noUncheckedIndexedAccess` is not enabled — TS already infers `Entry`, not `Entry | undefined`. Just remove the `!`.
+- **`no-unnecessary-condition` with arrays**: When checking array contents, prefer length check over undefined: `if (arr.length > 0)` not `if (arr[0] !== undefined)`. More idiomatic and passes strict checking.
 - **`no-unnecessary-condition` with generics**: When iterating over generic object keys (e.g., `NumericRecord`), `typeof` checks get flagged because TypeScript narrows the type. Fix: cast to `Record<string, unknown>` at the function boundary so TypeScript accepts the runtime checks.
 
 ## Error Handling
