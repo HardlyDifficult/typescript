@@ -248,6 +248,10 @@ describe("PRWatcher", () => {
       await watcher.start();
       expect(events).toHaveLength(0);
 
+      const updatedPR = makePR({ updated_at: "2024-01-01T01:00:00Z" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
       const comment = makeComment({ id: 101 });
       stubActivity([comment], [], []);
 
@@ -294,6 +298,10 @@ describe("PRWatcher", () => {
       watcher.onReview((e) => events.push(e));
       await watcher.start();
 
+      const updatedPR = makePR({ updated_at: "2024-01-01T01:00:00Z" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
       const review = makeReview({ id: 201, state: "CHANGES_REQUESTED" });
       stubActivity([], [review], []);
 
@@ -319,6 +327,10 @@ describe("PRWatcher", () => {
       watcher.onCheckRun((e) => events.push(e));
       await watcher.start();
 
+      const updatedPR = makePR({ updated_at: "2024-01-01T01:00:00Z" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
       const checkRun = makeCheckRun({
         id: 301,
         status: "in_progress",
@@ -1343,6 +1355,247 @@ describe("PRWatcher", () => {
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(pollEvents[pollEvents.length - 1].prs).toHaveLength(1);
+    });
+  });
+
+  describe("selective activity fetching", () => {
+    it("skips API calls when updated_at and head.sha are unchanged and checks are complete", async () => {
+      const pr = makePR();
+      const checkRun = makeCheckRun({ id: 301, status: "completed", conclusion: "success" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubActivity([], [], [checkRun]);
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      // Clear call counts after initial poll
+      vi.clearAllMocks();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      (
+        mockOctokit.search.issuesAndPullRequests as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ data: { items: [] } });
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // Activity endpoints should NOT be called since PR is unchanged
+      expect(mockOctokit.issues.listComments).not.toHaveBeenCalled();
+      expect(
+        (mockOctokit.pulls as { listReviews?: ReturnType<typeof vi.fn> })
+          .listReviews
+      ).not.toHaveBeenCalled();
+      expect(mockOctokit.checks.listForRef).not.toHaveBeenCalled();
+    });
+
+    it("fetches only check runs when updated_at is unchanged but checks are incomplete", async () => {
+      const pr = makePR();
+      const incompleteCheck = makeCheckRun({
+        id: 301,
+        status: "in_progress",
+        conclusion: null,
+      });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubActivity([], [], [incompleteCheck]);
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      // Clear call counts after initial poll
+      vi.clearAllMocks();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      (
+        mockOctokit.search.issuesAndPullRequests as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ data: { items: [] } });
+      const completedCheck = makeCheckRun({
+        id: 301,
+        status: "completed",
+        conclusion: "success",
+      });
+      (mockOctokit.checks.listForRef as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { check_runs: [completedCheck] },
+      });
+
+      const events: CheckRunEvent[] = [];
+      watcher.onCheckRun((e) => events.push(e));
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // Only check runs should be fetched
+      expect(mockOctokit.issues.listComments).not.toHaveBeenCalled();
+      expect(mockOctokit.checks.listForRef).toHaveBeenCalledOnce();
+      // Check run status change should still be detected
+      expect(events).toHaveLength(1);
+      expect(events[0].checkRun.status).toBe("completed");
+    });
+
+    it("fetches all activity when updated_at changes", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      // Clear call counts after initial poll
+      vi.clearAllMocks();
+      const updatedPR = makePR({ updated_at: "2024-01-01T01:00:00Z" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
+      (
+        mockOctokit.search.issuesAndPullRequests as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ data: { items: [] } });
+      stubEmptyActivity();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // All activity endpoints should be called
+      expect(mockOctokit.issues.listComments).toHaveBeenCalledOnce();
+      expect(mockOctokit.checks.listForRef).toHaveBeenCalledOnce();
+    });
+
+    it("fetches all activity when head.sha changes", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      await watcher.start();
+
+      // Clear call counts after initial poll
+      vi.clearAllMocks();
+      const newSHAPR = makePR({
+        head: { ref: "feature", sha: "newsha456", repo: null },
+      });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [newSHAPR],
+      });
+      (
+        mockOctokit.search.issuesAndPullRequests as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ data: { items: [] } });
+      stubEmptyActivity();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // All activity endpoints should be called since head.sha changed
+      expect(mockOctokit.issues.listComments).toHaveBeenCalledOnce();
+      expect(mockOctokit.checks.listForRef).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("throttle", () => {
+    it("calls throttle.wait before API calls", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        throttle: mockThrottle,
+      });
+      await watcher.start();
+
+      // throttle.wait should have been called for:
+      // 1. pulls.list (weight 1 in fetchWatchedPRs)
+      // 2. fetchPRActivity full fetch (weight 3)
+      expect(mockThrottle.wait).toHaveBeenCalled();
+      const weights = mockThrottle.wait.mock.calls.map(
+        (call: unknown[]) => call[0] as number
+      );
+      expect(weights).toContain(1); // pulls.list
+      expect(weights).toContain(3); // full activity fetch
+    });
+
+    it("calls throttle.wait with weight 0 when activity is cached", async () => {
+      const pr = makePR();
+      const checkRun = makeCheckRun({ id: 301 });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubActivity([], [], [checkRun]);
+
+      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        throttle: mockThrottle,
+      });
+      await watcher.start();
+
+      mockThrottle.wait.mockClear();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // On second poll with unchanged PR: pulls.list (1) + cache hit (no wait call for 0)
+      const weights = mockThrottle.wait.mock.calls.map(
+        (call: unknown[]) => call[0] as number
+      );
+      expect(weights).toContain(1); // pulls.list
+      expect(weights).not.toContain(3); // no full fetch
+    });
+
+    it("calls throttle.wait for removed PR lookup", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+        throttle: mockThrottle,
+      });
+      await watcher.start();
+
+      // PR disappears from list
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      const freshPR = makePR({
+        state: "closed",
+        merged_at: "2024-01-02T00:00:00Z",
+      });
+      (mockOctokit.pulls.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: freshPR,
+      });
+
+      mockThrottle.wait.mockClear();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // Should have throttle calls including weight 1 for pulls.get
+      const weights = mockThrottle.wait.mock.calls.map(
+        (call: unknown[]) => call[0] as number
+      );
+      expect(weights.filter((w: number) => w === 1).length).toBeGreaterThanOrEqual(2);
     });
   });
 });

@@ -1,6 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
-import type { PullRequest } from "../types.js";
+import type { PullRequest, WatchThrottle } from "../types.js";
 
 export interface WatchedPR {
   readonly pr: PullRequest;
@@ -13,13 +13,15 @@ export async function fetchWatchedPRs(
   octokit: Octokit,
   username: string,
   repos: readonly string[],
-  myPRs: boolean
+  myPRs: boolean,
+  throttle?: WatchThrottle
 ): Promise<readonly WatchedPR[]> {
   const results: WatchedPR[] = [];
   const seen = new Set<string>();
 
   for (const repoSpec of repos) {
     const [owner, name] = repoSpec.split("/");
+    await throttle?.wait(1);
     const response = await octokit.pulls.list({
       owner,
       repo: name,
@@ -39,6 +41,7 @@ export async function fetchWatchedPRs(
   }
 
   if (myPRs) {
+    await throttle?.wait(1);
     const response = await octokit.search.issuesAndPullRequests({
       q: `is:pr is:open author:${username}`,
       per_page: 100,
@@ -53,6 +56,7 @@ export async function fetchWatchedPRs(
         const key = `${owner}/${name}#${String(item.number)}`;
         if (!seen.has(key)) {
           seen.add(key);
+          await throttle?.wait(1);
           const prResponse = await octokit.pulls.get({
             owner,
             repo: name,
