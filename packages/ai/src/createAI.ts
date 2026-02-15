@@ -1,3 +1,4 @@
+import type { Logger } from "@hardlydifficult/logger";
 import { generateText, type LanguageModel, Output } from "ai";
 import type { z } from "zod";
 
@@ -7,7 +8,6 @@ import type {
   AITracker,
   ChatCall,
   ChatMessage,
-  StructuredChatMessage,
   Usage,
 } from "./types.js";
 
@@ -21,6 +21,7 @@ const DEFAULT_MAX_TOKENS = 4096;
 function createChatCall(
   model: LanguageModel,
   tracker: AITracker,
+  logger: Logger,
   maxTokens: number,
   messages: CoreMessage[],
   systemPrompt: string | undefined
@@ -28,6 +29,13 @@ function createChatCall(
   let zodSchema: z.ZodType | undefined;
 
   async function execute(): Promise<ChatMessage> {
+    const promptLength = messages.reduce((n, m) => n + m.content.length, 0);
+    logger.debug("AI request", {
+      promptLength,
+      hasSystemPrompt: systemPrompt !== undefined,
+      hasSchema: zodSchema !== undefined,
+    });
+
     const startMs = Date.now();
 
     const result = await generateText({
@@ -51,6 +59,13 @@ function createChatCall(
 
     tracker.record(usage);
 
+    logger.debug("AI response", {
+      responseLength: result.text.length,
+      durationMs,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
+
     const responseMessages: CoreMessage[] = [
       ...messages,
       { role: "assistant", content: result.text },
@@ -63,6 +78,7 @@ function createChatCall(
         return createChatCall(
           model,
           tracker,
+          logger,
           maxTokens,
           [...responseMessages, { role: "user", content: prompt }],
           systemPrompt
@@ -80,11 +96,26 @@ function createChatCall(
   const call: ChatCall = {
     zod<TSchema extends z.ZodType>(
       schema: TSchema
-    ): PromiseLike<StructuredChatMessage<z.infer<TSchema>>> {
+    ): PromiseLike<z.infer<TSchema>> {
       zodSchema = schema;
-      return call as unknown as PromiseLike<
-        StructuredChatMessage<z.infer<TSchema>>
-      >;
+      return {
+        then<TResult1 = z.infer<TSchema>, TResult2 = never>(
+          onfulfilled?:
+            | ((value: z.infer<TSchema>) => TResult1 | PromiseLike<TResult1>)
+            | null,
+          onrejected?:
+            | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+            | null
+        ): PromiseLike<TResult1 | TResult2> {
+          return execute().then((msg) => {
+            const data = (msg as ChatMessage & { data: unknown })
+              .data as z.infer<TSchema>;
+            return onfulfilled
+              ? onfulfilled(data)
+              : (data as unknown as TResult1);
+          }, onrejected);
+        },
+      };
     },
     then<TResult1 = ChatMessage, TResult2 = never>(
       onfulfilled?:
@@ -101,10 +132,11 @@ function createChatCall(
   return call;
 }
 
-/** Creates an AI client with required usage tracking. Throws if tracker is not provided. */
+/** Creates an AI client with required usage tracking and logging. */
 export function createAI(
   model: LanguageModel,
   tracker: AITracker,
+  logger: Logger,
   options?: AIOptions
 ): AI {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for JS callers
@@ -119,6 +151,7 @@ export function createAI(
       return createChatCall(
         model,
         tracker,
+        logger,
         maxTokens,
         [{ role: "user", content: prompt }],
         systemPrompt

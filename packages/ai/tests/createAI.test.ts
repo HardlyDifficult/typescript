@@ -27,21 +27,30 @@ function mockModel(): unknown {
   return { modelId: "test-model", provider: "test" };
 }
 
+function mockLogger(): {
+  debug: ReturnType<typeof vi.fn>;
+  info: ReturnType<typeof vi.fn>;
+  warn: ReturnType<typeof vi.fn>;
+  error: ReturnType<typeof vi.fn>;
+} {
+  return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+}
+
 describe("createAI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("throws if tracker is not provided", () => {
-    expect(() => createAI(mockModel() as never, undefined as never)).toThrow(
-      "AITracker is required"
-    );
+    expect(() =>
+      createAI(mockModel() as never, undefined as never, mockLogger() as never)
+    ).toThrow("AITracker is required");
   });
 
   it("throws if tracker is null", () => {
-    expect(() => createAI(mockModel() as never, null as never)).toThrow(
-      "AITracker is required"
-    );
+    expect(() =>
+      createAI(mockModel() as never, null as never, mockLogger() as never)
+    ).toThrow("AITracker is required");
   });
 
   describe("chat", () => {
@@ -52,7 +61,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       const msg = await ai.chat("Say hello");
 
       expect(msg.text).toBe("Hello world");
@@ -68,7 +77,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       await ai.chat("prompt", "You are helpful");
 
       const callArgs = mockGenerateText.mock.calls[0][0] as Record<
@@ -85,7 +94,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       await ai.chat("prompt");
 
       const callArgs = mockGenerateText.mock.calls[0][0] as Record<
@@ -102,7 +111,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       await ai.chat("prompt");
 
       const callArgs = mockGenerateText.mock.calls[0][0] as Record<
@@ -119,7 +128,12 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker, { maxTokens: 8192 });
+      const ai = createAI(
+        mockModel() as never,
+        tracker,
+        mockLogger() as never,
+        { maxTokens: 8192 }
+      );
       await ai.chat("prompt");
 
       const callArgs = mockGenerateText.mock.calls[0][0] as Record<
@@ -136,11 +150,41 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       const msg = await ai.chat("prompt");
 
       expect(msg.usage.inputTokens).toBe(0);
       expect(msg.usage.outputTokens).toBe(0);
+    });
+  });
+
+  describe("logger", () => {
+    it("logs debug before and after each call", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "response",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+
+      const tracker = createMockTracker();
+      const logger = mockLogger();
+      const ai = createAI(mockModel() as never, tracker, logger as never);
+      await ai.chat("hello");
+
+      expect(logger.debug).toHaveBeenCalledTimes(2);
+      expect(logger.debug).toHaveBeenNthCalledWith(1, "AI request", {
+        promptLength: 5,
+        hasSystemPrompt: false,
+        hasSchema: false,
+      });
+      expect(logger.debug).toHaveBeenNthCalledWith(
+        2,
+        "AI response",
+        expect.objectContaining({
+          responseLength: 8,
+          inputTokens: 10,
+          outputTokens: 5,
+        })
+      );
     });
   });
 
@@ -152,7 +196,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       await ai.chat("first");
       await ai.chat("second");
@@ -169,7 +213,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const msg = await ai.chat("first");
       await msg.reply("second");
@@ -193,7 +237,7 @@ describe("createAI", () => {
       );
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
       await ai.chat("prompt");
 
       expect(tracker.calls[0].durationMs).toBeGreaterThanOrEqual(5);
@@ -201,7 +245,7 @@ describe("createAI", () => {
   });
 
   describe("zod", () => {
-    it("returns structured data", async () => {
+    it("returns structured data directly", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: '{"name":"Alice","age":30}',
         usage: { inputTokens: 10, outputTokens: 5 },
@@ -209,14 +253,12 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const fakeSchema = {} as never;
-      const msg = await ai.chat("Get user info").zod(fakeSchema);
+      const data = await ai.chat("Get user info").zod(fakeSchema);
 
-      expect(msg.data).toEqual({ name: "Alice", age: 30 });
-      expect(msg.text).toBe('{"name":"Alice","age":30}');
-      expect(msg.usage.inputTokens).toBe(10);
+      expect(data).toEqual({ name: "Alice", age: 30 });
     });
 
     it("passes output config to generateText", async () => {
@@ -227,7 +269,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const fakeSchema = { _type: "zod" } as never;
       await ai.chat("prompt").zod(fakeSchema);
@@ -247,7 +289,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       await ai.chat("prompt").zod({} as never);
 
@@ -269,7 +311,7 @@ describe("createAI", () => {
         });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const msg1 = await ai.chat("Hello");
       await msg1.reply("Follow up");
@@ -305,12 +347,12 @@ describe("createAI", () => {
         });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const msg1 = await ai.chat("Start");
-      const msg2 = await msg1.reply("Now give me JSON").zod({} as never);
+      const data = await msg1.reply("Now give me JSON").zod({} as never);
 
-      expect(msg2.data).toEqual({ result: true });
+      expect(data).toEqual({ result: true });
       expect(tracker.calls).toHaveLength(2);
     });
 
@@ -321,7 +363,7 @@ describe("createAI", () => {
       });
 
       const tracker = createMockTracker();
-      const ai = createAI(mockModel() as never, tracker);
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
 
       const msg = await ai.chat("prompt", "system instructions");
       await msg.reply("follow up");

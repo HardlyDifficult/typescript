@@ -7,7 +7,6 @@ export type {
   AITracker,
   ChatCall,
   ChatMessage,
-  StructuredChatMessage,
   Usage,
 } from "./types.js";
 export { extractCodeBlock } from "./extractCodeBlock.js";
