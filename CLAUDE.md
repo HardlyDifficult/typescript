@@ -111,12 +111,33 @@ When adding or changing packages, update the relevant docs so future sessions st
 
 Higher-level methods (`withTyping`, `setReactions`, `postDismissable`, `openThread`) can live on `Channel`, `Message`, or `Thread` directly — they don't require changes to `ChannelOperations` or `MessageOperations` when they delegate to existing operations. `Channel.buildThread()` wires up all thread ops from existing `ChannelOperations`, so new Thread entry points (like `openThread`) need zero platform changes.
 
+## Design Patterns
+
+### Static Factory for Async Init
+
+Classes that need async initialization (loading from disk, fetching config) should use a static `create()` factory method with a **private constructor**. This lets consumers declare and initialize in one line:
+
+```typescript
+// Good: one-line creation + async load
+const tracker = await UsageTracker.create({ key: 'my-usage', default: { ... } });
+
+// Bad: two-step init
+const tracker = new UsageTracker(...);
+await tracker.load();
+```
+
+Used by: `UsageTracker`. `WorkflowEngine` uses a similar pattern.
+
 ## Platform Gotchas
 
 - **Emoji:** Discord uses unicode (`'🗑️'`), Slack uses text names (`':wastebasket:'`). Reaction events return different formats per platform.
 - **Slack reactions lack usernames:** Use `event.user.id`, not `event.user.username`.
 - **Slack `mimetype` can be `null`:** The Slack API sends `null` (not `undefined`) for missing mime types. Always handle both.
 - **Slack bolt event types:** `app.event("message")` gives a complex union type. Define a strict `SlackMessagePayload` interface and cast at the boundary — don't spread `any` through the codebase.
+
+## ESLint Gotchas
+
+- **Generic utility functions with `typeof` checks**: When iterating over generic object keys (e.g., `NumericRecord`), `typeof sourceValue === 'number'` gets flagged by `no-unnecessary-condition` because TypeScript narrows the type. Fix: cast to `Record<string, unknown>` at the function boundary so TypeScript accepts the runtime checks.
 
 ## Testing with Fake Timers (vitest)
 
