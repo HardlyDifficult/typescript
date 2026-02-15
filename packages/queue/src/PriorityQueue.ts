@@ -80,7 +80,7 @@ export interface PriorityQueue<T> {
    * Get all items in the queue ordered by dequeue priority.
    * Returns a snapshot; does not modify the queue.
    */
-  toArray(): ReadonlyArray<QueueItem<T>>;
+  toArray(): readonly QueueItem<T>[];
 
   /** Clear all items from the queue. */
   clear(): void;
@@ -108,7 +108,7 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
         data,
         priority,
         enqueuedAt: Date.now(),
-        id: `q_${++counter}`,
+        id: `q_${String(++counter)}`,
       };
       buckets[priority].push(item);
       for (const cb of listeners) {
@@ -128,9 +128,8 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
 
     peek(): QueueItem<T> | undefined {
       for (const p of PRIORITY_ORDER) {
-        const first = buckets[p][0];
-        if (first !== undefined) {
-          return first;
+        if (buckets[p].length > 0) {
+          return buckets[p][0];
         }
       }
       return undefined;
@@ -162,7 +161,7 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
       };
     },
 
-    toArray(): ReadonlyArray<QueueItem<T>> {
+    toArray(): readonly QueueItem<T>[] {
       return [...buckets.high, ...buckets.medium, ...buckets.low];
     },
 
