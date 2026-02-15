@@ -28,7 +28,7 @@ npm run format:check    # Prettier formatting validation
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
 - `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError, eventRequest
 - `packages/text` — Error formatting, template replacement, text chunking, slugify, duration formatting
-- `packages/ai` — Unified AI client (`createAI`, `claude`, `ollama`) with chainable `.text()` and `.zod()`, required `AITracker` + `Logger`, and response parsing (`extractJson`, `extractTyped`, `extractCodeBlock`, multimodal)
+- `packages/ai` — Unified AI client (`createAI`, `claude`, `ollama`) with chainable `.text()` and `.zod()`, callback-based streaming (`ai.stream(messages, onText)`), tool-calling agent (`ai.agent(tools).stream(messages, callbacks)`), required `AITracker` + `Logger`, and response parsing (`extractJson`, `extractTyped`, `extractCodeBlock`, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
 - `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, StateTracker persistence, `DataCursor` for safe nested data navigation, multi-listener `on()`, and `toSnapshot()` serialization
