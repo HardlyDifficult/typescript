@@ -5,8 +5,7 @@
   "bin": {
     "check-pinned-deps": "./dist/check-pinned-deps.js",
     "monorepo-publish": "./dist/publish.js",
-    "auto-commit-fixes": "./dist/auto-commit-fixes.js",
-    "generate-llms-txt": "./dist/generate-llms-txt.js"
+    "auto-commit-fixes": "./dist/auto-commit-fixes.js"
   },
   "files": [
     "dist"
