@@ -117,7 +117,7 @@ Both `stream()` and `editableStream()` share the same `append()/stop()/content` 
 
 4. Verify: `npm run build && npm test && npm run lint && npm run format:check` from repo root
 
-5. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing.
+5. **Cross-repo migration**: When extracting code from the ai repo into a new package, grep for ALL usages of old types/functions across the entire ai repo (not just the obvious files). Use `file:../../../typescript/packages/{name}` temporarily in the ai repo's `package.json` to verify builds before publishing to npm — swap back to a version number before committing. **Gotcha**: If package A uses `file:` for a dep and package B uses npm for the same dep, TypeScript sees two separate type declarations — classes with private fields (like Logger's `minLevel`) become incompatible. Ensure all packages in the consumer resolve to the same copy.
 
 ## Keeping Docs Current
 
