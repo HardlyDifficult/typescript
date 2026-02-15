@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.40",
-    "@hardlydifficult/logger": "workspace:*",
+    "@hardlydifficult/logger": "file:../logger",
     "ai": "6.0.78",
     "ollama-ai-provider-v2": "3.0.4",
     "zod": "4.3.6"
@@ -23,6 +23,9 @@
     "@types/node": "20.19.31",
     "typescript": "5.8.3",
     "vitest": "1.6.1"
+  },
+  "peerDependencies": {
+    "@hardlydifficult/logger": ">=1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

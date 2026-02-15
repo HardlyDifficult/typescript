@@ -31,7 +31,7 @@ npm run docs:agent      # Generate llms.txt / llms-full.txt
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
 - `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError, eventRequest
 - `packages/text` — Error formatting, template replacement, text chunking, slugify, duration formatting
-- `packages/ai` — Unified AI client (`createAI`, `claude`, `ollama`) with chainable `.zod()` structured output, required usage tracking (`AITracker`), and response parsing (`extractJson`, `extractTyped`, `extractCodeBlock`, multimodal)
+- `packages/ai` — Unified AI client (`createAI`, `claude`, `ollama`) with chainable `.text()` and `.zod()`, required `AITracker` + `Logger`, and response parsing (`extractJson`, `extractTyped`, `extractCodeBlock`, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
 - `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, auto `updatedAt`, StateTracker persistence, `DataCursor` for safe nested data navigation, multi-listener `on()`, and `toSnapshot()` serialization
@@ -179,15 +179,17 @@ When a method returns a value that can be directly awaited OR chained with modif
 
 ```typescript
 interface ChatCall extends PromiseLike<ChatMessage> {
-  zod<T>(schema: z.ZodType<T>): PromiseLike<StructuredChatMessage<T>>;
+  text(): PromiseLike<string>;
+  zod<TSchema extends z.ZodType>(schema: TSchema): PromiseLike<z.infer<TSchema>>;
 }
 
 // Usage: await triggers execution
-const msg = await ai.chat(prompt);              // plain text
-const msg = await ai.chat(prompt).zod(schema);  // structured output
+const msg  = await ai.chat(prompt);              // full ChatMessage
+const text = await ai.chat(prompt).text();       // string
+const data = await ai.chat(prompt).zod(schema);  // z.infer<typeof schema>
 ```
 
-The `ChatCall` object stores configuration (schema, etc.) until `then()` is called. Inside `then()`, call the actual async work and forward to the promise chain. This avoids separate methods for each variant (`chat`, `chatJson`, `chatStructured`) — one entry point with optional modifiers.
+The `ChatCall` object stores configuration (schema, etc.) until `then()` is called. Inside `then()`, call the actual async work and forward to the promise chain. Chainable methods (`.text()`, `.zod()`) return their own `PromiseLike` that extracts the relevant field internally — consumers get the unwrapped type directly.
 
 Used by: `createAI` in `@hardlydifficult/ai`.
 
