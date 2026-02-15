@@ -47,6 +47,8 @@ Build/test one package: `npx turbo run build --filter=@hardlydifficult/chat`
 - **Minimal public API surface.** Don't export internal interfaces (`ChannelOperations`, `MessageOperations`), implementation types, or options bags when a simple parameter works.
 - **Flat parameters over options objects.** Only use options objects when there are 3+ optional fields.
 - **Consistent patterns.** All event subscriptions return an unsubscribe function or use `on`/`off` pairs.
+- **Domain objects carry operations.** Write operations live on the objects they affect (`task.update()`, `list.createTask()`), not on the client. Params accept domain objects (`labels: [label]`), not raw IDs — the library extracts IDs internally. Internal `*Operations` interfaces (not exported) bridge domain classes to platform-specific API calls.
+- **Chainable finders throw on not found.** State classes like `BoardState.findList(name)` throw instead of returning `null` — enables clean chaining: `state.findBoard("x").findList("y").createTask("z")`.
 
 ### Thread Messaging
 
