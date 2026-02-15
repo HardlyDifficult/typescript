@@ -128,6 +128,15 @@ export class PRClient {
       commit_title: title,
     });
   }
+
+  async markReady(): Promise<void> {
+    await this.octokit.pulls.update({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
+      draft: false,
+    });
+  }
 }
 
 /** Client for interacting with a specific GitHub repository (PRs, file tree, file content). */
