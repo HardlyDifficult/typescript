@@ -6,6 +6,7 @@ import type {
   PullRequestReview,
   WatchThrottle,
 } from "../types.js";
+
 import type { PRSnapshot } from "./processSnapshot.js";
 
 export interface PRActivity {
@@ -67,13 +68,15 @@ export async function fetchPRActivitySelective(
   previous: PRSnapshot | undefined,
   throttle: WatchThrottle | undefined
 ): Promise<SelectiveResult> {
-  if (
-    previous === undefined ||
-    previous.updatedAt !== updatedAt ||
-    previous.headSha !== headSha
-  ) {
+  if (previous?.updatedAt !== updatedAt || previous.headSha !== headSha) {
     await throttle?.wait(3);
-    const activity = await fetchPRActivity(octokit, owner, name, number, headSha);
+    const activity = await fetchPRActivity(
+      octokit,
+      owner,
+      name,
+      number,
+      headSha
+    );
     return { activity, apiCalls: 3 };
   }
 

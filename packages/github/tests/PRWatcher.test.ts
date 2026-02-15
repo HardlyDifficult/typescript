@@ -1361,7 +1361,11 @@ describe("PRWatcher", () => {
   describe("selective activity fetching", () => {
     it("skips API calls when updated_at and head.sha are unchanged and checks are complete", async () => {
       const pr = makePR();
-      const checkRun = makeCheckRun({ id: 301, status: "completed", conclusion: "success" });
+      const checkRun = makeCheckRun({
+        id: 301,
+        status: "completed",
+        conclusion: "success",
+      });
       (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
         data: [pr],
       });
@@ -1424,7 +1428,9 @@ describe("PRWatcher", () => {
         status: "completed",
         conclusion: "success",
       });
-      (mockOctokit.checks.listForRef as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockOctokit.checks.listForRef as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         data: { check_runs: [completedCheck] },
       });
 
@@ -1595,7 +1601,9 @@ describe("PRWatcher", () => {
       const weights = mockThrottle.wait.mock.calls.map(
         (call: unknown[]) => call[0] as number
       );
-      expect(weights.filter((w: number) => w === 1).length).toBeGreaterThanOrEqual(2);
+      expect(
+        weights.filter((w: number) => w === 1).length
+      ).toBeGreaterThanOrEqual(2);
     });
   });
 });
