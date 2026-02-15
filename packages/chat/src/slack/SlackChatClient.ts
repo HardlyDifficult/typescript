@@ -1,5 +1,6 @@
 import { convertMarkdown } from "@hardlydifficult/document-generator";
 import { App } from "@slack/bolt";
+import type { FilesUploadV2Arguments } from "@slack/web-api";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
@@ -193,17 +194,21 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     if (options?.files && options.files.length > 0) {
       for (let i = 0; i < options.files.length; i++) {
         const file = options.files[i];
-        await this.app.client.filesUploadV2({
+        const uploadArgs = {
           channel_id: channelId,
           filename: file.name,
           // Only attach the text as initial_comment on the first file to avoid duplicates
           ...(i === 0 ? { initial_comment: text } : {}),
-          thread_ts: options.threadTs,
+          // Conditionally include thread_ts (bolt v4 uses a discriminated union)
+          ...(options.threadTs !== undefined
+            ? { thread_ts: options.threadTs }
+            : {}),
           // String content uses the content field; binary uses the file field
           ...(typeof file.content === "string"
             ? { content: file.content }
             : { file: file.content }),
-        });
+        } as FilesUploadV2Arguments;
+        await this.app.client.filesUploadV2(uploadArgs);
       }
 
       // Post the text message separately if there are also blocks (rich document)

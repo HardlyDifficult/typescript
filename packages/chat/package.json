@@ -15,14 +15,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@slack/bolt": "3.22.0",
+    "@slack/bolt": "4.6.0",
     "discord.js": "14.25.1"
   },
   "devDependencies": {
     "@hardlydifficult/document-generator": "file:../document-generator",
-    "@types/node": "20.19.31",
-    "typescript": "5.8.3",
-    "vitest": "1.6.1"
+    "@types/node": "25.2.3",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
   },
   "peerDependencies": {
     "@hardlydifficult/document-generator": ">=1.1.0"
