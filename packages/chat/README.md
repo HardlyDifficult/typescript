@@ -155,6 +155,28 @@ Post a message that the specified user can dismiss by clicking the trash reactio
 await channel.postDismissable("Build complete!", user.id);
 ```
 
+### Message Tracker
+
+Track posted messages by key for later editing. Useful for status messages that should be updated in-place (e.g., "Worker disconnected" → "Worker reconnected").
+
+```typescript
+import { createMessageTracker } from "@hardlydifficult/chat";
+
+const tracker = createMessageTracker((content) => channel.postMessage(content));
+
+// Post and track by key
+tracker.post("worker-1", "🔴 Worker disconnected: Server A");
+
+// Later, edit the tracked message
+const postedAt = tracker.getPostedAt("worker-1");
+if (postedAt !== undefined) {
+  const downtime = Date.now() - postedAt.getTime();
+  tracker.edit("worker-1", `🟢 Worker reconnected: Server A (down for ${downtime}ms)`);
+}
+```
+
+`post()` is fire-and-forget. `edit()` handles the race where the edit arrives before the original post completes — it chains on the stored promise.
+
 ### Threads
 
 Create a thread, post messages, and listen for replies. The `Thread` object is the primary interface — all threading internals are hidden.

@@ -30,7 +30,7 @@ npm run docs:agent      # Generate llms.txt / llms-full.txt
 - `packages/chat` — Unified Discord/Slack messaging API
 - `packages/document-generator` — Rich document builder (Block Kit / Embeds)
 - `packages/throttle` — Rate limiting, backoff/retry, ThrottledUpdater, isConnectionError, eventRequest
-- `packages/text` — Error formatting, template replacement, text chunking, slugify
+- `packages/text` — Error formatting, template replacement, text chunking, slugify, duration formatting
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
 - `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
@@ -164,7 +164,7 @@ export function createTeardown(): Teardown {
 }
 ```
 
-Used by: `createThrottledUpdater`, `createTeardown`.
+Used by: `createThrottledUpdater`, `createTeardown`, `createMessageTracker`.
 
 ## ESLint Strict Rules — Common Fixes
 

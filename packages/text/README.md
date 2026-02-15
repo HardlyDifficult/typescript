@@ -75,3 +75,27 @@ for (const chunk of chunks) {
   await channel.send(chunk);
 }
 ```
+
+### `slugify(input: string, maxLength?: number): string`
+
+Convert a string to a URL/filename-safe slug. Lowercases, replaces non-alphanumeric runs with hyphens, truncates at word boundaries.
+
+```typescript
+import { slugify } from "@hardlydifficult/text";
+
+slugify("My Feature Name!"); // "my-feature-name"
+slugify("My Feature Name!", 10); // "my-feature"
+```
+
+### `formatDuration(ms: number): string`
+
+Format milliseconds as a short human-readable duration. Shows at most two units, skipping trailing zeros.
+
+```typescript
+import { formatDuration } from "@hardlydifficult/text";
+
+formatDuration(125_000);   // "2m 5s"
+formatDuration(3_600_000); // "1h"
+formatDuration(500);       // "<1s"
+formatDuration(90_000_000); // "1d 1h"
+```
