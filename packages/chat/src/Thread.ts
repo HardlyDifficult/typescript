@@ -1,3 +1,4 @@
+import { EditableStreamReply } from "./EditableStreamReply.js";
 import { Message, type MessageOperations } from "./Message.js";
 import { StreamingReply } from "./StreamingReply.js";
 import type {
@@ -88,6 +89,31 @@ export class Thread {
   stream(flushIntervalMs: number): StreamingReply {
     return new StreamingReply(
       (content) => this.ops.post(content),
+      this.platform,
+      flushIntervalMs
+    );
+  }
+
+  /**
+   * Stream messages into this thread by editing a single message in
+   * place. Text appended between flushes updates the same message
+   * rather than creating new ones. If the accumulated text exceeds the
+   * platform's message-length limit, the beginning is truncated.
+   *
+   * @param flushIntervalMs - How often to flush buffered text (in milliseconds)
+   * @returns EditableStreamReply with append/flush/stop methods
+   *
+   * @example
+   * ```typescript
+   * const stream = thread.editableStream(2000);
+   * stream.append("Processing...\n");
+   * stream.append("Still going...\n");
+   * await stream.stop();
+   * ```
+   */
+  editableStream(flushIntervalMs: number): EditableStreamReply {
+    return new EditableStreamReply(
+      (content) => this.post(content),
       this.platform,
       flushIntervalMs
     );
