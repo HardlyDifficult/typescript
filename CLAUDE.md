@@ -140,11 +140,27 @@ await tracker.load();
 
 Used by: `UsageTracker`. `WorkflowEngine` uses a similar pattern.
 
+### Closure Factory for Stateful Utilities
+
+When a utility needs hidden state but no async init, use a `create*` factory function that returns an interface. Closure-scoped variables replace private fields — no `this` binding issues.
+
+```typescript
+export function createTeardown(): Teardown {
+  const entries: Entry[] = [];
+  let hasRun = false;
+  const run = async (): Promise<void> => { /* uses entries, hasRun */ };
+  return { add(...) { ... }, run, trapSignals() { ... } };
+}
+```
+
+Used by: `createThrottledUpdater`, `createTeardown`.
+
 ## ESLint Strict Rules — Common Fixes
 
 - **`no-misused-spread`**: Don't spread `RequestInit` or similar external types into object literals. Destructure only the fields you need: `{ method: options.method, body: options.body }`.
 - **`restrict-template-expressions`**: Wrap non-string values in `String()`: `` `Error: ${String(response.status)}` ``
 - **`strict-boolean-expressions`**: Use explicit checks for optional params: `if (value !== undefined)` not `if (value)`.
+- **`no-non-null-assertion` on array indexing**: `entries[i]!` is unnecessary (and forbidden) because `noUncheckedIndexedAccess` is not enabled — TS already infers `Entry`, not `Entry | undefined`. Just remove the `!`.
 - **`no-unnecessary-condition` with generics**: When iterating over generic object keys (e.g., `NumericRecord`), `typeof` checks get flagged because TypeScript narrows the type. Fix: cast to `Record<string, unknown>` at the function boundary so TypeScript accepts the runtime checks.
 
 ## Error Handling
