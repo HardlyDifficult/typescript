@@ -32,6 +32,7 @@ export default defineConfig({
             "../../packages/state-tracker",
             "../../packages/text",
             "../../packages/throttle",
+            "../../packages/usage-tracker",
             "../../packages/workflow-engine",
           ],
           tsconfig: "../../tsconfig.base.json",

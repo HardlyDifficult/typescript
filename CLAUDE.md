@@ -33,6 +33,7 @@ Always run from **repo root** — turbo handles dependency ordering (e.g. `docum
 - `packages/text` — Error formatting, template replacement, text chunking
 - `packages/ai-msg` — AI response extraction (JSON, typed schemas, code blocks, multimodal)
 - `packages/state-tracker` — Atomic JSON state persistence with async API and auto-save
+- `packages/usage-tracker` — Accumulate numeric metrics with session/cumulative dual-tracking and persistence
 - `packages/workflow-engine` — State machine with typed statuses, validated transitions, and StateTracker persistence
 - `packages/logger` — Plugin-based structured logger (Console, Discord, File plugins)
 

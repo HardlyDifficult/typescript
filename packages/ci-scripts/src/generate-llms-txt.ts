@@ -27,6 +27,7 @@ const LIBRARY_PACKAGES = [
   "state-tracker",
   "text",
   "throttle",
+  "usage-tracker",
   "workflow-engine",
 ];
 
