@@ -3,7 +3,11 @@ import * as os from "os";
 import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { WorkflowEngine } from "../src/WorkflowEngine.js";
-import type { TransitionEvent, TransitionMap } from "../src/types.js";
+import type {
+  TransitionEvent,
+  TransitionMap,
+  WorkflowSnapshot,
+} from "../src/types.js";
 
 // --- Test helpers ---
 
@@ -645,6 +649,140 @@ describe("WorkflowEngine", () => {
       } catch (err) {
         expect((err as Error).message).toContain("running, failed");
       }
+    });
+  });
+
+  describe("on() multi-listener", () => {
+    it("delivers events to multiple listeners", async () => {
+      const engine = createEngine();
+      await engine.load();
+
+      const events1: TransitionEvent<Status, Data>[] = [];
+      const events2: TransitionEvent<Status, Data>[] = [];
+      engine.on((e) => events1.push(e));
+      engine.on((e) => events2.push(e));
+
+      await engine.transition("running");
+
+      expect(events1).toHaveLength(1);
+      expect(events2).toHaveLength(1);
+      expect(events1[0]!.type).toBe("transition");
+      expect(events2[0]!.type).toBe("transition");
+    });
+
+    it("unsubscribe stops delivery", async () => {
+      const engine = createEngine();
+      await engine.load();
+
+      const events: TransitionEvent<Status, Data>[] = [];
+      const unsub = engine.on((e) => events.push(e));
+
+      await engine.transition("running");
+      expect(events).toHaveLength(1);
+
+      unsub();
+
+      await engine.update((d) => {
+        d.count = 1;
+      });
+      expect(events).toHaveLength(1); // no new events
+    });
+
+    it("works alongside onTransition option", async () => {
+      const optionEvents: TransitionEvent<Status, Data>[] = [];
+      const listenerEvents: TransitionEvent<Status, Data>[] = [];
+
+      const engine = createEngine({
+        onTransition: (e) => optionEvents.push(e),
+      });
+      engine.on((e) => listenerEvents.push(e));
+      await engine.load();
+
+      await engine.transition("running");
+
+      // Both receive the load + transition events
+      expect(optionEvents).toHaveLength(2);
+      expect(listenerEvents).toHaveLength(2);
+    });
+
+    it("listener added after load receives subsequent events", async () => {
+      const engine = createEngine();
+      await engine.load();
+
+      const events: TransitionEvent<Status, Data>[] = [];
+      engine.on((e) => events.push(e));
+
+      await engine.transition("running");
+      await engine.update((d) => {
+        d.count = 5;
+      });
+
+      expect(events).toHaveLength(2);
+      expect(events[0]!.type).toBe("transition");
+      expect(events[1]!.type).toBe("update");
+    });
+  });
+
+  describe("toSnapshot", () => {
+    it("returns correct shape", async () => {
+      const engine = createEngine();
+      await engine.load();
+      await engine.transition("running", (d) => {
+        d.count = 42;
+        d.message = "hello";
+      });
+
+      const snap: WorkflowSnapshot<Status, Data> = engine.toSnapshot();
+
+      expect(snap.status).toBe("running");
+      expect(snap.data.count).toBe(42);
+      expect(snap.data.message).toBe("hello");
+      expect(snap.updatedAt).toBe(engine.updatedAt);
+      expect(snap.isTerminal).toBe(false);
+    });
+
+    it("data is a deep copy", async () => {
+      const engine = createEngine();
+      await engine.load();
+      await engine.transition("running", (d) => {
+        d.count = 1;
+      });
+
+      const snap = engine.toSnapshot();
+
+      // Mutating the snapshot should not affect the engine
+      (snap.data as Data).count = 999;
+      expect(engine.data.count).toBe(1);
+    });
+
+    it("reflects terminal status", async () => {
+      const engine = createEngine();
+      await engine.load();
+      await engine.transition("running");
+      await engine.transition("completed");
+
+      const snap = engine.toSnapshot();
+      expect(snap.isTerminal).toBe(true);
+    });
+
+    it("reflects latest state after transitions", async () => {
+      vi.useFakeTimers();
+      const engine = createEngine();
+      await engine.load();
+
+      const snap1 = engine.toSnapshot();
+      expect(snap1.status).toBe("idle");
+
+      await vi.advanceTimersByTimeAsync(100);
+      await engine.transition("running", (d) => {
+        d.count = 10;
+      });
+
+      const snap2 = engine.toSnapshot();
+      expect(snap2.status).toBe("running");
+      expect(snap2.data.count).toBe(10);
+      expect(snap2.updatedAt).not.toBe(snap1.updatedAt);
+      vi.useRealTimers();
     });
   });
 });

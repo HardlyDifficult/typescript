@@ -2,11 +2,13 @@ import { StateTracker } from "@hardlydifficult/state-tracker";
 
 import { DataCursor } from "./DataCursor.js";
 import type {
+  ChangeListener,
   DataUpdater,
   PersistedState,
   TransitionEvent,
   TransitionMap,
   WorkflowEngineOptions,
+  WorkflowSnapshot,
 } from "./types.js";
 
 /**
@@ -19,6 +21,7 @@ export class WorkflowEngine<TStatus extends string, TData> {
   private readonly onTransitionCb?: (
     event: TransitionEvent<TStatus, TData>
   ) => void;
+  private readonly listeners = new Set<ChangeListener<TStatus, TData>>();
   private loaded = false;
 
   constructor(options: WorkflowEngineOptions<TStatus, TData>) {
@@ -152,6 +155,27 @@ export class WorkflowEngine<TStatus extends string, TData> {
     return new DataCursor(this, selector);
   }
 
+  /**
+   * Register a listener for all engine events (transition, update, load).
+   * Returns an unsubscribe function.
+   */
+  on(listener: ChangeListener<TStatus, TData>): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /** Return a read-only snapshot of the engine's current state. */
+  toSnapshot(): WorkflowSnapshot<TStatus, TData> {
+    return {
+      status: this.status,
+      data: structuredClone(this.data),
+      updatedAt: this.updatedAt,
+      isTerminal: this.isTerminal,
+    };
+  }
+
   /** Check if a specific transition is allowed from current status */
   canTransition(to: TStatus): boolean {
     return this.transitions[this.status].includes(to);
@@ -172,13 +196,17 @@ export class WorkflowEngine<TStatus extends string, TData> {
     from?: TStatus,
     to?: TStatus
   ): void {
-    this.onTransitionCb?.({
+    const event: TransitionEvent<TStatus, TData> = {
       type,
       from,
       to,
       status: this.status,
       data: this.data,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.onTransitionCb?.(event);
+    for (const listener of this.listeners) {
+      listener(event);
+    }
   }
 }
