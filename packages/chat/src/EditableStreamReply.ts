@@ -72,7 +72,7 @@ export class EditableStreamReply {
     const limit = MESSAGE_LIMITS[this.platform];
     const text =
       this.buffer.length > limit
-        ? "\u2026" + this.buffer.slice(-(limit - 1))
+        ? `\u2026${this.buffer.slice(-(limit - 1))}`
         : this.buffer;
 
     try {
