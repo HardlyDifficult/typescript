@@ -1,7 +1,5 @@
 // Types
 export {
-  type Board,
-  type Label,
   type CreateTaskOptions,
   type UpdateTaskParams,
   type TrelloConfig,
@@ -13,15 +11,16 @@ export {
 // Core classes
 export { TaskListClient } from "./TaskListClient.js";
 export { Task } from "./Task.js";
-export { TaskList } from "./TaskList.js";
-export { BoardState } from "./BoardState.js";
+export { Project } from "./Project.js";
 export { FullState } from "./FullState.js";
 
 // Platform implementations
 export { TrelloTaskListClient } from "./trello";
+export { LinearTaskListClient } from "./linear";
 
 // Factory
 import type { TaskListClient } from "./TaskListClient.js";
+import { LinearTaskListClient } from "./linear";
 import { TrelloTaskListClient } from "./trello";
 import type { TaskListConfig } from "./types.js";
 
@@ -33,11 +32,13 @@ import type { TaskListConfig } from "./types.js";
  * // Trello (uses env vars by default)
  * const client = createTaskListClient({ type: 'trello' });
  *
+ * // Linear (team-scoped)
+ * const client = createTaskListClient({ type: 'linear', teamId: 'team-uuid' });
+ *
  * // Usage
- * const state = await client.getBoards();
- * const list = state.findBoard("My Board").findList("To Do");
- * const task = await list.createTask("New task");
- * await task.update({ name: "Updated task" });
+ * const project = await client.findProject("My Project");
+ * const task = await project.createTask("New task");
+ * await task.update({ status: "done" });
  * ```
  */
 export function createTaskListClient(config: TaskListConfig): TaskListClient {
@@ -45,7 +46,7 @@ export function createTaskListClient(config: TaskListConfig): TaskListClient {
     case "trello":
       return new TrelloTaskListClient(config);
     case "linear":
-      throw new Error("Linear provider not yet implemented");
+      return new LinearTaskListClient(config);
     default:
       throw new Error(
         `Unknown task list provider: ${(config as { type: string }).type}`

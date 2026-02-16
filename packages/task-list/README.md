@@ -13,27 +13,25 @@ npm install @hardlydifficult/task-list
 ```typescript
 import { createTaskListClient } from "@hardlydifficult/task-list";
 
-const client = createTaskListClient({ type: "trello" });
+// Trello
+const trello = createTaskListClient({ type: "trello" });
 
-// Get all boards with full state
-const state = await client.getBoards();
+// Linear
+const linear = createTaskListClient({
+  type: "linear",
+  teamId: "team-uuid",
+});
 
-// Chainable lookups
-const list = state.findBoard("My Project").findList("To Do");
-const label = state.findBoard("My Project").findLabel("Bug");
+// Find a project and create a task
+const project = await linear.findProject("Q1 Roadmap");
 
-// Create a task
-const task = await list.createTask("Fix login page", {
+const task = await project.createTask("Fix login", {
   description: "Users can't log in on mobile",
-  labels: [label],
+  labels: ["Bug"],
 });
 
 // Update a task
-await task.update({ name: "Fixed login page" });
-
-// Move to another list
-const doneList = state.findBoard("My Project").findList("Done");
-await task.update({ list: doneList });
+await task.update({ status: "Done" });
 ```
 
 ## API
@@ -46,11 +44,24 @@ Factory function — returns a `TaskListClient` based on config type.
 // Trello (uses TRELLO_API_KEY / TRELLO_API_TOKEN env vars by default)
 const client = createTaskListClient({ type: "trello" });
 
-// Explicit credentials
+// Trello with explicit credentials
 const client = createTaskListClient({
   type: "trello",
   apiKey: "your-key",
   token: "your-token",
+});
+
+// Linear (uses LINEAR_API_KEY env var by default)
+const client = createTaskListClient({
+  type: "linear",
+  teamId: "team-uuid",
+});
+
+// Linear with explicit API key
+const client = createTaskListClient({
+  type: "linear",
+  apiKey: "lin_xxx",
+  teamId: "team-uuid",
 });
 ```
 
@@ -58,71 +69,68 @@ const client = createTaskListClient({
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getBoards()` | `FullState` | All boards with lists, tasks, and labels |
-| `getBoard(boardId)` | `BoardState` | Single board with lists, tasks, and labels |
+| `getProjects()` | `FullState` | All projects with statuses, tasks, and labels |
+| `getProject(projectId)` | `Project` | Single project with statuses, tasks, and labels |
 | `getTask(taskId)` | `Task` | Single task by ID |
+| `findProject(name)` | `Project` | Find project by name (case-insensitive partial match) |
 
 ### `FullState`
 
+| Property | Type | Description |
+|----------|------|-------------|
+| `projects` | `Project[]` | All projects |
+
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `findBoard(name)` | `BoardState` | Find by name (case-insensitive partial match) |
-| `findTask(taskId)` | `Task` | Find task by ID across all boards |
+| `findProject(name)` | `Project` | Find by name (case-insensitive partial match) |
+| `findTask(taskId)` | `Task` | Find task by ID across all projects |
 
-### `BoardState`
+### `Project`
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `board` | `Board` | Board info (id, name, url) |
-| `lists` | `TaskList[]` | All lists on the board |
-| `tasks` | `Task[]` | All tasks on the board |
-| `labels` | `Label[]` | All labels on the board |
+| `id` | `string` | Project identifier |
+| `name` | `string` | Project name |
+| `url` | `string` | Project URL |
+| `statuses` | `string[]` | Available status names |
+| `labels` | `string[]` | Available label names |
+| `tasks` | `Task[]` | All tasks in the project |
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `findList(name)` | `TaskList` | Find by name (case-insensitive partial match) |
+| `createTask(name, options?)` | `Task` | Create a task in this project |
 | `findTask(taskId)` | `Task` | Find task by ID |
-| `findLabel(name)` | `Label` | Find by name (case-insensitive partial match) |
 
-### `TaskList`
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `createTask(name, options?)` | `Task` | Create a task in this list |
-
-Options: `{ description?: string, labels?: Label[] }`
+Options: `{ description?: string, status?: string, labels?: string[] }`
 
 ### `Task`
 
-| Property | Type |
-|----------|------|
-| `id` | `string` |
-| `name` | `string` |
-| `description` | `string` |
-| `listId` | `string` |
-| `boardId` | `string` |
-| `labels` | `Label[]` |
-| `url` | `string` |
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | `string` | Task identifier |
+| `name` | `string` | Task name |
+| `description` | `string` | Task description |
+| `status` | `string` | Current status name |
+| `projectId` | `string` | Parent project ID |
+| `labels` | `string[]` | Label names |
+| `url` | `string` | Task URL |
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `update(params)` | `Task` | Update and return new Task with server state |
 
-Params: `{ name?: string, description?: string, list?: TaskList, labels?: Label[] }`
+Params: `{ name?: string, description?: string, status?: string, labels?: string[] }`
 
-## Switching Providers
+## Concept Mapping
 
-Change the config — zero client code changes:
-
-```typescript
-// Before
-const client = createTaskListClient({ type: "trello" });
-
-// After
-const client = createTaskListClient({ type: "linear" });
-```
+| Abstraction | Trello | Linear |
+|---|---|---|
+| **Project** | Board | Project |
+| Status | List | WorkflowState |
+| **Task** | Card | Issue |
+| Label | Label | IssueLabel |
 
 ## Supported Providers
 
 - **Trello** — fully implemented
-- **Linear** — coming soon
+- **Linear** — fully implemented
