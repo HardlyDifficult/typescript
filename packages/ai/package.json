@@ -17,6 +17,7 @@
     "@hardlydifficult/logger": "file:../logger",
     "ai": "6.0.78",
     "ollama-ai-provider-v2": "3.0.4",
+    "undici": "6.21.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
