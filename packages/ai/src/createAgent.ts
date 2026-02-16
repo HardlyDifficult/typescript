@@ -104,6 +104,8 @@ export function createAgent(
         inputTokens: resultUsage.inputTokens ?? 0,
         outputTokens: resultUsage.outputTokens ?? 0,
         durationMs,
+        prompt: messages[messages.length - 1].content,
+        response: result.text,
       };
 
       tracker.record(usage);
@@ -156,6 +158,8 @@ export function createAgent(
         inputTokens: resultUsage.inputTokens ?? 0,
         outputTokens: resultUsage.outputTokens ?? 0,
         durationMs,
+        prompt: messages[messages.length - 1].content,
+        response: accumulated,
       };
 
       tracker.record(usage);

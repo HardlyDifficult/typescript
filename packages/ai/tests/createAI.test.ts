@@ -221,6 +221,49 @@ describe("createAI", () => {
       expect(tracker.calls).toHaveLength(2);
     });
 
+    it("records prompt and response", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Hello world",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
+      await ai.chat("Say hello");
+
+      expect(tracker.calls[0].prompt).toBe("Say hello");
+      expect(tracker.calls[0].response).toBe("Hello world");
+      expect(tracker.calls[0].systemPrompt).toBeUndefined();
+    });
+
+    it("records systemPrompt when provided", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "response",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
+      await ai.chat("prompt", "You are helpful");
+
+      expect(tracker.calls[0].systemPrompt).toBe("You are helpful");
+    });
+
+    it("records follow-up prompt on reply", async () => {
+      mockGenerateText.mockResolvedValue({
+        text: "response",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI(mockModel() as never, tracker, mockLogger() as never);
+      const msg = await ai.chat("first");
+      await msg.reply("follow up");
+
+      expect(tracker.calls[0].prompt).toBe("first");
+      expect(tracker.calls[1].prompt).toBe("follow up");
+    });
+
     it("includes durationMs", async () => {
       mockGenerateText.mockImplementation(
         () =>

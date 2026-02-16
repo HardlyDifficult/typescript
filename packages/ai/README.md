@@ -31,7 +31,7 @@ Send a prompt and get a rich response with usage info and conversation support.
 ```typescript
 const msg = await ai.chat("Explain closures");
 msg.text;  // "A closure is..."
-msg.usage; // { inputTokens: 50, outputTokens: 200, durationMs: 1200 }
+msg.usage; // { inputTokens: 50, outputTokens: 200, durationMs: 1200, prompt: "Explain closures", response: "A closure is..." }
 
 // With system prompt
 const msg = await ai.chat("Explain closures", "You are a TypeScript tutor");
@@ -136,20 +136,22 @@ ollama("llama3.3");
 
 ## Usage Tracking
 
-`createAI` requires an `AITracker` — no AI without tracking. The tracker fires for every call (`chat`, `reply`, `zod`, `stream`, `agent`).
+`createAI` requires an `AITracker` — no AI without tracking. The tracker fires for every call (`chat`, `reply`, `zod`, `stream`, `agent`). Usage includes prompt/response content alongside token counts.
 
 ```typescript
 import type { AITracker } from "@hardlydifficult/ai";
 
 const tracker: AITracker = {
-  record({ inputTokens, outputTokens, durationMs }) {
+  record({ inputTokens, outputTokens, durationMs, prompt, response, systemPrompt }) {
     const cost = inputTokens * 3 / 1_000_000 + outputTokens * 15 / 1_000_000;
-    console.log(`Cost: $${cost.toFixed(4)}`);
+    console.log(`Cost: $${cost.toFixed(4)} | Prompt: ${prompt}`);
   },
 };
 
 const ai = createAI(claude("sonnet"), tracker, logger);
 ```
+
+`Usage` fields: `inputTokens`, `outputTokens`, `durationMs`, `prompt` (last user message), `response` (full response text), and `systemPrompt?` (only set for `chat()` calls).
 
 ## Response Parsing
 

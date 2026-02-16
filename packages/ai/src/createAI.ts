@@ -62,6 +62,9 @@ function createChatCall(
       inputTokens: resultUsage.inputTokens ?? 0,
       outputTokens: resultUsage.outputTokens ?? 0,
       durationMs,
+      prompt: messages[messages.length - 1].content,
+      response: result.text,
+      systemPrompt,
     };
 
     tracker.record(usage);
