@@ -99,3 +99,25 @@ formatDuration(3_600_000); // "1h"
 formatDuration(500);       // "<1s"
 formatDuration(90_000_000); // "1d 1h"
 ```
+
+### `convertFormat(content: string, to: TextFormat): string`
+
+Convert between JSON and YAML string formats. Auto-detects the input format and serializes to the requested output format.
+
+```typescript
+import { convertFormat } from "@hardlydifficult/text";
+
+// JSON to YAML
+convertFormat('{"name": "Alice", "age": 30}', "yaml");
+// name: Alice
+// age: 30
+
+// YAML to JSON
+convertFormat("name: Alice\nage: 30", "json");
+// {
+//   "name": "Alice",
+//   "age": 30
+// }
+```
+
+The function tries to parse as JSON first, then falls back to YAML. Returns pretty-printed JSON with 2-space indent or clean YAML. Throws a descriptive error if the input is neither valid JSON nor YAML.
