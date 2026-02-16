@@ -4,6 +4,9 @@ export interface Usage {
   inputTokens: number;
   outputTokens: number;
   durationMs: number;
+  prompt: string;
+  response: string;
+  systemPrompt?: string;
 }
 
 export interface AITracker {

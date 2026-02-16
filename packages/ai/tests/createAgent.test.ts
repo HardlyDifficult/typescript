@@ -94,6 +94,27 @@ describe("createAgent", () => {
       expect(tracker.calls[0].inputTokens).toBe(20);
     });
 
+    it("records prompt and response in usage", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Done analyzing",
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const tracker = createMockTracker();
+      const agent = createAgent(
+        mockModel() as never,
+        createTestTools(),
+        tracker,
+        mockLogger() as never
+      );
+
+      await agent.run([{ role: "user", content: "Analyze the code" }]);
+
+      expect(tracker.calls[0].prompt).toBe("Analyze the code");
+      expect(tracker.calls[0].response).toBe("Done analyzing");
+      expect(tracker.calls[0].systemPrompt).toBeUndefined();
+    });
+
     it("converts ToolMap to SDK tool calls", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "done",
@@ -296,6 +317,29 @@ describe("createAgent", () => {
       expect(tracker.calls).toHaveLength(1);
       expect(result.usage.inputTokens).toBe(30);
       expect(result.usage.outputTokens).toBe(15);
+    });
+
+    it("records prompt and response in usage", async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamResult([
+          { type: "text-delta", text: "Hello" },
+          { type: "text-delta", text: " world" },
+        ])
+      );
+
+      const tracker = createMockTracker();
+      const agent = createAgent(
+        mockModel() as never,
+        createTestTools(),
+        tracker,
+        mockLogger() as never
+      );
+
+      await agent.stream([{ role: "user", content: "test prompt" }], () => {});
+
+      expect(tracker.calls[0].prompt).toBe("test prompt");
+      expect(tracker.calls[0].response).toBe("Hello world");
+      expect(tracker.calls[0].systemPrompt).toBeUndefined();
     });
 
     it("ignores non-text parts (no crash)", async () => {

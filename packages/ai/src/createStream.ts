@@ -42,6 +42,8 @@ export async function runStream(
     inputTokens: resultUsage.inputTokens ?? 0,
     outputTokens: resultUsage.outputTokens ?? 0,
     durationMs,
+    prompt: messages[messages.length - 1].content,
+    response: accumulated,
   };
 
   tracker.record(usage);

@@ -85,6 +85,23 @@ describe("runStream", () => {
     expect(result.usage.outputTokens).toBe(8);
   });
 
+  it("records prompt and response in usage", async () => {
+    mockStreamText.mockReturnValueOnce(mockStreamResult(["Hello", " world"]));
+
+    const tracker = createMockTracker();
+    await runStream(
+      mockModel() as never,
+      tracker,
+      mockLogger() as never,
+      [{ role: "user", content: "Say hi" }],
+      () => {}
+    );
+
+    expect(tracker.calls[0].prompt).toBe("Say hi");
+    expect(tracker.calls[0].response).toBe("Hello world");
+    expect(tracker.calls[0].systemPrompt).toBeUndefined();
+  });
+
   it("passes maxTokens and temperature to streamText", async () => {
     mockStreamText.mockReturnValueOnce(mockStreamResult(["ok"]));
 
