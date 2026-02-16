@@ -15,7 +15,8 @@ function parseContent(content: string): unknown {
       return parseYaml(content);
     } catch (yamlError) {
       throw new Error(
-        `Input is neither valid JSON nor YAML.\nJSON error: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}\nYAML error: ${yamlError instanceof Error ? yamlError.message : String(yamlError)}`
+        `Input is neither valid JSON nor YAML.\nJSON error: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}\nYAML error: ${yamlError instanceof Error ? yamlError.message : String(yamlError)}`,
+        { cause: yamlError }
       );
     }
   }
