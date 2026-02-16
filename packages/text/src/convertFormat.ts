@@ -1,4 +1,3 @@
-
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 export type TextFormat = "json" | "yaml";
