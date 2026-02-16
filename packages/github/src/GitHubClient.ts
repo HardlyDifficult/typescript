@@ -148,6 +148,33 @@ export class PRClient {
       draft: false,
     });
   }
+
+  async enableAutoMerge(mergeMethod: 'SQUASH' | 'MERGE' | 'REBASE' = 'SQUASH'): Promise<void> {
+    // Get PR node ID (needed for GraphQL)
+    const { data: pr } = await this.octokit.pulls.get({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: this.number,
+    });
+
+    // Enable auto-merge via GraphQL
+    await this.octokit.graphql(
+      `mutation($prId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+        enablePullRequestAutoMerge(input: {
+          pullRequestId: $prId,
+          mergeMethod: $mergeMethod
+        }) {
+          pullRequest {
+            id
+          }
+        }
+      }`,
+      {
+        prId: pr.node_id,
+        mergeMethod,
+      }
+    );
+  }
 }
 
 /** Client for interacting with a specific GitHub repository (PRs, file tree, file content). */
