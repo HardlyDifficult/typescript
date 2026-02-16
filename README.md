@@ -9,6 +9,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/ai](./packages/ai) | Unified AI client with chainable structured output, usage tracking, and response parsing |
 | [@hardlydifficult/chat](./packages/chat) | Unified chat API for Discord and Slack |
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | Reusable CI scripts |
+| [@hardlydifficult/collections](./packages/collections) | Array and collection utilities for batched parallel processing |
 | [@hardlydifficult/date-time](./packages/date-time) | Date and time utilities |
 | [@hardlydifficult/document-generator](./packages/document-generator) | Platform-agnostic document builder |
 | [@hardlydifficult/github](./packages/github) | Typed GitHub API client with repo context gathering (Octokit wrapper) |
