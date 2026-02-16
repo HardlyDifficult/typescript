@@ -5,24 +5,13 @@ describe("buildFileTree", () => {
   it("renders a simple file tree", () => {
     const result = buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
     expect(result).toBe(
-      [
-        "src/",
-        "  index.ts",
-        "  utils.ts",
-        "README.md",
-      ].join("\n"),
+      ["src/", "  index.ts", "  utils.ts", "README.md"].join("\n")
     );
   });
 
   it("sorts directories before files", () => {
     const result = buildFileTree(["file.ts", "dir/child.ts"]);
-    expect(result).toBe(
-      [
-        "dir/",
-        "  child.ts",
-        "file.ts",
-      ].join("\n"),
-    );
+    expect(result).toBe(["dir/", "  child.ts", "file.ts"].join("\n"));
   });
 
   it("truncates level 2 children", () => {
@@ -43,29 +32,22 @@ describe("buildFileTree", () => {
 
   describe("annotations", () => {
     it("appends annotation to file entry", () => {
-      const annotations = new Map([
-        ["src/index.ts", "Main entry point"],
-      ]);
+      const annotations = new Map([["src/index.ts", "Main entry point"]]);
       const result = buildFileTree(["src/index.ts"], { annotations });
       expect(result).toContain("index.ts \u2014 Main entry point");
     });
 
     it("appends annotation to directory entry", () => {
-      const annotations = new Map([
-        ["src", "Source code directory"],
-      ]);
+      const annotations = new Map([["src", "Source code directory"]]);
       const result = buildFileTree(["src/index.ts"], { annotations });
       expect(result).toContain("src/ \u2014 Source code directory");
     });
 
     it("leaves unannotated entries unchanged", () => {
-      const annotations = new Map([
-        ["src/index.ts", "Main entry point"],
-      ]);
-      const result = buildFileTree(
-        ["src/index.ts", "src/utils.ts"],
-        { annotations },
-      );
+      const annotations = new Map([["src/index.ts", "Main entry point"]]);
+      const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+        annotations,
+      });
       expect(result).toContain("index.ts \u2014 Main entry point");
       expect(result).toContain("  utils.ts");
       expect(result).not.toContain("utils.ts \u2014");
@@ -76,10 +58,9 @@ describe("buildFileTree", () => {
         ["packages/bot", "Discord bot service"],
         ["packages/bot/src/index.ts", "Bot entry point"],
       ]);
-      const result = buildFileTree(
-        ["packages/bot/src/index.ts"],
-        { annotations },
-      );
+      const result = buildFileTree(["packages/bot/src/index.ts"], {
+        annotations,
+      });
       expect(result).toContain("bot/ \u2014 Discord bot service");
       expect(result).toContain("index.ts \u2014 Bot entry point");
     });

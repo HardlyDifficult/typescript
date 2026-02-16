@@ -12,7 +12,9 @@ export interface BuildTreeOptions {
 }
 
 /** Default truncation limits for file tree rendering. */
-export const FILE_TREE_DEFAULTS: Required<Pick<BuildTreeOptions, "maxLevel2" | "maxLevel3">> = {
+export const FILE_TREE_DEFAULTS: Required<
+  Pick<BuildTreeOptions, "maxLevel2" | "maxLevel3">
+> = {
   maxLevel2: 10,
   maxLevel3: 3,
 };
@@ -23,7 +25,7 @@ export const FILE_TREE_DEFAULTS: Required<Pick<BuildTreeOptions, "maxLevel2" | "
  */
 export function buildFileTree(
   filePaths: readonly string[],
-  options: BuildTreeOptions = {},
+  options: BuildTreeOptions = {}
 ): string {
   const {
     maxLevel2 = FILE_TREE_DEFAULTS.maxLevel2,
@@ -39,7 +41,7 @@ export function buildFileTree(
     let current = root;
 
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]!;
+      const part = parts[i];
       const isLastPart = i === parts.length - 1;
       const currentFullPath = parts.slice(0, i + 1).join("/");
 
@@ -63,19 +65,27 @@ export function buildFileTree(
   const lines: string[] = [];
 
   function renderNode(node: TreeNode, depth: number, prefix: string) {
-    if (!node.children || node.children.length === 0) return;
+    if (!node.children || node.children.length === 0) {
+      return;
+    }
 
     // Sort: directories first, then alphabetically
     const sorted = [...node.children].sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      if (a.isDir !== b.isDir) {
+        return a.isDir ? -1 : 1;
+      }
       return a.name.localeCompare(b.name);
     });
 
     // Determine limit based on depth
     let limit: number;
-    if (depth === 1) limit = Infinity;
-    else if (depth === 2) limit = maxLevel2;
-    else limit = maxLevel3;
+    if (depth === 1) {
+      limit = Infinity;
+    } else if (depth === 2) {
+      limit = maxLevel2;
+    } else {
+      limit = maxLevel3;
+    }
     const truncated = sorted.length > limit;
     const toShow = truncated ? sorted.slice(0, limit) : sorted;
 
