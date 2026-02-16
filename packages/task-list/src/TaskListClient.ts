@@ -2,11 +2,7 @@ import type { FullState } from "./FullState.js";
 import { findBestMatch } from "./migration.js";
 import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
-import type {
-  MigratedTask,
-  MigrationResult,
-  TaskListConfig,
-} from "./types.js";
+import type { MigratedTask, MigrationResult, TaskListConfig } from "./types.js";
 
 /**
  * Abstract base class for task list platform clients.
@@ -115,8 +111,7 @@ export abstract class TaskListClient {
     destProjects: readonly Project[]
   ): Project | undefined {
     return destProjects.find(
-      (dp) =>
-        findBestMatch(sourceProject.name, [dp.name]) !== undefined
+      (dp) => findBestMatch(sourceProject.name, [dp.name]) !== undefined
     );
   }
 

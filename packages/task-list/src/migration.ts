@@ -17,7 +17,9 @@ export function findBestMatch(
 
   // 1. Exact normalized match ("To Do" → "todo" matches "Todo" → "todo")
   const exact = destinationNames.find((d) => normalize(d) === sourceNorm);
-  if (exact) return exact;
+  if (exact !== undefined) {
+    return exact;
+  }
 
   // 2. Bidirectional partial on normalized strings
   return destinationNames.find((d) => {

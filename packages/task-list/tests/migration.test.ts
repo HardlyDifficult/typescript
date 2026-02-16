@@ -4,11 +4,7 @@ import { findBestMatch } from "../src/migration.js";
 import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
 import { TaskListClient } from "../src/TaskListClient.js";
-import type {
-  TaskContext,
-  TaskData,
-  TaskListConfig,
-} from "../src/types.js";
+import type { TaskContext, TaskData, TaskListConfig } from "../src/types.js";
 
 // --- findBestMatch unit tests ---
 
