@@ -70,6 +70,7 @@ describe("LinearTaskListClient", () => {
   let client: LinearTaskListClient;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", mockFetch);
     mockFetch.mockReset();
     client = new LinearTaskListClient({
@@ -80,6 +81,7 @@ describe("LinearTaskListClient", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -167,10 +169,12 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueUpdate: { issue: updatedIssue } })
       );
-      const updated = await task.update({
+      const updatePromise = task.update({
         name: "Updated title",
         status: "Done",
       });
+      await vi.runAllTimersAsync();
+      const updated = await updatePromise;
 
       expect(updated).toBeInstanceOf(Task);
       expect(updated.name).toBe("Updated title");
@@ -187,7 +191,12 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueUpdate: { issue: updatedIssue } })
       );
-      await task.update({ status: "In Progress", labels: ["Feature"] });
+      const updatePromise = task.update({
+        status: "In Progress",
+        labels: ["Feature"],
+      });
+      await vi.runAllTimersAsync();
+      await updatePromise;
 
       const body = JSON.parse(
         (mockFetch.mock.calls[1]![1] as RequestInit).body as string
@@ -237,11 +246,13 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueCreate: { issue: linearIssue } })
       );
-      await project.createTask("Fix login", {
+      const createPromise = project.createTask("Fix login", {
         description: "Users can't log in",
         status: "In Progress",
         labels: ["Bug"],
       });
+      await vi.runAllTimersAsync();
+      await createPromise;
 
       const body = JSON.parse(
         (mockFetch.mock.calls[1]![1] as RequestInit).body as string
@@ -270,7 +281,9 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueCreate: { issue: linearIssue } })
       );
-      await project.createTask("Simple task");
+      const createPromise = project.createTask("Simple task");
+      await vi.runAllTimersAsync();
+      await createPromise;
 
       const body = JSON.parse(
         (mockFetch.mock.calls[1]![1] as RequestInit).body as string
@@ -328,7 +341,9 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueCreate: { issue: linearIssue } })
       );
-      const task = await project.createTask("New task");
+      const createPromise = project.createTask("New task");
+      await vi.runAllTimersAsync();
+      const task = await createPromise;
       expect(task).toBeInstanceOf(Task);
     });
   });

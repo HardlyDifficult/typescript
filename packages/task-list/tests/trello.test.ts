@@ -41,6 +41,7 @@ describe("TrelloTaskListClient", () => {
   let client: TrelloTaskListClient;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", mockFetch);
     mockFetch.mockReset();
     client = new TrelloTaskListClient({
@@ -51,6 +52,7 @@ describe("TrelloTaskListClient", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -58,7 +60,9 @@ describe("TrelloTaskListClient", () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    await client.getTask("c1");
+    const promise = client.getTask("c1");
+    await vi.runAllTimersAsync();
+    await promise;
 
     const calledUrl = new URL(mockFetch.mock.calls[0]![0] as string);
     expect(calledUrl.searchParams.get("key")).toBe("test-key");
@@ -79,7 +83,9 @@ describe("TrelloTaskListClient", () => {
         jsonResponse([trelloList, trelloListDone])
       );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-      const task = await client.getTask("c1");
+      const promise = client.getTask("c1");
+      await vi.runAllTimersAsync();
+      const task = await promise;
 
       expect(task).toBeInstanceOf(Task);
       expect(task.id).toBe("c1");
@@ -97,11 +103,15 @@ describe("TrelloTaskListClient", () => {
         jsonResponse([trelloList, trelloListDone])
       );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-      const task = await client.getTask("c1");
+      const getPromise = client.getTask("c1");
+      await vi.runAllTimersAsync();
+      const task = await getPromise;
 
       const updatedCard = { ...trelloCard, name: "Updated" };
       mockFetch.mockResolvedValueOnce(jsonResponse(updatedCard));
-      const updated = await task.update({ name: "Updated" });
+      const updatePromise = task.update({ name: "Updated" });
+      await vi.runAllTimersAsync();
+      const updated = await updatePromise;
 
       expect(updated.name).toBe("Updated");
       expect(updated).toBeInstanceOf(Task);
@@ -113,11 +123,15 @@ describe("TrelloTaskListClient", () => {
         jsonResponse([trelloList, trelloListDone])
       );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-      const task = await client.getTask("c1");
+      const getPromise = client.getTask("c1");
+      await vi.runAllTimersAsync();
+      const task = await getPromise;
 
       const updatedCard = { ...trelloCard, idList: "l2" };
       mockFetch.mockResolvedValueOnce(jsonResponse(updatedCard));
-      const updated = await task.update({ status: "Done" });
+      const updatePromise = task.update({ status: "Done" });
+      await vi.runAllTimersAsync();
+      const updated = await updatePromise;
 
       const updateCall = mockFetch.mock.calls.at(-1)!;
       const updateBody = JSON.parse(
@@ -137,7 +151,9 @@ describe("TrelloTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
-      const project = await client.getProject("b1");
+      const promise = client.getProject("b1");
+      await vi.runAllTimersAsync();
+      const project = await promise;
 
       expect(project).toBeInstanceOf(Project);
       expect(project.id).toBe("b1");
@@ -157,15 +173,19 @@ describe("TrelloTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
-      const project = await client.getProject("b1");
+      const getPromise = client.getProject("b1");
+      await vi.runAllTimersAsync();
+      const project = await getPromise;
 
       const newCard = { ...trelloCard, id: "c2", name: "New task" };
       mockFetch.mockResolvedValueOnce(jsonResponse(newCard));
-      const task = await project.createTask("New task", {
+      const createPromise = project.createTask("New task", {
         description: "Task description",
         status: "Done",
         labels: ["Bug"],
       });
+      await vi.runAllTimersAsync();
+      const task = await createPromise;
 
       expect(task).toBeInstanceOf(Task);
 
@@ -187,10 +207,14 @@ describe("TrelloTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([]));
       mockFetch.mockResolvedValueOnce(jsonResponse([]));
 
-      const project = await client.getProject("b1");
+      const getPromise = client.getProject("b1");
+      await vi.runAllTimersAsync();
+      const project = await getPromise;
 
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-      const task = await project.createTask("Simple task");
+      const createPromise = project.createTask("Simple task");
+      await vi.runAllTimersAsync();
+      const task = await createPromise;
 
       expect(task).toBeInstanceOf(Task);
       const createCall = mockFetch.mock.calls.at(-1)!;
@@ -208,7 +232,9 @@ describe("TrelloTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
-      const state = await client.getProjects();
+      const promise = client.getProjects();
+      await vi.runAllTimersAsync();
+      const state = await promise;
 
       expect(state).toBeInstanceOf(FullState);
       expect(state.projects).toHaveLength(1);
@@ -221,11 +247,15 @@ describe("TrelloTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
-      const state = await client.getProjects();
+      const getPromise = client.getProjects();
+      await vi.runAllTimersAsync();
+      const state = await getPromise;
       const project = state.findProject("My Board");
 
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-      const task = await project.createTask("Chained task");
+      const createPromise = project.createTask("Chained task");
+      await vi.runAllTimersAsync();
+      const task = await createPromise;
       expect(task).toBeInstanceOf(Task);
     });
   });
@@ -237,7 +267,9 @@ describe("TrelloTaskListClient", () => {
         jsonResponse([trelloList, trelloListDone])
       );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-      const task = await client.getTask("c1");
+      const getPromise = client.getTask("c1");
+      await vi.runAllTimersAsync();
+      const task = await getPromise;
 
       const updatedCard = {
         ...trelloCard,
@@ -246,10 +278,12 @@ describe("TrelloTaskListClient", () => {
       };
       mockFetch.mockResolvedValueOnce(jsonResponse(updatedCard));
 
-      await task.update({
+      const updatePromise = task.update({
         name: "Updated",
         status: "Done",
       });
+      await vi.runAllTimersAsync();
+      await updatePromise;
 
       const updateCall = mockFetch.mock.calls.at(-1)!;
       const updateUrl = new URL(updateCall[0] as string);
