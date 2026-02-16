@@ -16,7 +16,7 @@ const provider = createOllama({
     fetch(input, {
       ...init,
       dispatcher: ollamaAgent,
-    } as RequestInit)) as typeof fetch,
+    } as unknown as RequestInit)) as typeof fetch,
 });
 
 /** Creates an Ollama language model. Model names match whatever is installed locally. */

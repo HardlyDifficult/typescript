@@ -56,12 +56,12 @@ export async function postMessage(
         filename: file.name,
         // Only attach the text as initial_comment on the first file to avoid duplicates
         ...(i === 0 ? { initial_comment: text } : {}),
-        thread_ts: options.threadTs,
+        ...(options.threadTs ? { thread_ts: options.threadTs } : {}),
         // String content uses the content field; binary uses the file field
         ...(typeof file.content === "string"
           ? { content: file.content }
           : { file: file.content }),
-      });
+      } as any);
     }
 
     // Post the text message separately if there are also blocks (rich document)
@@ -90,9 +90,9 @@ export async function postMessage(
       channel_id: channelId,
       filename: "message.txt",
       initial_comment: "(Message too long \u2014 see attached file)",
-      thread_ts: options?.threadTs,
+      ...(options?.threadTs ? { thread_ts: options.threadTs } : {}),
       content: text,
-    });
+    } as any);
     return { id: "", channelId, platform: "slack" };
   }
 
