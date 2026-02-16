@@ -1,4 +1,3 @@
-
 import { Octokit } from "@octokit/rest";
 
 import { PRWatcher } from "./PRWatcher.js";
