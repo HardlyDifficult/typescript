@@ -53,43 +53,47 @@ export async function postMessage(
       const file = options.files[i];
 
       // Build arguments conditionally - use separate calls for type safety
+      const threadTs = options.threadTs;
+      const hasThreadTs = threadTs !== undefined && threadTs !== "";
+
       if (typeof file.content === "string") {
         // String content case
-        if (options.threadTs) {
+        if (hasThreadTs) {
           await app.client.filesUploadV2({
             channel_id: channelId,
             filename: file.name,
             ...(i === 0 ? { initial_comment: text } : {}),
-            thread_ts: options.threadTs,
+            thread_ts: threadTs,
             content: file.content,
           });
-        } else {
-          await app.client.filesUploadV2({
-            channel_id: channelId,
-            filename: file.name,
-            ...(i === 0 ? { initial_comment: text } : {}),
-            content: file.content,
-          });
+          continue;
         }
-      } else {
-        // Buffer content case
-        if (options.threadTs) {
-          await app.client.filesUploadV2({
-            channel_id: channelId,
-            filename: file.name,
-            ...(i === 0 ? { initial_comment: text } : {}),
-            thread_ts: options.threadTs,
-            file: file.content,
-          });
-        } else {
-          await app.client.filesUploadV2({
-            channel_id: channelId,
-            filename: file.name,
-            ...(i === 0 ? { initial_comment: text } : {}),
-            file: file.content,
-          });
-        }
+        await app.client.filesUploadV2({
+          channel_id: channelId,
+          filename: file.name,
+          ...(i === 0 ? { initial_comment: text } : {}),
+          content: file.content,
+        });
+        continue;
       }
+
+      // Buffer content case
+      if (hasThreadTs) {
+        await app.client.filesUploadV2({
+          channel_id: channelId,
+          filename: file.name,
+          ...(i === 0 ? { initial_comment: text } : {}),
+          thread_ts: threadTs,
+          file: file.content,
+        });
+        continue;
+      }
+      await app.client.filesUploadV2({
+        channel_id: channelId,
+        filename: file.name,
+        ...(i === 0 ? { initial_comment: text } : {}),
+        file: file.content,
+      });
     }
 
     // Post the text message separately if there are also blocks (rich document)
@@ -114,22 +118,23 @@ export async function postMessage(
 
   // If text exceeds Slack's limit, upload as a file instead
   if (text.length > MESSAGE_LIMITS.slack) {
-    if (options?.threadTs) {
+    const threadTs = options?.threadTs;
+    if (threadTs !== undefined && threadTs !== "") {
       await app.client.filesUploadV2({
         channel_id: channelId,
         filename: "message.txt",
         initial_comment: "(Message too long \u2014 see attached file)",
-        thread_ts: options.threadTs,
+        thread_ts: threadTs,
         content: text,
       });
-    } else {
-      await app.client.filesUploadV2({
-        channel_id: channelId,
-        filename: "message.txt",
-        initial_comment: "(Message too long \u2014 see attached file)",
-        content: text,
-      });
+      return { id: "", channelId, platform: "slack" };
     }
+    await app.client.filesUploadV2({
+      channel_id: channelId,
+      filename: "message.txt",
+      initial_comment: "(Message too long \u2014 see attached file)",
+      content: text,
+    });
     return { id: "", channelId, platform: "slack" };
   }
 

@@ -168,7 +168,7 @@ const {
 
 // Mock discord.js
 vi.mock("discord.js", () => ({
-  Client: vi.fn(function(this: any) {
+  Client: vi.fn(function (this: any) {
     return mockClient;
   }),
   GatewayIntentBits: {

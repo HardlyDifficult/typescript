@@ -112,7 +112,7 @@ const {
 
 // Mock @slack/bolt
 vi.mock("@slack/bolt", () => ({
-  App: vi.fn(function(this: any) {
+  App: vi.fn(function (this: any) {
     return mockApp;
   }),
 }));
