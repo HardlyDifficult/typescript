@@ -1,55 +1,54 @@
-import type { BoardState } from "./BoardState.js";
+import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
 
 /**
- * Full state across all boards.
+ * Full state across all projects.
  * Provides chainable finder methods that throw on not found.
  *
  * @example
  * ```typescript
- * const state = await client.getBoards();
- * const list = state.findBoard("Alpha").findList("To Do");
- * const task = await list.createTask("New task");
+ * const state = await client.getProjects();
+ * const project = state.findProject("Alpha");
+ * const task = await project.createTask("New task");
  * ```
  */
 export class FullState {
-  readonly boards: readonly BoardState[];
+  readonly projects: readonly Project[];
 
-  constructor(boards: readonly BoardState[]) {
-    this.boards = boards;
+  constructor(projects: readonly Project[]) {
+    this.projects = projects;
   }
 
   /**
-   * Find a board by name (case-insensitive partial match).
-   * Returns a BoardState, enabling chaining: `state.findBoard("X").findList("Y")`
-   * @param name - Partial board name to search for
-   * @returns The matching BoardState
-   * @throws Error if no board matches
+   * Find a project by name (case-insensitive partial match).
+   * @param name - Partial project name to search for
+   * @returns The matching Project
+   * @throws Error if no project matches
    */
-  findBoard(name: string): BoardState {
+  findProject(name: string): Project {
     const lower = name.toLowerCase();
-    const board = this.boards.find((b) =>
-      b.board.name.toLowerCase().includes(lower)
+    const project = this.projects.find((p) =>
+      p.name.toLowerCase().includes(lower)
     );
-    if (!board) {
-      throw new Error(`Board "${name}" not found`);
+    if (!project) {
+      throw new Error(`Project "${name}" not found`);
     }
-    return board;
+    return project;
   }
 
   /**
-   * Find a task by ID across all boards
+   * Find a task by ID across all projects
    * @param taskId - Task ID to find
    * @returns The matching Task
-   * @throws Error if no task matches on any board
+   * @throws Error if no task matches on any project
    */
   findTask(taskId: string): Task {
-    for (const boardState of this.boards) {
-      const task = boardState.tasks.find((t) => t.id === taskId);
+    for (const project of this.projects) {
+      const task = project.tasks.find((t) => t.id === taskId);
       if (task) {
         return task;
       }
     }
-    throw new Error(`Task "${taskId}" not found on any board`);
+    throw new Error(`Task "${taskId}" not found in any project`);
   }
 }
