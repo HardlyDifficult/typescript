@@ -53,7 +53,7 @@ export async function postMessage(
       const file = options.files[i];
 
       // Build arguments conditionally - use separate calls for type safety
-      const threadTs = options.threadTs;
+      const { threadTs } = options;
       const hasThreadTs = threadTs !== undefined && threadTs !== "";
 
       if (typeof file.content === "string") {
