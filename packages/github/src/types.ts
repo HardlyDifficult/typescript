@@ -8,6 +8,7 @@ export interface Repository {
   };
   readonly html_url: string;
   readonly default_branch: string;
+  readonly description: string | null;
 }
 
 export interface User {
