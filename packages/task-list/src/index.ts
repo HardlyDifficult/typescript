@@ -19,8 +19,8 @@ export { TrelloTaskListClient } from "./trello";
 export { LinearTaskListClient } from "./linear";
 
 // Factory
-import type { TaskListClient } from "./TaskListClient.js";
 import { LinearTaskListClient } from "./linear";
+import type { TaskListClient } from "./TaskListClient.js";
 import { TrelloTaskListClient } from "./trello";
 import type { TaskListConfig } from "./types.js";
 
