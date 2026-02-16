@@ -43,9 +43,7 @@ export function buildFileTree(
       const isLastPart = i === parts.length - 1;
       const currentFullPath = parts.slice(0, i + 1).join("/");
 
-      if (!current.children) {
-        current.children = [];
-      }
+      current.children ??= [];
 
       let child = current.children.find((c) => c.name === part);
       if (!child) {
@@ -74,15 +72,17 @@ export function buildFileTree(
     });
 
     // Determine limit based on depth
-    const limit =
-      depth === 1 ? Infinity : depth === 2 ? maxLevel2 : maxLevel3;
+    let limit: number;
+    if (depth === 1) limit = Infinity;
+    else if (depth === 2) limit = maxLevel2;
+    else limit = maxLevel3;
     const truncated = sorted.length > limit;
     const toShow = truncated ? sorted.slice(0, limit) : sorted;
 
     for (const child of toShow) {
       const marker = child.isDir ? "/" : "";
-      const annotation = annotations?.get(child.fullPath);
-      const suffix = annotation ? ` — ${annotation}` : "";
+      const annotation = annotations?.get(child.fullPath) ?? "";
+      const suffix = annotation !== "" ? ` — ${annotation}` : "";
       lines.push(`${prefix}${child.name}${marker}${suffix}`);
 
       if (child.children && child.children.length > 0) {
@@ -92,7 +92,7 @@ export function buildFileTree(
 
     if (truncated) {
       const hiddenCount = sorted.length - limit;
-      lines.push(`${prefix}.. (${hiddenCount} more)`);
+      lines.push(`${prefix}.. (${String(hiddenCount)} more)`);
     }
   }
 
