@@ -149,7 +149,9 @@ export class PRClient {
     });
   }
 
-  async enableAutoMerge(mergeMethod: 'SQUASH' | 'MERGE' | 'REBASE' = 'SQUASH'): Promise<void> {
+  async enableAutoMerge(
+    mergeMethod: "SQUASH" | "MERGE" | "REBASE" = "SQUASH"
+  ): Promise<void> {
     // Get PR node ID (needed for GraphQL)
     const { data: pr } = await this.octokit.pulls.get({
       owner: this.owner,
