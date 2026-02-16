@@ -7,8 +7,8 @@ import type { Dispatcher } from "undici-types";
 // 10-15 minutes to load into memory on first use, exceeding Node's default 5-min
 // headersTimeout and causing HeadersTimeoutError.
 const ollamaAgent = new Agent({
-  headersTimeout: 30 * 60 * 1000, // 30 min — allows for large model loading
-  bodyTimeout: 10 * 60 * 1000, // 10 min — streaming chunks should arrive regularly once started
+  headersTimeout: 60 * 60 * 1000, // 60 min — allows for large model loading
+  bodyTimeout: 30 * 60 * 1000, // 30 min — streaming chunks should arrive regularly once started
   connectTimeout: 60 * 1000, // 1 min  — localhost connection should be near-instant
 });
 
