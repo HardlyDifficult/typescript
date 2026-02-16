@@ -11,12 +11,8 @@ import type {
   ContributionRepo,
 } from "../src/types.js";
 
-// Mock Octokit
-vi.mock("@octokit/rest", () => ({
-  Octokit: vi.fn().mockImplementation(() => mockOctokit),
-}));
-
-const mockOctokit = {
+// Create mock instance
+const createMockOctokit = () => ({
   users: {
     getAuthenticated: vi
       .fn()
@@ -49,7 +45,18 @@ const mockOctokit = {
   search: {
     issuesAndPullRequests: vi.fn(),
   },
-};
+});
+
+const mockOctokit = createMockOctokit();
+
+// Mock Octokit
+vi.mock("@octokit/rest", () => ({
+  Octokit: class {
+    constructor() {
+      return mockOctokit;
+    }
+  },
+}));
 
 describe("GitHubClient", () => {
   let client: GitHubClient;

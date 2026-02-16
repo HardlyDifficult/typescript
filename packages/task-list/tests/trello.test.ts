@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BoardState } from "../src/BoardState.js";
 import { FullState } from "../src/FullState.js";
+import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
 import { TrelloTaskListClient } from "../src/trello/TrelloTaskListClient.js";
 
@@ -24,6 +24,7 @@ const trelloBoard = {
   url: "https://trello.com/b/b1",
 };
 const trelloList = { id: "l1", name: "To Do", idBoard: "b1" };
+const trelloListDone = { id: "l2", name: "Done", idBoard: "b1" };
 const trelloLabel = { id: "lb1", name: "Bug", color: "red" };
 const trelloCard = {
   id: "c1",
@@ -55,6 +56,8 @@ describe("TrelloTaskListClient", () => {
 
   it("appends auth params to all requests", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
     await client.getTask("c1");
 
     const calledUrl = new URL(mockFetch.mock.calls[0]![0] as string);
@@ -70,22 +73,30 @@ describe("TrelloTaskListClient", () => {
   });
 
   describe("getTask", () => {
-    it("maps Trello card to Task with agnostic field names", async () => {
+    it("maps Trello card to Task with resolved status name", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
       const task = await client.getTask("c1");
 
       expect(task).toBeInstanceOf(Task);
       expect(task.id).toBe("c1");
       expect(task.name).toBe("Fix bug");
       expect(task.description).toBe("A description");
-      expect(task.listId).toBe("l1");
-      expect(task.boardId).toBe("b1");
-      expect(task.labels).toEqual([{ id: "lb1", name: "Bug", color: "red" }]);
+      expect(task.status).toBe("To Do");
+      expect(task.projectId).toBe("b1");
+      expect(task.labels).toEqual(["Bug"]);
       expect(task.url).toBe("https://trello.com/c/c1");
     });
 
     it("returns a Task with working update()", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
       const task = await client.getTask("c1");
 
       const updatedCard = { ...trelloCard, name: "Updated" };
@@ -95,91 +106,68 @@ describe("TrelloTaskListClient", () => {
       expect(updated.name).toBe("Updated");
       expect(updated).toBeInstanceOf(Task);
     });
-  });
 
-  describe("getBoard", () => {
-    it("returns a BoardState with lists, tasks, and labels", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-
-      const board = await client.getBoard("b1");
-
-      expect(board).toBeInstanceOf(BoardState);
-      expect(board.board.id).toBe("b1");
-      expect(board.board.name).toBe("My Board");
-      expect(board.lists).toHaveLength(1);
-      expect(board.lists[0]!.name).toBe("To Do");
-      expect(board.lists[0]!.boardId).toBe("b1");
-      expect(board.tasks).toHaveLength(1);
-      expect(board.tasks[0]!.description).toBe("A description");
-      expect(board.labels).toHaveLength(1);
-    });
-
-    it("returns lists with createTask capability", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-
-      const board = await client.getBoard("b1");
-      const list = board.findList("To Do");
-
+    it("update() resolves status name to list ID", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-      const task = await list.createTask("New task");
-      expect(task).toBeInstanceOf(Task);
-    });
-  });
-
-  describe("getBoards", () => {
-    it("returns a FullState with all boards", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-
-      const state = await client.getBoards();
-
-      expect(state).toBeInstanceOf(FullState);
-      expect(state.boards).toHaveLength(1);
-      expect(state.boards[0]!.board.name).toBe("My Board");
-    });
-
-    it("supports chaining: findBoard → findList → createTask", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-
-      const state = await client.getBoards();
-      const list = state.findBoard("My Board").findList("To Do");
-
-      mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-      const task = await list.createTask("Chained task");
-      expect(task).toBeInstanceOf(Task);
-    });
-  });
-
-  describe("create and update via Trello API", () => {
-    it("createTask sends correct Trello API body", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
       const task = await client.getTask("c1");
 
-      // Now create via a list
+      const updatedCard = { ...trelloCard, idList: "l2" };
+      mockFetch.mockResolvedValueOnce(jsonResponse(updatedCard));
+      const updated = await task.update({ status: "Done" });
+
+      const updateCall = mockFetch.mock.calls.at(-1)!;
+      const updateBody = JSON.parse(
+        (updateCall[1] as RequestInit).body as string
+      ) as Record<string, string>;
+      expect(updateBody["idList"]).toBe("l2");
+      expect(updated.status).toBe("Done");
+    });
+  });
+
+  describe("getProject", () => {
+    it("returns a Project with statuses, tasks, and labels as strings", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
-      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-      const board = await client.getBoard("b1");
+
+      const project = await client.getProject("b1");
+
+      expect(project).toBeInstanceOf(Project);
+      expect(project.id).toBe("b1");
+      expect(project.name).toBe("My Board");
+      expect(project.url).toBe("https://trello.com/b/b1");
+      expect(project.statuses).toEqual(["To Do", "Done"]);
+      expect(project.tasks).toHaveLength(1);
+      expect(project.tasks[0]!.status).toBe("To Do");
+      expect(project.labels).toEqual(["Bug"]);
+    });
+
+    it("createTask resolves status and labels by name", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+
+      const project = await client.getProject("b1");
 
       const newCard = { ...trelloCard, id: "c2", name: "New task" };
       mockFetch.mockResolvedValueOnce(jsonResponse(newCard));
-      const label = board.findLabel("Bug");
-      await board.findList("To Do").createTask("New task", {
+      const task = await project.createTask("New task", {
         description: "Task description",
-        labels: [label],
+        status: "Done",
+        labels: ["Bug"],
       });
+
+      expect(task).toBeInstanceOf(Task);
 
       const createCall = mockFetch.mock.calls.at(-1)!;
       const createUrl = new URL(createCall[0] as string);
@@ -188,13 +176,67 @@ describe("TrelloTaskListClient", () => {
         (createCall[1] as RequestInit).body as string
       ) as Record<string, string>;
       expect(createBody["name"]).toBe("New task");
-      expect(createBody["idList"]).toBe("l1");
+      expect(createBody["idList"]).toBe("l2");
       expect(createBody["desc"]).toBe("Task description");
       expect(createBody["idLabels"]).toBe("lb1");
     });
 
+    it("createTask uses default status when not specified", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+      const project = await client.getProject("b1");
+
+      mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+      const task = await project.createTask("Simple task");
+
+      expect(task).toBeInstanceOf(Task);
+      const createCall = mockFetch.mock.calls.at(-1)!;
+      const createBody = JSON.parse(
+        (createCall[1] as RequestInit).body as string
+      ) as Record<string, string>;
+      expect(createBody["idList"]).toBe("l1");
+    });
+  });
+
+  describe("getProjects", () => {
+    it("returns a FullState with all projects", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+
+      const state = await client.getProjects();
+
+      expect(state).toBeInstanceOf(FullState);
+      expect(state.projects).toHaveLength(1);
+      expect(state.projects[0]!.name).toBe("My Board");
+    });
+
+    it("supports chaining: findProject → createTask", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+
+      const state = await client.getProjects();
+      const project = state.findProject("My Board");
+
+      mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+      const task = await project.createTask("Chained task");
+      expect(task).toBeInstanceOf(Task);
+    });
+  });
+
+  describe("create and update via Trello API", () => {
     it("updateTask sends correct Trello API body", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([trelloList, trelloListDone])
+      );
+      mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
       const task = await client.getTask("c1");
 
       const updatedCard = {
@@ -206,7 +248,7 @@ describe("TrelloTaskListClient", () => {
 
       await task.update({
         name: "Updated",
-        list: { id: "l2" },
+        status: "Done",
       });
 
       const updateCall = mockFetch.mock.calls.at(-1)!;

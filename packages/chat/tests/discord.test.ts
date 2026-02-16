@@ -168,7 +168,9 @@ const {
 
 // Mock discord.js
 vi.mock("discord.js", () => ({
-  Client: vi.fn().mockImplementation(() => mockClient),
+  Client: vi.fn(function (this: any) {
+    return mockClient;
+  }),
   GatewayIntentBits: {
     Guilds: 1,
     GuildMembers: 5,

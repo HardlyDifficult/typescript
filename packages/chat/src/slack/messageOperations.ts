@@ -51,16 +51,48 @@ export async function postMessage(
   if (options?.files && options.files.length > 0) {
     for (let i = 0; i < options.files.length; i++) {
       const file = options.files[i];
+
+      // Build arguments conditionally - use separate calls for type safety
+      const { threadTs } = options;
+      const hasThreadTs = threadTs !== undefined && threadTs !== "";
+
+      if (typeof file.content === "string") {
+        // String content case
+        if (hasThreadTs) {
+          await app.client.filesUploadV2({
+            channel_id: channelId,
+            filename: file.name,
+            ...(i === 0 ? { initial_comment: text } : {}),
+            thread_ts: threadTs,
+            content: file.content,
+          });
+          continue;
+        }
+        await app.client.filesUploadV2({
+          channel_id: channelId,
+          filename: file.name,
+          ...(i === 0 ? { initial_comment: text } : {}),
+          content: file.content,
+        });
+        continue;
+      }
+
+      // Buffer content case
+      if (hasThreadTs) {
+        await app.client.filesUploadV2({
+          channel_id: channelId,
+          filename: file.name,
+          ...(i === 0 ? { initial_comment: text } : {}),
+          thread_ts: threadTs,
+          file: file.content,
+        });
+        continue;
+      }
       await app.client.filesUploadV2({
         channel_id: channelId,
         filename: file.name,
-        // Only attach the text as initial_comment on the first file to avoid duplicates
         ...(i === 0 ? { initial_comment: text } : {}),
-        thread_ts: options.threadTs,
-        // String content uses the content field; binary uses the file field
-        ...(typeof file.content === "string"
-          ? { content: file.content }
-          : { file: file.content }),
+        file: file.content,
       });
     }
 
@@ -86,11 +118,21 @@ export async function postMessage(
 
   // If text exceeds Slack's limit, upload as a file instead
   if (text.length > MESSAGE_LIMITS.slack) {
+    const threadTs = options?.threadTs;
+    if (threadTs !== undefined && threadTs !== "") {
+      await app.client.filesUploadV2({
+        channel_id: channelId,
+        filename: "message.txt",
+        initial_comment: "(Message too long \u2014 see attached file)",
+        thread_ts: threadTs,
+        content: text,
+      });
+      return { id: "", channelId, platform: "slack" };
+    }
     await app.client.filesUploadV2({
       channel_id: channelId,
       filename: "message.txt",
       initial_comment: "(Message too long \u2014 see attached file)",
-      thread_ts: options?.threadTs,
       content: text,
     });
     return { id: "", channelId, platform: "slack" };

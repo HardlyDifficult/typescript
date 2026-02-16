@@ -1,48 +1,49 @@
-import type {
-  Label,
-  TaskData,
-  TaskOperations,
-  UpdateTaskParams,
-} from "./types.js";
+import type { TaskContext, TaskData, UpdateTaskParams } from "./types.js";
 
 /**
- * A task (Trello Card, Linear Issue) with update capability
+ * A task (Trello Card, Linear Issue) with update capability.
+ * Status and labels are exposed as human-readable names.
  */
 export class Task {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  readonly listId: string;
-  readonly boardId: string;
-  readonly labels: readonly Label[];
+  readonly status: string;
+  readonly projectId: string;
+  readonly labels: readonly string[];
   readonly url: string;
 
-  private readonly operations: TaskOperations;
+  private readonly context: TaskContext;
 
-  constructor(data: TaskData, operations: TaskOperations) {
+  constructor(data: TaskData, context: TaskContext) {
     this.id = data.id;
     this.name = data.name;
     this.description = data.description;
-    this.listId = data.listId;
-    this.boardId = data.boardId;
-    this.labels = data.labels;
+    this.status = context.resolveStatusName(data.statusId);
+    this.projectId = data.projectId;
+    this.labels = data.labels.map((l) => l.name);
     this.url = data.url;
-    this.operations = operations;
+    this.context = context;
   }
 
   /**
    * Update this task. Returns a new Task with the updated data.
-   * @param params - Fields to update
+   * @param params - Fields to update. Status and labels are referenced by name.
    * @returns New Task reflecting the server state after update
    */
   async update(params: UpdateTaskParams): Promise<Task> {
-    const data = await this.operations.updateTask(
-      this.id,
-      params.name,
-      params.description,
-      params.list?.id,
-      params.labels?.map((l) => l.id)
-    );
-    return new Task(data, this.operations);
+    const data = await this.context.updateTask({
+      taskId: this.id,
+      name: params.name,
+      description: params.description,
+      statusId:
+        params.status !== undefined && params.status !== ""
+          ? this.context.resolveStatusId(params.status)
+          : undefined,
+      labelIds: params.labels
+        ? params.labels.map((n) => this.context.resolveLabelId(n))
+        : undefined,
+    });
+    return new Task(data, this.context);
   }
 }

@@ -13,6 +13,7 @@ export interface TrelloConfig {
 export interface LinearConfig {
   type: "linear";
   apiKey?: string; // defaults to process.env.LINEAR_API_KEY
+  teamId: string; // Linear team ID — scopes workflow states, labels, and mutations
 }
 
 export type TaskListConfig = TrelloConfig | LinearConfig;
@@ -23,29 +24,12 @@ export type TaskListConfig = TrelloConfig | LinearConfig;
 export type Provider = "trello" | "linear";
 
 /**
- * A project board (Trello Board, Linear Project)
- */
-export interface Board {
-  readonly id: string;
-  readonly name: string;
-  readonly url: string;
-}
-
-/**
- * A label/tag on a task
- */
-export interface Label {
-  readonly id: string;
-  readonly name: string;
-  readonly color: string;
-}
-
-/**
- * Options for creating a task (passed to TaskList.createTask)
+ * Options for creating a task (passed to Project.createTask)
  */
 export interface CreateTaskOptions {
   readonly description?: string | undefined;
-  readonly labels?: readonly Label[] | undefined;
+  readonly labels?: readonly string[] | undefined;
+  readonly status?: string | undefined;
 }
 
 /**
@@ -54,8 +38,8 @@ export interface CreateTaskOptions {
 export interface UpdateTaskParams {
   readonly name?: string | undefined;
   readonly description?: string | undefined;
-  readonly list?: { readonly id: string } | undefined;
-  readonly labels?: readonly Label[] | undefined;
+  readonly status?: string | undefined;
+  readonly labels?: readonly string[] | undefined;
 }
 
 /**
@@ -66,39 +50,34 @@ export interface TaskData {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  readonly listId: string;
-  readonly boardId: string;
-  readonly labels: readonly Label[];
+  readonly statusId: string;
+  readonly projectId: string;
+  readonly labels: readonly { readonly id: string; readonly name: string }[];
   readonly url: string;
 }
 
 /**
- * Internal raw task list data returned by provider operations
+ * Internal interface for provider-specific task operations and name resolution
  * @internal
  */
-export interface TaskListData {
-  readonly id: string;
-  readonly name: string;
-  readonly boardId: string;
-}
+export interface TaskContext {
+  createTask(params: {
+    statusId: string;
+    projectId: string;
+    name: string;
+    description?: string;
+    labelIds?: readonly string[];
+  }): Promise<TaskData>;
 
-/**
- * Internal interface for provider-specific task operations
- * @internal
- */
-export interface TaskOperations {
-  createTask(
-    listId: string,
-    name: string,
-    description?: string,
-    labelIds?: readonly string[]
-  ): Promise<TaskData>;
+  updateTask(params: {
+    taskId: string;
+    name?: string;
+    description?: string;
+    statusId?: string;
+    labelIds?: readonly string[];
+  }): Promise<TaskData>;
 
-  updateTask(
-    taskId: string,
-    name?: string,
-    description?: string,
-    listId?: string,
-    labelIds?: readonly string[]
-  ): Promise<TaskData>;
+  resolveStatusId(name: string): string;
+  resolveStatusName(id: string): string;
+  resolveLabelId(name: string): string;
 }
