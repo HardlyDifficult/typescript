@@ -6,6 +6,8 @@ export {
   type LinearConfig,
   type TaskListConfig,
   type Provider,
+  type MigrationResult,
+  type MigratedTask,
 } from "./types.js";
 
 // Core classes

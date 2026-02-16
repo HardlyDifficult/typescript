@@ -1,3 +1,5 @@
+import { Throttle } from "@hardlydifficult/throttle";
+
 import { FullState } from "../FullState.js";
 import { Project } from "../Project.js";
 import { Task } from "../Task.js";
@@ -104,6 +106,7 @@ const ISSUE_FIELDS = `
 export class LinearTaskListClient extends TaskListClient {
   private readonly apiKey: string;
   private readonly teamId: string;
+  private readonly throttle = new Throttle({ unitsPerSecond: 0.4 });
 
   constructor(config: LinearConfig) {
     super(config);
@@ -115,6 +118,7 @@ export class LinearTaskListClient extends TaskListClient {
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {
+    await this.throttle.wait();
     const response = await fetch(LINEAR_API_URL, {
       method: "POST",
       headers: {

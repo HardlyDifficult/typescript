@@ -1,3 +1,5 @@
+import { Throttle } from "@hardlydifficult/throttle";
+
 import { FullState } from "../FullState.js";
 import { Project } from "../Project.js";
 import { Task } from "../Task.js";
@@ -43,6 +45,7 @@ interface TrelloCard {
 export class TrelloTaskListClient extends TaskListClient {
   private readonly apiKey: string;
   private readonly token: string;
+  private readonly throttle = new Throttle({ unitsPerSecond: 8 });
 
   constructor(config: TrelloConfig) {
     super(config);
@@ -54,6 +57,7 @@ export class TrelloTaskListClient extends TaskListClient {
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
+    await this.throttle.wait();
     const url = new URL(`${TRELLO_API_BASE}${path}`);
     url.searchParams.set("key", this.apiKey);
     url.searchParams.set("token", this.token);
