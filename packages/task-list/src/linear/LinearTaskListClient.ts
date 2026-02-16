@@ -43,22 +43,20 @@ interface GraphQLResponse<T> {
   errors?: { message: string }[];
 }
 
-type ProjectsQueryData = {
+interface ProjectsQueryData {
   organization: { urlKey: string };
   team: {
     projects: {
-      nodes: Array<
-        LinearProject & {
-          issues: { nodes: LinearIssue[] };
-        }
-      >;
+      nodes: (LinearProject & {
+        issues: { nodes: LinearIssue[] };
+      })[];
     };
     states: { nodes: LinearWorkflowState[] };
     labels: { nodes: LinearIssueLabel[] };
   };
-};
+}
 
-type ProjectQueryData = {
+interface ProjectQueryData {
   organization: { urlKey: string };
   project: LinearProject & {
     issues: { nodes: LinearIssue[] };
@@ -67,27 +65,27 @@ type ProjectQueryData = {
     states: { nodes: LinearWorkflowState[] };
     labels: { nodes: LinearIssueLabel[] };
   };
-};
+}
 
-type IssueQueryData = {
+interface IssueQueryData {
   issue: LinearIssue;
   team: {
     states: { nodes: LinearWorkflowState[] };
     labels: { nodes: LinearIssueLabel[] };
   };
-};
+}
 
-type IssueCreateData = {
+interface IssueCreateData {
   issueCreate: {
     issue: LinearIssue;
   };
-};
+}
 
-type IssueUpdateData = {
+interface IssueUpdateData {
   issueUpdate: {
     issue: LinearIssue;
   };
-};
+}
 
 // --- GraphQL query fragments ---
 
@@ -128,12 +126,12 @@ export class LinearTaskListClient extends TaskListClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Linear API error: ${response.status} ${text}`);
+      throw new Error(`Linear API error: ${String(response.status)} ${text}`);
     }
 
     const json = (await response.json()) as GraphQLResponse<T>;
     if (json.errors && json.errors.length > 0) {
-      throw new Error(`Linear API error: ${json.errors[0]!.message}`);
+      throw new Error(`Linear API error: ${json.errors[0].message}`);
     }
 
     return json.data;
@@ -215,9 +213,7 @@ export class LinearTaskListClient extends TaskListClient {
 
       resolveStatusId: (name: string): string => {
         const lower = name.toLowerCase();
-        const state = states.find((s) =>
-          s.name.toLowerCase().includes(lower)
-        );
+        const state = states.find((s) => s.name.toLowerCase().includes(lower));
         if (!state) {
           throw new Error(`Status "${name}" not found`);
         }
@@ -234,9 +230,7 @@ export class LinearTaskListClient extends TaskListClient {
 
       resolveLabelId: (name: string): string => {
         const lower = name.toLowerCase();
-        const label = labels.find((l) =>
-          l.name.toLowerCase().includes(lower)
-        );
+        const label = labels.find((l) => l.name.toLowerCase().includes(lower));
         if (!label) {
           throw new Error(`Label "${name}" not found`);
         }

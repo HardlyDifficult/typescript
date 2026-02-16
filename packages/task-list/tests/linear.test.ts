@@ -100,9 +100,7 @@ describe("LinearTaskListClient", () => {
     );
     await client.getTask("ISS-1");
 
-    expect(mockFetch.mock.calls[0]![0]).toBe(
-      "https://api.linear.app/graphql"
-    );
+    expect(mockFetch.mock.calls[0]![0]).toBe("https://api.linear.app/graphql");
     expect((mockFetch.mock.calls[0]![1] as RequestInit).method).toBe("POST");
   });
 
@@ -114,9 +112,7 @@ describe("LinearTaskListClient", () => {
   });
 
   it("throws on GraphQL error", async () => {
-    mockFetch.mockResolvedValueOnce(
-      graphqlErrorResponse("Issue not found")
-    );
+    mockFetch.mockResolvedValueOnce(graphqlErrorResponse("Issue not found"));
     await expect(client.getTask("ISS-1")).rejects.toThrow(
       "Linear API error: Issue not found"
     );

@@ -3,9 +3,7 @@ import { Task } from "../src/Task.js";
 import { Project } from "../src/Project.js";
 import type { TaskContext, TaskData } from "../src/types.js";
 
-function createMockContext(
-  overrides: Partial<TaskContext> = {}
-): TaskContext {
+function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
   return {
     createTask: vi.fn(),
     updateTask: vi.fn(),

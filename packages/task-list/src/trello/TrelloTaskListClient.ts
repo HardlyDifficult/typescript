@@ -153,9 +153,7 @@ export class TrelloTaskListClient extends TaskListClient {
 
       resolveLabelId: (name: string): string => {
         const lower = name.toLowerCase();
-        const label = labels.find((l) =>
-          l.name.toLowerCase().includes(lower)
-        );
+        const label = labels.find((l) => l.name.toLowerCase().includes(lower));
         if (!label) {
           throw new Error(`Label "${name}" not found`);
         }

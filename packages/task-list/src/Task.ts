@@ -36,9 +36,10 @@ export class Task {
       taskId: this.id,
       name: params.name,
       description: params.description,
-      statusId: params.status
-        ? this.context.resolveStatusId(params.status)
-        : undefined,
+      statusId:
+        params.status !== undefined && params.status !== ""
+          ? this.context.resolveStatusId(params.status)
+          : undefined,
       labelIds: params.labels
         ? params.labels.map((n) => this.context.resolveLabelId(n))
         : undefined,

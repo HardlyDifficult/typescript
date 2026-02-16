@@ -40,9 +40,10 @@ export class Project {
    * @returns The created Task
    */
   async createTask(name: string, options?: CreateTaskOptions): Promise<Task> {
-    const statusId = options?.status
-      ? this.context.resolveStatusId(options.status)
-      : this.defaultStatusId;
+    const statusId =
+      options?.status !== undefined && options.status !== ""
+        ? this.context.resolveStatusId(options.status)
+        : this.defaultStatusId;
 
     const labelIds = options?.labels
       ? options.labels.map((n) => this.context.resolveLabelId(n))
@@ -67,9 +68,7 @@ export class Project {
   findTask(taskId: string): Task {
     const task = this.tasks.find((t) => t.id === taskId);
     if (!task) {
-      throw new Error(
-        `Task "${taskId}" not found in project "${this.name}"`
-      );
+      throw new Error(`Task "${taskId}" not found in project "${this.name}"`);
     }
     return task;
   }

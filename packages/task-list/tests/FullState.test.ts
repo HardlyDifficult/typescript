@@ -9,7 +9,13 @@ const mockCtx: TaskContext = {
   updateTask: vi.fn(),
   resolveStatusId: vi.fn(),
   resolveStatusName: vi.fn((id: string) =>
-    id === "s1" ? "To Do" : id === "s2" ? "Done" : id === "s3" ? "Backlog" : "Unknown"
+    id === "s1"
+      ? "To Do"
+      : id === "s2"
+        ? "Done"
+        : id === "s3"
+          ? "Backlog"
+          : "Unknown"
   ),
   resolveLabelId: vi.fn(),
 };
