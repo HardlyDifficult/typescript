@@ -38,11 +38,7 @@ describe("groupByDepth", () => {
   });
 
   it("works with deeply nested paths", () => {
-    const result = groupByDepth([
-      "a/b/c/d/e",
-      "a/b/c",
-      "a",
-    ]);
+    const result = groupByDepth(["a/b/c/d/e", "a/b/c", "a"]);
 
     expect(result).toEqual([
       { depth: 5, paths: ["a/b/c/d/e"] },
