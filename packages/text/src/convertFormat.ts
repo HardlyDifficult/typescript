@@ -49,7 +49,6 @@ export function convertFormat(content: string, to: TextFormat): string {
 
   if (to === "json") {
     return JSON.stringify(data, null, 2);
-  } else {
-    return stringifyYaml(data);
   }
+  return stringifyYaml(data);
 }
