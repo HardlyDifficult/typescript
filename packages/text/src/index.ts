@@ -5,3 +5,5 @@ export { slugify } from "./slugify.js";
 export { formatDuration } from "./formatDuration.js";
 export { buildFileTree, FILE_TREE_DEFAULTS } from "./buildFileTree.js";
 export type { BuildTreeOptions } from "./buildFileTree.js";
+export { convertFormat } from "./convertFormat.js";
+export type { TextFormat } from "./convertFormat.js";
