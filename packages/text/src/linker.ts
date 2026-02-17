@@ -325,7 +325,7 @@ export class Linker {
         a.start - b.start ||
         b.priority - a.priority ||
         b.end - b.start - (a.end - a.start) ||
-        a.ruleOrder - b.ruleOrder
+        b.ruleOrder - a.ruleOrder
     );
 
     const selected: LinkCandidate[] = [];

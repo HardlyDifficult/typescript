@@ -87,11 +87,11 @@ describe("createLinker", () => {
     expect(second).toBe(first);
   });
 
-  it("falls back to declaration order for equal-priority conflicts", () => {
+  it("lets later rules override equal-priority conflicts", () => {
     const linker = createLinker()
       .custom(/\bENG-533\b/g, "https://first.example/$0")
       .custom(/\bENG-533\b/g, "https://second.example/$0");
     const output = linker.linkText("ENG-533", { format: "markdown" });
-    expect(output).toBe("[ENG-533](https://first.example/ENG-533)");
+    expect(output).toBe("[ENG-533](https://second.example/ENG-533)");
   });
 });
