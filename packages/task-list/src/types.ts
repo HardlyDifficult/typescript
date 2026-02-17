@@ -13,7 +13,8 @@ export interface TrelloConfig {
 export interface LinearConfig {
   type: "linear";
   apiKey?: string; // defaults to process.env.LINEAR_API_KEY
-  teamId: string; // Linear team ID — scopes workflow states, labels, and mutations
+  teamId?: string; // Linear team UUID — auto-detected for single-team workspaces
+  team?: string; // Friendly team name — resolved to teamId via API
 }
 
 export type TaskListConfig = TrelloConfig | LinearConfig;
@@ -28,8 +29,10 @@ export type Provider = "trello" | "linear";
  */
 export interface CreateTaskOptions {
   readonly description?: string | undefined;
+  readonly label?: string | undefined;
   readonly labels?: readonly string[] | undefined;
   readonly status?: string | undefined;
+  readonly priority?: string | undefined;
 }
 
 /**
@@ -39,7 +42,9 @@ export interface UpdateTaskParams {
   readonly name?: string | undefined;
   readonly description?: string | undefined;
   readonly status?: string | undefined;
+  readonly label?: string | undefined;
   readonly labels?: readonly string[] | undefined;
+  readonly priority?: string | undefined;
 }
 
 /**
@@ -54,27 +59,7 @@ export interface TaskData {
   readonly projectId: string;
   readonly labels: readonly { readonly id: string; readonly name: string }[];
   readonly url: string;
-}
-
-/**
- * Result of a single task migration attempt
- */
-export interface MigratedTask {
-  readonly sourceTaskId: string;
-  readonly sourceTaskName: string;
-  readonly sourceProjectName: string;
-  readonly destinationTaskId?: string;
-  readonly error?: string;
-}
-
-/**
- * Summary of a migrateTo() operation
- */
-export interface MigrationResult {
-  readonly projectsMatched: number;
-  readonly tasksCreated: number;
-  readonly tasksFailed: number;
-  readonly tasks: readonly MigratedTask[];
+  readonly priority?: number;
 }
 
 /**
@@ -88,6 +73,7 @@ export interface TaskContext {
     name: string;
     description?: string;
     labelIds?: readonly string[];
+    priority?: number;
   }): Promise<TaskData>;
 
   updateTask(params: {
@@ -96,9 +82,11 @@ export interface TaskContext {
     description?: string;
     statusId?: string;
     labelIds?: readonly string[];
+    priority?: number;
   }): Promise<TaskData>;
 
   resolveStatusId(name: string): string;
   resolveStatusName(id: string): string;
   resolveLabelId(name: string): string;
+  resolvePriority?(name: string): number;
 }

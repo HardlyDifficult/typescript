@@ -41,6 +41,7 @@ const linearIssue = {
   title: "Fix login",
   description: "Users can't log in",
   url: "https://linear.app/team/ISS-1",
+  priority: 2,
   state: { id: "ws1" },
   team: { id: "team-1" },
   project: { id: "proj-1" },
@@ -51,6 +52,7 @@ const linearIssueNoDesc = {
   ...linearIssue,
   id: "ISS-2",
   description: null,
+  priority: 0,
   project: null,
   labels: { nodes: [] },
 };
@@ -120,6 +122,114 @@ describe("LinearTaskListClient", () => {
     );
   });
 
+  describe("team resolution", () => {
+    it("skips when teamId is provided", async () => {
+      await client.resolveTeam();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("auto-detects single team", async () => {
+      const noTeamClient = new LinearTaskListClient({
+        type: "linear",
+        apiKey: "lin_test_key",
+      });
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          teams: { nodes: [{ id: "team-1", name: "MyTeam" }] },
+        })
+      );
+      await noTeamClient.resolveTeam();
+
+      // Verify it works — make a request
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issue: linearIssue, team: teamData })
+      );
+      const taskPromise = noTeamClient.getTask("ISS-1");
+      await vi.runAllTimersAsync();
+      const task = await taskPromise;
+      expect(task.id).toBe("ISS-1");
+    });
+
+    it("resolves team by friendly name", async () => {
+      const namedClient = new LinearTaskListClient({
+        type: "linear",
+        apiKey: "lin_test_key",
+        team: "MyTeam",
+      });
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          teams: {
+            nodes: [
+              { id: "team-1", name: "MyTeam" },
+              { id: "team-2", name: "OtherTeam" },
+            ],
+          },
+        })
+      );
+      await namedClient.resolveTeam();
+
+      // Verify correct team was picked by making a request
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issue: linearIssue, team: teamData })
+      );
+      const taskPromise = namedClient.getTask("ISS-1");
+      await vi.runAllTimersAsync();
+      await taskPromise;
+
+      const body = JSON.parse(
+        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+      ) as { variables: { teamId: string } };
+      expect(body.variables.teamId).toBe("team-1");
+    });
+
+    it("throws for multiple teams without specifier", async () => {
+      const ambiguousClient = new LinearTaskListClient({
+        type: "linear",
+        apiKey: "lin_test_key",
+      });
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          teams: {
+            nodes: [
+              { id: "team-1", name: "TeamA" },
+              { id: "team-2", name: "TeamB" },
+            ],
+          },
+        })
+      );
+      await expect(ambiguousClient.resolveTeam()).rejects.toThrow(
+        "Multiple teams found"
+      );
+    });
+
+    it("throws when team name not found", async () => {
+      const badNameClient = new LinearTaskListClient({
+        type: "linear",
+        apiKey: "lin_test_key",
+        team: "NonExistent",
+      });
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          teams: { nodes: [{ id: "team-1", name: "MyTeam" }] },
+        })
+      );
+      await expect(badNameClient.resolveTeam()).rejects.toThrow(
+        'Team "NonExistent" not found'
+      );
+    });
+
+    it("throws when no teams exist", async () => {
+      const emptyClient = new LinearTaskListClient({
+        type: "linear",
+        apiKey: "lin_test_key",
+      });
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ teams: { nodes: [] } })
+      );
+      await expect(emptyClient.resolveTeam()).rejects.toThrow("No teams found");
+    });
+  });
+
   describe("getTask", () => {
     it("maps Linear issue to Task with resolved field names", async () => {
       mockFetch.mockResolvedValueOnce(
@@ -135,6 +245,22 @@ describe("LinearTaskListClient", () => {
       expect(task.projectId).toBe("proj-1");
       expect(task.labels).toEqual(["Bug"]);
       expect(task.url).toBe("https://linear.app/team/ISS-1");
+    });
+
+    it("maps priority number to friendly name", async () => {
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issue: linearIssue, team: teamData })
+      );
+      const task = await client.getTask("ISS-1");
+      expect(task.priority).toBe("High");
+    });
+
+    it("maps priority 0 to None", async () => {
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issue: linearIssueNoDesc, team: teamData })
+      );
+      const task = await client.getTask("ISS-2");
+      expect(task.priority).toBe("None");
     });
 
     it("maps null description to empty string", async () => {
@@ -205,6 +331,27 @@ describe("LinearTaskListClient", () => {
       expect(body.variables.input.stateId).toBe("ws2");
       expect(body.variables.input.labelIds).toEqual(["ll2"]);
     });
+
+    it("update() sends priority in mutation", async () => {
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issue: linearIssue, team: teamData })
+      );
+      const task = await client.getTask("ISS-1");
+
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          issueUpdate: { issue: { ...linearIssue, priority: 1 } },
+        })
+      );
+      const updatePromise = task.update({ priority: "Urgent" });
+      await vi.runAllTimersAsync();
+      await updatePromise;
+
+      const body = JSON.parse(
+        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+      ) as { variables: { input: Record<string, unknown> } };
+      expect(body.variables.input.priority).toBe(1);
+    });
   });
 
   describe("getProject", () => {
@@ -262,6 +409,56 @@ describe("LinearTaskListClient", () => {
       expect(body.variables.input.projectId).toBe("proj-1");
       expect(body.variables.input.title).toBe("Fix login");
       expect(body.variables.input.description).toBe("Users can't log in");
+      expect(body.variables.input.labelIds).toEqual(["ll1"]);
+    });
+
+    it("createTask sends priority in mutation", async () => {
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          organization: { urlKey: "myorg" },
+          project: { ...linearProject, issues: { nodes: [] } },
+          team: teamData,
+        })
+      );
+      const project = await client.getProject("proj-1");
+
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issueCreate: { issue: linearIssue } })
+      );
+      const createPromise = project.createTask("Urgent fix", {
+        priority: "High",
+      });
+      await vi.runAllTimersAsync();
+      await createPromise;
+
+      const body = JSON.parse(
+        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+      ) as { variables: { input: Record<string, unknown> } };
+      expect(body.variables.input.priority).toBe(2);
+    });
+
+    it("createTask sends singular label", async () => {
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({
+          organization: { urlKey: "myorg" },
+          project: { ...linearProject, issues: { nodes: [] } },
+          team: teamData,
+        })
+      );
+      const project = await client.getProject("proj-1");
+
+      mockFetch.mockResolvedValueOnce(
+        graphqlResponse({ issueCreate: { issue: linearIssue } })
+      );
+      const createPromise = project.createTask("Fix it", {
+        label: "Bug",
+      });
+      await vi.runAllTimersAsync();
+      await createPromise;
+
+      const body = JSON.parse(
+        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+      ) as { variables: { input: Record<string, unknown> } };
       expect(body.variables.input.labelIds).toEqual(["ll1"]);
     });
 
