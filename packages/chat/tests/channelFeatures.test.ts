@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetBatchStore } from "../src/BatchStore.js";
 import { Channel, type ChannelOperations } from "../src/Channel.js";
 import { Message } from "../src/Message.js";
+import { MessageBatch } from "../src/MessageBatch.js";
 import type { MessageData } from "../src/types.js";
 
 function createMockOperations(): ChannelOperations {
@@ -41,6 +43,10 @@ function createMockOperations(): ChannelOperations {
 }
 
 describe("Channel feature helpers", () => {
+  beforeEach(() => {
+    resetBatchStore();
+  });
+
   it("resolveMention() matches username/display name/email queries", async () => {
     const operations = createMockOperations();
     vi.mocked(operations.getMembers).mockResolvedValue([
@@ -160,5 +166,131 @@ describe("Channel feature helpers", () => {
         cascadeReplies: false,
       }
     );
+  });
+
+  it("beginBatch() tracks posted messages and can be retrieved", async () => {
+    const operations = createMockOperations();
+    vi.mocked(operations.postMessage)
+      .mockResolvedValueOnce({
+        id: "b1",
+        channelId: "channel-batch-1",
+        platform: "slack",
+      })
+      .mockResolvedValueOnce({
+        id: "b2",
+        channelId: "channel-batch-1",
+        platform: "slack",
+      });
+
+    const channel = new Channel("channel-batch-1", "slack", operations);
+    const batch = await channel.beginBatch({ key: "sprint-update" });
+    await batch.post("first");
+    await batch.post("second");
+    await batch.finish();
+
+    expect(batch).toBeInstanceOf(MessageBatch);
+    expect(batch.messages.map((message) => message.id)).toEqual(["b1", "b2"]);
+    expect(batch.isFinished).toBe(true);
+    expect(batch.closedAt).toBeInstanceOf(Date);
+
+    const listed = await channel.getBatches({
+      key: "sprint-update",
+      author: "me",
+      limit: 5,
+    });
+    expect(listed).toHaveLength(1);
+    expect(listed[0].id).toBe(batch.id);
+    expect((await channel.getBatch(batch.id))?.id).toBe(batch.id);
+  });
+
+  it("withBatch() auto-finishes in finally even when callback throws", async () => {
+    const operations = createMockOperations();
+    vi.mocked(operations.postMessage).mockResolvedValue({
+      id: "wf-1",
+      channelId: "channel-batch-2",
+      platform: "slack",
+    });
+    const channel = new Channel("channel-batch-2", "slack", operations);
+
+    await expect(
+      channel.withBatch({ key: "fail-run" }, async (batch) => {
+        await batch.post("before throw");
+        throw new Error("boom");
+      })
+    ).rejects.toThrow("boom");
+
+    const [stored] = await channel.getBatches({ key: "fail-run", limit: 1 });
+    expect(stored).toBeDefined();
+    expect(stored.isFinished).toBe(true);
+  });
+
+  it("deleteAll() deletes tracked messages and reports failures", async () => {
+    const operations = createMockOperations();
+    vi.mocked(operations.postMessage)
+      .mockResolvedValueOnce({
+        id: "d1",
+        channelId: "channel-batch-3",
+        platform: "slack",
+      })
+      .mockResolvedValueOnce({
+        id: "d2",
+        channelId: "channel-batch-3",
+        platform: "slack",
+      });
+    vi.mocked(operations.deleteMessage)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("cannot delete"));
+
+    const channel = new Channel("channel-batch-3", "slack", operations);
+    const batch = await channel.beginBatch({ key: "cleanup" });
+    await batch.post("one");
+    await batch.post("two");
+
+    const summary = await batch.deleteAll({ cascadeReplies: false });
+    expect(summary).toEqual({ deleted: 1, failed: 1 });
+    expect(operations.deleteMessage).toHaveBeenNthCalledWith(
+      1,
+      "d1",
+      "channel-batch-3",
+      { cascadeReplies: false }
+    );
+    expect(operations.deleteMessage).toHaveBeenNthCalledWith(
+      2,
+      "d2",
+      "channel-batch-3",
+      { cascadeReplies: false }
+    );
+  });
+
+  it("keepLatest(n) retains newest refs and deletes older ones", async () => {
+    const operations = createMockOperations();
+    vi.mocked(operations.postMessage)
+      .mockResolvedValueOnce({
+        id: "k1",
+        channelId: "channel-batch-4",
+        platform: "slack",
+      })
+      .mockResolvedValueOnce({
+        id: "k2",
+        channelId: "channel-batch-4",
+        platform: "slack",
+      })
+      .mockResolvedValueOnce({
+        id: "k3",
+        channelId: "channel-batch-4",
+        platform: "slack",
+      });
+
+    const channel = new Channel("channel-batch-4", "slack", operations);
+    const batch = await channel.beginBatch({ key: "keep-latest" });
+    await batch.post("one");
+    await batch.post("two");
+    await batch.post("three");
+
+    const summary = await batch.keepLatest(1);
+    expect(summary.deleted).toBe(2);
+    expect(summary.failed).toBe(0);
+    expect(summary.kept).toBe(1);
+    expect(batch.messages).toHaveLength(1);
   });
 });

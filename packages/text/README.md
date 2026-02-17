@@ -149,3 +149,45 @@ formatWithLineNumbers("line 1\nline 2\n...\nline 100", 98);
 ```
 
 This is useful for displaying code snippets, file contents, or log output with line numbers for reference.
+
+### `createLinker(rules?)`
+
+Create a reusable linker that turns matched text patterns into platform-specific links.
+
+Supports:
+
+- plain strings
+- idempotent re-runs (won't double-link existing linked text)
+- skipping code spans/backticks and existing links by default
+- deterministic conflict handling (priority, then longest match, then rule order)
+
+```typescript
+import { createLinker } from "@hardlydifficult/text";
+
+const linker = createLinker()
+  .linear("fairmint")
+  .githubPr("Fairmint/api")
+  .custom(/\bINC-\d+\b/g, ({ match }) => `https://incident.io/${match}`);
+
+const slack = linker.linkText("Fix ENG-533 and PR#42", { format: "slack" });
+// "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> and <https://github.com/Fairmint/api/pull/42|PR#42>"
+```
+
+You can also pass rules up front:
+
+```typescript
+const linker = createLinker([
+  {
+    pattern: /\b([A-Z]{2,6}-\d+)\b/g,
+    href: "https://linear.app/fairmint/issue/$1",
+  },
+]);
+```
+
+Formats:
+
+- `slack` → `<url|text>`
+- `markdown` / `discord` → `[text](url)`
+- `plaintext` → raw `url`
+
+`linker.apply(text, options)` is an alias of `linker.linkText(text, options)`.

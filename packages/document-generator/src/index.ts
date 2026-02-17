@@ -16,6 +16,9 @@ export type {
   // Document options
   DocumentOptions,
   DocumentSection,
+  DocumentLinkTransform,
+  DocumentLinkifier,
+  DocumentLinkifyOptions,
   SectionContent,
   SectionOptions,
   FieldOptions,

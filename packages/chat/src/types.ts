@@ -196,3 +196,49 @@ export interface MessageQueryOptions {
   /** Only include messages before this timestamp */
   before?: TimestampInput;
 }
+
+/** Message reference stored as part of a batch. */
+export interface BatchMessageRef {
+  /** Message ID on the underlying platform. */
+  id: string;
+  /** Channel ID where the message was posted. */
+  channelId: string;
+  /** Origin platform. */
+  platform: Platform;
+  /** Posting timestamp captured by the batch API. */
+  postedAt: Date;
+}
+
+/** Options for creating a new batch. */
+export interface BeginBatchOptions {
+  /** Optional grouping key (for example: "sprint-update"). */
+  key?: string;
+  /** Optional author label for retrieval filtering. Defaults to "me". */
+  author?: MessageAuthorFilter;
+}
+
+/** Query options for listing batches in a channel. */
+export interface BatchQueryOptions {
+  /** Optional key filter. */
+  key?: string;
+  /** Optional author filter. */
+  author?: MessageAuthorFilter;
+  /** Maximum number of batches to return (newest first). */
+  limit?: number;
+  /** Include unfinished/open batches. Default: true. */
+  includeOpen?: boolean;
+}
+
+/** Summary returned by batch deletion helpers. */
+export interface BatchDeleteSummary {
+  /** Number of successfully deleted messages. */
+  deleted: number;
+  /** Number of deletion attempts that failed. */
+  failed: number;
+}
+
+/** Summary returned by keepLatest(n). */
+export interface BatchKeepLatestSummary extends BatchDeleteSummary {
+  /** Number of messages retained in the batch after pruning. */
+  kept: number;
+}

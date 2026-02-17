@@ -8,3 +8,12 @@ export type { BuildTreeOptions } from "./buildFileTree.js";
 export { convertFormat } from "./convertFormat.js";
 export type { TextFormat } from "./convertFormat.js";
 export { formatWithLineNumbers } from "./formatWithLineNumbers.js";
+export {
+  Linker,
+  createLinker,
+  type LinkRule,
+  type LinkHrefBuilder,
+  type LinkMatchContext,
+  type LinkerApplyOptions,
+  type LinkerPlatform,
+} from "./linker.js";

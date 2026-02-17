@@ -1,8 +1,23 @@
+import {
+  beginChannelBatch,
+  type ChannelBatchAdapter,
+  createChannelBatchAdapter,
+  getChannelBatch,
+  getChannelBatches,
+  withChannelBatchFromArgs,
+} from "./ChannelBatchHelpers.js";
+import {
+  postDismissableMessage,
+  TypingController,
+} from "./ChannelRuntimeFeatures.js";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching";
 import { Message, type MessageOperations } from "./Message";
+import type { MessageBatch } from "./MessageBatch.js";
 import { PendingMessage } from "./PendingMessage";
 import { Thread, type ThreadOperations } from "./Thread";
 import type {
+  BatchQueryOptions,
+  BeginBatchOptions,
   DeleteMessageOptions,
   DisconnectCallback,
   ErrorCallback,
@@ -87,9 +102,6 @@ export interface ChannelOperations {
   ): Promise<MessageData>;
 }
 
-/** Default interval (ms) for refreshing the typing indicator. Discord expires after ~10s. */
-const TYPING_REFRESH_MS = 8000;
-
 /** A platform-agnostic channel that provides messaging, reactions, typing indicators, and thread management. */
 export class Channel {
   public readonly id: string;
@@ -98,13 +110,23 @@ export class Channel {
   private operations: ChannelOperations;
   private messageReactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private unsubscribeFromPlatform: (() => void) | null = null;
-  private typingRefCount = 0;
-  private typingInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly batchAdapter: ChannelBatchAdapter;
+  private readonly typingController: TypingController;
 
   constructor(id: string, platform: Platform, operations: ChannelOperations) {
     this.id = id;
     this.platform = platform;
     this.operations = operations;
+    this.batchAdapter = createChannelBatchAdapter(
+      this.id,
+      this.platform,
+      (content, options) => this.postMessage(content, options),
+      (messageId, options) =>
+        this.operations.deleteMessage(messageId, this.id, options)
+    );
+    this.typingController = new TypingController(() =>
+      this.operations.sendTyping(this.id)
+    );
 
     // Subscribe to platform reactions and forward to message-specific callbacks
     this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
@@ -339,19 +361,7 @@ export class Channel {
    * can overlap — the indicator stays active until the last one ends.
    */
   beginTyping(): void {
-    this.typingRefCount++;
-    if (this.typingRefCount === 1) {
-      this.operations.sendTyping(this.id).catch(() => {
-        // Ignore typing indicator failures
-      });
-      this.typingInterval = setInterval(() => {
-        if (this.typingRefCount > 0) {
-          this.operations.sendTyping(this.id).catch(() => {
-            // Ignore typing indicator failures
-          });
-        }
-      }, TYPING_REFRESH_MS);
-    }
+    this.typingController.begin();
   }
 
   /**
@@ -359,13 +369,7 @@ export class Channel {
    * calls have been balanced by endTyping(), the refresh interval stops.
    */
   endTyping(): void {
-    if (this.typingRefCount > 0) {
-      this.typingRefCount--;
-    }
-    if (this.typingRefCount === 0 && this.typingInterval) {
-      clearInterval(this.typingInterval);
-      this.typingInterval = null;
-    }
+    this.typingController.end();
   }
 
   /**
@@ -376,12 +380,7 @@ export class Channel {
    * @returns The return value of fn
    */
   async withTyping<T>(fn: () => Promise<T>): Promise<T> {
-    this.beginTyping();
-    try {
-      return await fn();
-    } finally {
-      this.endTyping();
-    }
+    return this.typingController.withTyping(fn);
   }
 
   /**
@@ -394,17 +393,51 @@ export class Channel {
     content: MessageContent,
     ownerId: string
   ): Promise<Message> {
-    const emoji = this.platform === "slack" ? ":wastebasket:" : "🗑️";
-    const emojiMatch = this.platform === "slack" ? "wastebasket" : "🗑️";
-    const msg = await this.postMessage(content);
-    msg.addReactions([emoji]).onReaction(async (event) => {
-      if (event.user.id !== ownerId || event.emoji !== emojiMatch) {
-        return;
-      }
-      msg.offReaction();
-      await msg.delete();
-    });
-    return msg;
+    return postDismissableMessage(
+      this.platform,
+      async (messageContent) => this.postMessage(messageContent),
+      content,
+      ownerId
+    );
+  }
+
+  /**
+   * Begin a logical message batch for grouping related posts.
+   * Batches can later be queried with getBatches()/getBatch().
+   */
+  beginBatch(options: BeginBatchOptions = {}): Promise<MessageBatch> {
+    return beginChannelBatch(this.batchAdapter, options);
+  }
+
+  /**
+   * Execute a callback with an auto-finishing message batch.
+   * finish() is guaranteed in finally, even when callback throws.
+   */
+  withBatch<T>(
+    optionsOrCallback:
+      | BeginBatchOptions
+      | ((batch: MessageBatch) => Promise<T>),
+    maybeCallback?: (batch: MessageBatch) => Promise<T>
+  ): Promise<T> {
+    return withChannelBatchFromArgs(
+      this.batchAdapter,
+      optionsOrCallback,
+      maybeCallback
+    );
+  }
+
+  /**
+   * Retrieve a batch by ID within this channel.
+   */
+  getBatch(id: string): Promise<MessageBatch | null> {
+    return getChannelBatch(this.batchAdapter, id);
+  }
+
+  /**
+   * List batches in this channel, newest first.
+   */
+  getBatches(options: BatchQueryOptions = {}): Promise<MessageBatch[]> {
+    return getChannelBatches(this.batchAdapter, options);
   }
 
   /**
@@ -522,10 +555,6 @@ export class Channel {
       this.unsubscribeFromPlatform = null;
     }
     this.messageReactionCallbacks.clear();
-    if (this.typingInterval) {
-      clearInterval(this.typingInterval);
-      this.typingInterval = null;
-    }
-    this.typingRefCount = 0;
+    this.typingController.clear();
   }
 }
