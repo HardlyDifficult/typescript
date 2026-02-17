@@ -9,6 +9,8 @@ export interface BuildTreeOptions {
   maxLevel2?: number;
   maxLevel3?: number;
   annotations?: ReadonlyMap<string, string>;
+  /** Directory names to collapse. Matched dirs show a content summary instead of expanding children. */
+  collapseDirs?: readonly string[];
 }
 
 /** Default truncation limits for file tree rendering. */
@@ -18,6 +20,37 @@ export const FILE_TREE_DEFAULTS: Required<
   maxLevel2: 10,
   maxLevel3: 3,
 };
+
+/**
+ * Count all descendant files and directories within a node.
+ */
+function countDescendants(node: TreeNode): { files: number; dirs: number } {
+  let files = 0;
+  let dirs = 0;
+  for (const child of node.children ?? []) {
+    if (child.isDir) {
+      dirs++;
+      const sub = countDescendants(child);
+      files += sub.files;
+      dirs += sub.dirs;
+    } else {
+      files++;
+    }
+  }
+  return { files, dirs };
+}
+
+/**
+ * Format a collapsed directory summary, e.g. "(42 files across 3 dirs)".
+ */
+function formatCollapsedSummary(files: number, dirs: number): string {
+  const filePart = `${String(files)} ${files === 1 ? "file" : "files"}`;
+  if (dirs === 0) {
+    return `(${filePart})`;
+  }
+  const dirPart = `${String(dirs)} ${dirs === 1 ? "dir" : "dirs"}`;
+  return `(${filePart} across ${dirPart})`;
+}
 
 /**
  * Builds a hierarchical file tree from flat paths with depth-based truncation.
@@ -31,7 +64,9 @@ export function buildFileTree(
     maxLevel2 = FILE_TREE_DEFAULTS.maxLevel2,
     maxLevel3 = FILE_TREE_DEFAULTS.maxLevel3,
     annotations,
+    collapseDirs,
   } = options;
+  const collapseSet = collapseDirs ? new Set(collapseDirs) : undefined;
 
   // Build tree structure
   const root: TreeNode = { name: "", isDir: true, children: [], fullPath: "" };
@@ -95,7 +130,12 @@ export function buildFileTree(
       const suffix = annotation !== "" ? ` — ${annotation}` : "";
       lines.push(`${prefix}${child.name}${marker}${suffix}`);
 
-      if (child.children && child.children.length > 0) {
+      if (child.isDir && collapseSet?.has(child.name) === true) {
+        const { files, dirs } = countDescendants(child);
+        if (files > 0 || dirs > 0) {
+          lines.push(`${prefix}  ${formatCollapsedSummary(files, dirs)}`);
+        }
+      } else if (child.children && child.children.length > 0) {
         renderNode(child, depth + 1, `${prefix}  `);
       }
     }
