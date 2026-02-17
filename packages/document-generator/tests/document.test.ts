@@ -174,7 +174,9 @@ describe("Document", () => {
     });
 
     it("toSlackText() renders Slack mrkdwn output", () => {
-      const document = new Document().header("Title").text("Body with **bold**");
+      const document = new Document()
+        .header("Title")
+        .text("Body with **bold**");
       expect(document.toSlackText()).toBe("*Title*\n\nBody with *bold*\n\n");
     });
 

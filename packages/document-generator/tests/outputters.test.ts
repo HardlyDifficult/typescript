@@ -115,9 +115,7 @@ describe("toSlackText", () => {
     const blocks: Block[] = [
       { type: "list", items: ["**Item** 1", "*Item* 2", "~~Item~~ 3"] },
     ];
-    expect(toSlackText(blocks)).toBe(
-      "• *Item* 1\n• _Item_ 2\n• ~Item~ 3\n\n"
-    );
+    expect(toSlackText(blocks)).toBe("• *Item* 1\n• _Item_ 2\n• ~Item~ 3\n\n");
   });
 
   it("converts divider block", () => {
@@ -148,7 +146,9 @@ describe("toSlackText", () => {
     const blocks: Block[] = [
       { type: "code", content: "const x = 1;\nconst y = 2;", multiline: true },
     ];
-    expect(toSlackText(blocks)).toBe("```\nconst x = 1;\nconst y = 2;\n```\n\n");
+    expect(toSlackText(blocks)).toBe(
+      "```\nconst x = 1;\nconst y = 2;\n```\n\n"
+    );
   });
 
   it("converts image block with alt text", () => {
