@@ -263,6 +263,17 @@ export class RepoClient {
 
     return { filePaths, keyFiles };
   }
+
+  /** Fetch the HEAD commit SHA of the repository's default branch. */
+  async getDefaultBranchHeadSha(): Promise<string> {
+    const repo = await this.get();
+    const { data: ref } = await this.octokit.git.getRef({
+      owner: this.owner,
+      repo: this.name,
+      ref: `heads/${repo.default_branch}`,
+    });
+    return ref.object.sha;
+  }
 }
 
 /** Top-level GitHub API client that provides access to repositories, PR watching, and user contribution queries. */
