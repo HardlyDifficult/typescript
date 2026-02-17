@@ -23,7 +23,7 @@ export function healYaml(yaml: string): string {
   // Skips values already quoted (`"`), single-quoted (`'`), block scalars (`|`, `>`),
   // or flow collections (`[`, `{`).
   cleaned = cleaned.replace(
-    /^(\s*\w+:[ \t]+)(?!["'|>\[\{])(.+:.+)$/gm,
+    /^(\s*\w+:[ \t]+)(?!["'|>[{])(.+:.+)$/gm,
     (_, prefix: string, value: string) => {
       const escaped = value.replace(/"/g, '\\"');
       return `${prefix}"${escaped}"`;
