@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Task } from "../src/Task.js";
+import { Task, mergeLabels } from "../src/Task.js";
 import { Project } from "../src/Project.js";
 import type { TaskContext, TaskData } from "../src/types.js";
 
@@ -12,6 +12,10 @@ function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
       id === "status-1" ? "To Do" : "Unknown"
     ),
     resolveLabelId: vi.fn((name: string) => `label-id-for-${name}`),
+    resolvePriority: vi.fn((name: string) => {
+      const map: Record<string, number> = { none: 0, urgent: 1, high: 2, medium: 3, low: 4 };
+      return map[name.toLowerCase()] ?? 0;
+    }),
     ...overrides,
   };
 }
@@ -24,6 +28,7 @@ const baseTaskData: TaskData = {
   projectId: "project-1",
   labels: [{ id: "l1", name: "Bug" }],
   url: "https://example.com/t/1",
+  priority: 2,
 };
 
 describe("Task", () => {
@@ -38,12 +43,20 @@ describe("Task", () => {
     expect(task.projectId).toBe("project-1");
     expect(task.labels).toEqual(["Bug"]);
     expect(task.url).toBe("https://example.com/t/1");
+    expect(task.priority).toBe("High");
   });
 
   it("resolves status name from ID via context", () => {
     const ctx = createMockContext();
     new Task(baseTaskData, ctx);
     expect(ctx.resolveStatusName).toHaveBeenCalledWith("status-1");
+  });
+
+  it("maps priority undefined when not in TaskData", () => {
+    const ctx = createMockContext();
+    const dataWithoutPriority: TaskData = { ...baseTaskData, priority: undefined };
+    const task = new Task(dataWithoutPriority, ctx);
+    expect(task.priority).toBeUndefined();
   });
 
   it("update() resolves status and label names to IDs", async () => {
@@ -77,6 +90,7 @@ describe("Task", () => {
       description: undefined,
       statusId: "status-2",
       labelIds: ["l2"],
+      priority: undefined,
     });
     expect(updated).toBeInstanceOf(Task);
     expect(updated.name).toBe("Updated name");
@@ -97,7 +111,51 @@ describe("Task", () => {
       description: undefined,
       statusId: undefined,
       labelIds: undefined,
+      priority: undefined,
     });
+  });
+
+  it("update() resolves priority", async () => {
+    const ctx = createMockContext({
+      updateTask: vi.fn().mockResolvedValue({ ...baseTaskData, priority: 1 }),
+    });
+    const task = new Task(baseTaskData, ctx);
+
+    await task.update({ priority: "Urgent" });
+
+    expect(ctx.resolvePriority).toHaveBeenCalledWith("Urgent");
+    expect(ctx.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: 1 })
+    );
+  });
+
+  it("update() merges singular label into labels", async () => {
+    const ctx = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(baseTaskData),
+    });
+    const task = new Task(baseTaskData, ctx);
+
+    await task.update({ label: "Bug" });
+
+    expect(ctx.resolveLabelId).toHaveBeenCalledWith("Bug");
+    expect(ctx.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: ["label-id-for-Bug"] })
+    );
+  });
+
+  it("update() merges label + labels together", async () => {
+    const ctx = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(baseTaskData),
+    });
+    const task = new Task(baseTaskData, ctx);
+
+    await task.update({ labels: ["Bug"], label: "Feature" });
+
+    expect(ctx.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelIds: ["label-id-for-Bug", "label-id-for-Feature"],
+      })
+    );
   });
 
   it("original task is unchanged after update", async () => {
@@ -113,6 +171,24 @@ describe("Task", () => {
     await task.update({ name: "Updated" });
 
     expect(task.name).toBe("Original name");
+  });
+});
+
+describe("mergeLabels", () => {
+  it("returns undefined when both are undefined", () => {
+    expect(mergeLabels(undefined, undefined)).toBeUndefined();
+  });
+
+  it("returns labels when label is undefined", () => {
+    expect(mergeLabels(["Bug"], undefined)).toEqual(["Bug"]);
+  });
+
+  it("wraps singular label in array when labels is undefined", () => {
+    expect(mergeLabels(undefined, "Bug")).toEqual(["Bug"]);
+  });
+
+  it("appends singular label to labels array", () => {
+    expect(mergeLabels(["Bug"], "Feature")).toEqual(["Bug", "Feature"]);
   });
 });
 
@@ -158,6 +234,7 @@ describe("Project", () => {
       name: "Fix bug",
       description: undefined,
       labelIds: undefined,
+      priority: undefined,
     });
     expect(task).toBeInstanceOf(Task);
   });
@@ -193,7 +270,47 @@ describe("Project", () => {
       name: "Fix bug",
       description: "Details",
       labelIds: ["l1"],
+      priority: undefined,
     });
+  });
+
+  it("createTask() with singular label", async () => {
+    const ctx = createMockContext({
+      createTask: vi.fn().mockResolvedValue(baseTaskData),
+    });
+    const project = new Project(
+      { id: "p1", name: "Alpha", url: "" },
+      [{ id: "s1", name: "To Do" }],
+      [],
+      [{ id: "l1", name: "Bug" }],
+      ctx
+    );
+
+    await project.createTask("Fix bug", { label: "Bug" });
+
+    expect(ctx.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: ["label-id-for-Bug"] })
+    );
+  });
+
+  it("createTask() with priority", async () => {
+    const ctx = createMockContext({
+      createTask: vi.fn().mockResolvedValue(baseTaskData),
+    });
+    const project = new Project(
+      { id: "p1", name: "Alpha", url: "" },
+      [{ id: "s1", name: "To Do" }],
+      [],
+      [],
+      ctx
+    );
+
+    await project.createTask("Fix bug", { priority: "High" });
+
+    expect(ctx.resolvePriority).toHaveBeenCalledWith("High");
+    expect(ctx.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: 2 })
+    );
   });
 
   it("findTask() finds a task by ID", () => {

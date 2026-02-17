@@ -1,4 +1,4 @@
-import { Task } from "./Task.js";
+import { Task, mergeLabels } from "./Task.js";
 import type { CreateTaskOptions, TaskContext } from "./types.js";
 
 /**
@@ -36,7 +36,7 @@ export class Project {
   /**
    * Create a new task in this project.
    * @param name - Task name/title
-   * @param options - Optional description, labels (by name), and status (by name)
+   * @param options - Optional description, label(s), status, and priority
    * @returns The created Task
    */
   async createTask(name: string, options?: CreateTaskOptions): Promise<Task> {
@@ -45,9 +45,15 @@ export class Project {
         ? this.context.resolveStatusId(options.status)
         : this.defaultStatusId;
 
-    const labelIds = options?.labels
-      ? options.labels.map((n) => this.context.resolveLabelId(n))
+    const allLabels = mergeLabels(options?.labels, options?.label);
+    const labelIds = allLabels
+      ? allLabels.map((n) => this.context.resolveLabelId(n))
       : undefined;
+
+    const priority =
+      options?.priority !== undefined && this.context.resolvePriority
+        ? this.context.resolvePriority(options.priority)
+        : undefined;
 
     const data = await this.context.createTask({
       statusId,
@@ -55,6 +61,7 @@ export class Project {
       name,
       description: options?.description,
       labelIds,
+      priority,
     });
     return new Task(data, this.context);
   }
