@@ -37,6 +37,7 @@ import { isDocument } from "../utils.js";
 
 import { buildMessagePayload } from "./buildMessagePayload.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { getMessages as listMessages } from "./getMessages.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
 /**
@@ -473,67 +474,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     options: MessageQueryOptions = {}
   ): Promise<MessageData[]> {
     const channel = await this.fetchTextChannel(channelId);
-    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
-    const messages = await channel.messages.fetch({ limit });
-    const afterDate = toDate(options.after);
-    const beforeDate = toDate(options.before);
-    const authorFilter =
-      options.author === "me"
-        ? this.me?.id
-        : options.author !== undefined
-          ? normalizeAuthorFilter(options.author)
-          : undefined;
-
-    const output: MessageData[] = [];
-    for (const [, message] of messages) {
-      if (message.partial) {
-        continue;
-      }
-
-      if (afterDate !== undefined && message.createdAt <= afterDate) {
-        continue;
-      }
-      if (beforeDate !== undefined && message.createdAt >= beforeDate) {
-        continue;
-      }
-
-      const authorId = message.author?.id;
-      const authorUsername = message.author?.username;
-      if (authorFilter !== undefined) {
-        const normalizedUsername = authorUsername?.toLowerCase();
-        if (
-          authorId !== authorFilter &&
-          normalizedUsername !== authorFilter.toLowerCase()
-        ) {
-          continue;
-        }
-      }
-
-      const attachments: Attachment[] = [];
-      for (const [, attachment] of message.attachments) {
-        attachments.push({
-          url: attachment.url,
-          name: attachment.name,
-          contentType: attachment.contentType ?? undefined,
-          size: attachment.size,
-        });
-      }
-
-      output.push({
-        id: message.id,
-        channelId,
-        platform: "discord",
-        content: message.content ?? "",
-        author:
-          authorId !== undefined
-            ? { id: authorId, username: authorUsername ?? undefined }
-            : undefined,
-        timestamp: message.createdAt,
-        attachments,
-      });
-    }
-
-    return output;
+    return listMessages(channel, channelId, options, this.me?.id);
   }
 
   /**
@@ -613,36 +554,4 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.errorCallbacks.delete(callback);
     };
   }
-}
-
-function toDate(input: MessageQueryOptions["after"]): Date | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (input instanceof Date) {
-    return Number.isNaN(input.getTime()) ? undefined : input;
-  }
-  if (typeof input === "number") {
-    const ms = input > 10_000_000_000 ? input : input * 1000;
-    const date = new Date(ms);
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }
-  const trimmed = input.trim();
-  if (trimmed === "") {
-    return undefined;
-  }
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return toDate(Number(trimmed));
-  }
-  const date = new Date(trimmed);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function normalizeAuthorFilter(author: string): string {
-  const trimmed = author.trim();
-  const mentionMatch = /^<@([^>]+)>$/.exec(trimmed);
-  if (mentionMatch?.[1] !== undefined && mentionMatch[1] !== "") {
-    return mentionMatch[1];
-  }
-  return trimmed.replace(/^@/, "").toLowerCase();
 }

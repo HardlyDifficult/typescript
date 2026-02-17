@@ -181,7 +181,7 @@ export interface DeleteMessageOptions {
 }
 
 /** Author filter for message listing. */
-export type MessageAuthorFilter = "me" | string;
+export type MessageAuthorFilter = string;
 
 /**
  * Query options for listing channel messages.

@@ -24,6 +24,7 @@ import {
   type SlackMessagePayload,
 } from "./buildMessageEvent.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { getMessages as listMessages } from "./getMessages.js";
 import { getThreads } from "./getThreads.js";
 import {
   deleteMessage,
@@ -382,87 +383,10 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     options: MessageQueryOptions = {}
   ): Promise<MessageData[]> {
-    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
-    const oldest = toSlackTimestamp(options.after);
-    const latest = toSlackTimestamp(options.before);
-    const afterDate = toDate(options.after);
-    const beforeDate = toDate(options.before);
-
-    const history = await this.app.client.conversations.history({
-      channel: channelId,
-      limit,
-      ...(oldest !== undefined ? { oldest } : {}),
-      ...(latest !== undefined ? { latest } : {}),
-      ...(oldest !== undefined || latest !== undefined
-        ? { inclusive: false }
-        : {}),
+    return listMessages(this.app, channelId, options, {
+      meId: this.me?.id,
+      botId: this.slackBotId,
     });
-
-    const messages: MessageData[] = [];
-    for (const rawMessage of history.messages ?? []) {
-      const message = rawMessage as SlackHistoryMessage;
-      if (message.ts === undefined || message.ts === "") {
-        continue;
-      }
-
-      const timestamp = new Date(parseFloat(message.ts) * 1000);
-      if (!Number.isFinite(timestamp.getTime())) {
-        continue;
-      }
-      if (afterDate !== undefined && timestamp <= afterDate) {
-        continue;
-      }
-      if (beforeDate !== undefined && timestamp >= beforeDate) {
-        continue;
-      }
-      if (!this.matchesAuthorFilter(message, options.author)) {
-        continue;
-      }
-
-      const authorId = message.user ?? message.bot_id;
-      messages.push({
-        id: message.ts,
-        channelId,
-        platform: "slack",
-        content: message.text ?? "",
-        author:
-          authorId !== undefined
-            ? {
-                id: authorId,
-                username:
-                  message.username !== undefined && message.username !== ""
-                    ? message.username
-                    : undefined,
-              }
-            : undefined,
-        timestamp,
-        attachments: extractSlackAttachments(message),
-      });
-    }
-
-    return messages;
-  }
-
-  private matchesAuthorFilter(
-    message: SlackHistoryMessage,
-    author: MessageQueryOptions["author"]
-  ): boolean {
-    if (author === undefined) {
-      return true;
-    }
-    if (author === "me") {
-      const meId = this.me?.id;
-      return (
-        (meId !== undefined && meId !== "" && message.user === meId) ||
-        (this.slackBotId !== null && message.bot_id === this.slackBotId)
-      );
-    }
-
-    const normalizedAuthor = normalizeAuthorFilter(author);
-    return (
-      (message.user !== undefined && message.user === normalizedAuthor) ||
-      (message.bot_id !== undefined && message.bot_id === normalizedAuthor)
-    );
   }
 
   /**
@@ -546,107 +470,4 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       this.errorCallbacks.delete(callback);
     };
   }
-}
-
-interface SlackFileAttachment {
-  url_private?: string;
-  name?: string;
-  mimetype?: string | null;
-  size?: number;
-}
-
-interface SlackHistoryMessage {
-  ts?: string;
-  text?: string;
-  user?: string;
-  username?: string;
-  bot_id?: string;
-  files?: SlackFileAttachment[];
-}
-
-function toSlackTimestamp(
-  input: MessageQueryOptions["after"]
-): string | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (input instanceof Date) {
-    return String(input.getTime() / 1000);
-  }
-  if (typeof input === "number") {
-    if (!Number.isFinite(input)) {
-      return undefined;
-    }
-    return String(input);
-  }
-  const trimmed = input.trim();
-  if (trimmed === "") {
-    return undefined;
-  }
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return trimmed;
-  }
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-  return String(date.getTime() / 1000);
-}
-
-function toDate(input: MessageQueryOptions["after"]): Date | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (input instanceof Date) {
-    return Number.isNaN(input.getTime()) ? undefined : input;
-  }
-  if (typeof input === "number") {
-    // Heuristic: treat large numbers as ms, small numbers as seconds.
-    const ms = input > 10_000_000_000 ? input : input * 1000;
-    const date = new Date(ms);
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }
-  const trimmed = input.trim();
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    const numeric = Number(trimmed);
-    return toDate(numeric);
-  }
-  const date = new Date(trimmed);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function normalizeAuthorFilter(author: string): string {
-  const mentionMatch = /^<@([^>|]+)(?:\|[^>]+)?>$/.exec(author.trim());
-  if (mentionMatch?.[1] !== undefined && mentionMatch[1] !== "") {
-    return mentionMatch[1];
-  }
-  return author.trim().replace(/^@/, "");
-}
-
-function extractSlackAttachments(message: SlackHistoryMessage) {
-  const attachments: NonNullable<MessageData["attachments"]> = [];
-  for (const file of message.files ?? []) {
-    const url = file.url_private;
-    const name = file.name;
-    if (
-      url === undefined ||
-      url === "" ||
-      name === undefined ||
-      name === ""
-    ) {
-      continue;
-    }
-    attachments.push({
-      url,
-      name,
-      contentType:
-        file.mimetype !== undefined &&
-        file.mimetype !== null &&
-        file.mimetype !== ""
-          ? file.mimetype
-          : undefined,
-      size: file.size,
-    });
-  }
-  return attachments;
 }

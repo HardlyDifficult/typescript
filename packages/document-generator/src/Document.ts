@@ -170,12 +170,6 @@ export class Document {
    * doc.section('Blockers', [], { emptyText: 'None.' });
    * ```
    */
-  section(title: string): this;
-  section(
-    title: string,
-    content: SectionContent,
-    options?: SectionOptions
-  ): this;
   section(
     title: string,
     content?: SectionContent,
@@ -185,7 +179,7 @@ export class Document {
       return this.header(title).divider();
     }
 
-    if (options.divider) {
+    if (options.divider === true) {
       this.divider();
     }
 
@@ -204,7 +198,10 @@ export class Document {
     const items = content
       .map((item) => item.trim())
       .filter((item) => item !== "");
-    const prefix = options.ordered ? (index: number) => `${String(index + 1)}. ` : () => "- ";
+    const prefix =
+      options.ordered === true
+        ? (index: number): string => `${String(index + 1)}. `
+        : (): string => "- ";
 
     if (items.length === 0) {
       if (options.emptyText !== undefined && options.emptyText !== "") {
