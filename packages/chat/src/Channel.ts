@@ -333,7 +333,8 @@ export class Channel {
         batchStore.finishBatch(this.id, this.platform, id);
         return Promise.resolve();
       },
-      getSnapshot: (id: string) => batchStore.getBatch(this.id, this.platform, id),
+      getSnapshot: (id: string) =>
+        batchStore.getBatch(this.id, this.platform, id),
     });
   }
 
@@ -464,9 +465,7 @@ export class Channel {
    * Execute a callback with an auto-finishing message batch.
    * finish() is guaranteed in finally, even when callback throws.
    */
-  async withBatch<T>(
-    callback: (batch: MessageBatch) => Promise<T>
-  ): Promise<T>;
+  async withBatch<T>(callback: (batch: MessageBatch) => Promise<T>): Promise<T>;
   async withBatch<T>(
     options: BeginBatchOptions,
     callback: (batch: MessageBatch) => Promise<T>
@@ -481,7 +480,8 @@ export class Channel {
       typeof optionsOrCallback === "function"
         ? optionsOrCallback
         : maybeCallback;
-    const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+    const options =
+      typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
     if (callback === undefined) {
       throw new Error("withBatch requires a callback");
     }

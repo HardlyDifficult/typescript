@@ -14,10 +14,10 @@ import type {
   KeyValueOptions,
   LinkBlock,
   ListBlock,
+  Platform,
   SectionContent,
   SectionOptions,
   TextBlock,
-  Platform,
   TimestampOptions,
   TruncatedListOptions,
 } from "./types.js";

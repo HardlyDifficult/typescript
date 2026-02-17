@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import type { BatchQueryOptions, MessageAuthorFilter, Platform } from "./types.js";
+import type {
+  BatchQueryOptions,
+  MessageAuthorFilter,
+  Platform,
+} from "./types.js";
 
 export interface BatchMessageRefRecord {
   id: string;
@@ -69,13 +73,12 @@ class InMemoryBatchStore {
     message: BatchMessageRefRecord
   ): BatchRecord | null {
     const existing = this.byId.get(batchId);
-    if (
-      existing === undefined ||
-      existing.channelKey !== channelKey(channelId, platform)
-    ) {
+    if (existing?.channelKey !== channelKey(channelId, platform)) {
       return null;
     }
-    const duplicate = existing.record.messages.some((msg) => msg.id === message.id);
+    const duplicate = existing.record.messages.some(
+      (msg) => msg.id === message.id
+    );
     if (!duplicate) {
       existing.record.messages.push({ ...message });
     }
@@ -88,10 +91,7 @@ class InMemoryBatchStore {
     batchId: string
   ): BatchRecord | null {
     const existing = this.byId.get(batchId);
-    if (
-      existing === undefined ||
-      existing.channelKey !== channelKey(channelId, platform)
-    ) {
+    if (existing?.channelKey !== channelKey(channelId, platform)) {
       return null;
     }
     existing.record.closedAt ??= Date.now();
@@ -108,10 +108,7 @@ class InMemoryBatchStore {
       return this.getBatch(channelId, platform, batchId);
     }
     const existing = this.byId.get(batchId);
-    if (
-      existing === undefined ||
-      existing.channelKey !== channelKey(channelId, platform)
-    ) {
+    if (existing?.channelKey !== channelKey(channelId, platform)) {
       return null;
     }
     const toRemove = new Set(messageIds);
@@ -127,10 +124,7 @@ class InMemoryBatchStore {
     batchId: string
   ): BatchRecord | null {
     const existing = this.byId.get(batchId);
-    if (
-      existing === undefined ||
-      existing.channelKey !== channelKey(channelId, platform)
-    ) {
+    if (existing?.channelKey !== channelKey(channelId, platform)) {
       return null;
     }
     return cloneRecord(existing.record);

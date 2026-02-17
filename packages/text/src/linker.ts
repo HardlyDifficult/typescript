@@ -208,6 +208,9 @@ function resolvePlatform(options: LinkerApplyOptions): LinkerPlatform {
   return options.format ?? options.platform ?? "markdown";
 }
 
+/**
+ *
+ */
 export class Linker {
   private readonly rules: CompiledRule[] = [];
 
@@ -267,7 +270,8 @@ export class Linker {
   ): this {
     return this.custom(
       /\bPR#(\d+)\b/g,
-      ({ groups }) => `https://github.com/${repository}/pull/${groups[0] ?? ""}`,
+      ({ groups }) =>
+        `https://github.com/${repository}/pull/${groups[0] ?? ""}`,
       { name: options.name ?? "github-pr", priority: options.priority }
     );
   }
@@ -362,6 +366,9 @@ export class Linker {
   }
 }
 
+/**
+ *
+ */
 export function createLinker(initialRules: LinkRule[] = []): Linker {
   return new Linker(initialRules);
 }

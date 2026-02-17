@@ -18,7 +18,10 @@ interface MessageBatchOperations {
   ): Message & PromiseLike<Message>;
   appendMessage(batchId: string, message: BatchMessageRef): void;
   removeMessages(batchId: string, messageIds: string[]): void;
-  deleteMessage(messageId: string, options?: DeleteMessageOptions): Promise<void>;
+  deleteMessage(
+    messageId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void>;
   finish(batchId: string): Promise<void>;
   getSnapshot(batchId: string): BatchRecord | null;
 }
@@ -92,7 +95,7 @@ export class MessageBatch {
    * Message references posted through this batch.
    */
   get messages(): BatchMessageRef[] {
-    const snapshot = this.snapshot;
+    const { snapshot } = this;
     if (snapshot === null) {
       return [];
     }
@@ -131,9 +134,7 @@ export class MessageBatch {
   /**
    * Delete all tracked messages in this batch.
    */
-  async deleteAll(
-    options?: DeleteMessageOptions
-  ): Promise<BatchDeleteSummary> {
+  async deleteAll(options?: DeleteMessageOptions): Promise<BatchDeleteSummary> {
     return this.deleteRefs(this.messages, options);
   }
 
@@ -148,8 +149,12 @@ export class MessageBatch {
     const newestFirst = [...this.messages].sort(
       (a, b) => b.postedAt.getTime() - a.postedAt.getTime()
     );
-    const keepIds = new Set(newestFirst.slice(0, keep).map((message) => message.id));
-    const toDelete = this.messages.filter((message) => !keepIds.has(message.id));
+    const keepIds = new Set(
+      newestFirst.slice(0, keep).map((message) => message.id)
+    );
+    const toDelete = this.messages.filter(
+      (message) => !keepIds.has(message.id)
+    );
     const result = await this.deleteRefs(toDelete, options);
     return {
       ...result,
