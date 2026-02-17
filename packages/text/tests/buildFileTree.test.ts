@@ -78,20 +78,14 @@ describe("buildFileTree", () => {
         { collapseDirs: ["test"] }
       );
       expect(result).toBe(
-        [
-          "src/",
-          "  index.ts",
-          "test/",
-          "  (3 files across 2 dirs)",
-        ].join("\n")
+        ["src/", "  index.ts", "test/", "  (3 files across 2 dirs)"].join("\n")
       );
     });
 
     it("collapses directory with files only (no subdirs)", () => {
-      const result = buildFileTree(
-        ["test/a.ts", "test/b.ts", "src/index.ts"],
-        { collapseDirs: ["test"] }
-      );
+      const result = buildFileTree(["test/a.ts", "test/b.ts", "src/index.ts"], {
+        collapseDirs: ["test"],
+      });
       expect(result).toBe(
         ["src/", "  index.ts", "test/", "  (2 files)"].join("\n")
       );
@@ -121,37 +115,33 @@ describe("buildFileTree", () => {
     });
 
     it("uses singular for count of 1", () => {
-      const result = buildFileTree(
-        ["test/sub/only.ts"],
-        { collapseDirs: ["test"] }
-      );
+      const result = buildFileTree(["test/sub/only.ts"], {
+        collapseDirs: ["test"],
+      });
       expect(result).toContain("(1 file across 1 dir)");
     });
 
     it("preserves annotations on collapsed directories", () => {
       const annotations = new Map([["test", "Unit tests"]]);
-      const result = buildFileTree(
-        ["test/a.test.ts", "test/b.test.ts"],
-        { collapseDirs: ["test"], annotations }
-      );
+      const result = buildFileTree(["test/a.test.ts", "test/b.test.ts"], {
+        collapseDirs: ["test"],
+        annotations,
+      });
       expect(result).toContain("test/ \u2014 Unit tests");
       expect(result).toContain("(2 files)");
       expect(result).not.toContain("a.test.ts");
     });
 
     it("shows nothing extra for empty collapsed directory", () => {
-      const result = buildFileTree(
-        ["src/index.ts"],
-        { collapseDirs: ["test"] }
-      );
+      const result = buildFileTree(["src/index.ts"], {
+        collapseDirs: ["test"],
+      });
       expect(result).toBe("src/\n  index.ts");
     });
 
     it("works without collapseDirs (default behavior)", () => {
       const result = buildFileTree(["test/a.ts", "test/b.ts"]);
-      expect(result).toBe(
-        ["test/", "  a.ts", "  b.ts"].join("\n")
-      );
+      expect(result).toBe(["test/", "  a.ts", "  b.ts"].join("\n"));
     });
   });
 });
