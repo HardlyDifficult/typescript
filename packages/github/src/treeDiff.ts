@@ -3,7 +3,7 @@
  * Compares current tree state against a stored manifest of previously processed SHAs.
  */
 
-import type { TreeEntry } from './types.js';
+import type { TreeEntry } from "./types.js";
 
 /** Manifest tracking which blob SHAs have been processed. */
 export type FileManifest = Record<string, string>; // path -> blob SHA
@@ -21,7 +21,10 @@ export interface TreeDiff {
 /**
  * Diff the current git tree against the manifest to find what needs re-processing.
  */
-export function diffTree(blobs: readonly TreeEntry[], manifest: FileManifest): TreeDiff {
+export function diffTree(
+  blobs: readonly TreeEntry[],
+  manifest: FileManifest
+): TreeDiff {
   const currentPaths = new Set(blobs.map((b) => b.path));
   const previousPaths = new Set(Object.keys(manifest));
 
@@ -48,9 +51,11 @@ export function diffTree(blobs: readonly TreeEntry[], manifest: FileManifest): T
 
   // Sort stale dirs deepest first (so leaves are processed before parents)
   const staleDirs = [...affectedDirs].sort((a, b) => {
-    const depthA = a.split('/').length;
-    const depthB = b.split('/').length;
-    if (depthA !== depthB) return depthB - depthA;
+    const depthA = a.split("/").length;
+    const depthB = b.split("/").length;
+    if (depthA !== depthB) {
+      return depthB - depthA;
+    }
     return a.localeCompare(b);
   });
 
@@ -68,9 +73,11 @@ export function collectDirectories(filePaths: readonly string[]): string[] {
 
   // Sort deepest first
   return [...dirs].sort((a, b) => {
-    const depthA = a.split('/').length;
-    const depthB = b.split('/').length;
-    if (depthA !== depthB) return depthB - depthA;
+    const depthA = a.split("/").length;
+    const depthB = b.split("/").length;
+    if (depthA !== depthB) {
+      return depthB - depthA;
+    }
     return a.localeCompare(b);
   });
 }
@@ -78,13 +85,16 @@ export function collectDirectories(filePaths: readonly string[]): string[] {
 /**
  * Group file paths by their immediate parent directory.
  */
-export function groupByDirectory(filePaths: readonly string[]): Map<string, string[]> {
+export function groupByDirectory(
+  filePaths: readonly string[]
+): Map<string, string[]> {
   const groups = new Map<string, string[]>();
 
   for (const filePath of filePaths) {
-    const lastSlash = filePath.lastIndexOf('/');
-    const dir = lastSlash === -1 ? '' : filePath.slice(0, lastSlash);
-    const fileName = lastSlash === -1 ? filePath : filePath.slice(lastSlash + 1);
+    const lastSlash = filePath.lastIndexOf("/");
+    const dir = lastSlash === -1 ? "" : filePath.slice(0, lastSlash);
+    const fileName =
+      lastSlash === -1 ? filePath : filePath.slice(lastSlash + 1);
 
     let children = groups.get(dir);
     if (!children) {
@@ -101,10 +111,10 @@ export function groupByDirectory(filePaths: readonly string[]): Map<string, stri
  * Add all ancestor directories of a file path to the set.
  */
 function addAncestorDirs(filePath: string, dirs: Set<string>): void {
-  const parts = filePath.split('/');
+  const parts = filePath.split("/");
   for (let i = 1; i < parts.length; i++) {
-    dirs.add(parts.slice(0, i).join('/'));
+    dirs.add(parts.slice(0, i).join("/"));
   }
   // Root directory (empty string)
-  dirs.add('');
+  dirs.add("");
 }
