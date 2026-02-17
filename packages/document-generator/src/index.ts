@@ -13,6 +13,7 @@ export type {
   CodeBlock,
   ImageBlock,
   Platform,
+  StringOutputFormat,
   // Document options
   DocumentOptions,
   DocumentSection,
@@ -30,6 +31,7 @@ export type {
 // Outputters (for direct use)
 export { toMarkdown } from "./outputters/markdown.js";
 export { toPlainText } from "./outputters/plainText.js";
+export { toSlack, toSlackText } from "./outputters/slack.js";
 
 // Markdown converter (for custom outputters)
 export { convertMarkdown, stripMarkdown } from "./markdownConverter.js";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toMarkdown, toPlainText } from "../src/index.js";
+import { toMarkdown, toPlainText, toSlack, toSlackText } from "../src/index.js";
 import type { Block } from "../src/index.js";
 
 describe("toMarkdown", () => {
@@ -95,6 +95,111 @@ describe("toMarkdown", () => {
 
   it("handles empty blocks array", () => {
     expect(toMarkdown([])).toBe("");
+  });
+});
+
+describe("toSlackText", () => {
+  it("converts header block", () => {
+    const blocks: Block[] = [{ type: "header", text: "Test Header" }];
+    expect(toSlackText(blocks)).toBe("*Test Header*\n\n");
+  });
+
+  it("converts text block and markdown formatting", () => {
+    const blocks: Block[] = [
+      { type: "text", content: "**bold** and *italic* and ~~strike~~" },
+    ];
+    expect(toSlackText(blocks)).toBe("*bold* and _italic_ and ~strike~\n\n");
+  });
+
+  it("converts list block and markdown formatting", () => {
+    const blocks: Block[] = [
+      { type: "list", items: ["**Item** 1", "*Item* 2", "~~Item~~ 3"] },
+    ];
+    expect(toSlackText(blocks)).toBe("• *Item* 1\n• _Item_ 2\n• ~Item~ 3\n\n");
+  });
+
+  it("converts divider block", () => {
+    const blocks: Block[] = [{ type: "divider" }];
+    expect(toSlackText(blocks)).toBe("────────────────\n\n");
+  });
+
+  it("converts context block", () => {
+    const blocks: Block[] = [{ type: "context", text: "**Context** text" }];
+    expect(toSlackText(blocks)).toBe("*Context* text\n\n");
+  });
+
+  it("converts link block", () => {
+    const blocks: Block[] = [
+      { type: "link", text: "Link **Text**", url: "https://example.com" },
+    ];
+    expect(toSlackText(blocks)).toBe("<https://example.com|Link *Text*>\n\n");
+  });
+
+  it("converts single-line code block", () => {
+    const blocks: Block[] = [
+      { type: "code", content: "const x = 1;", multiline: false },
+    ];
+    expect(toSlackText(blocks)).toBe("`const x = 1;`\n\n");
+  });
+
+  it("converts multiline code block", () => {
+    const blocks: Block[] = [
+      { type: "code", content: "const x = 1;\nconst y = 2;", multiline: true },
+    ];
+    expect(toSlackText(blocks)).toBe(
+      "```\nconst x = 1;\nconst y = 2;\n```\n\n"
+    );
+  });
+
+  it("converts image block with alt text", () => {
+    const blocks: Block[] = [
+      { type: "image", url: "https://example.com/image.png", alt: "Alt text" },
+    ];
+    expect(toSlackText(blocks)).toBe(
+      "Image: <https://example.com/image.png|Alt text>\n\n"
+    );
+  });
+
+  it("converts image block without alt text (uses url)", () => {
+    const blocks: Block[] = [
+      { type: "image", url: "https://example.com/image.png" },
+    ];
+    expect(toSlackText(blocks)).toBe(
+      "Image: <https://example.com/image.png|https://example.com/image.png>\n\n"
+    );
+  });
+
+  it("converts multiple blocks", () => {
+    const blocks: Block[] = [
+      { type: "header", text: "Title" },
+      { type: "text", content: "Content with **bold**" },
+      { type: "list", items: ["Item 1", "*Item* 2"] },
+      { type: "divider" },
+      { type: "context", text: "Context" },
+      { type: "link", text: "Link", url: "https://example.com" },
+      { type: "code", content: "code", multiline: false },
+      { type: "image", url: "https://example.com/img.png", alt: "Image" },
+    ];
+    const result = toSlackText(blocks);
+    expect(result).toBe(
+      "*Title*\n\n" +
+        "Content with *bold*\n\n" +
+        "• Item 1\n• _Item_ 2\n\n" +
+        "────────────────\n\n" +
+        "Context\n\n" +
+        "<https://example.com|Link>\n\n" +
+        "`code`\n\n" +
+        "Image: <https://example.com/img.png|Image>\n\n"
+    );
+  });
+
+  it("handles empty blocks array", () => {
+    expect(toSlackText([])).toBe("");
+  });
+
+  it("supports toSlack alias", () => {
+    const blocks: Block[] = [{ type: "text", content: "Hello **world**" }];
+    expect(toSlack(blocks)).toBe(toSlackText(blocks));
   });
 });
 

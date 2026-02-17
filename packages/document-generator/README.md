@@ -1,6 +1,6 @@
 # @hardlydifficult/document-generator
 
-Platform-agnostic document builder with chainable API.
+Platform-agnostic document builder with chainable API and built-in output methods.
 
 ## Installation
 
@@ -11,7 +11,7 @@ npm install @hardlydifficult/document-generator
 ## Quick Start
 
 ```typescript
-import { Document, toMarkdown, toPlainText } from '@hardlydifficult/document-generator';
+import { Document } from '@hardlydifficult/document-generator';
 
 const document = new Document()
   .header("Weekly Report")
@@ -22,10 +22,13 @@ const document = new Document()
   .context("Generated on 2025-01-15");
 
 // Output as markdown
-console.log(toMarkdown(document.getBlocks()));
+console.log(document.toMarkdown());
+
+// Output as Slack mrkdwn
+console.log(document.toSlackText());
 
 // Output as plain text
-console.log(toPlainText(document.getBlocks()));
+console.log(document.toPlainText());
 ```
 
 ## API
@@ -52,6 +55,16 @@ Create a new document builder. All methods are chainable.
 ### `document.getBlocks(): Block[]`
 
 Get the internal block representation for custom processing.
+
+### String Output Methods
+
+| Method | Description |
+|--------|-------------|
+| `.toMarkdown()` | Render as standard markdown |
+| `.toSlackText()` | Render as Slack mrkdwn string |
+| `.toSlack()` | Alias for `.toSlackText()` |
+| `.toPlainText()` | Render as plain text (markdown stripped) |
+| `.render(format)` | Render via explicit format (`"markdown"`, `"slack"`, `"plaintext"`) |
 
 ## Inline Markdown Support
 
@@ -90,9 +103,15 @@ new Document().code('const x = 1;\nconst y = 2;');
 
 Convert to standard markdown format.
 
+### `toSlackText(blocks): string` / `toSlack(blocks): string`
+
+Convert to Slack mrkdwn format.
+
 ### `toPlainText(blocks): string`
 
 Convert to plain text, stripping all formatting.
+
+Instance methods are recommended for typical usage; free outputter functions are useful when you already have a `Block[]` array.
 
 ## Block Types
 

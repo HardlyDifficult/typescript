@@ -1,5 +1,6 @@
 import { toMarkdown as outputMarkdown } from "./outputters/markdown.js";
 import { toPlainText as outputPlainText } from "./outputters/plainText.js";
+import { toSlackText as outputSlackText } from "./outputters/slack.js";
 import type {
   Block,
   CodeBlock,
@@ -17,6 +18,7 @@ import type {
   Platform,
   SectionContent,
   SectionOptions,
+  StringOutputFormat,
   TextBlock,
   TimestampOptions,
   TruncatedListOptions,
@@ -42,7 +44,7 @@ function resolveLinkTransform(
   );
 }
 
-/** A fluent builder for composing rich documents from typed blocks, with markdown and plain-text output. */
+/** A fluent builder for composing rich documents from typed blocks, with markdown, Slack, and plain-text output. */
 export class Document {
   private blocks: Block[] = [];
 
@@ -429,16 +431,50 @@ export class Document {
   }
 
   /**
+   * Render document as a string in the given format.
+   */
+  render(format: StringOutputFormat): string {
+    switch (format) {
+      case "markdown":
+        return outputMarkdown(this.blocks);
+      case "slack":
+        return outputSlackText(this.blocks);
+      case "plaintext":
+        return outputPlainText(this.blocks);
+      default: {
+        const unsupportedFormat: never = format;
+        throw new Error(
+          `Unsupported output format: ${String(unsupportedFormat)}`
+        );
+      }
+    }
+  }
+
+  /**
    * Convert document to markdown string.
    */
   toMarkdown(): string {
-    return outputMarkdown(this.blocks);
+    return this.render("markdown");
+  }
+
+  /**
+   * Convert document to Slack mrkdwn string.
+   */
+  toSlackText(): string {
+    return this.render("slack");
+  }
+
+  /**
+   * Alias for toSlackText() to keep call sites concise.
+   */
+  toSlack(): string {
+    return this.toSlackText();
   }
 
   /**
    * Convert document to plain text string.
    */
   toPlainText(): string {
-    return outputPlainText(this.blocks);
+    return this.render("plaintext");
   }
 }
