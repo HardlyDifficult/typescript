@@ -16,11 +16,13 @@
     "@hardlydifficult/state-tracker": "file:../state-tracker"
   },
   "devDependencies": {
+    "@hardlydifficult/logger": "file:../logger",
     "@types/node": "25.2.3",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   },
   "peerDependencies": {
+    "@hardlydifficult/logger": ">=1.0.0",
     "@hardlydifficult/state-tracker": ">=2.0.0"
   },
   "engines": {

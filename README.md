@@ -24,7 +24,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting utilities with optional state persistence |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Numeric metric accumulation with session/cumulative dual-tracking |
 | [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
-| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, persistence, and `DataCursor` for nested data access |
+| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | State machine with typed statuses, validated transitions, persistence, and `DataCursor` for nested data access. Includes `Pipeline<TData>` for declarative linear workflows with gates, retries, and auto-logging |
 
 ## GitHub Actions Setup
 
