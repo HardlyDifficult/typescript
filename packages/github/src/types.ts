@@ -229,3 +229,11 @@ export interface PRUpdatedEvent extends PREvent {
 export interface PollCompleteEvent {
   readonly prs: readonly PREvent[];
 }
+
+/** Emitted when the HEAD SHA of a repository's default branch changes. */
+export interface PushEvent {
+  readonly repo: { readonly owner: string; readonly name: string };
+  readonly branch: string;
+  readonly sha: string;
+  readonly previousSha: string;
+}

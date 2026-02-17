@@ -1,15 +1,18 @@
 import type { Octokit } from "@octokit/rest";
 
+import { BranchHeadTracker } from "./polling/branchHeadTracker.js";
 import { fetchPRActivitySelective } from "./polling/fetchPRActivity.js";
 import { fetchWatchedPRs, type WatchedPR } from "./polling/fetchWatchedPRs.js";
 import {
   buildSnapshot,
+  detectCheckRunChanges,
+  detectNewComments,
+  detectNewReviews,
   detectPRChanges,
   type PRSnapshot,
 } from "./polling/processSnapshot.js";
 import { classifyAndDetectChange } from "./polling/statusTracker.js";
 import type {
-  CheckRun,
   CheckRunEvent,
   ClassifyPR,
   CommentEvent,
@@ -19,8 +22,7 @@ import type {
   PRStatusEvent,
   PRUpdatedEvent,
   PullRequest,
-  PullRequestComment,
-  PullRequestReview,
+  PushEvent,
   ReviewEvent,
   StatusChangedEvent,
   WatchOptions,
@@ -60,7 +62,10 @@ export class PRWatcher {
   >();
   private readonly errorCallbacks = new Set<(error: Error) => void>();
 
+  private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
+
   private readonly snapshots = new Map<string, PRSnapshot>();
+  private readonly branchTracker = new BranchHeadTracker();
   private timer: ReturnType<typeof setInterval> | undefined;
   private fetching = false;
   private initialized = false;
@@ -123,6 +128,12 @@ export class PRWatcher {
     return () => this.statusChangedCallbacks.delete(callback);
   }
 
+  /** Fires when the HEAD SHA of a watched repository's default branch changes. */
+  onPush(callback: (event: PushEvent) => void): () => void {
+    this.pushCallbacks.add(callback);
+    return () => this.pushCallbacks.delete(callback);
+  }
+
   onError(callback: (error: Error) => void): () => void {
     this.errorCallbacks.add(callback);
     return () => this.errorCallbacks.delete(callback);
@@ -164,6 +175,7 @@ export class PRWatcher {
     const index = this.repos.indexOf(repo);
     if (index !== -1) {
       this.repos.splice(index, 1);
+      this.branchTracker.removeRepo(repo);
     }
   }
 
@@ -202,6 +214,14 @@ export class PRWatcher {
     const currentKeys = new Set<string>();
 
     for (const { pr, owner, name } of watchedPRs) {
+      const defaultBranch = pr.base.repo.default_branch;
+      if (defaultBranch) {
+        this.branchTracker.harvestDefaultBranch(
+          `${owner}/${name}`,
+          defaultBranch
+        );
+      }
+
       const key = prKey(owner, name, pr.number);
       currentKeys.add(key);
 
@@ -222,6 +242,22 @@ export class PRWatcher {
         if (snapshot.lastSeen < cutoff) {
           this.snapshots.delete(key);
         }
+      }
+    }
+
+    if (this.pushCallbacks.size > 0) {
+      const { events: pushEvents, errors: pushErrors } =
+        await this.branchTracker.check(
+          this.octokit,
+          this.repos,
+          this.initialized,
+          this.throttle
+        );
+      for (const event of pushEvents) {
+        this.emit(this.pushCallbacks, event);
+      }
+      for (const error of pushErrors) {
+        this.emitError(error);
       }
     }
 
@@ -303,9 +339,18 @@ export class PRWatcher {
     );
 
     if (this.initialized) {
-      this.emitNewComments(activity.comments, previous, pr, repo);
-      this.emitNewReviews(activity.reviews, previous, pr, repo);
-      this.emitCheckRunChanges(activity.checkRuns, previous, pr, repo);
+      for (const comment of detectNewComments(activity.comments, previous)) {
+        this.emit(this.commentCallbacks, { comment, pr, repo });
+      }
+      for (const review of detectNewReviews(activity.reviews, previous)) {
+        this.emit(this.reviewCallbacks, { review, pr, repo });
+      }
+      for (const checkRun of detectCheckRunChanges(
+        activity.checkRuns,
+        previous
+      )) {
+        this.emit(this.checkRunCallbacks, { checkRun, pr, repo });
+      }
     }
 
     let status: string | null = null;
@@ -352,49 +397,6 @@ export class PRWatcher {
       }
 
       this.snapshots.delete(key);
-    }
-  }
-
-  private emitNewComments(
-    comments: readonly PullRequestComment[],
-    previous: PRSnapshot,
-    pr: PullRequest,
-    repo: { owner: string; name: string }
-  ): void {
-    for (const comment of comments) {
-      if (!previous.commentIds.has(comment.id)) {
-        this.emit(this.commentCallbacks, { comment, pr, repo });
-      }
-    }
-  }
-
-  private emitNewReviews(
-    reviews: readonly PullRequestReview[],
-    previous: PRSnapshot,
-    pr: PullRequest,
-    repo: { owner: string; name: string }
-  ): void {
-    for (const review of reviews) {
-      if (!previous.reviewIds.has(review.id)) {
-        this.emit(this.reviewCallbacks, { review, pr, repo });
-      }
-    }
-  }
-
-  private emitCheckRunChanges(
-    checkRuns: readonly CheckRun[],
-    previous: PRSnapshot,
-    pr: PullRequest,
-    repo: { owner: string; name: string }
-  ): void {
-    for (const checkRun of checkRuns) {
-      const prev = previous.checkRuns.get(checkRun.id);
-      const changed =
-        prev?.status !== checkRun.status ||
-        prev.conclusion !== checkRun.conclusion;
-      if (changed) {
-        this.emit(this.checkRunCallbacks, { checkRun, pr, repo });
-      }
     }
   }
 
