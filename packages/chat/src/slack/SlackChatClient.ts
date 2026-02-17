@@ -573,7 +573,10 @@ function toSlackTimestamp(
   if (input instanceof Date) {
     return String(input.getTime() / 1000);
   }
-  if (typeof input === "number" && Number.isFinite(input)) {
+  if (typeof input === "number") {
+    if (!Number.isFinite(input)) {
+      return undefined;
+    }
     return String(input);
   }
   const trimmed = input.trim();
