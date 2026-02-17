@@ -23,3 +23,5 @@ export {
   type EventSubscriber,
   type EventRequestOptions,
 } from "./eventRequest";
+
+export { retry, type RetryOptions } from "./retry";
