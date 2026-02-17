@@ -2,6 +2,7 @@ import { StreamingReply } from "./StreamingReply";
 import type { Thread } from "./Thread";
 import type {
   Attachment,
+  DeleteMessageOptions,
   FileAttachment,
   MessageContent,
   MessageData,
@@ -30,7 +31,11 @@ export interface MessageOperations {
     channelId: string,
     content: MessageContent
   ): Promise<void>;
-  deleteMessage(messageId: string, channelId: string): Promise<void>;
+  deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void>;
   reply(
     channelId: string,
     threadTs: string,
@@ -265,8 +270,8 @@ export class Message {
   /**
    * Delete this message
    */
-  async delete(): Promise<void> {
-    await this.operations.deleteMessage(this.id, this.channelId);
+  async delete(options?: DeleteMessageOptions): Promise<void> {
+    await this.operations.deleteMessage(this.id, this.channelId, options);
   }
 
   /**

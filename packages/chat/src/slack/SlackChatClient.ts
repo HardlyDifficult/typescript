@@ -3,6 +3,7 @@ import { App } from "@slack/bolt";
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
 import type {
+  DeleteMessageOptions,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -10,6 +11,7 @@ import type {
   MessageCallback,
   MessageContent,
   MessageData,
+  MessageQueryOptions,
   ReactionCallback,
   ReactionEvent,
   SlackConfig,
@@ -22,6 +24,7 @@ import {
   type SlackMessagePayload,
 } from "./buildMessageEvent.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { getMessages as listMessages } from "./getMessages.js";
 import { getThreads } from "./getThreads.js";
 import {
   deleteMessage,
@@ -35,6 +38,7 @@ import { removeAllReactions } from "./removeAllReactions.js";
  */
 export class SlackChatClient extends ChatClient implements ChannelOperations {
   private app: App;
+  private slackBotId: string | null = null;
   private reactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private messageCallbacks = new Map<string, Set<MessageCallback>>();
   private threadCallbacks = new Map<string, Set<MessageCallback>>();
@@ -148,7 +152,27 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    */
   async connect(channelId: string): Promise<Channel> {
     await this.app.start();
+    await this.hydrateIdentity();
     return new Channel(channelId, "slack", this);
+  }
+
+  private async hydrateIdentity(): Promise<void> {
+    const auth = await this.app.client.auth.test();
+    const userId = auth.user_id;
+    if (userId === undefined || userId === "") {
+      throw new Error("Slack auth.test did not return user_id");
+    }
+
+    const username =
+      auth.user !== undefined && auth.user !== "" ? auth.user : userId;
+    this.meValue = {
+      id: userId,
+      username,
+      displayName: username,
+      mention: `<@${userId}>`,
+    };
+    this.slackBotId =
+      auth.bot_id !== undefined && auth.bot_id !== "" ? auth.bot_id : null;
   }
 
   /**
@@ -161,6 +185,8 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     this.threadCallbacks.clear();
     this.disconnectCallbacks.clear();
     this.errorCallbacks.clear();
+    this.meValue = null;
+    this.slackBotId = null;
   }
 
   /**
@@ -192,8 +218,12 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   /**
    * Delete a message and its thread replies from a Slack channel
    */
-  async deleteMessage(messageId: string, channelId: string): Promise<void> {
-    await deleteMessage(this.app, messageId, channelId);
+  async deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void> {
+    await deleteMessage(this.app, messageId, channelId, options);
   }
 
   /**
@@ -347,6 +377,16 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     }
 
     return deleted;
+  }
+
+  async getMessages(
+    channelId: string,
+    options: MessageQueryOptions = {}
+  ): Promise<MessageData[]> {
+    return listMessages(this.app, channelId, options, {
+      meId: this.me?.id,
+      botId: this.slackBotId,
+    });
   }
 
   /**

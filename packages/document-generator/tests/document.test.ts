@@ -285,6 +285,74 @@ describe("Document", () => {
         .section("Section 2");
       expect(document.getBlocks()).toHaveLength(5);
     });
+
+    it("renders list-style section content", () => {
+      const document = new Document().section("Today", [
+        "Ship onboarding",
+        "Fix flaky test",
+      ]);
+
+      expect(document.getBlocks()).toEqual([
+        {
+          type: "text",
+          content: "**Today**\n- Ship onboarding\n- Fix flaky test",
+        },
+      ]);
+    });
+
+    it("renders section with string content", () => {
+      const document = new Document().section("Summary", "All systems green");
+
+      expect(document.getBlocks()).toEqual([
+        {
+          type: "text",
+          content: "**Summary**\nAll systems green",
+        },
+      ]);
+    });
+
+    it("renders emptyText when section list is empty", () => {
+      const document = new Document().section("Blockers", [], {
+        emptyText: "None.",
+      });
+
+      expect(document.getBlocks()).toEqual([
+        {
+          type: "text",
+          content: "**Blockers**\n- None.",
+        },
+      ]);
+    });
+  });
+
+  describe("field()", () => {
+    it("renders a key-value line", () => {
+      const document = new Document().field("ETA", "Tomorrow");
+
+      expect(document.getBlocks()).toEqual([
+        {
+          type: "text",
+          content: "**ETA**: Tomorrow",
+        },
+      ]);
+    });
+
+    it("skips empty values by default", () => {
+      const document = new Document().field("ETA", "");
+      expect(document.getBlocks()).toEqual([]);
+    });
+
+    it("uses emptyText when provided", () => {
+      const document = new Document().field("Blockers", "", {
+        emptyText: "None.",
+      });
+      expect(document.getBlocks()).toEqual([
+        {
+          type: "text",
+          content: "**Blockers**: None.",
+        },
+      ]);
+    });
   });
 
   describe("keyValue()", () => {

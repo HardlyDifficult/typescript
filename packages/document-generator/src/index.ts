@@ -16,6 +16,9 @@ export type {
   // Document options
   DocumentOptions,
   DocumentSection,
+  SectionContent,
+  SectionOptions,
+  FieldOptions,
   KeyValueOptions,
   TruncatedListOptions,
   TimestampOptions,

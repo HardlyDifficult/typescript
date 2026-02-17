@@ -6,11 +6,14 @@ import type {
   ContextBlock,
   DividerBlock,
   DocumentOptions,
+  FieldOptions,
   HeaderBlock,
   ImageBlock,
   KeyValueOptions,
   LinkBlock,
   ListBlock,
+  SectionContent,
+  SectionOptions,
   TextBlock,
   TimestampOptions,
   TruncatedListOptions,
@@ -153,15 +156,91 @@ export class Document {
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Add a section with header and divider.
+   * Add a section.
+   *
+   * Overloads:
+   * - `section(title)` keeps legacy behavior (header + divider).
+   * - `section(title, content)` renders a bold section title with content.
+   * - `section(title, items[])` renders a bold section title with bullets.
    *
    * @example
    * ```typescript
    * doc.section('Customer Details').text('Name: Alice');
+   * doc.section('Today', ['Ship onboarding flow', 'Fix retry bug']);
+   * doc.section('Blockers', [], { emptyText: 'None.' });
    * ```
    */
-  section(title: string): this {
-    return this.header(title).divider();
+  section(
+    title: string,
+    content?: SectionContent,
+    options: SectionOptions = {}
+  ): this {
+    if (content === undefined) {
+      return this.header(title).divider();
+    }
+
+    if (options.divider === true) {
+      this.divider();
+    }
+
+    const heading = `**${title}**`;
+    if (typeof content === "string") {
+      const body = content.trim();
+      if (body !== "") {
+        return this.text(`${heading}\n${body}`);
+      }
+      if (options.emptyText !== undefined && options.emptyText !== "") {
+        return this.text(`${heading}\n${options.emptyText}`);
+      }
+      return this.text(heading);
+    }
+
+    const items = content
+      .map((item) => item.trim())
+      .filter((item) => item !== "");
+    const prefix =
+      options.ordered === true
+        ? (index: number): string => `${String(index + 1)}. `
+        : (): string => "- ";
+
+    if (items.length === 0) {
+      if (options.emptyText !== undefined && options.emptyText !== "") {
+        return this.text(`${heading}\n${prefix(0)}${options.emptyText}`);
+      }
+      return this.text(heading);
+    }
+
+    const lines = items.map((item, index) => `${prefix(index)}${item}`);
+    return this.text([heading, ...lines].join("\n"));
+  }
+
+  /**
+   * Add a single key-value line, useful for short metadata fields.
+   *
+   * @example
+   * ```typescript
+   * doc.field('ETA', 'Tomorrow');
+   * // **ETA:** Tomorrow
+   * ```
+   */
+  field(
+    label: string,
+    value: string | number | boolean | undefined,
+    options: FieldOptions = {}
+  ): this {
+    const { separator = ":", bold = true } = options;
+    const renderedLabel = bold ? `**${label}**` : label;
+    const isEmpty =
+      value === undefined || (typeof value === "string" && value.trim() === "");
+
+    if (isEmpty) {
+      if (options.emptyText === undefined || options.emptyText === "") {
+        return this;
+      }
+      return this.text(`${renderedLabel}${separator} ${options.emptyText}`);
+    }
+
+    return this.text(`${renderedLabel}${separator} ${String(value)}`);
   }
 
   /**

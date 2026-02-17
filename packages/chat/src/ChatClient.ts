@@ -1,12 +1,22 @@
 import type { Channel } from "./Channel";
-import type { ChatConfig } from "./types";
+import type { ChatConfig, ClientIdentity } from "./types";
 
 /**
  * Abstract base class for chat platform clients
  * Provides a unified API for Discord and Slack
  */
 export abstract class ChatClient {
+  protected meValue: ClientIdentity | null = null;
+
   constructor(protected readonly config: ChatConfig) {}
+
+  /**
+   * Identity of the connected bot user.
+   * Available after connect() succeeds.
+   */
+  get me(): ClientIdentity | null {
+    return this.meValue;
+  }
 
   /**
    * Connect to the chat platform and return a channel object

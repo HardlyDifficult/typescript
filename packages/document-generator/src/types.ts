@@ -58,10 +58,36 @@ export interface DocumentSection {
   content: string;
 }
 
+export type SectionContent = string | string[];
+
 export interface DocumentOptions {
   header?: string;
   sections?: DocumentSection[];
   context?: Record<string, string | number | boolean | undefined>;
+}
+
+export interface SectionOptions {
+  /**
+   * Fallback text shown when section content is empty.
+   * If omitted and content is empty, only the section title is rendered.
+   */
+  emptyText?: string;
+  /** Render ordered list numbers instead of bullet markers. */
+  ordered?: boolean;
+  /** Insert a divider before the section output. */
+  divider?: boolean;
+}
+
+export interface FieldOptions {
+  /**
+   * Fallback value when the provided value is empty.
+   * If omitted and value is empty, the field is skipped.
+   */
+  emptyText?: string;
+  /** Separator placed between the label and value. Default: ":" */
+  separator?: string;
+  /** Whether to bold the label. Default: true */
+  bold?: boolean;
 }
 
 // Key-value formatting options

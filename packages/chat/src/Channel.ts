@@ -1,7 +1,9 @@
+import { extractMentionId, findBestMemberMatch } from "./memberMatching";
 import { Message, type MessageOperations } from "./Message";
 import { PendingMessage } from "./PendingMessage";
 import { Thread, type ThreadOperations } from "./Thread";
 import type {
+  DeleteMessageOptions,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -10,6 +12,7 @@ import type {
   MessageContent,
   MessageData,
   MessageEvent,
+  MessageQueryOptions,
   Platform,
   ReactionCallback,
   ThreadData,
@@ -33,7 +36,11 @@ export interface ChannelOperations {
     channelId: string,
     content: MessageContent
   ): Promise<void>;
-  deleteMessage(messageId: string, channelId: string): Promise<void>;
+  deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void>;
   addReaction(
     messageId: string,
     channelId: string,
@@ -58,6 +65,10 @@ export interface ChannelOperations {
     autoArchiveDuration?: number
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
+  getMessages(
+    channelId: string,
+    options?: MessageQueryOptions
+  ): Promise<MessageData[]>;
   getThreads(channelId: string): Promise<ThreadData[]>;
   deleteThread(threadId: string, channelId: string): Promise<void>;
   getMembers(channelId: string): Promise<Member[]>;
@@ -220,8 +231,11 @@ export class Channel {
         channelId: string,
         content: MessageContent
       ) => this.operations.updateMessage(messageId, channelId, content),
-      deleteMessage: (messageId: string, channelId: string) =>
-        this.operations.deleteMessage(messageId, channelId),
+      deleteMessage: (
+        messageId: string,
+        channelId: string,
+        options?: DeleteMessageOptions
+      ) => this.operations.deleteMessage(messageId, channelId, options),
       reply: async (
         channelId: string,
         threadTs: string,
@@ -417,6 +431,86 @@ export class Channel {
    */
   async getMembers(): Promise<Member[]> {
     return this.operations.getMembers(this.id);
+  }
+
+  /**
+   * Find a channel member by fuzzy query (mention, username, display name, or email).
+   * Returns null when no unambiguous match is found.
+   */
+  async findMember(query: string): Promise<Member | null> {
+    const members = await this.getMembers();
+    return findBestMemberMatch(members, query);
+  }
+
+  /**
+   * Resolve a user query to a mention string (e.g., "<@U123>").
+   * Returns null when no unambiguous match is found.
+   */
+  async resolveMention(query: string): Promise<string | null> {
+    const member = await this.findMember(query);
+    return member?.mention ?? null;
+  }
+
+  /**
+   * Get recent messages in this channel.
+   * Supports filtering by author and timestamp window.
+   */
+  async getMessages(options: MessageQueryOptions = {}): Promise<Message[]> {
+    const { author: optionAuthor } = options;
+    let author = optionAuthor;
+    if (author !== undefined && author !== "me") {
+      const mentionId = extractMentionId(author);
+      if (mentionId !== null) {
+        author = mentionId;
+      } else {
+        const member = await this.findMember(author);
+        if (member !== null) {
+          author = member.id;
+        }
+      }
+    }
+
+    const data = await this.operations.getMessages(this.id, {
+      ...options,
+      author,
+    });
+
+    return data.map(
+      (message) => new Message(message, this.createMessageOperations())
+    );
+  }
+
+  /**
+   * Convenience helper to fetch recent messages authored by the connected bot.
+   */
+  async getRecentBotMessages(limit = 50): Promise<Message[]> {
+    return this.getMessages({ limit, author: "me" });
+  }
+
+  /**
+   * Opinionated cleanup helper: keep the newest N messages and delete the rest.
+   * Returns the number of deleted messages.
+   */
+  async pruneMessages(
+    options: MessageQueryOptions & {
+      keep?: number;
+      cascadeReplies?: boolean;
+    } = {}
+  ): Promise<number> {
+    const keep = Math.max(0, options.keep ?? 0);
+    const cascadeReplies = options.cascadeReplies ?? true;
+    const messages = await this.getMessages({
+      limit: options.limit,
+      author: options.author,
+      after: options.after,
+      before: options.before,
+    });
+
+    const toDelete = messages.slice(keep);
+    for (const message of toDelete) {
+      await message.delete({ cascadeReplies });
+    }
+    return toDelete.length;
   }
 
   /**

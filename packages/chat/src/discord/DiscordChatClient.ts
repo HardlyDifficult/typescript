@@ -17,6 +17,7 @@ import { MESSAGE_LIMITS } from "../constants.js";
 import { toDiscordEmbed } from "../outputters/discord.js";
 import type {
   Attachment,
+  DeleteMessageOptions,
   DisconnectCallback,
   DiscordConfig,
   ErrorCallback,
@@ -26,6 +27,7 @@ import type {
   MessageContent,
   MessageData,
   MessageEvent,
+  MessageQueryOptions,
   ReactionCallback,
   ReactionEvent,
   ThreadData,
@@ -35,6 +37,7 @@ import { isDocument } from "../utils.js";
 
 import { buildMessagePayload } from "./buildMessagePayload.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
+import { getMessages as listMessages } from "./getMessages.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
 /**
@@ -223,6 +226,16 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async connect(channelId: string): Promise<Channel> {
     await this.client.login(this.token);
     await this.fetchTextChannel(channelId);
+    const me = this.client.user;
+    if (!me) {
+      throw new Error("Discord client user was not available after login");
+    }
+    this.meValue = {
+      id: me.id,
+      username: me.username,
+      displayName: me.globalName ?? me.username,
+      mention: `<@${me.id}>`,
+    };
     return new Channel(channelId, "discord", this);
   }
 
@@ -234,6 +247,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     this.messageListeners.clear();
     this.disconnectCallbacks.clear();
     this.errorCallbacks.clear();
+    this.meValue = null;
     await this.client.destroy();
   }
 
@@ -292,12 +306,16 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param messageId - ID of the message to delete
    * @param channelId - Channel containing the message
    */
-  async deleteMessage(messageId: string, channelId: string): Promise<void> {
+  async deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
 
     // Delete the thread (and all its messages) if one exists
-    if (message.thread) {
+    if (options?.cascadeReplies !== false && message.thread) {
       await message.thread.delete();
     }
 
@@ -449,6 +467,14 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
     const deleted = await channel.bulkDelete(count, true);
     return deleted.size;
+  }
+
+  async getMessages(
+    channelId: string,
+    options: MessageQueryOptions = {}
+  ): Promise<MessageData[]> {
+    const channel = await this.fetchTextChannel(channelId);
+    return listMessages(channel, channelId, options, this.me?.id);
   }
 
   /**

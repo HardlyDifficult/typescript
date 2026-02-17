@@ -15,6 +15,7 @@ import { createChatClient } from "@hardlydifficult/chat";
 
 const client = createChatClient({ type: "discord" });
 const channel = await client.connect(channelId);
+console.log(client.me?.mention); // "<@123...>"
 
 // Post messages
 await channel.postMessage("Hello!");
@@ -35,6 +36,19 @@ createChatClient({ type: "discord", token: "...", guildId: "..." });
 // Slack - env vars: SLACK_BOT_TOKEN, SLACK_APP_TOKEN
 createChatClient({ type: "slack" });
 createChatClient({ type: "slack", token: "...", appToken: "..." });
+```
+
+## Bot Identity
+
+After `connect()`, `client.me` exposes the authenticated bot user:
+
+```typescript
+const client = createChatClient({ type: "slack" });
+await client.connect(channelId);
+
+console.log(client.me?.id); // "U09B00R2R96"
+console.log(client.me?.username); // "sprint-bot"
+console.log(client.me?.mention); // "<@U09B00R2R96>"
 ```
 
 ## Incoming Messages
@@ -110,6 +124,7 @@ const msg = await channel.postMessage("Hello");
 await msg.update("Updated content");
 msg.reply("Thread reply");
 await msg.delete();
+await msg.delete({ cascadeReplies: false }); // keep thread replies
 ```
 
 ### Reactions
@@ -267,17 +282,21 @@ console.log(stream.content); // "working...\n" — only pre-abort text
 
 ## Mentions
 
-Get channel members and @mention them in messages.
+Resolve fuzzy member queries directly to mention strings.
+
+```typescript
+const mention = await channel.resolveMention("Nick Mancuso");
+await channel.postMessage(`Hey ${mention ?? "@nick"}, check this out!`);
+```
+
+You can still inspect members directly:
 
 ```typescript
 const members = await channel.getMembers();
-const user = members.find((m) => m.username === "alice");
-if (user) {
-  await channel.postMessage(`Hey ${user.mention}, check this out!`);
-}
+const member = await channel.findMember("@alice");
 ```
 
-Each `Member` has `id`, `username`, `displayName`, and `mention` (a ready-to-use `<@USER_ID>` string that renders as a clickable @mention on both platforms).
+Each `Member` has `id`, `username`, `displayName`, `mention`, and (when available) `email`.
 
 ## Typing Indicator
 
@@ -306,6 +325,13 @@ Delete messages and manage threads in bulk.
 ```typescript
 // Delete up to 100 recent messages
 const deletedCount = await channel.bulkDelete(50);
+
+// List and filter recent messages
+const botMessages = await channel.getMessages({ limit: 50, author: "me" });
+const sameMessages = await channel.getRecentBotMessages(50);
+
+// Keep latest 8 bot messages, delete older ones (opinionated cleanup helper)
+await channel.pruneMessages({ author: "me", limit: 50, keep: 8 });
 
 // Get all threads (active and archived) and delete them
 const threads = await channel.getThreads();

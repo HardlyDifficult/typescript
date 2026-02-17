@@ -1,6 +1,7 @@
 // Types
 export {
   type Attachment,
+  type ClientIdentity,
   type User,
   type Member,
   type DiscordConfig,
@@ -11,7 +12,11 @@ export {
   type ReactionCallback,
   type MessageEvent,
   type MessageContent,
+  type MessageAuthorFilter,
+  type MessageQueryOptions,
   type FileAttachment,
+  type DeleteMessageOptions,
+  type TimestampInput,
   type ThreadData,
   type DisconnectCallback,
   type ErrorCallback,

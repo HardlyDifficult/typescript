@@ -15,6 +15,7 @@ const {
   mockConversationsReplies,
   mockConversationsMembers,
   mockUsersInfo,
+  mockAuthTest,
   mockStart,
   mockStop,
   mockEvent,
@@ -44,6 +45,7 @@ const {
   const mockConversationsReplies = vi.fn();
   const mockConversationsMembers = vi.fn();
   const mockUsersInfo = vi.fn();
+  const mockAuthTest = vi.fn();
   const mockStart = vi.fn();
   const mockStop = vi.fn();
   const mockEvent = vi.fn();
@@ -74,6 +76,9 @@ const {
       users: {
         info: mockUsersInfo,
       },
+      auth: {
+        test: mockAuthTest,
+      },
     },
   };
 
@@ -98,6 +103,7 @@ const {
     mockConversationsReplies,
     mockConversationsMembers,
     mockUsersInfo,
+    mockAuthTest,
     mockStart,
     mockStop,
     mockEvent,
@@ -187,6 +193,11 @@ describe("SlackChatClient", () => {
       response_metadata: {},
     });
     mockUsersInfo.mockResolvedValue({ user: null });
+    mockAuthTest.mockResolvedValue({
+      user_id: "U_BOT",
+      user: "sprint-bot",
+      bot_id: "B123",
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockEvent.mockImplementation((eventName: string, handler: any) => {
       if (eventName === "reaction_added") {
@@ -337,6 +348,18 @@ describe("SlackChatClient", () => {
       expect(channel).toBeInstanceOf(Channel);
       expect(channel.id).toBe(channelId);
       expect(channel.platform).toBe("slack");
+    });
+
+    it("should expose bot identity as client.me", async () => {
+      await client.connect(channelId);
+
+      expect(mockAuthTest).toHaveBeenCalledTimes(1);
+      expect(client.me).toEqual({
+        id: "U_BOT",
+        username: "sprint-bot",
+        displayName: "sprint-bot",
+        mention: "<@U_BOT>",
+      });
     });
 
     it("should throw error if connection fails", async () => {
@@ -1802,6 +1825,20 @@ describe("SlackChatClient", () => {
         ts: msg.id,
       });
     });
+
+    it("should skip thread-reply cascade when cascadeReplies is false", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Hello");
+
+      await msg.delete({ cascadeReplies: false });
+
+      expect(mockConversationsReplies).not.toHaveBeenCalled();
+      expect(mockChatDelete).toHaveBeenCalledTimes(1);
+      expect(mockChatDelete).toHaveBeenCalledWith({
+        channel: channelId,
+        ts: msg.id,
+      });
+    });
   });
 
   describe("Channel.bulkDelete()", () => {
@@ -1833,6 +1870,44 @@ describe("SlackChatClient", () => {
       const deleted = await channel.bulkDelete(2);
 
       expect(deleted).toBe(1);
+    });
+  });
+
+  describe("Channel.getMessages()", () => {
+    it("should list recent messages from channel history", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: "111.111", text: "First", user: "U1" },
+          { ts: "222.222", text: "Second", user: "U2" },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({ limit: 2 });
+
+      expect(mockConversationsHistory).toHaveBeenCalledWith({
+        channel: channelId,
+        limit: 2,
+      });
+      expect(messages).toHaveLength(2);
+      expect(messages[0].id).toBe("111.111");
+      expect(messages[0].content).toBe("First");
+      expect(messages[0].author).toEqual({ id: "U1", username: undefined });
+    });
+
+    it("should filter messages by author: me", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: "111.111", text: "Mine", user: "U_BOT" },
+          { ts: "222.222", text: "Other", user: "U_OTHER" },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({ author: "me", limit: 10 });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].id).toBe("111.111");
     });
   });
 

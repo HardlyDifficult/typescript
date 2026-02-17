@@ -46,6 +46,8 @@ Create a new document builder. All methods are chainable.
 | `.link(text, url)` | Add a hyperlink |
 | `.code(content)` | Add code (auto-detects inline vs multiline) |
 | `.image(url, alt?)` | Add an image |
+| `.section(title, content?, options?)` | Add a section (legacy header+divider, or bold title + body/list) |
+| `.field(label, value, options?)` | Add a single key-value line (e.g., `**ETA:** Tomorrow`) |
 
 ### `document.getBlocks(): Block[]`
 
@@ -127,4 +129,16 @@ const report = new Document()
 
 // Automatically converted to Slack Block Kit
 await channel.postMessage(report);
+```
+
+## Structured Sections and Fields
+
+For status updates and standups, use `section` and `field` to keep client code concise:
+
+```typescript
+const detail = new Document()
+  .section("Yesterday", ["Reviewed PR #42", "Fixed flaky test"])
+  .section("Today", ["Ship ENG-533", "Pair on migration"])
+  .section("Blockers", [], { emptyText: "None." })
+  .field("ETA", "Tomorrow");
 ```

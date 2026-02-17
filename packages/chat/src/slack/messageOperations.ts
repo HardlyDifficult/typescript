@@ -3,7 +3,12 @@ import type { App } from "@slack/bolt";
 
 import { MESSAGE_LIMITS } from "../constants.js";
 import { type SlackBlock, toSlackBlocks } from "../outputters/slack.js";
-import type { FileAttachment, MessageContent, MessageData } from "../types.js";
+import type {
+  DeleteMessageOptions,
+  FileAttachment,
+  MessageContent,
+  MessageData,
+} from "../types.js";
 import { isDocument } from "../utils.js";
 
 /**
@@ -190,22 +195,25 @@ export async function updateMessage(
 export async function deleteMessage(
   app: App,
   messageId: string,
-  channelId: string
+  channelId: string,
+  options?: DeleteMessageOptions
 ): Promise<void> {
-  // Fetch and delete thread replies first
-  const replies = await app.client.conversations.replies({
-    channel: channelId,
-    ts: messageId,
-  });
+  if (options?.cascadeReplies !== false) {
+    // Fetch and delete thread replies first
+    const replies = await app.client.conversations.replies({
+      channel: channelId,
+      ts: messageId,
+    });
 
-  if (replies.messages && replies.messages.length > 1) {
-    // First message is the parent — delete replies (rest) in reverse order
-    for (const reply of replies.messages.slice(1).reverse()) {
-      if (reply.ts !== undefined && reply.ts !== "") {
-        await app.client.chat.delete({
-          channel: channelId,
-          ts: reply.ts,
-        });
+    if (replies.messages && replies.messages.length > 1) {
+      // First message is the parent — delete replies (rest) in reverse order
+      for (const reply of replies.messages.slice(1).reverse()) {
+        if (reply.ts !== undefined && reply.ts !== "") {
+          await app.client.chat.delete({
+            channel: channelId,
+            ts: reply.ts,
+          });
+        }
       }
     }
   }
