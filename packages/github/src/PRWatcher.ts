@@ -19,6 +19,7 @@ import type {
   PRStatusEvent,
   PRUpdatedEvent,
   PullRequest,
+  PushEvent,
   PullRequestComment,
   PullRequestReview,
   ReviewEvent,
@@ -60,7 +61,11 @@ export class PRWatcher {
   >();
   private readonly errorCallbacks = new Set<(error: Error) => void>();
 
+  private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
+
   private readonly snapshots = new Map<string, PRSnapshot>();
+  private readonly defaultBranches = new Map<string, string>();
+  private readonly branchHeadShas = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | undefined;
   private fetching = false;
   private initialized = false;
@@ -123,6 +128,12 @@ export class PRWatcher {
     return () => this.statusChangedCallbacks.delete(callback);
   }
 
+  /** Fires when the HEAD SHA of a watched repository's default branch changes. */
+  onPush(callback: (event: PushEvent) => void): () => void {
+    this.pushCallbacks.add(callback);
+    return () => this.pushCallbacks.delete(callback);
+  }
+
   onError(callback: (error: Error) => void): () => void {
     this.errorCallbacks.add(callback);
     return () => this.errorCallbacks.delete(callback);
@@ -164,6 +175,8 @@ export class PRWatcher {
     const index = this.repos.indexOf(repo);
     if (index !== -1) {
       this.repos.splice(index, 1);
+      this.defaultBranches.delete(repo);
+      this.branchHeadShas.delete(repo);
     }
   }
 
@@ -202,6 +215,11 @@ export class PRWatcher {
     const currentKeys = new Set<string>();
 
     for (const { pr, owner, name } of watchedPRs) {
+      const defaultBranch = pr.base.repo.default_branch;
+      if (defaultBranch) {
+        this.defaultBranches.set(`${owner}/${name}`, defaultBranch);
+      }
+
       const key = prKey(owner, name, pr.number);
       currentKeys.add(key);
 
@@ -223,6 +241,10 @@ export class PRWatcher {
           this.snapshots.delete(key);
         }
       }
+    }
+
+    if (this.pushCallbacks.size > 0) {
+      await this.checkBranchHeads();
     }
 
     this.initialized = true;
@@ -352,6 +374,54 @@ export class PRWatcher {
       }
 
       this.snapshots.delete(key);
+    }
+  }
+
+  private async checkBranchHeads(): Promise<void> {
+    const repos = new Set(this.repos);
+    for (const repoSpec of repos) {
+      const [owner, name] = repoSpec.split("/");
+      const repoKey = `${owner}/${name}`;
+      try {
+        let branch = this.defaultBranches.get(repoKey);
+        if (branch === undefined) {
+          await this.throttle?.wait(1);
+          const { data } = await this.octokit.repos.get({
+            owner: owner!,
+            repo: name!,
+          });
+          branch = (data as unknown as { default_branch: string })
+            .default_branch;
+          this.defaultBranches.set(repoKey, branch);
+        }
+
+        await this.throttle?.wait(1);
+        const { data: ref } = await this.octokit.git.getRef({
+          owner: owner!,
+          repo: name!,
+          ref: `heads/${branch}`,
+        });
+        const currentSha = ref.object.sha;
+        const previousSha = this.branchHeadShas.get(repoKey);
+        this.branchHeadShas.set(repoKey, currentSha);
+
+        if (
+          this.initialized &&
+          previousSha !== undefined &&
+          previousSha !== currentSha
+        ) {
+          this.emit(this.pushCallbacks, {
+            repo: { owner: owner!, name: name! },
+            branch,
+            sha: currentSha,
+            previousSha,
+          });
+        }
+      } catch (error: unknown) {
+        this.emitError(
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
     }
   }
 

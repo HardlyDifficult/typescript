@@ -9,6 +9,7 @@ import type {
   ReviewEvent,
   CheckRunEvent,
   StatusChangedEvent,
+  PushEvent,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
@@ -33,6 +34,12 @@ const mockOctokit = {
   },
   search: {
     issuesAndPullRequests: vi.fn(),
+  },
+  repos: {
+    get: vi.fn(),
+  },
+  git: {
+    getRef: vi.fn(),
   },
 } as unknown as import("@octokit/rest").Octokit;
 
@@ -1299,6 +1306,293 @@ describe("PRWatcher", () => {
 
       await vi.advanceTimersByTimeAsync(1000);
       expect(discoverRepos).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("onPush", () => {
+    function stubGetRef(sha: string): void {
+      (
+        mockOctokit.git.getRef as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        data: { object: { sha } },
+      });
+    }
+
+    it("does not fire on first poll (baseline establishment)", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPush((e) => events.push(e));
+      await watcher.start();
+
+      expect(events).toHaveLength(0);
+      expect(mockOctokit.git.getRef).toHaveBeenCalledOnce();
+    });
+
+    it("fires when default branch HEAD changes", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPush((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      stubGetRef("bbb222");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].sha).toBe("bbb222");
+      expect(events[0].previousSha).toBe("aaa111");
+      expect(events[0].branch).toBe("main");
+      expect(events[0].repo).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("does not fire when HEAD is unchanged", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPush((e) => events.push(e));
+      await watcher.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(events).toHaveLength(0);
+    });
+
+    it("harvests default branch name from PR data (no repos.get call)", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPush(() => {});
+      await watcher.start();
+
+      expect(mockOctokit.repos.get).not.toHaveBeenCalled();
+      expect(mockOctokit.git.getRef).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: "heads/main" })
+      );
+    });
+
+    it("falls back to repos.get when no open PRs", async () => {
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      stubEmptyActivity();
+      (mockOctokit.repos.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { default_branch: "develop" },
+      });
+      stubGetRef("aaa111");
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPush(() => {});
+      await watcher.start();
+
+      expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
+      expect(mockOctokit.git.getRef).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: "heads/develop" })
+      );
+    });
+
+    it("caches repos.get result (only calls once across polls)", async () => {
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+      });
+      stubEmptyActivity();
+      (mockOctokit.repos.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { default_branch: "develop" },
+      });
+      stubGetRef("aaa111");
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPush(() => {});
+      await watcher.start();
+      expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
+    });
+
+    it("routes errors through onError (not silent catch)", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      (mockOctokit.git.getRef as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("API rate limit")
+      );
+
+      const errors: Error[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      watcher.onPush(() => {});
+      watcher.onError((e) => errors.push(e));
+      await watcher.start();
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toBe("API rate limit");
+    });
+
+    it("does not make API calls when no onPush listeners", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      await watcher.start();
+
+      expect(mockOctokit.git.getRef).not.toHaveBeenCalled();
+      expect(mockOctokit.repos.get).not.toHaveBeenCalled();
+    });
+
+    it("unsubscribe removes callback", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      const unsub = watcher.onPush((e) => events.push(e));
+      await watcher.start();
+
+      unsub();
+      stubGetRef("bbb222");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(events).toHaveLength(0);
+    });
+
+    it("works with multiple repos", async () => {
+      const pr1 = makePR({ number: 1 });
+      const pr2 = makePR({
+        number: 2,
+        base: {
+          ref: "main",
+          sha: "def456",
+          repo: {
+            id: 2,
+            name: "lib",
+            full_name: "other/lib",
+            owner: { login: "other", id: 2 },
+            html_url: "",
+            default_branch: "main",
+            description: null,
+          },
+        },
+      });
+
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockImplementation(
+        (args: { owner: string; repo: string }) => {
+          if (args.owner === "owner" && args.repo === "repo") {
+            return Promise.resolve({ data: [pr1] });
+          }
+          if (args.owner === "other" && args.repo === "lib") {
+            return Promise.resolve({ data: [pr2] });
+          }
+          return Promise.resolve({ data: [] });
+        }
+      );
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo", "other/lib"],
+        intervalMs: 1000,
+      });
+      watcher.onPush((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      stubGetRef("bbb222");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(events).toHaveLength(2);
+      const repos = events.map((e) => `${e.repo.owner}/${e.repo.name}`);
+      expect(repos).toContain("owner/repo");
+      expect(repos).toContain("other/lib");
+    });
+
+    it("cleanup on removeRepo prevents stale events", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const events: PushEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPush((e) => events.push(e));
+      await watcher.start();
+      expect(events).toHaveLength(0);
+
+      // Remove and re-add the repo
+      watcher.removeRepo("owner/repo");
+
+      // Simulate PR disappearing too
+      (mockOctokit.pulls.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: makePR({ state: "closed", merged_at: "2024-01-02T00:00:00Z" }),
+      });
+
+      watcher.addRepo("owner/repo");
+
+      // SHA changed, but since we removed+re-added, this is a new baseline
+      stubGetRef("bbb222");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // No push event because re-add establishes new baseline
+      expect(events).toHaveLength(0);
     });
   });
 
