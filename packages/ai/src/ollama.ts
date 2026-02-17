@@ -18,10 +18,16 @@ const ollamaAgent = new Agent({
  * expose this option for chat models, so we intercept at the fetch layer.
  */
 function injectKeepAlive(init?: RequestInit): RequestInit | undefined {
-  if (init?.body === undefined || init.body === null || init.method?.toUpperCase() !== "POST") return init;
+  if (
+    init?.body === undefined ||
+    init.body === null ||
+    init.method?.toUpperCase() !== "POST"
+  ) {
+    return init;
+  }
   try {
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    body["keep_alive"] = -1;
+    body.keep_alive = -1;
     return { ...init, body: JSON.stringify(body) };
   } catch {
     return init;

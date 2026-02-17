@@ -28,6 +28,7 @@ export type {
   ClassifyPR,
   DiscoverRepos,
   PRStatusEvent,
+  PushEvent,
   StatusChangedEvent,
   TreeEntry,
   RepoContext,
