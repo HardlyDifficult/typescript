@@ -94,9 +94,7 @@ class InMemoryBatchStore {
     ) {
       return null;
     }
-    if (existing.record.closedAt === undefined) {
-      existing.record.closedAt = Date.now();
-    }
+    existing.record.closedAt ??= Date.now();
     return cloneRecord(existing.record);
   }
 

@@ -306,7 +306,7 @@ export class Linker {
             start,
             end,
             text: matchedText,
-            groups: match.slice(1).map((value) => value ?? ""),
+            groups: match.slice(1),
             ruleOrder,
             ruleName: rule.name,
             priority: rule.priority,

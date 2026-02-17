@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { batchStore } from "./BatchStore";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching";
 import { Message, type MessageOperations } from "./Message";
@@ -328,8 +329,9 @@ export class Channel {
       },
       deleteMessage: (messageId: string, options?: DeleteMessageOptions) =>
         this.operations.deleteMessage(messageId, this.id, options),
-      finish: async (id: string) => {
+      finish: (id: string) => {
         batchStore.finishBatch(this.id, this.platform, id);
+        return Promise.resolve();
       },
       getSnapshot: (id: string) => batchStore.getBatch(this.id, this.platform, id),
     });
@@ -448,14 +450,14 @@ export class Channel {
    * Begin a logical message batch for grouping related posts.
    * Batches can later be queried with getBatches()/getBatch().
    */
-  async beginBatch(options: BeginBatchOptions = {}): Promise<MessageBatch> {
+  beginBatch(options: BeginBatchOptions = {}): Promise<MessageBatch> {
     const snapshot = batchStore.beginBatch({
       key: options.key,
       author: options.author,
       channelId: this.id,
       platform: this.platform,
     });
-    return this.buildBatch(snapshot.id);
+    return Promise.resolve(this.buildBatch(snapshot.id));
   }
 
   /**
@@ -495,20 +497,22 @@ export class Channel {
   /**
    * Retrieve a batch by ID within this channel.
    */
-  async getBatch(id: string): Promise<MessageBatch | null> {
+  getBatch(id: string): Promise<MessageBatch | null> {
     const snapshot = batchStore.getBatch(this.id, this.platform, id);
     if (snapshot === null) {
-      return null;
+      return Promise.resolve(null);
     }
-    return this.buildBatch(snapshot.id);
+    return Promise.resolve(this.buildBatch(snapshot.id));
   }
 
   /**
    * List batches in this channel, newest first.
    */
-  async getBatches(options: BatchQueryOptions = {}): Promise<MessageBatch[]> {
+  getBatches(options: BatchQueryOptions = {}): Promise<MessageBatch[]> {
     const snapshots = batchStore.getBatches(this.id, this.platform, options);
-    return snapshots.map((snapshot) => this.buildBatch(snapshot.id));
+    return Promise.resolve(
+      snapshots.map((snapshot) => this.buildBatch(snapshot.id))
+    );
   }
 
   /**
