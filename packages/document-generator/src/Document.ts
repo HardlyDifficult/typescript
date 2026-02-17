@@ -443,7 +443,9 @@ export class Document {
         return outputPlainText(this.blocks);
       default: {
         const unsupportedFormat: never = format;
-        throw new Error(`Unsupported output format: ${unsupportedFormat}`);
+        throw new Error(
+          `Unsupported output format: ${String(unsupportedFormat)}`
+        );
       }
     }
   }
