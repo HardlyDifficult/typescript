@@ -1,8 +1,11 @@
 import type {
+  CheckRun,
   Label,
   MergeableState,
   PRUpdatedEvent,
   PullRequest,
+  PullRequestComment,
+  PullRequestReview,
 } from "../types.js";
 
 import type { PRActivity } from "./fetchPRActivity.js";
@@ -103,4 +106,31 @@ export function detectPRChanges(
   }
 
   return hasChanges ? { pr: current, repo, changes } : null;
+}
+
+/** Returns comments that are new since the previous snapshot. */
+export function detectNewComments(
+  comments: readonly PullRequestComment[],
+  previous: PRSnapshot
+): readonly PullRequestComment[] {
+  return comments.filter((c) => !previous.commentIds.has(c.id));
+}
+
+/** Returns reviews that are new since the previous snapshot. */
+export function detectNewReviews(
+  reviews: readonly PullRequestReview[],
+  previous: PRSnapshot
+): readonly PullRequestReview[] {
+  return reviews.filter((r) => !previous.reviewIds.has(r.id));
+}
+
+/** Returns check runs whose status or conclusion changed since the previous snapshot. */
+export function detectCheckRunChanges(
+  checkRuns: readonly CheckRun[],
+  previous: PRSnapshot
+): readonly CheckRun[] {
+  return checkRuns.filter((cr) => {
+    const prev = previous.checkRuns.get(cr.id);
+    return prev?.status !== cr.status || prev.conclusion !== cr.conclusion;
+  });
 }
