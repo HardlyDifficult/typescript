@@ -27,7 +27,7 @@ export function healYaml(yaml: string): string {
     (_, prefix: string, value: string) => {
       const escaped = value.replace(/"/g, '\\"');
       return `${prefix}"${escaped}"`;
-    },
+    }
   );
 
   return cleaned;

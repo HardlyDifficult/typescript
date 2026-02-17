@@ -61,9 +61,7 @@ describe("retry", () => {
   it("should wrap non-Error throws in an Error", async () => {
     const fn = vi.fn().mockRejectedValue("string error");
 
-    await expect(retry(fn, { maxAttempts: 1 })).rejects.toThrow(
-      "string error"
-    );
+    await expect(retry(fn, { maxAttempts: 1 })).rejects.toThrow("string error");
   });
 
   it("should work with maxAttempts of 1 (no retry)", async () => {

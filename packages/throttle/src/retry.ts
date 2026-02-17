@@ -13,7 +13,7 @@ export interface RetryOptions {
  */
 export async function retry<T>(
   fn: () => Promise<T>,
-  options: RetryOptions,
+  options: RetryOptions
 ): Promise<T> {
   let lastError!: Error;
   for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {

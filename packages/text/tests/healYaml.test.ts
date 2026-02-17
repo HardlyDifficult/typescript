@@ -5,12 +5,12 @@ import { healYaml } from "../src/healYaml";
 describe("healYaml", () => {
   describe("markdown fence stripping", () => {
     it("should strip ```yaml fences", () => {
-      const input = '```yaml\nkey: value\n```';
+      const input = "```yaml\nkey: value\n```";
       expect(healYaml(input)).toBe("key: value");
     });
 
     it("should strip ``` fences without language tag", () => {
-      const input = '```\nkey: value\n```';
+      const input = "```\nkey: value\n```";
       expect(healYaml(input)).toBe("key: value");
     });
 
@@ -27,7 +27,8 @@ describe("healYaml", () => {
 
   describe("colon-in-value quoting", () => {
     it("should quote a plain scalar with a colon", () => {
-      const input = "description: Development dependencies: Node types, TypeScript, and Vitest.";
+      const input =
+        "description: Development dependencies: Node types, TypeScript, and Vitest.";
       const result = healYaml(input);
       expect(result).toBe(
         'description: "Development dependencies: Node types, TypeScript, and Vitest."'
