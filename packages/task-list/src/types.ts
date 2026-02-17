@@ -63,27 +63,6 @@ export interface TaskData {
 }
 
 /**
- * Result of a single task migration attempt
- */
-export interface MigratedTask {
-  readonly sourceTaskId: string;
-  readonly sourceTaskName: string;
-  readonly sourceProjectName: string;
-  readonly destinationTaskId?: string;
-  readonly error?: string;
-}
-
-/**
- * Summary of a migrateTo() operation
- */
-export interface MigrationResult {
-  readonly projectsMatched: number;
-  readonly tasksCreated: number;
-  readonly tasksFailed: number;
-  readonly tasks: readonly MigratedTask[];
-}
-
-/**
  * Internal interface for provider-specific task operations and name resolution
  * @internal
  */
