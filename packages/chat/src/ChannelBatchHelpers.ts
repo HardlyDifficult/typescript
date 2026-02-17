@@ -161,3 +161,20 @@ export async function withChannelBatch<T>(
     await batch.finish();
   }
 }
+
+/**
+ *
+ */
+export function withChannelBatchFromArgs<T>(
+  adapter: ChannelBatchAdapter,
+  optionsOrCallback: BeginBatchOptions | ((batch: MessageBatch) => Promise<T>),
+  maybeCallback?: (batch: MessageBatch) => Promise<T>
+): Promise<T> {
+  if (typeof optionsOrCallback === "function") {
+    return withChannelBatch(adapter, optionsOrCallback);
+  }
+  if (maybeCallback === undefined) {
+    throw new Error("withBatch requires a callback");
+  }
+  return withChannelBatch(adapter, optionsOrCallback, maybeCallback);
+}
