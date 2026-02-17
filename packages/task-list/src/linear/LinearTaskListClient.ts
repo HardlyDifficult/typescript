@@ -247,13 +247,13 @@ export class LinearTaskListClient extends TaskListClient {
 
   async getProjects(): Promise<FullState> {
     const data = await this.request<ProjectsQueryData>(
-      `query($teamId: String!) {
+      `query($teamId: String!, $teamIdFilter: ID!) {
         organization { urlKey }
         team(id: $teamId) {
-          projects {
+          projects(first: 25) {
             nodes {
               id name url
-              issues(filter: { team: { id: { eq: $teamId } } }) {
+              issues(first: 50, filter: { team: { id: { eq: $teamIdFilter } } }) {
                 nodes { ${ISSUE_FIELDS} }
               }
             }
@@ -262,7 +262,7 @@ export class LinearTaskListClient extends TaskListClient {
           labels { nodes { id name color } }
         }
       }`,
-      { teamId: this.teamId }
+      { teamId: this.teamId, teamIdFilter: this.teamId }
     );
 
     const ctx = this.createContext(
@@ -285,11 +285,11 @@ export class LinearTaskListClient extends TaskListClient {
 
   async getProject(projectId: string): Promise<Project> {
     const data = await this.request<ProjectQueryData>(
-      `query($projectId: String!, $teamId: String!) {
+      `query($projectId: String!, $teamId: String!, $teamIdFilter: ID!) {
         organization { urlKey }
         project(id: $projectId) {
           id name url
-          issues(filter: { team: { id: { eq: $teamId } } }) {
+          issues(first: 100, filter: { team: { id: { eq: $teamIdFilter } } }) {
             nodes { ${ISSUE_FIELDS} }
           }
         }
@@ -298,7 +298,7 @@ export class LinearTaskListClient extends TaskListClient {
           labels { nodes { id name color } }
         }
       }`,
-      { projectId, teamId: this.teamId }
+      { projectId, teamId: this.teamId, teamIdFilter: this.teamId }
     );
 
     const ctx = this.createContext(
