@@ -1,15 +1,20 @@
 import type { Logger } from "@hardlydifficult/logger";
 
+import { buildTransitions, statusForStep } from "./buildTransitions.js";
 import type {
   PipelineData,
   PipelineHooks,
   PipelineOptions,
   PipelineSnapshot,
-  StepContext,
   StepDefinition,
   StepState,
 } from "./pipelineTypes.js";
-import type { TransitionMap } from "./types.js";
+import {
+  enterGate,
+  fireHook,
+  runStep,
+  type StepRunnerDeps,
+} from "./stepRunner.js";
 import { WorkflowEngine } from "./WorkflowEngine.js";
 
 /**
@@ -64,7 +69,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
       }
     }
 
-    const transitions = Pipeline.buildTransitions(steps);
+    const transitions = buildTransitions(steps);
     const initialStatus =
       steps[0].gate === true
         ? `gate:${steps[0].name}`
@@ -153,7 +158,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
       const stepState = this.engine.data.steps[currentIndex];
       if (stepState.status === "pending") {
         // Fresh gate — enter it (run execute if present, fire hooks)
-        await this.enterGate(currentIndex);
+        await enterGate(this.runnerDeps, currentIndex);
       }
       return;
     }
@@ -194,7 +199,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
     });
 
     // Transition to next step's status
-    const nextStatus = this.statusForStep(index + 1);
+    const nextStatus = statusForStep(this.stepDefs, index + 1);
     await this.engine.transition(nextStatus);
 
     // Resolve any waiting gate promise (for in-process resumption)
@@ -210,7 +215,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
       this.logger.info("Pipeline completed", {
         pipeline: this.engine.data.steps[0]?.name,
       });
-      this.fireHook("onComplete", this.data);
+      fireHook(this.hooks, "onComplete", this.data);
     }
   }
 
@@ -260,7 +265,18 @@ export class Pipeline<TData extends Record<string, unknown>> {
     };
   }
 
-  // ── Private: Execution Loop ──────────────────────────────────────
+  // ── Private ────────────────────────────────────────────────────────
+
+  /** Assemble dependencies for step runner functions. */
+  private get runnerDeps(): StepRunnerDeps<TData> {
+    return {
+      engine: this.engine,
+      stepDefs: this.stepDefs,
+      hooks: this.hooks,
+      logger: this.logger,
+      signal: this.abortController.signal,
+    };
+  }
 
   private async executeFrom(startIndex: number): Promise<void> {
     for (let i = startIndex; i < this.stepDefs.length; i++) {
@@ -276,12 +292,12 @@ export class Pipeline<TData extends Record<string, unknown>> {
 
       // Gate step
       if (stepDef.gate === true) {
-        await this.enterGate(i);
+        await enterGate(this.runnerDeps, i);
         return; // Execution pauses here — resume() continues
       }
 
       // Regular or retryable step
-      const succeeded = await this.runStep(i);
+      const succeeded = await runStep(this.runnerDeps, i);
       if (!succeeded) {
         return;
       } // Failed — pipeline is in "failed" state
@@ -292,259 +308,6 @@ export class Pipeline<TData extends Record<string, unknown>> {
     this.logger.info("Pipeline completed", {
       pipeline: this.engine.data.steps[0]?.name,
     });
-    this.fireHook("onComplete", this.data);
-  }
-
-  private async enterGate(index: number): Promise<void> {
-    const stepDef = this.stepDefs[index];
-
-    // Transition to gate status
-    const gateStatus = `gate:${stepDef.name}`;
-    if (this.engine.status !== gateStatus) {
-      await this.engine.transition(gateStatus, (d) => {
-        d.currentStepIndex = index;
-        d.steps[index].status = "gate_waiting";
-        d.steps[index].startedAt = new Date().toISOString();
-      });
-    }
-
-    // Run optional execute before pausing
-    if (stepDef.execute) {
-      try {
-        const ctx = this.createContext();
-        const result = await stepDef.execute(ctx);
-        await this.engine.update((d) => {
-          Object.assign(d.output, result);
-        });
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.logger.error("Pipeline gate execute failed", {
-          pipeline: this.engine.data.steps[0]?.name,
-          step: stepDef.name,
-          error: error.message,
-        });
-        // Gate execute failure → pipeline fails
-        await this.engine.update((d) => {
-          d.steps[index].status = "failed";
-          d.steps[index].completedAt = new Date().toISOString();
-          d.steps[index].error = error.message;
-        });
-        await this.engine.transition("failed");
-        this.fireHook("onStepFailed", stepDef.name, error.message, this.data);
-        this.fireHook("onFailed", stepDef.name, error.message, this.data);
-        return;
-      }
-    }
-
-    this.logger.info("Pipeline gate reached", {
-      pipeline: this.engine.data.steps[0]?.name,
-      step: stepDef.name,
-    });
-    this.fireHook("onGateReached", stepDef.name, this.data);
-  }
-
-  /** Run a step with retries. Returns true if succeeded, false if failed. */
-  private async runStep(index: number): Promise<boolean> {
-    const stepDef = this.stepDefs[index];
-    const maxAttempts = (stepDef.retries ?? 0) + 1;
-
-    if (!stepDef.execute) {
-      throw new Error(
-        `Step "${stepDef.name}" has no execute function and is not a gate`
-      );
-    }
-
-    // Transition to running status
-    const runningStatus = `running:${stepDef.name}`;
-    if (this.engine.status !== runningStatus) {
-      await this.engine.transition(runningStatus, (d) => {
-        d.currentStepIndex = index;
-        d.steps[index].status = "running";
-        d.steps[index].startedAt = new Date().toISOString();
-      });
-    } else {
-      // Crash recovery — already in running status, just update step state
-      await this.engine.update((d) => {
-        d.steps[index].status = "running";
-        d.steps[index].startedAt ??= new Date().toISOString();
-      });
-    }
-
-    this.logger.info("Pipeline step started", {
-      pipeline: this.engine.data.steps[0]?.name,
-      step: stepDef.name,
-    });
-    this.fireHook("onStepStart", stepDef.name, this.data);
-
-    const startMs = Date.now();
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const ctx = this.createContext();
-        const result = await stepDef.execute(ctx);
-
-        const durationMs = Date.now() - startMs;
-
-        // Success — merge result and mark completed
-        await this.engine.update((d) => {
-          Object.assign(d.output, result);
-          d.steps[index].status = "completed";
-          d.steps[index].completedAt = new Date().toISOString();
-          d.steps[index].attempts = attempt;
-          d.steps[index].error = undefined;
-          d.currentStepIndex = index + 1;
-        });
-
-        this.logger.info("Pipeline step completed", {
-          pipeline: this.engine.data.steps[0]?.name,
-          step: stepDef.name,
-          attempt,
-          durationMs,
-        });
-        this.fireHook("onStepComplete", stepDef.name, this.data);
-
-        return true;
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-
-        await this.engine.update((d) => {
-          d.steps[index].attempts = attempt;
-          d.steps[index].error = error.message;
-        });
-
-        if (attempt < maxAttempts) {
-          this.logger.warn("Pipeline step retry", {
-            pipeline: this.engine.data.steps[0]?.name,
-            step: stepDef.name,
-            attempt,
-            maxAttempts,
-            error: error.message,
-          });
-
-          // Recovery before retry
-          if (stepDef.recover) {
-            try {
-              const ctx = this.createContext();
-              const recoveryResult = await stepDef.recover(error, ctx);
-              await this.engine.update((d) => {
-                Object.assign(d.output, recoveryResult);
-              });
-            } catch (recoverErr) {
-              const recoverError =
-                recoverErr instanceof Error
-                  ? recoverErr
-                  : new Error(String(recoverErr));
-              this.logger.error("Pipeline recovery failed", {
-                pipeline: this.engine.data.steps[0]?.name,
-                step: stepDef.name,
-                attempt,
-                error: recoverError.message,
-              });
-              // Recovery failed — continue to next attempt anyway
-            }
-          }
-          continue;
-        }
-
-        const durationMs = Date.now() - startMs;
-
-        // All attempts exhausted — fail
-        await this.engine.update((d) => {
-          d.steps[index].status = "failed";
-          d.steps[index].completedAt = new Date().toISOString();
-        });
-
-        this.logger.error("Pipeline step failed", {
-          pipeline: this.engine.data.steps[0]?.name,
-          step: stepDef.name,
-          attempt,
-          durationMs,
-          error: error.message,
-        });
-        this.fireHook("onStepFailed", stepDef.name, error.message, this.data);
-
-        await this.engine.transition("failed");
-        this.fireHook("onFailed", stepDef.name, error.message, this.data);
-
-        return false;
-      }
-    }
-
-    return false; // unreachable, but satisfies TS
-  }
-
-  // ── Private: Helpers ─────────────────────────────────────────────
-
-  private createContext(): StepContext<TData> {
-    return {
-      data: this.data,
-      signal: this.abortController.signal,
-    };
-  }
-
-  /** Get the status string for a step index, or "completed" if past the end */
-  private statusForStep(index: number): string {
-    if (index >= this.stepDefs.length) {
-      return "completed";
-    }
-    const step = this.stepDefs[index];
-    return step.gate === true ? `gate:${step.name}` : `running:${step.name}`;
-  }
-
-  /** Fire a hook, swallowing any errors */
-  private fireHook<K extends keyof PipelineHooks<TData>>(
-    name: K,
-    ...args: Parameters<NonNullable<PipelineHooks<TData>[K]>>
-  ): void {
-    const fn = this.hooks[name];
-    if (!fn) {
-      return;
-    }
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic hook dispatch
-      (fn as (...a: any[]) => void)(...args);
-    } catch {
-      // Hooks must not break pipeline execution
-    }
-  }
-
-  /** Compute the status string for the step after index i, or "completed" if last */
-  private static nextStatusForStep<T>(
-    steps: readonly StepDefinition<T>[],
-    i: number
-  ): string {
-    if (i >= steps.length - 1) {
-      return "completed";
-    }
-    const next = steps[i + 1];
-    return next.gate === true ? `gate:${next.name}` : `running:${next.name}`;
-  }
-
-  /** Build a TransitionMap from step definitions */
-  private static buildTransitions<T>(
-    steps: readonly StepDefinition<T>[]
-  ): TransitionMap<string> {
-    const map: Record<string, readonly string[]> = {};
-
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const isGate = step.gate === true;
-      const nextStatus = this.nextStatusForStep(steps, i);
-
-      if (isGate) {
-        const gateStatus = `gate:${step.name}`;
-        map[gateStatus] = [nextStatus, "failed", "cancelled"];
-      } else {
-        const runningStatus = `running:${step.name}`;
-        map[runningStatus] = [nextStatus, "failed", "cancelled"];
-      }
-    }
-
-    // Terminal states
-    map.completed = [];
-    map.failed = [];
-    map.cancelled = [];
-
-    return map as TransitionMap<string>;
+    fireHook(this.hooks, "onComplete", this.data);
   }
 }
