@@ -7,17 +7,22 @@ const LOG_LEVELS: Readonly<Record<LogLevel, number>> = {
   error: 3,
 };
 
+interface PluginEntry {
+  readonly plugin: LoggerPlugin;
+  readonly minLevel?: LogLevel;
+}
+
 /** Plugin-based structured logger that dispatches log entries to registered plugins based on a minimum log level. */
 export class Logger {
   private readonly minLevel: LogLevel;
-  private readonly plugins: LoggerPlugin[] = [];
+  private readonly plugins: PluginEntry[] = [];
 
   constructor(minLevel: LogLevel = "info") {
     this.minLevel = minLevel;
   }
 
-  use(plugin: LoggerPlugin): this {
-    this.plugins.push(plugin);
+  use(plugin: LoggerPlugin, options?: { minLevel?: LogLevel }): this {
+    this.plugins.push({ plugin, minLevel: options?.minLevel });
     return this;
   }
 
@@ -38,7 +43,7 @@ export class Logger {
   }
 
   notify(message: string): void {
-    for (const plugin of this.plugins) {
+    for (const { plugin } of this.plugins) {
       if (plugin.notify) {
         try {
           plugin.notify(message);
@@ -67,7 +72,10 @@ export class Logger {
         ? { level, message, timestamp: new Date().toISOString(), context }
         : { level, message, timestamp: new Date().toISOString() };
 
-    for (const plugin of this.plugins) {
+    for (const { plugin, minLevel } of this.plugins) {
+      if (minLevel !== undefined && LOG_LEVELS[level] < LOG_LEVELS[minLevel]) {
+        continue;
+      }
       try {
         plugin.log(entry);
       } catch {
