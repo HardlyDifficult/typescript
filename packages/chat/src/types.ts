@@ -35,6 +35,16 @@ export interface User {
 }
 
 /**
+ * Identity of the authenticated bot/client user.
+ */
+export interface ClientIdentity extends User {
+  /** Display name shown in the platform UI */
+  displayName: string;
+  /** Ready-to-use mention string (e.g., "<@USER_ID>") */
+  mention: string;
+}
+
+/**
  * A member of a channel with mention support
  */
 export interface Member {
@@ -46,6 +56,8 @@ export interface Member {
   displayName: string;
   /** Ready-to-use mention string (e.g., "<@USER_ID>") — embed in messages to @mention */
   mention: string;
+  /** Optional email address (platform-dependent; not always available) */
+  email?: string;
 }
 
 /**
@@ -153,3 +165,34 @@ export interface MessageData {
  * Message content can be string or Document
  */
 export type MessageContent = string | Document;
+
+/** Timestamp input accepted by message query filters. */
+export type TimestampInput = string | number | Date;
+
+/**
+ * Options for deleting a message.
+ */
+export interface DeleteMessageOptions {
+  /**
+   * Whether to delete thread replies before deleting the parent message.
+   * Defaults to true.
+   */
+  cascadeReplies?: boolean;
+}
+
+/** Author filter for message listing. */
+export type MessageAuthorFilter = "me" | string;
+
+/**
+ * Query options for listing channel messages.
+ */
+export interface MessageQueryOptions {
+  /** Maximum number of recent messages to fetch (platform limits apply) */
+  limit?: number;
+  /** Filter by author: "me" (the connected bot) or a user identifier/query */
+  author?: MessageAuthorFilter;
+  /** Only include messages after this timestamp */
+  after?: TimestampInput;
+  /** Only include messages before this timestamp */
+  before?: TimestampInput;
+}

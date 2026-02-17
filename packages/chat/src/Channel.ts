@@ -2,6 +2,7 @@ import { Message, type MessageOperations } from "./Message";
 import { PendingMessage } from "./PendingMessage";
 import { Thread, type ThreadOperations } from "./Thread";
 import type {
+  DeleteMessageOptions,
   DisconnectCallback,
   ErrorCallback,
   FileAttachment,
@@ -10,6 +11,7 @@ import type {
   MessageContent,
   MessageData,
   MessageEvent,
+  MessageQueryOptions,
   Platform,
   ReactionCallback,
   ThreadData,
@@ -33,7 +35,11 @@ export interface ChannelOperations {
     channelId: string,
     content: MessageContent
   ): Promise<void>;
-  deleteMessage(messageId: string, channelId: string): Promise<void>;
+  deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void>;
   addReaction(
     messageId: string,
     channelId: string,
@@ -58,6 +64,10 @@ export interface ChannelOperations {
     autoArchiveDuration?: number
   ): Promise<ThreadData>;
   bulkDelete(channelId: string, count: number): Promise<number>;
+  getMessages(
+    channelId: string,
+    options?: MessageQueryOptions
+  ): Promise<MessageData[]>;
   getThreads(channelId: string): Promise<ThreadData[]>;
   deleteThread(threadId: string, channelId: string): Promise<void>;
   getMembers(channelId: string): Promise<Member[]>;
@@ -220,8 +230,11 @@ export class Channel {
         channelId: string,
         content: MessageContent
       ) => this.operations.updateMessage(messageId, channelId, content),
-      deleteMessage: (messageId: string, channelId: string) =>
-        this.operations.deleteMessage(messageId, channelId),
+      deleteMessage: (
+        messageId: string,
+        channelId: string,
+        options?: DeleteMessageOptions
+      ) => this.operations.deleteMessage(messageId, channelId, options),
       reply: async (
         channelId: string,
         threadTs: string,
@@ -420,6 +433,90 @@ export class Channel {
   }
 
   /**
+   * Find a channel member by fuzzy query (mention, username, display name, or email).
+   * Returns null when no unambiguous match is found.
+   */
+  async findMember(query: string): Promise<Member | null> {
+    const members = await this.getMembers();
+    return findBestMemberMatch(members, query);
+  }
+
+  /**
+   * Resolve a user query to a mention string (e.g., "<@U123>").
+   * Returns null when no unambiguous match is found.
+   */
+  async resolveMention(query: string): Promise<string | null> {
+    const member = await this.findMember(query);
+    return member?.mention ?? null;
+  }
+
+  /**
+   * Get recent messages in this channel.
+   * Supports filtering by author and timestamp window.
+   */
+  async getMessages(options: MessageQueryOptions = {}): Promise<Message[]> {
+    let author = options.author;
+    if (author !== undefined && author !== "me") {
+      const mentionId = extractMentionId(author);
+      if (mentionId !== null) {
+        author = mentionId;
+      } else {
+        const member = await this.findMember(author);
+        if (member !== null) {
+          author = member.id;
+        }
+      }
+    }
+
+    const data = await this.operations.getMessages(this.id, {
+      ...options,
+      author,
+    });
+
+    return data.map(
+      (message) =>
+        new Message(
+          {
+            ...message,
+            channelId: message.channelId || this.id,
+            platform: message.platform ?? this.platform,
+          },
+          this.createMessageOperations()
+        )
+    );
+  }
+
+  /**
+   * Convenience helper to fetch recent messages authored by the connected bot.
+   */
+  async getRecentBotMessages(limit = 50): Promise<Message[]> {
+    return this.getMessages({ limit, author: "me" });
+  }
+
+  /**
+   * Opinionated cleanup helper: keep the newest N messages and delete the rest.
+   * Returns the number of deleted messages.
+   */
+  async pruneMessages(
+    options: MessageQueryOptions & { keep?: number; cascadeReplies?: boolean } = {}
+  ): Promise<number> {
+    const keep = Math.max(0, options.keep ?? 0);
+    const cascadeReplies = options.cascadeReplies ?? true;
+    const messages = await this.getMessages({
+      limit: options.limit,
+      author: options.author,
+      after: options.after,
+      before: options.before,
+    });
+
+    const toDelete = messages.slice(keep);
+    for (const message of toDelete) {
+      await message.delete({ cascadeReplies });
+    }
+    return toDelete.length;
+  }
+
+  /**
    * Disconnect from this channel (cleanup)
    */
   disconnect(): void {
@@ -434,4 +531,136 @@ export class Channel {
     }
     this.typingRefCount = 0;
   }
+}
+
+const MENTION_ID_REGEX = /^<@([^>|]+)(?:\|[^>]+)?>$/;
+
+function normalizeLookup(input: string): string {
+  return input.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function extractMentionId(input: string): string | null {
+  const trimmed = input.trim();
+  const match = MENTION_ID_REGEX.exec(trimmed);
+  if (match?.[1] !== undefined && match[1] !== "") {
+    return match[1];
+  }
+  return null;
+}
+
+interface MemberAlias {
+  value: string;
+  weight: number;
+}
+
+function buildMemberAliases(member: Member): MemberAlias[] {
+  const aliases: MemberAlias[] = [
+    { value: member.id, weight: 0 },
+    { value: member.mention, weight: 0 },
+    { value: member.username, weight: 1 },
+    { value: member.displayName, weight: 2 },
+  ];
+
+  if (member.email !== undefined && member.email !== "") {
+    aliases.push({ value: member.email, weight: 1 });
+    const localPart = member.email.split("@")[0];
+    if (localPart !== undefined && localPart !== "") {
+      aliases.push({ value: localPart, weight: 2 });
+    }
+  }
+
+  const normalizedUsername = member.username.replace(/^@/, "");
+  if (normalizedUsername !== "") {
+    aliases.push({ value: normalizedUsername, weight: 1 });
+    for (const part of normalizedUsername.split(/[._-]/)) {
+      if (part !== "") {
+        aliases.push({ value: part, weight: 3 });
+      }
+    }
+  }
+
+  const firstName = member.displayName.trim().split(/\s+/)[0];
+  if (firstName !== undefined && firstName !== "") {
+    aliases.push({ value: firstName, weight: 3 });
+  }
+
+  return aliases;
+}
+
+function findBestMemberMatch(
+  members: Member[],
+  rawQuery: string
+): Member | null {
+  const query = rawQuery.trim();
+  if (query === "") {
+    return null;
+  }
+
+  const mentionId = extractMentionId(query);
+  const directIdQuery = mentionId ?? query.replace(/^@/, "");
+  const directMatch = members.find((member) => member.id === directIdQuery);
+  if (directMatch !== undefined) {
+    return directMatch;
+  }
+
+  const normalizedQuery = normalizeLookup(query.replace(/^@/, ""));
+  if (normalizedQuery === "") {
+    return null;
+  }
+
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestMember: Member | null = null;
+  let isAmbiguous = false;
+
+  for (const member of members) {
+    const aliases = buildMemberAliases(member);
+    let memberScore = Number.POSITIVE_INFINITY;
+    const queryLongEnoughForPrefix = normalizedQuery.length >= 2;
+    const queryLongEnoughForContains = normalizedQuery.length >= 3;
+
+    for (const alias of aliases) {
+      const normalizedAlias = normalizeLookup(alias.value);
+      if (normalizedAlias === "") {
+        continue;
+      }
+      if (normalizedAlias === normalizedQuery) {
+        memberScore = Math.min(memberScore, alias.weight);
+        continue;
+      }
+      if (
+        queryLongEnoughForPrefix &&
+        normalizedAlias.startsWith(normalizedQuery)
+      ) {
+        memberScore = Math.min(memberScore, alias.weight + 10);
+        continue;
+      }
+      if (
+        queryLongEnoughForContains &&
+        normalizedAlias.includes(normalizedQuery)
+      ) {
+        memberScore = Math.min(memberScore, alias.weight + 20);
+      }
+    }
+
+    if (!Number.isFinite(memberScore)) {
+      continue;
+    }
+
+    if (memberScore < bestScore) {
+      bestScore = memberScore;
+      bestMember = member;
+      isAmbiguous = false;
+    } else if (
+      memberScore === bestScore &&
+      bestMember !== null &&
+      bestMember.id !== member.id
+    ) {
+      isAmbiguous = true;
+    }
+  }
+
+  if (isAmbiguous) {
+    return null;
+  }
+  return bestMember;
 }

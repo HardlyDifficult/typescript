@@ -34,7 +34,9 @@ export async function fetchChannelMembers(
     const info = await app.client.users.info({ user: userId });
     if (info.user) {
       const u = info.user;
-      const profile = u.profile as { display_name?: string } | undefined;
+      const profile = u.profile as
+        | { display_name?: string; email?: string }
+        | undefined;
       const name = u.name ?? userId;
       const rawDisplayName = profile?.display_name;
       const rawRealName = u.real_name;
@@ -51,6 +53,11 @@ export async function fetchChannelMembers(
         username: name,
         displayName,
         mention: `<@${userId}>`,
+        ...(profile?.email !== undefined &&
+        profile.email !== null &&
+        profile.email !== ""
+          ? { email: profile.email }
+          : {}),
       });
     }
   }

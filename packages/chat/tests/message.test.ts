@@ -206,9 +206,26 @@ describe("Message", () => {
 
       expect(mockOperations.deleteMessage).toHaveBeenCalledWith(
         "msg-1",
-        "ch-1"
+        "ch-1",
+        undefined
       );
       expect(mockOperations.deleteMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("should pass delete options through to deleteMessage", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      await msg.delete({ cascadeReplies: false });
+
+      expect(mockOperations.deleteMessage).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        { cascadeReplies: false }
+      );
     });
 
     it("should propagate errors from deleteMessage", async () => {

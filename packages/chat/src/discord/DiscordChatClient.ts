@@ -17,6 +17,7 @@ import { MESSAGE_LIMITS } from "../constants.js";
 import { toDiscordEmbed } from "../outputters/discord.js";
 import type {
   Attachment,
+  DeleteMessageOptions,
   DisconnectCallback,
   DiscordConfig,
   ErrorCallback,
@@ -26,6 +27,7 @@ import type {
   MessageContent,
   MessageData,
   MessageEvent,
+  MessageQueryOptions,
   ReactionCallback,
   ReactionEvent,
   ThreadData,
@@ -223,6 +225,16 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   async connect(channelId: string): Promise<Channel> {
     await this.client.login(this.token);
     await this.fetchTextChannel(channelId);
+    const me = this.client.user;
+    if (!me) {
+      throw new Error("Discord client user was not available after login");
+    }
+    this.meValue = {
+      id: me.id,
+      username: me.username,
+      displayName: me.globalName ?? me.username,
+      mention: `<@${me.id}>`,
+    };
     return new Channel(channelId, "discord", this);
   }
 
@@ -234,6 +246,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     this.messageListeners.clear();
     this.disconnectCallbacks.clear();
     this.errorCallbacks.clear();
+    this.meValue = null;
     await this.client.destroy();
   }
 
@@ -292,12 +305,16 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
    * @param messageId - ID of the message to delete
    * @param channelId - Channel containing the message
    */
-  async deleteMessage(messageId: string, channelId: string): Promise<void> {
+  async deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
 
     // Delete the thread (and all its messages) if one exists
-    if (message.thread) {
+    if (options?.cascadeReplies !== false && message.thread) {
       await message.thread.delete();
     }
 
@@ -451,6 +468,74 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return deleted.size;
   }
 
+  async getMessages(
+    channelId: string,
+    options: MessageQueryOptions = {}
+  ): Promise<MessageData[]> {
+    const channel = await this.fetchTextChannel(channelId);
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    const messages = await channel.messages.fetch({ limit });
+    const afterDate = toDate(options.after);
+    const beforeDate = toDate(options.before);
+    const authorFilter =
+      options.author === "me"
+        ? this.me?.id
+        : options.author !== undefined
+          ? normalizeAuthorFilter(options.author)
+          : undefined;
+
+    const output: MessageData[] = [];
+    for (const [, message] of messages) {
+      if (message.partial) {
+        continue;
+      }
+
+      if (afterDate !== undefined && message.createdAt <= afterDate) {
+        continue;
+      }
+      if (beforeDate !== undefined && message.createdAt >= beforeDate) {
+        continue;
+      }
+
+      const authorId = message.author?.id;
+      const authorUsername = message.author?.username;
+      if (authorFilter !== undefined) {
+        const normalizedUsername = authorUsername?.toLowerCase();
+        if (
+          authorId !== authorFilter &&
+          normalizedUsername !== authorFilter.toLowerCase()
+        ) {
+          continue;
+        }
+      }
+
+      const attachments: Attachment[] = [];
+      for (const [, attachment] of message.attachments) {
+        attachments.push({
+          url: attachment.url,
+          name: attachment.name,
+          contentType: attachment.contentType ?? undefined,
+          size: attachment.size,
+        });
+      }
+
+      output.push({
+        id: message.id,
+        channelId,
+        platform: "discord",
+        content: message.content ?? "",
+        author:
+          authorId !== undefined
+            ? { id: authorId, username: authorUsername ?? undefined }
+            : undefined,
+        timestamp: message.createdAt,
+        attachments,
+      });
+    }
+
+    return output;
+  }
+
   /**
    * Get all threads (active and archived) in a Discord channel
    * @param channelId - Channel to get threads from
@@ -528,4 +613,36 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.errorCallbacks.delete(callback);
     };
   }
+}
+
+function toDate(input: MessageQueryOptions["after"]): Date | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? undefined : input;
+  }
+  if (typeof input === "number") {
+    const ms = input > 10_000_000_000 ? input : input * 1000;
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+  const trimmed = input.trim();
+  if (trimmed === "") {
+    return undefined;
+  }
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return toDate(Number(trimmed));
+  }
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function normalizeAuthorFilter(author: string): string {
+  const trimmed = author.trim();
+  const mentionMatch = /^<@([^>]+)>$/.exec(trimmed);
+  if (mentionMatch?.[1] !== undefined && mentionMatch[1] !== "") {
+    return mentionMatch[1];
+  }
+  return trimmed.replace(/^@/, "").toLowerCase();
 }

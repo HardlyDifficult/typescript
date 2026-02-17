@@ -132,7 +132,7 @@ const {
       }
     }),
     destroy: vi.fn(),
-    user: { id: "bot-user-id" },
+    user: { id: "bot-user-id", username: "test-bot", globalName: "Test Bot" },
   };
 
   return {
@@ -388,6 +388,17 @@ describe("DiscordChatClient", () => {
       expect(channel).toBeInstanceOf(Channel);
       expect(channel.id).toBe(channelId);
       expect(channel.platform).toBe("discord");
+    });
+
+    it("should expose bot identity as client.me", async () => {
+      await client.connect(channelId);
+
+      expect(client.me).toEqual({
+        id: "bot-user-id",
+        username: "test-bot",
+        displayName: "Test Bot",
+        mention: "<@bot-user-id>",
+      });
     });
 
     it("should throw error when login fails", async () => {
@@ -1997,6 +2008,20 @@ describe("DiscordChatClient", () => {
       expect(mockThreadDelete).toHaveBeenCalledTimes(1);
       expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
     });
+
+    it("should skip thread deletion when cascadeReplies is false", async () => {
+      const mockThreadDelete = vi.fn().mockResolvedValue(undefined);
+      mockDiscordMessage.thread = { delete: mockThreadDelete };
+
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Hello");
+      await waitForMessage(message);
+
+      await message.delete({ cascadeReplies: false });
+
+      expect(mockThreadDelete).not.toHaveBeenCalled();
+      expect(mockDiscordMessage.delete).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Channel.bulkDelete()", () => {
@@ -2006,6 +2031,73 @@ describe("DiscordChatClient", () => {
 
       expect(mockTextChannelData.bulkDelete).toHaveBeenCalledWith(10, true);
       expect(count).toBe(2); // Mock returns Map with 2 entries
+    });
+  });
+
+  describe("Channel.getMessages()", () => {
+    it("should list recent channel messages", async () => {
+      const createdAt = new Date("2026-01-01T00:00:00.000Z");
+      const mockCollection = new Map([
+        [
+          "m1",
+          {
+            id: "m1",
+            content: "Hello",
+            author: { id: "user-1", username: "alice" },
+            createdAt,
+            attachments: new Map(),
+            partial: false,
+          },
+        ],
+      ]);
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(mockCollection);
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({ limit: 1 });
+
+      expect(mockTextChannelData.messages.fetch).toHaveBeenCalledWith({
+        limit: 1,
+      });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].id).toBe("m1");
+      expect(messages[0].content).toBe("Hello");
+      expect(messages[0].author).toEqual({ id: "user-1", username: "alice" });
+      expect(messages[0].timestamp).toEqual(createdAt);
+    });
+
+    it("should filter messages by author: me", async () => {
+      const createdAt = new Date("2026-01-01T00:00:00.000Z");
+      const mockCollection = new Map([
+        [
+          "mine",
+          {
+            id: "mine",
+            content: "Bot msg",
+            author: { id: "bot-user-id", username: "test-bot" },
+            createdAt,
+            attachments: new Map(),
+            partial: false,
+          },
+        ],
+        [
+          "other",
+          {
+            id: "other",
+            content: "User msg",
+            author: { id: "user-1", username: "alice" },
+            createdAt,
+            attachments: new Map(),
+            partial: false,
+          },
+        ],
+      ]);
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(mockCollection);
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({ author: "me" });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].id).toBe("mine");
     });
   });
 
