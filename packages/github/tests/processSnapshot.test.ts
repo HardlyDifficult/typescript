@@ -92,7 +92,11 @@ describe("detectNewComments", () => {
       makePR(),
       "owner",
       "repo",
-      { comments: [makeComment(1), makeComment(2)], reviews: [], checkRuns: [] },
+      {
+        comments: [makeComment(1), makeComment(2)],
+        reviews: [],
+        checkRuns: [],
+      },
       null
     );
 

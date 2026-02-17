@@ -36,8 +36,8 @@ export class BranchHeadTracker {
         if (branch === undefined) {
           await throttle?.wait(1);
           const { data } = await octokit.repos.get({
-            owner: owner!,
-            repo: name!,
+            owner,
+            repo: name,
           });
           branch = (data as unknown as { default_branch: string })
             .default_branch;
@@ -46,8 +46,8 @@ export class BranchHeadTracker {
 
         await throttle?.wait(1);
         const { data: ref } = await octokit.git.getRef({
-          owner: owner!,
-          repo: name!,
+          owner,
+          repo: name,
           ref: `heads/${branch}`,
         });
         const currentSha = ref.object.sha;
@@ -60,16 +60,14 @@ export class BranchHeadTracker {
           previousSha !== currentSha
         ) {
           events.push({
-            repo: { owner: owner!, name: name! },
+            repo: { owner, name },
             branch,
             sha: currentSha,
             previousSha,
           });
         }
       } catch (error: unknown) {
-        errors.push(
-          error instanceof Error ? error : new Error(String(error))
-        );
+        errors.push(error instanceof Error ? error : new Error(String(error)));
       }
     }
 

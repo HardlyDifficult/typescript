@@ -222,9 +222,7 @@ describe("BranchHeadTracker", () => {
     );
 
     expect(result.events).toHaveLength(2);
-    const repos = result.events.map(
-      (e) => `${e.repo.owner}/${e.repo.name}`
-    );
+    const repos = result.events.map((e) => `${e.repo.owner}/${e.repo.name}`);
     expect(repos).toContain("owner/repo1");
     expect(repos).toContain("owner/repo2");
   });

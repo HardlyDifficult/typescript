@@ -1311,9 +1311,7 @@ describe("PRWatcher", () => {
 
   describe("onPush", () => {
     function stubGetRef(sha: string): void {
-      (
-        mockOctokit.git.getRef as ReturnType<typeof vi.fn>
-      ).mockResolvedValue({
+      (mockOctokit.git.getRef as ReturnType<typeof vi.fn>).mockResolvedValue({
         data: { object: { sha } },
       });
     }
