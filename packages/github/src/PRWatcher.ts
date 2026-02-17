@@ -186,23 +186,49 @@ export class PRWatcher {
     this.fetching = true;
 
     try {
-      if (this.discoverRepos) {
-        const repos = await this.discoverRepos();
-        for (const repo of repos) {
-          this.addRepo(repo);
+      try {
+        if (this.discoverRepos) {
+          const repos = await this.discoverRepos();
+          for (const repo of repos) {
+            this.addRepo(repo);
+          }
         }
+
+        const prs = await fetchWatchedPRs(
+          this.octokit,
+          this.username,
+          this.repos,
+          this.myPRs,
+          this.throttle
+        );
+        await this.processUpdates(prs);
+      } catch (error: unknown) {
+        this.emitError(
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
 
-      const prs = await fetchWatchedPRs(
-        this.octokit,
-        this.username,
-        this.repos,
-        this.myPRs,
-        this.throttle
-      );
-      await this.processUpdates(prs);
-    } catch (error: unknown) {
-      this.emitError(error instanceof Error ? error : new Error(String(error)));
+      // Push detection runs independently — PR processing failures do not block it
+      if (this.pushCallbacks.size > 0) {
+        try {
+          const { events: pushEvents, errors: pushErrors } =
+            await this.branchTracker.check(
+              this.octokit,
+              this.repos,
+              this.throttle
+            );
+          for (const event of pushEvents) {
+            this.emit(this.pushCallbacks, event);
+          }
+          for (const error of pushErrors) {
+            this.emitError(error);
+          }
+        } catch (error: unknown) {
+          this.emitError(
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
+      }
     } finally {
       this.fetching = false;
     }
@@ -242,22 +268,6 @@ export class PRWatcher {
         if (snapshot.lastSeen < cutoff) {
           this.snapshots.delete(key);
         }
-      }
-    }
-
-    if (this.pushCallbacks.size > 0) {
-      const { events: pushEvents, errors: pushErrors } =
-        await this.branchTracker.check(
-          this.octokit,
-          this.repos,
-          this.initialized,
-          this.throttle
-        );
-      for (const event of pushEvents) {
-        this.emit(this.pushCallbacks, event);
-      }
-      for (const error of pushErrors) {
-        this.emitError(error);
       }
     }
 

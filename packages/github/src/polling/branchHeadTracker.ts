@@ -21,7 +21,6 @@ export class BranchHeadTracker {
   async check(
     octokit: Octokit,
     repos: readonly string[],
-    initialized: boolean,
     throttle?: WatchThrottle
   ): Promise<BranchHeadCheckResult> {
     const events: PushEvent[] = [];
@@ -54,11 +53,7 @@ export class BranchHeadTracker {
         const previousSha = this.headShas.get(repoKey);
         this.headShas.set(repoKey, currentSha);
 
-        if (
-          initialized &&
-          previousSha !== undefined &&
-          previousSha !== currentSha
-        ) {
+        if (previousSha !== undefined && previousSha !== currentSha) {
           events.push({
             repo: { owner, name },
             branch,

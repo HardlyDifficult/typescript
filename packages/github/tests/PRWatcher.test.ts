@@ -1592,6 +1592,41 @@ describe("PRWatcher", () => {
       // No push event because re-add establishes new baseline
       expect(events).toHaveLength(0);
     });
+
+    it("fires push events even when PR processing throws", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+      stubGetRef("aaa111");
+
+      const pushEvents: PushEvent[] = [];
+      const errors: Error[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onPush((e) => pushEvents.push(e));
+      watcher.onError((e) => errors.push(e));
+      await watcher.start();
+
+      // Second poll: PR processing fails, but push detection should still work
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("API rate limit")
+      );
+      stubGetRef("bbb222");
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // Push event fires despite PR processing failure
+      expect(pushEvents).toHaveLength(1);
+      expect(pushEvents[0].sha).toBe("bbb222");
+      expect(pushEvents[0].previousSha).toBe("aaa111");
+
+      // PR error was still reported
+      expect(errors.some((e) => e.message === "API rate limit")).toBe(true);
+    });
   });
 
   describe("stalePRThresholdMs", () => {

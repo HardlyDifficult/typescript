@@ -28,12 +28,7 @@ describe("BranchHeadTracker", () => {
     tracker.harvestDefaultBranch("owner/repo", "main");
     stubGetRef("aaa111");
 
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo"],
-      false,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(result.events).toHaveLength(0);
     expect(result.errors).toHaveLength(0);
@@ -44,16 +39,11 @@ describe("BranchHeadTracker", () => {
     stubGetRef("aaa111");
 
     // First check: baseline
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
     // Second check: SHA changed
     stubGetRef("bbb222");
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo"],
-      true,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(result.events).toHaveLength(1);
     expect(result.events[0]).toEqual({
@@ -69,31 +59,9 @@ describe("BranchHeadTracker", () => {
     tracker.harvestDefaultBranch("owner/repo", "main");
     stubGetRef("aaa111");
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo"],
-      true,
-      undefined
-    );
-
-    expect(result.events).toHaveLength(0);
-  });
-
-  it("returns no events when initialized is false", async () => {
-    tracker.harvestDefaultBranch("owner/repo", "main");
-    stubGetRef("aaa111");
-
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
-
-    stubGetRef("bbb222");
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo"],
-      false,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(result.events).toHaveLength(0);
   });
@@ -102,7 +70,7 @@ describe("BranchHeadTracker", () => {
     tracker.harvestDefaultBranch("owner/repo", "develop");
     stubGetRef("aaa111");
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(mockOctokit.repos.get).not.toHaveBeenCalled();
     expect(mockOctokit.git.getRef).toHaveBeenCalledWith(
@@ -116,7 +84,7 @@ describe("BranchHeadTracker", () => {
     });
     stubGetRef("aaa111");
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
     expect(mockOctokit.git.getRef).toHaveBeenCalledWith(
@@ -130,8 +98,8 @@ describe("BranchHeadTracker", () => {
     });
     stubGetRef("aaa111");
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
-    await tracker.check(mockOctokit, ["owner/repo"], true, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
     expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
   });
@@ -151,12 +119,10 @@ describe("BranchHeadTracker", () => {
       }
     );
 
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo1", "owner/repo2"],
-      false,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, [
+      "owner/repo1",
+      "owner/repo2",
+    ]);
 
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].message).toBe("rate limited");
@@ -168,7 +134,7 @@ describe("BranchHeadTracker", () => {
     tracker.harvestDefaultBranch("owner/repo", "main");
     stubGetRef("aaa111");
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, undefined);
+    await tracker.check(mockOctokit, ["owner/repo"]);
 
     tracker.removeRepo("owner/repo");
 
@@ -178,12 +144,7 @@ describe("BranchHeadTracker", () => {
     });
     stubGetRef("bbb222");
 
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo"],
-      true,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, ["owner/repo"]);
 
     // No event because headSha was cleared — this is a new baseline
     expect(result.events).toHaveLength(0);
@@ -196,7 +157,7 @@ describe("BranchHeadTracker", () => {
 
     const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
 
-    await tracker.check(mockOctokit, ["owner/repo"], false, mockThrottle);
+    await tracker.check(mockOctokit, ["owner/repo"], mockThrottle);
 
     expect(mockThrottle.wait).toHaveBeenCalledWith(1);
   });
@@ -206,20 +167,13 @@ describe("BranchHeadTracker", () => {
     tracker.harvestDefaultBranch("owner/repo2", "main");
     stubGetRef("aaa111");
 
-    await tracker.check(
-      mockOctokit,
-      ["owner/repo1", "owner/repo2"],
-      false,
-      undefined
-    );
+    await tracker.check(mockOctokit, ["owner/repo1", "owner/repo2"]);
 
     stubGetRef("bbb222");
-    const result = await tracker.check(
-      mockOctokit,
-      ["owner/repo1", "owner/repo2"],
-      true,
-      undefined
-    );
+    const result = await tracker.check(mockOctokit, [
+      "owner/repo1",
+      "owner/repo2",
+    ]);
 
     expect(result.events).toHaveLength(2);
     const repos = result.events.map((e) => `${e.repo.owner}/${e.repo.name}`);
