@@ -75,9 +75,9 @@ export function createTaskList(
     config = { type: "linear", team: options?.team };
   } else if (type === "trello") {
     config = { type: "trello" };
-  } else if (process.env.LINEAR_API_KEY) {
+  } else if (process.env.LINEAR_API_KEY !== undefined) {
     config = { type: "linear", team: options?.team };
-  } else if (process.env.TRELLO_API_KEY) {
+  } else if (process.env.TRELLO_API_KEY !== undefined) {
     config = { type: "trello" };
   } else {
     throw new Error(

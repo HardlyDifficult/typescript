@@ -96,7 +96,7 @@ interface IssueUpdateData {
 
 // --- Priority mapping ---
 
-const PRIORITY_NAME_TO_NUMBER: Record<string, number> = {
+const PRIORITY_NAME_TO_NUMBER: Partial<Record<string, number>> = {
   none: 0,
   urgent: 1,
   high: 2,
@@ -137,7 +137,7 @@ export class LinearTaskListClient extends TaskListClient {
         setGlobalDispatcher: (dispatcher: unknown) => void;
       };
       const proxy = process.env.https_proxy ?? process.env.HTTPS_PROXY;
-      if (proxy) {
+      if (proxy !== undefined) {
         undici.setGlobalDispatcher(new undici.ProxyAgent(proxy));
       }
     } catch {
@@ -162,7 +162,7 @@ export class LinearTaskListClient extends TaskListClient {
   async resolveTeam(): Promise<void> {
     if (this.teamResolved) return;
 
-    if (this.teamId) {
+    if (this.teamId !== undefined) {
       this.teamResolved = true;
       return;
     }
@@ -172,7 +172,7 @@ export class LinearTaskListClient extends TaskListClient {
     );
     const teams = data.teams.nodes;
 
-    if (this.teamName) {
+    if (this.teamName !== undefined) {
       const lower = this.teamName.toLowerCase();
       const match = teams.find((t) => t.name.toLowerCase().includes(lower));
       if (!match) {
@@ -197,7 +197,7 @@ export class LinearTaskListClient extends TaskListClient {
   }
 
   private getTeamId(): string {
-    if (!this.teamId) {
+    if (this.teamId === undefined) {
       throw new Error("Team not resolved. Call resolveTeam() first.");
     }
     return this.teamId;
