@@ -17,10 +17,10 @@
  * ```
  */
 export function formatWithLineNumbers(content: string, startLine = 1): string {
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   const maxNum = startLine + lines.length - 1;
   const width = String(maxNum).length;
   return lines
     .map((line, i) => `${String(startLine + i).padStart(width)}: ${line}`)
-    .join('\n');
+    .join("\n");
 }
