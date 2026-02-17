@@ -380,6 +380,20 @@ function main(): void {
       console.log(
         `No changes since last publish (${lastTag ?? "none"}). Skipping.`
       );
+
+      // Even though we're skipping this package, record its current npm version
+      // so downstream packages can transform their file: references to it.
+      const versionParts = pkg.version.split(".");
+      const majorMinor = `${versionParts[0] ?? "0"}.${versionParts[1] ?? "0"}`;
+      const latestVersion = getLatestNpmPatchVersion(pkg.name, majorMinor);
+      if (latestVersion !== null) {
+        publishedVersions.set(pkg.name, latestVersion);
+        // eslint-disable-next-line no-console
+        console.log(
+          `  Tracked existing version ${latestVersion} for dependency resolution.`
+        );
+      }
+
       continue;
     }
 
