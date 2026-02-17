@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
+import { checkDefaultBranch } from "./polling/checkDefaultBranch.js";
 import { fetchPRActivitySelective } from "./polling/fetchPRActivity.js";
 import { fetchWatchedPRs, type WatchedPR } from "./polling/fetchWatchedPRs.js";
 import {
@@ -21,6 +22,7 @@ import type {
   PullRequest,
   PullRequestComment,
   PullRequestReview,
+  PushEvent,
   ReviewEvent,
   StatusChangedEvent,
   WatchOptions,
@@ -59,8 +61,11 @@ export class PRWatcher {
     (event: StatusChangedEvent) => void
   >();
   private readonly errorCallbacks = new Set<(error: Error) => void>();
+  private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
 
   private readonly snapshots = new Map<string, PRSnapshot>();
+  private readonly branchShas = new Map<string, string>();
+  private readonly defaultBranches = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | undefined;
   private fetching = false;
   private initialized = false;
@@ -128,6 +133,12 @@ export class PRWatcher {
     return () => this.errorCallbacks.delete(callback);
   }
 
+  /** Emits when a watched repo's default branch HEAD SHA changes. Lazy: only polls if listeners are registered. */
+  onPush(callback: (event: PushEvent) => void): () => void {
+    this.pushCallbacks.add(callback);
+    return () => this.pushCallbacks.delete(callback);
+  }
+
   async start(): Promise<readonly PRStatusEvent[]> {
     await this.poll();
     this.timer = setInterval(() => {
@@ -189,6 +200,7 @@ export class PRWatcher {
         this.throttle
       );
       await this.processUpdates(prs);
+      await this.checkDefaultBranches();
     } catch (error: unknown) {
       this.emitError(error instanceof Error ? error : new Error(String(error)));
     } finally {
@@ -352,6 +364,28 @@ export class PRWatcher {
       }
 
       this.snapshots.delete(key);
+    }
+  }
+
+  private async checkDefaultBranches(): Promise<void> {
+    if (this.pushCallbacks.size === 0) {
+      return;
+    }
+    const uniqueRepos = new Set(this.repos);
+    for (const repoSlug of uniqueRepos) {
+      const [owner, name] = repoSlug.split("/");
+      await checkDefaultBranch(
+        this.octokit,
+        owner,
+        name,
+        this.defaultBranches,
+        this.branchShas,
+        this.throttle,
+        this.initialized,
+        (event) => {
+          this.emit(this.pushCallbacks, event);
+        }
+      );
     }
   }
 

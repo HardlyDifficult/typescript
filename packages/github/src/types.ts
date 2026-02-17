@@ -229,3 +229,10 @@ export interface PRUpdatedEvent extends PREvent {
 export interface PollCompleteEvent {
   readonly prs: readonly PREvent[];
 }
+
+export interface PushEvent {
+  readonly repo: { readonly owner: string; readonly name: string };
+  readonly branch: string;
+  readonly sha: string;
+  readonly previousSha: string;
+}
