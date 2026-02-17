@@ -208,7 +208,14 @@ function resolvePlatform(options: LinkerApplyOptions): LinkerPlatform {
   return options.format ?? options.platform ?? "markdown";
 }
 
-/** Stateful linker utility that applies configured rules to text. */
+/**
+ * Stateful linker utility that applies configured rules to text.
+ *
+ * Behavior highlights:
+ * - idempotent by default (skips existing links)
+ * - skips code spans by default
+ * - deterministic overlap resolution (priority, length, then declaration order)
+ */
 export class Linker {
   private readonly rules: CompiledRule[] = [];
 
@@ -292,7 +299,8 @@ export class Linker {
     const candidates: LinkCandidate[] = [];
     for (let ruleOrder = 0; ruleOrder < this.rules.length; ruleOrder++) {
       const rule = this.rules[ruleOrder];
-      const matcher = ensureGlobal(rule.pattern);
+      const matcher = rule.pattern;
+      matcher.lastIndex = 0;
       let match: RegExpExecArray | null = matcher.exec(input);
       while (match !== null) {
         const matchedText = match[0];
@@ -364,7 +372,13 @@ export class Linker {
   }
 }
 
-/** Create a linker with optional initial rules. */
+/**
+ * Create a linker with optional initial rules.
+ *
+ * - `href` accepts template substitutions (`$0`/`$&`, `$1..$N`)
+ * - `toHref` callback, when provided, takes precedence over `href`
+ * - omitted `priority` defaults to `0`
+ */
 export function createLinker(initialRules: LinkRule[] = []): Linker {
   return new Linker(initialRules);
 }

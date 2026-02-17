@@ -1,8 +1,18 @@
-/* eslint-disable max-lines */
-import { batchStore } from "./BatchStore";
+import {
+  beginChannelBatch,
+  type ChannelBatchAdapter,
+  createChannelBatchAdapter,
+  getChannelBatch,
+  getChannelBatches,
+  withChannelBatch,
+} from "./ChannelBatchHelpers.js";
+import {
+  postDismissableMessage,
+  TypingController,
+} from "./ChannelRuntimeFeatures.js";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching";
 import { Message, type MessageOperations } from "./Message";
-import { MessageBatch } from "./MessageBatch";
+import type { MessageBatch } from "./MessageBatch.js";
 import { PendingMessage } from "./PendingMessage";
 import { Thread, type ThreadOperations } from "./Thread";
 import type {
@@ -92,9 +102,6 @@ export interface ChannelOperations {
   ): Promise<MessageData>;
 }
 
-/** Default interval (ms) for refreshing the typing indicator. Discord expires after ~10s. */
-const TYPING_REFRESH_MS = 8000;
-
 /** A platform-agnostic channel that provides messaging, reactions, typing indicators, and thread management. */
 export class Channel {
   public readonly id: string;
@@ -103,13 +110,23 @@ export class Channel {
   private operations: ChannelOperations;
   private messageReactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private unsubscribeFromPlatform: (() => void) | null = null;
-  private typingRefCount = 0;
-  private typingInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly batchAdapter: ChannelBatchAdapter;
+  private readonly typingController: TypingController;
 
   constructor(id: string, platform: Platform, operations: ChannelOperations) {
     this.id = id;
     this.platform = platform;
     this.operations = operations;
+    this.batchAdapter = createChannelBatchAdapter(
+      this.id,
+      this.platform,
+      (content, options) => this.postMessage(content, options),
+      (messageId, options) =>
+        this.operations.deleteMessage(messageId, this.id, options)
+    );
+    this.typingController = new TypingController(() =>
+      this.operations.sendTyping(this.id)
+    );
 
     // Subscribe to platform reactions and forward to message-specific callbacks
     this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
@@ -304,41 +321,6 @@ export class Channel {
   }
 
   /**
-   * Build a MessageBatch object backed by the internal batch store.
-   */
-  private buildBatch(batchId: string): MessageBatch {
-    const snapshot = batchStore.getBatch(this.id, this.platform, batchId);
-    if (snapshot === null) {
-      throw new Error(`Batch ${batchId} was not found for this channel`);
-    }
-    return new MessageBatch(snapshot, {
-      postMessage: (
-        content: MessageContent,
-        options?: { files?: FileAttachment[]; linkPreviews?: boolean }
-      ) => this.postMessage(content, options),
-      appendMessage: (id, message) => {
-        batchStore.appendMessage(this.id, this.platform, id, {
-          id: message.id,
-          channelId: message.channelId,
-          platform: message.platform,
-          postedAt: message.postedAt.getTime(),
-        });
-      },
-      removeMessages: (id, messageIds) => {
-        batchStore.removeMessages(this.id, this.platform, id, messageIds);
-      },
-      deleteMessage: (messageId: string, options?: DeleteMessageOptions) =>
-        this.operations.deleteMessage(messageId, this.id, options),
-      finish: (id: string) => {
-        batchStore.finishBatch(this.id, this.platform, id);
-        return Promise.resolve();
-      },
-      getSnapshot: (id: string) =>
-        batchStore.getBatch(this.id, this.platform, id),
-    });
-  }
-
-  /**
    * Subscribe to incoming messages in this channel
    * @param callback - Function called with a Message object for each incoming message
    * @returns Unsubscribe function
@@ -379,19 +361,7 @@ export class Channel {
    * can overlap — the indicator stays active until the last one ends.
    */
   beginTyping(): void {
-    this.typingRefCount++;
-    if (this.typingRefCount === 1) {
-      this.operations.sendTyping(this.id).catch(() => {
-        // Ignore typing indicator failures
-      });
-      this.typingInterval = setInterval(() => {
-        if (this.typingRefCount > 0) {
-          this.operations.sendTyping(this.id).catch(() => {
-            // Ignore typing indicator failures
-          });
-        }
-      }, TYPING_REFRESH_MS);
-    }
+    this.typingController.begin();
   }
 
   /**
@@ -399,13 +369,7 @@ export class Channel {
    * calls have been balanced by endTyping(), the refresh interval stops.
    */
   endTyping(): void {
-    if (this.typingRefCount > 0) {
-      this.typingRefCount--;
-    }
-    if (this.typingRefCount === 0 && this.typingInterval) {
-      clearInterval(this.typingInterval);
-      this.typingInterval = null;
-    }
+    this.typingController.end();
   }
 
   /**
@@ -416,12 +380,7 @@ export class Channel {
    * @returns The return value of fn
    */
   async withTyping<T>(fn: () => Promise<T>): Promise<T> {
-    this.beginTyping();
-    try {
-      return await fn();
-    } finally {
-      this.endTyping();
-    }
+    return this.typingController.withTyping(fn);
   }
 
   /**
@@ -434,17 +393,12 @@ export class Channel {
     content: MessageContent,
     ownerId: string
   ): Promise<Message> {
-    const emoji = this.platform === "slack" ? ":wastebasket:" : "🗑️";
-    const emojiMatch = this.platform === "slack" ? "wastebasket" : "🗑️";
-    const msg = await this.postMessage(content);
-    msg.addReactions([emoji]).onReaction(async (event) => {
-      if (event.user.id !== ownerId || event.emoji !== emojiMatch) {
-        return;
-      }
-      msg.offReaction();
-      await msg.delete();
-    });
-    return msg;
+    return postDismissableMessage(
+      this.platform,
+      async (messageContent) => this.postMessage(messageContent),
+      content,
+      ownerId
+    );
   }
 
   /**
@@ -452,67 +406,44 @@ export class Channel {
    * Batches can later be queried with getBatches()/getBatch().
    */
   beginBatch(options: BeginBatchOptions = {}): Promise<MessageBatch> {
-    const snapshot = batchStore.beginBatch({
-      key: options.key,
-      author: options.author,
-      channelId: this.id,
-      platform: this.platform,
-    });
-    return Promise.resolve(this.buildBatch(snapshot.id));
+    return beginChannelBatch(this.batchAdapter, options);
   }
 
   /**
    * Execute a callback with an auto-finishing message batch.
    * finish() is guaranteed in finally, even when callback throws.
    */
-  async withBatch<T>(callback: (batch: MessageBatch) => Promise<T>): Promise<T>;
-  async withBatch<T>(
-    options: BeginBatchOptions,
-    callback: (batch: MessageBatch) => Promise<T>
-  ): Promise<T>;
-  async withBatch<T>(
+  withBatch<T>(
     optionsOrCallback:
       | BeginBatchOptions
       | ((batch: MessageBatch) => Promise<T>),
     maybeCallback?: (batch: MessageBatch) => Promise<T>
   ): Promise<T> {
-    const callback =
-      typeof optionsOrCallback === "function"
-        ? optionsOrCallback
-        : maybeCallback;
-    const options =
-      typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
-    if (callback === undefined) {
+    if (typeof optionsOrCallback === "function") {
+      return withChannelBatch(this.batchAdapter, optionsOrCallback);
+    }
+    if (maybeCallback === undefined) {
       throw new Error("withBatch requires a callback");
     }
-
-    const batch = await this.beginBatch(options);
-    try {
-      return await callback(batch);
-    } finally {
-      await batch.finish();
-    }
+    return withChannelBatch(
+      this.batchAdapter,
+      optionsOrCallback,
+      maybeCallback
+    );
   }
 
   /**
    * Retrieve a batch by ID within this channel.
    */
   getBatch(id: string): Promise<MessageBatch | null> {
-    const snapshot = batchStore.getBatch(this.id, this.platform, id);
-    if (snapshot === null) {
-      return Promise.resolve(null);
-    }
-    return Promise.resolve(this.buildBatch(snapshot.id));
+    return getChannelBatch(this.batchAdapter, id);
   }
 
   /**
    * List batches in this channel, newest first.
    */
   getBatches(options: BatchQueryOptions = {}): Promise<MessageBatch[]> {
-    const snapshots = batchStore.getBatches(this.id, this.platform, options);
-    return Promise.resolve(
-      snapshots.map((snapshot) => this.buildBatch(snapshot.id))
-    );
+    return getChannelBatches(this.batchAdapter, options);
   }
 
   /**
@@ -630,10 +561,6 @@ export class Channel {
       this.unsubscribeFromPlatform = null;
     }
     this.messageReactionCallbacks.clear();
-    if (this.typingInterval) {
-      clearInterval(this.typingInterval);
-      this.typingInterval = null;
-    }
-    this.typingRefCount = 0;
+    this.typingController.clear();
   }
 }
