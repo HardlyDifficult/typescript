@@ -31,11 +31,3 @@ Focused, opinionated, easy-to-use npm packages.
 Add an `NPM_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with an [npm automation token](https://www.npmjs.com/settings/~/tokens).
 
 Add a `PAT_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with a [GitHub PAT](https://github.com/settings/tokens) that has `repo` scope. This is used by the CI auto-fix workflow to push commits that trigger re-runs.
-
-## Development
-
-```bash
-npm install
-npm run build
-npm run test
-```
