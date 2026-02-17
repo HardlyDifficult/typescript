@@ -5,6 +5,8 @@ import type {
   CodeBlock,
   ContextBlock,
   DividerBlock,
+  DocumentLinkifyOptions,
+  DocumentLinkTransform,
   DocumentOptions,
   FieldOptions,
   HeaderBlock,
@@ -12,12 +14,33 @@ import type {
   KeyValueOptions,
   LinkBlock,
   ListBlock,
+  Platform,
   SectionContent,
   SectionOptions,
   TextBlock,
   TimestampOptions,
   TruncatedListOptions,
 } from "./types.js";
+
+function resolveLinkTransform(
+  transform: DocumentLinkTransform,
+  platform: Platform
+): (value: string) => string {
+  if (typeof transform === "function") {
+    return transform;
+  }
+  if (typeof transform.linkText === "function") {
+    return (value: string): string =>
+      transform.linkText?.(value, { platform }) ?? value;
+  }
+  if (typeof transform.apply === "function") {
+    return (value: string): string =>
+      transform.apply?.(value, { platform }) ?? value;
+  }
+  throw new Error(
+    "Invalid link transformer: expected function or object with linkText/apply"
+  );
+}
 
 /** A fluent builder for composing rich documents from typed blocks, with markdown and plain-text output. */
 export class Document {
@@ -342,6 +365,40 @@ export class Document {
       text = iso;
     }
     return this.context(text);
+  }
+
+  /**
+   * Apply linker-style transformations to text-bearing blocks.
+   *
+   * Transforms: header text, paragraph text, list items, and context text.
+   * Leaves code and explicit link blocks unchanged.
+   */
+  linkify(
+    transform: DocumentLinkTransform,
+    options: DocumentLinkifyOptions = {}
+  ): this {
+    const platform = options.platform ?? "markdown";
+    const apply = resolveLinkTransform(transform, platform);
+
+    this.blocks = this.blocks.map((block): Block => {
+      switch (block.type) {
+        case "header":
+          return { ...block, text: apply(block.text) };
+        case "text":
+          return { ...block, content: apply(block.content) };
+        case "list":
+          return {
+            ...block,
+            items: block.items.map((item) => apply(item)),
+          };
+        case "context":
+          return { ...block, text: apply(block.text) };
+        default:
+          return block;
+      }
+    });
+
+    return this;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

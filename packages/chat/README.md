@@ -192,6 +192,48 @@ if (postedAt !== undefined) {
 
 `post()` is fire-and-forget. `edit()` handles the race where the edit arrives before the original post completes — it chains on the stored promise.
 
+### Message Batches
+
+Group related posted messages so they can be retrieved and cleaned up together.
+
+```typescript
+const batch = await channel.beginBatch({ key: "sprint-update" });
+
+for (const member of members) {
+  const msg = await batch.post(summary(member));
+  await msg.reply(detail(member));
+}
+
+await batch.post(callouts);
+await batch.finish();
+
+const recent = await channel.getBatches({
+  key: "sprint-update",
+  author: "me",
+  limit: 5,
+});
+
+await recent[0].deleteAll({ cascadeReplies: true });
+```
+
+For safer lifecycle handling, use `withBatch` (auto-finishes in `finally`):
+
+```typescript
+await channel.withBatch({ key: "sprint-update" }, async (batch) => {
+  await batch.post("Part 1");
+  await batch.post("Part 2");
+});
+```
+
+`MessageBatch` includes:
+
+- `id`, `key`, `author`, `createdAt`, `closedAt`, `isFinished`
+- `messages` (tracked message refs)
+- `post(content, options?)`
+- `deleteAll(options?)`
+- `keepLatest(n, options?)`
+- `finish()`
+
 ### Threads
 
 Create a thread, post messages, and listen for replies. The `Thread` object is the primary interface — all threading internals are hidden.

@@ -553,6 +553,50 @@ describe("Document", () => {
     });
   });
 
+  describe("linkify()", () => {
+    it("applies a function transform to text-bearing blocks", () => {
+      const document = new Document()
+        .header("ENG-533")
+        .text("Ship ENG-533")
+        .list(["ENG-533", "PR#42"])
+        .context("ENG-533 context")
+        .linkify((value) => value.replaceAll("ENG-533", "LINKED"));
+
+      expect(document.getBlocks()).toEqual([
+        { type: "header", text: "LINKED" },
+        { type: "text", content: "Ship LINKED" },
+        { type: "list", items: ["LINKED", "PR#42"] },
+        { type: "context", text: "LINKED context" },
+      ]);
+    });
+
+    it("uses linkText-style transformers with platform option", () => {
+      const linkText = vi
+        .fn()
+        .mockImplementation((value: string) => value.replace("ENG-533", "LNK"));
+
+      const document = new Document().text("ENG-533");
+      document.linkify({ linkText }, { platform: "slack" });
+
+      expect(linkText).toHaveBeenCalledWith("ENG-533", { platform: "slack" });
+      expect(document.getBlocks()).toEqual([{ type: "text", content: "LNK" }]);
+    });
+
+    it("leaves code and explicit link blocks unchanged", () => {
+      const document = new Document()
+        .text("eng-533")
+        .code("eng-533")
+        .link("eng-533", "https://example.com")
+        .linkify((value) => value.toUpperCase());
+
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "ENG-533" },
+        { type: "code", content: "eng-533", multiline: false },
+        { type: "link", text: "eng-533", url: "https://example.com" },
+      ]);
+    });
+  });
+
   describe("isEmpty()", () => {
     it("returns true for new document", () => {
       const document = new Document();

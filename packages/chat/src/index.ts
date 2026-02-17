@@ -14,6 +14,11 @@ export {
   type MessageContent,
   type MessageAuthorFilter,
   type MessageQueryOptions,
+  type BatchMessageRef,
+  type BeginBatchOptions,
+  type BatchQueryOptions,
+  type BatchDeleteSummary,
+  type BatchKeepLatestSummary,
   type FileAttachment,
   type DeleteMessageOptions,
   type TimestampInput,
@@ -29,6 +34,7 @@ export { MESSAGE_LIMITS } from "./constants";
 export { ChatClient } from "./ChatClient";
 export { Channel } from "./Channel";
 export { Message } from "./Message";
+export { MessageBatch } from "./MessageBatch";
 export { EditableStreamReply } from "./EditableStreamReply";
 export { StreamingReply } from "./StreamingReply";
 export { Thread } from "./Thread";
