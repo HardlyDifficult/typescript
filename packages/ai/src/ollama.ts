@@ -12,14 +12,31 @@ const ollamaAgent = new Agent({
   connectTimeout: 60 * 1000, // 1 min  — localhost connection should be near-instant
 });
 
+/**
+ * Inject `keep_alive: -1` into Ollama POST request bodies so the model stays
+ * loaded in GPU memory indefinitely. The ollama-ai-provider-v2 package doesn't
+ * expose this option for chat models, so we intercept at the fetch layer.
+ */
+function injectKeepAlive(init?: RequestInit): RequestInit | undefined {
+  if (!init?.body || init.method?.toUpperCase() !== "POST") return init;
+  try {
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    body["keep_alive"] = -1;
+    return { ...init, body: JSON.stringify(body) };
+  } catch {
+    return init;
+  }
+}
+
 const provider = createOllama({
   fetch: ((input: string | URL | Request, init?: RequestInit) => {
+    const patched = injectKeepAlive(init);
     // Node.js fetch accepts undici's dispatcher option for custom agents.
     // TypeScript has conflicting types between undici and @types/node's undici-types.
     // The Agent from undici is functionally compatible with Dispatcher but structurally
     // incompatible due to differences between the two type definitions.
     const fetchOptions: RequestInit & { dispatcher?: Dispatcher } = {
-      ...init,
+      ...patched,
       // @ts-expect-error - Type mismatch between undici Agent and undici-types Dispatcher (runtime compatible)
       dispatcher: ollamaAgent,
     };
