@@ -1,5 +1,8 @@
 export type Platform = "markdown" | "slack" | "discord" | "plaintext";
 
+/** Document string formats supported by `Document.render()`. */
+export type StringOutputFormat = "markdown" | "slack" | "plaintext";
+
 export type Block =
   | HeaderBlock
   | TextBlock
