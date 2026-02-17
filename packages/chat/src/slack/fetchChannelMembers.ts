@@ -53,8 +53,7 @@ export async function fetchChannelMembers(
         username: name,
         displayName,
         mention: `<@${userId}>`,
-        ...(profile?.email !== undefined &&
-        profile.email !== ""
+        ...(profile?.email !== undefined && profile.email !== ""
           ? { email: profile.email }
           : {}),
       });

@@ -144,11 +144,21 @@ describe("Channel feature helpers", () => {
     });
 
     expect(deleted).toBe(2);
-    expect(operations.deleteMessage).toHaveBeenNthCalledWith(1, "m2", "channel-1", {
-      cascadeReplies: false,
-    });
-    expect(operations.deleteMessage).toHaveBeenNthCalledWith(2, "m3", "channel-1", {
-      cascadeReplies: false,
-    });
+    expect(operations.deleteMessage).toHaveBeenNthCalledWith(
+      1,
+      "m2",
+      "channel-1",
+      {
+        cascadeReplies: false,
+      }
+    );
+    expect(operations.deleteMessage).toHaveBeenNthCalledWith(
+      2,
+      "m3",
+      "channel-1",
+      {
+        cascadeReplies: false,
+      }
+    );
   });
 });

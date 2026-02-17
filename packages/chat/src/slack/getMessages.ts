@@ -1,6 +1,10 @@
 import type { App } from "@slack/bolt";
 
-import type { MessageData, MessageQueryOptions, TimestampInput } from "../types";
+import type {
+  MessageData,
+  MessageQueryOptions,
+  TimestampInput,
+} from "../types";
 
 interface SlackFileAttachment {
   url_private?: string;
@@ -43,7 +47,9 @@ export async function getMessages(
     limit,
     ...(oldest !== undefined ? { oldest } : {}),
     ...(latest !== undefined ? { latest } : {}),
-    ...(oldest !== undefined || latest !== undefined ? { inclusive: false } : {}),
+    ...(oldest !== undefined || latest !== undefined
+      ? { inclusive: false }
+      : {}),
   });
 
   const messages: MessageData[] = [];
@@ -118,7 +124,9 @@ function matchesAuthorFilter(
   );
 }
 
-function toSlackTimestamp(input: TimestampInput | undefined): string | undefined {
+function toSlackTimestamp(
+  input: TimestampInput | undefined
+): string | undefined {
   if (input === undefined) {
     return undefined;
   }
@@ -177,12 +185,7 @@ function extractSlackAttachments(message: SlackHistoryMessage) {
   const attachments: NonNullable<MessageData["attachments"]> = [];
   for (const file of message.files ?? []) {
     const { url_private: url, name, mimetype, size } = file;
-    if (
-      url === undefined ||
-      url === "" ||
-      name === undefined ||
-      name === ""
-    ) {
+    if (url === undefined || url === "" || name === undefined || name === "") {
       continue;
     }
     attachments.push({

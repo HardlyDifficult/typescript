@@ -476,11 +476,7 @@ export class Channel {
     });
 
     return data.map(
-      (message) =>
-        new Message(
-          message,
-          this.createMessageOperations()
-        )
+      (message) => new Message(message, this.createMessageOperations())
     );
   }
 
@@ -496,7 +492,10 @@ export class Channel {
    * Returns the number of deleted messages.
    */
   async pruneMessages(
-    options: MessageQueryOptions & { keep?: number; cascadeReplies?: boolean } = {}
+    options: MessageQueryOptions & {
+      keep?: number;
+      cascadeReplies?: boolean;
+    } = {}
   ): Promise<number> {
     const keep = Math.max(0, options.keep ?? 0);
     const cascadeReplies = options.cascadeReplies ?? true;
