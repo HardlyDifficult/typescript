@@ -1,13 +1,12 @@
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
+import { extractCostFromDelta, findCostFieldPaths } from "./costFields.js";
 import { deepAdd } from "./deepAdd.js";
-import { findCostFieldPaths, extractCostFromDelta } from "./costFields.js";
 import { SpendLimitExceededError } from "./SpendLimitExceededError.js";
 import type {
   DeepPartial,
   NumericRecord,
   PersistedUsageState,
-  SpendEntry,
   SpendLimit,
   SpendStatus,
   UsageTrackerOptions,
@@ -34,7 +33,7 @@ export class UsageTracker<T extends NumericRecord> {
 
   private constructor(
     options: UsageTrackerOptions<T>,
-    tracker: StateTracker<PersistedUsageState<T>>,
+    tracker: StateTracker<PersistedUsageState<T>>
   ) {
     this.defaultMetrics = structuredClone(options.default);
     this.tracker = tracker;
@@ -49,7 +48,7 @@ export class UsageTracker<T extends NumericRecord> {
 
   /** Create a UsageTracker, load persisted state, and start a new session. */
   static async create<T extends NumericRecord>(
-    options: UsageTrackerOptions<T>,
+    options: UsageTrackerOptions<T>
   ): Promise<UsageTracker<T>> {
     const now = new Date().toISOString();
     const tracker = new StateTracker<PersistedUsageState<T>>({
@@ -136,7 +135,10 @@ export class UsageTracker<T extends NumericRecord> {
     if (this.costFieldPaths.length > 0) {
       const cost = extractCostFromDelta(values, this.costFieldPaths);
       if (cost > 0) {
-        const entries = [...state.spendEntries, { timestamp: Date.now(), amountUsd: cost }];
+        const entries = [
+          ...state.spendEntries,
+          { timestamp: Date.now(), amountUsd: cost },
+        ];
         update.spendEntries = entries;
       }
     }
@@ -214,7 +216,9 @@ export class UsageTracker<T extends NumericRecord> {
       const excess = spentUsd - limit.maxSpendUsd;
       let shed = 0;
       for (const entry of entries) {
-        if (entry.timestamp < cutoff) continue;
+        if (entry.timestamp < cutoff) {
+          continue;
+        }
         shed += entry.amountUsd;
         if (shed >= excess) {
           // This entry leaving the window brings us under the limit
@@ -235,18 +239,24 @@ export class UsageTracker<T extends NumericRecord> {
 
   /** Remove entries older than the longest configured window. */
   private pruneEntries(): void {
-    if (this.maxWindowMs <= 0) return;
+    if (this.maxWindowMs <= 0) {
+      return;
+    }
     const cutoff = Date.now() - this.maxWindowMs;
     const entries = this.tracker.state.spendEntries;
     const pruned = entries.filter((e) => e.timestamp >= cutoff);
     if (pruned.length < entries.length) {
-      this.tracker.update({ spendEntries: pruned } as Partial<PersistedUsageState<T>>);
+      this.tracker.update({ spendEntries: pruned } as Partial<
+        PersistedUsageState<T>
+      >);
     }
   }
 
   /** Fire onSpendLimitExceeded for any newly-exceeded limit. */
   private checkLimits(): void {
-    if (this.onSpendLimitExceeded === undefined) return;
+    if (this.onSpendLimitExceeded === undefined) {
+      return;
+    }
     for (const limit of this.spendLimits) {
       const status = this.statusForLimit(limit);
       if (status.exceeded) {

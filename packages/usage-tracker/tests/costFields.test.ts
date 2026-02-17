@@ -67,7 +67,7 @@ describe("extractCostFromDelta", () => {
         openai: { estimatedCostUsd: 0.01 },
         claudeCode: { totalCostUsd: 1.5 },
       },
-      paths,
+      paths
     );
     expect(cost).toBeCloseTo(1.56);
   });
@@ -75,7 +75,7 @@ describe("extractCostFromDelta", () => {
   it("extracts cost from a partial delta", () => {
     const cost = extractCostFromDelta(
       { anthropic: { estimatedCostUsd: 0.03 } },
-      paths,
+      paths
     );
     expect(cost).toBeCloseTo(0.03);
   });
@@ -83,7 +83,7 @@ describe("extractCostFromDelta", () => {
   it("returns 0 for delta with no cost fields", () => {
     const cost = extractCostFromDelta(
       { anthropic: { requests: 1, tokens: 500 } },
-      paths,
+      paths
     );
     expect(cost).toBe(0);
   });
@@ -96,7 +96,7 @@ describe("extractCostFromDelta", () => {
   it("handles missing intermediate keys gracefully", () => {
     const cost = extractCostFromDelta(
       { nonexistent: { estimatedCostUsd: 0.05 } },
-      paths,
+      paths
     );
     expect(cost).toBe(0);
   });

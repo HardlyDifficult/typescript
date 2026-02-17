@@ -268,7 +268,7 @@ describe("UsageTracker", () => {
       });
 
       tracker.record({ api: { estimatedCostUsd: 0.05 } });
-      tracker.record({ code: { totalCostUsd: 1.50 } });
+      tracker.record({ code: { totalCostUsd: 1.5 } });
 
       expect(tracker.costInWindow(60_000)).toBeCloseTo(1.55);
     });
@@ -281,11 +281,11 @@ describe("UsageTracker", () => {
       });
 
       tracker.record({
-        api: { estimatedCostUsd: 0.10 },
-        code: { totalCostUsd: 2.00 },
+        api: { estimatedCostUsd: 0.1 },
+        code: { totalCostUsd: 2.0 },
       });
 
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(2.10);
+      expect(tracker.costInWindow(60_000)).toBeCloseTo(2.1);
     });
 
     it("excludes entries outside the window", async () => {
@@ -300,16 +300,16 @@ describe("UsageTracker", () => {
       const baseTime = Date.now();
       vi.setSystemTime(baseTime);
 
-      tracker.record({ api: { estimatedCostUsd: 1.00 } });
+      tracker.record({ api: { estimatedCostUsd: 1.0 } });
 
       // Move forward 5 minutes
       vi.setSystemTime(baseTime + 5 * 60_000);
-      tracker.record({ api: { estimatedCostUsd: 0.50 } });
+      tracker.record({ api: { estimatedCostUsd: 0.5 } });
 
       // 1-minute window should only include the recent entry
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(0.50);
+      expect(tracker.costInWindow(60_000)).toBeCloseTo(0.5);
       // 10-minute window should include both
-      expect(tracker.costInWindow(10 * 60_000)).toBeCloseTo(1.50);
+      expect(tracker.costInWindow(10 * 60_000)).toBeCloseTo(1.5);
 
       vi.useRealTimers();
     });
@@ -334,12 +334,10 @@ describe("UsageTracker", () => {
         key: "limit-pass",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 5, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 5, label: "1 minute" }],
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.00 } });
+      tracker.record({ api: { estimatedCostUsd: 1.0 } });
       expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
     });
 
@@ -348,15 +346,13 @@ describe("UsageTracker", () => {
         key: "limit-fail",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.50 } });
+      tracker.record({ api: { estimatedCostUsd: 1.5 } });
 
       expect(() => tracker.assertWithinSpendLimits()).toThrow(
-        SpendLimitExceededError,
+        SpendLimitExceededError
       );
     });
 
@@ -371,7 +367,7 @@ describe("UsageTracker", () => {
         ],
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.50 } });
+      tracker.record({ api: { estimatedCostUsd: 1.5 } });
 
       try {
         tracker.assertWithinSpendLimits();
@@ -380,7 +376,7 @@ describe("UsageTracker", () => {
         expect(err).toBeInstanceOf(SpendLimitExceededError);
         const e = err as SpendLimitExceededError;
         expect(e.status.limit.label).toBe("1 minute");
-        expect(e.status.spentUsd).toBeCloseTo(1.50);
+        expect(e.status.spentUsd).toBeCloseTo(1.5);
         expect(e.status.exceeded).toBe(true);
       }
     });
@@ -402,16 +398,14 @@ describe("UsageTracker", () => {
         key: "callback-test",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
         onSpendLimitExceeded: exceeded,
       });
 
-      tracker.record({ api: { estimatedCostUsd: 0.50 } });
+      tracker.record({ api: { estimatedCostUsd: 0.5 } });
       expect(exceeded).not.toHaveBeenCalled();
 
-      tracker.record({ api: { estimatedCostUsd: 0.60 } });
+      tracker.record({ api: { estimatedCostUsd: 0.6 } });
       expect(exceeded).toHaveBeenCalledOnce();
       expect(exceeded.mock.calls[0]![0]!.exceeded).toBe(true);
       expect(exceeded.mock.calls[0]![0]!.limit.label).toBe("1 minute");
@@ -457,18 +451,18 @@ describe("UsageTracker", () => {
         ],
       });
 
-      tracker.record({ api: { estimatedCostUsd: 3.00 } });
+      tracker.record({ api: { estimatedCostUsd: 3.0 } });
 
       const statuses = tracker.spendStatus();
       expect(statuses).toHaveLength(2);
 
-      expect(statuses[0]!.spentUsd).toBeCloseTo(3.00);
-      expect(statuses[0]!.remainingUsd).toBeCloseTo(2.00);
+      expect(statuses[0]!.spentUsd).toBeCloseTo(3.0);
+      expect(statuses[0]!.remainingUsd).toBeCloseTo(2.0);
       expect(statuses[0]!.exceeded).toBe(false);
       expect(statuses[0]!.resumesAt).toBeNull();
 
-      expect(statuses[1]!.spentUsd).toBeCloseTo(3.00);
-      expect(statuses[1]!.remainingUsd).toBeCloseTo(17.00);
+      expect(statuses[1]!.spentUsd).toBeCloseTo(3.0);
+      expect(statuses[1]!.remainingUsd).toBeCloseTo(17.0);
       expect(statuses[1]!.exceeded).toBe(false);
     });
 
@@ -481,15 +475,13 @@ describe("UsageTracker", () => {
         key: "resume-test",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 2, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 2, label: "1 minute" }],
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.50 } });
+      tracker.record({ api: { estimatedCostUsd: 1.5 } });
 
       vi.setSystemTime(baseTime + 10_000);
-      tracker.record({ api: { estimatedCostUsd: 1.00 } });
+      tracker.record({ api: { estimatedCostUsd: 1.0 } });
 
       const status = tracker.spendStatus()[0]!;
       expect(status.exceeded).toBe(true);
@@ -509,8 +501,8 @@ describe("UsageTracker", () => {
         stateDirectory: testDir,
       });
 
-      tracker1.record({ api: { estimatedCostUsd: 2.00 } });
-      tracker1.record({ code: { totalCostUsd: 3.00 } });
+      tracker1.record({ api: { estimatedCostUsd: 2.0 } });
+      tracker1.record({ code: { totalCostUsd: 3.0 } });
       await tracker1.save();
 
       const tracker2 = await UsageTracker.create({
@@ -519,7 +511,7 @@ describe("UsageTracker", () => {
         stateDirectory: testDir,
       });
 
-      expect(tracker2.costInWindow(60_000)).toBeCloseTo(5.00);
+      expect(tracker2.costInWindow(60_000)).toBeCloseTo(5.0);
     });
 
     it("prunes stale entries on restart", async () => {
@@ -531,12 +523,10 @@ describe("UsageTracker", () => {
         key: "prune-test",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
       });
 
-      tracker1.record({ api: { estimatedCostUsd: 1.00 } });
+      tracker1.record({ api: { estimatedCostUsd: 1.0 } });
       await tracker1.save();
 
       // Restart 2 minutes later — entry should be pruned
@@ -546,9 +536,7 @@ describe("UsageTracker", () => {
         key: "prune-test",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
       });
 
       expect(tracker2.costInWindow(60_000)).toBe(0);
@@ -575,9 +563,7 @@ describe("UsageTracker", () => {
         key: "old-format",
         default: spendDefaults,
         stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" },
-        ],
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
       });
 
       // Should work fine with empty entries
@@ -585,8 +571,8 @@ describe("UsageTracker", () => {
       expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
 
       // Should be able to record new entries
-      tracker.record({ api: { estimatedCostUsd: 1.00 } });
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(1.00);
+      tracker.record({ api: { estimatedCostUsd: 1.0 } });
+      expect(tracker.costInWindow(60_000)).toBeCloseTo(1.0);
     });
   });
 });

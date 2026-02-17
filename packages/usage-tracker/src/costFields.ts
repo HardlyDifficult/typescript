@@ -1,4 +1,4 @@
-import type { NumericRecord, DeepPartial } from "./types.js";
+import type { DeepPartial, NumericRecord } from "./types.js";
 
 const COST_SUFFIX = "costusd";
 
@@ -15,7 +15,7 @@ const COST_SUFFIX = "costusd";
 export function findCostFieldPaths(obj: NumericRecord, prefix = ""): string[] {
   const paths: string[] = [];
   for (const key of Object.keys(obj)) {
-    const value = obj[key]!;
+    const value = obj[key];
     const fullPath = prefix === "" ? key : `${prefix}.${key}`;
     if (typeof value === "number") {
       if (key.toLowerCase().endsWith(COST_SUFFIX)) {
@@ -36,14 +36,18 @@ export function findCostFieldPaths(obj: NumericRecord, prefix = ""): string[] {
  */
 export function extractCostFromDelta(
   delta: DeepPartial<NumericRecord>,
-  costPaths: string[],
+  costPaths: string[]
 ): number {
   let total = 0;
   for (const path of costPaths) {
     const segments = path.split(".");
     let current: unknown = delta;
     for (const segment of segments) {
-      if (current === undefined || current === null || typeof current !== "object") {
+      if (
+        current === undefined ||
+        current === null ||
+        typeof current !== "object"
+      ) {
         current = undefined;
         break;
       }
