@@ -162,6 +162,37 @@ describe("Document", () => {
     });
   });
 
+  describe("output methods", () => {
+    it("toMarkdown() renders markdown output", () => {
+      const document = new Document().header("Title").text("Body");
+      expect(document.toMarkdown()).toBe("# Title\n\nBody\n\n");
+    });
+
+    it("toPlainText() renders plain-text output", () => {
+      const document = new Document().header("Title").text("Body");
+      expect(document.toPlainText()).toBe("TITLE\n\nBody\n\n");
+    });
+
+    it("toSlackText() renders Slack mrkdwn output", () => {
+      const document = new Document()
+        .header("Title")
+        .text("Body with **bold**");
+      expect(document.toSlackText()).toBe("*Title*\n\nBody with *bold*\n\n");
+    });
+
+    it("toSlack() is an alias for toSlackText()", () => {
+      const document = new Document().text("Hello **world**");
+      expect(document.toSlack()).toBe(document.toSlackText());
+    });
+
+    it("render() supports markdown, slack, and plaintext formats", () => {
+      const document = new Document().text("**bold** and *italic*");
+      expect(document.render("markdown")).toBe("**bold** and *italic*\n\n");
+      expect(document.render("slack")).toBe("*bold* and _italic_\n\n");
+      expect(document.render("plaintext")).toBe("bold and italic\n\n");
+    });
+  });
+
   describe("code() multiline detection", () => {
     it("detects single line code as multiline: false", () => {
       const document = new Document().code("const x = 1;");
