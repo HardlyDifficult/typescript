@@ -1,8 +1,12 @@
+import { batchStore } from "./BatchStore";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching";
 import { Message, type MessageOperations } from "./Message";
+import { MessageBatch } from "./MessageBatch";
 import { PendingMessage } from "./PendingMessage";
 import { Thread, type ThreadOperations } from "./Thread";
 import type {
+  BatchQueryOptions,
+  BeginBatchOptions,
   DeleteMessageOptions,
   DisconnectCallback,
   ErrorCallback,
@@ -299,6 +303,39 @@ export class Channel {
   }
 
   /**
+   * Build a MessageBatch object backed by the internal batch store.
+   */
+  private buildBatch(batchId: string): MessageBatch {
+    const snapshot = batchStore.getBatch(this.id, this.platform, batchId);
+    if (snapshot === null) {
+      throw new Error(`Batch ${batchId} was not found for this channel`);
+    }
+    return new MessageBatch(snapshot, {
+      postMessage: (
+        content: MessageContent,
+        options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+      ) => this.postMessage(content, options),
+      appendMessage: (id, message) => {
+        batchStore.appendMessage(this.id, this.platform, id, {
+          id: message.id,
+          channelId: message.channelId,
+          platform: message.platform,
+          postedAt: message.postedAt.getTime(),
+        });
+      },
+      removeMessages: (id, messageIds) => {
+        batchStore.removeMessages(this.id, this.platform, id, messageIds);
+      },
+      deleteMessage: (messageId: string, options?: DeleteMessageOptions) =>
+        this.operations.deleteMessage(messageId, this.id, options),
+      finish: async (id: string) => {
+        batchStore.finishBatch(this.id, this.platform, id);
+      },
+      getSnapshot: (id: string) => batchStore.getBatch(this.id, this.platform, id),
+    });
+  }
+
+  /**
    * Subscribe to incoming messages in this channel
    * @param callback - Function called with a Message object for each incoming message
    * @returns Unsubscribe function
@@ -405,6 +442,73 @@ export class Channel {
       await msg.delete();
     });
     return msg;
+  }
+
+  /**
+   * Begin a logical message batch for grouping related posts.
+   * Batches can later be queried with getBatches()/getBatch().
+   */
+  async beginBatch(options: BeginBatchOptions = {}): Promise<MessageBatch> {
+    const snapshot = batchStore.beginBatch({
+      key: options.key,
+      author: options.author,
+      channelId: this.id,
+      platform: this.platform,
+    });
+    return this.buildBatch(snapshot.id);
+  }
+
+  /**
+   * Execute a callback with an auto-finishing message batch.
+   * finish() is guaranteed in finally, even when callback throws.
+   */
+  async withBatch<T>(
+    callback: (batch: MessageBatch) => Promise<T>
+  ): Promise<T>;
+  async withBatch<T>(
+    options: BeginBatchOptions,
+    callback: (batch: MessageBatch) => Promise<T>
+  ): Promise<T>;
+  async withBatch<T>(
+    optionsOrCallback:
+      | BeginBatchOptions
+      | ((batch: MessageBatch) => Promise<T>),
+    maybeCallback?: (batch: MessageBatch) => Promise<T>
+  ): Promise<T> {
+    const callback =
+      typeof optionsOrCallback === "function"
+        ? optionsOrCallback
+        : maybeCallback;
+    const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+    if (callback === undefined) {
+      throw new Error("withBatch requires a callback");
+    }
+
+    const batch = await this.beginBatch(options);
+    try {
+      return await callback(batch);
+    } finally {
+      await batch.finish();
+    }
+  }
+
+  /**
+   * Retrieve a batch by ID within this channel.
+   */
+  async getBatch(id: string): Promise<MessageBatch | null> {
+    const snapshot = batchStore.getBatch(this.id, this.platform, id);
+    if (snapshot === null) {
+      return null;
+    }
+    return this.buildBatch(snapshot.id);
+  }
+
+  /**
+   * List batches in this channel, newest first.
+   */
+  async getBatches(options: BatchQueryOptions = {}): Promise<MessageBatch[]> {
+    const snapshots = batchStore.getBatches(this.id, this.platform, options);
+    return snapshots.map((snapshot) => this.buildBatch(snapshot.id));
   }
 
   /**
