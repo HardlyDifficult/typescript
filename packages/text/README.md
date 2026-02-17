@@ -1,6 +1,6 @@
 # @hardlydifficult/text
 
-Text utilities for error formatting, template replacement, and chunking.
+Text utilities for error formatting, template replacement, chunking, and line numbering.
 
 ## Installation
 
@@ -121,3 +121,31 @@ convertFormat("name: Alice\nage: 30", "json");
 ```
 
 The function tries to parse as JSON first, then falls back to YAML. Returns pretty-printed JSON with 2-space indent or clean YAML. Throws a descriptive error if the input is neither valid JSON nor YAML.
+
+### `formatWithLineNumbers(content: string, startLine?: number): string`
+
+Format text content with right-aligned line numbers. Each line is prefixed with its line number, padded to align properly based on the maximum line number.
+
+```typescript
+import { formatWithLineNumbers } from "@hardlydifficult/text";
+
+// Default: starts at line 1
+formatWithLineNumbers("foo\nbar\nbaz");
+// 1: foo
+// 2: bar
+// 3: baz
+
+// Custom starting line for displaying file ranges
+formatWithLineNumbers("hello\nworld", 10);
+// 10: hello
+// 11: world
+
+// Proper alignment for larger line numbers
+formatWithLineNumbers("line 1\nline 2\n...\nline 100", 98);
+//  98: line 1
+//  99: line 2
+// 100: ...
+// 101: line 100
+```
+
+This is useful for displaying code snippets, file contents, or log output with line numbers for reference.
