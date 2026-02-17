@@ -131,6 +131,28 @@ const report = new Document()
 await channel.postMessage(report);
 ```
 
+## Linkifying Text Blocks
+
+Apply an issue/PR linker to document text-bearing blocks (`header`, `text`, `list`, `context`) while leaving explicit `code` and `link` blocks unchanged.
+
+```typescript
+import { Document } from "@hardlydifficult/document-generator";
+import { createLinker } from "@hardlydifficult/text";
+
+const linker = createLinker()
+  .linear("fairmint")
+  .githubPr("Fairmint/api");
+
+const doc = new Document()
+  .header("Sprint Update ENG-533")
+  .text("Shipped ENG-533 and reviewed PR#42")
+  .code("ENG-533 inside code is untouched")
+  .link("PR", "https://github.com/Fairmint/api/pull/42")
+  .linkify(linker, { platform: "slack" });
+```
+
+`linkify()` also accepts a simple `(text) => text` transformer function.
+
 ## Structured Sections and Fields
 
 For status updates and standups, use `section` and `field` to keep client code concise:

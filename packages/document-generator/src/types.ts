@@ -121,3 +121,23 @@ export interface TimestampOptions {
   /** Custom label text */
   label?: string;
 }
+
+export interface DocumentLinkifier {
+  linkText?: (
+    text: string,
+    options?: { format?: Platform; platform?: Platform }
+  ) => string;
+  apply?: (
+    text: string,
+    options?: { format?: Platform; platform?: Platform }
+  ) => string;
+}
+
+export type DocumentLinkTransform =
+  | ((text: string) => string)
+  | DocumentLinkifier;
+
+export interface DocumentLinkifyOptions {
+  /** Output platform passed to linker-style transformers. Default: "markdown". */
+  platform?: Platform;
+}
