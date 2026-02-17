@@ -208,9 +208,7 @@ function resolvePlatform(options: LinkerApplyOptions): LinkerPlatform {
   return options.format ?? options.platform ?? "markdown";
 }
 
-/**
- *
- */
+/** Stateful linker utility that applies configured rules to text. */
 export class Linker {
   private readonly rules: CompiledRule[] = [];
 
@@ -366,9 +364,7 @@ export class Linker {
   }
 }
 
-/**
- *
- */
+/** Create a linker with optional initial rules. */
 export function createLinker(initialRules: LinkRule[] = []): Linker {
   return new Linker(initialRules);
 }
