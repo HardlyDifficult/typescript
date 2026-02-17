@@ -1,3 +1,4 @@
+/** Persistent state with auto-save to disk. */
 export {
   StateTracker,
   type StateTrackerOptions,
