@@ -134,7 +134,9 @@ describe("LinearTaskListClient", () => {
         apiKey: "lin_test_key",
       });
       mockFetch.mockResolvedValueOnce(
-        graphqlResponse({ teams: { nodes: [{ id: "team-1", name: "MyTeam" }] } })
+        graphqlResponse({
+          teams: { nodes: [{ id: "team-1", name: "MyTeam" }] },
+        })
       );
       await noTeamClient.resolveTeam();
 
@@ -224,9 +226,7 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ teams: { nodes: [] } })
       );
-      await expect(emptyClient.resolveTeam()).rejects.toThrow(
-        "No teams found"
-      );
+      await expect(emptyClient.resolveTeam()).rejects.toThrow("No teams found");
     });
   });
 
@@ -339,7 +339,9 @@ describe("LinearTaskListClient", () => {
       const task = await client.getTask("ISS-1");
 
       mockFetch.mockResolvedValueOnce(
-        graphqlResponse({ issueUpdate: { issue: { ...linearIssue, priority: 1 } } })
+        graphqlResponse({
+          issueUpdate: { issue: { ...linearIssue, priority: 1 } },
+        })
       );
       const updatePromise = task.update({ priority: "Urgent" });
       await vi.runAllTimersAsync();

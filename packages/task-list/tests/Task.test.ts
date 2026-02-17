@@ -13,7 +13,13 @@ function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
     ),
     resolveLabelId: vi.fn((name: string) => `label-id-for-${name}`),
     resolvePriority: vi.fn((name: string) => {
-      const map: Record<string, number> = { none: 0, urgent: 1, high: 2, medium: 3, low: 4 };
+      const map: Record<string, number> = {
+        none: 0,
+        urgent: 1,
+        high: 2,
+        medium: 3,
+        low: 4,
+      };
       return map[name.toLowerCase()] ?? 0;
     }),
     ...overrides,
@@ -54,7 +60,10 @@ describe("Task", () => {
 
   it("maps priority undefined when not in TaskData", () => {
     const ctx = createMockContext();
-    const dataWithoutPriority: TaskData = { ...baseTaskData, priority: undefined };
+    const dataWithoutPriority: TaskData = {
+      ...baseTaskData,
+      priority: undefined,
+    };
     const task = new Task(dataWithoutPriority, ctx);
     expect(task.priority).toBeUndefined();
   });

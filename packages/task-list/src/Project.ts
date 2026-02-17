@@ -1,4 +1,4 @@
-import { Task, mergeLabels } from "./Task.js";
+import { mergeLabels, Task } from "./Task.js";
 import type { CreateTaskOptions, TaskContext } from "./types.js";
 
 /**

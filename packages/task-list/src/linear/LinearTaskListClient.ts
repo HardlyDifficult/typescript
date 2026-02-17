@@ -128,7 +128,9 @@ export class LinearTaskListClient extends TaskListClient {
   private static proxyConfigured = false;
 
   private static configureProxy(): void {
-    if (LinearTaskListClient.proxyConfigured) return;
+    if (LinearTaskListClient.proxyConfigured) {
+      return;
+    }
     LinearTaskListClient.proxyConfigured = true;
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -160,7 +162,9 @@ export class LinearTaskListClient extends TaskListClient {
    * - If neither → auto-detect for single-team workspaces
    */
   async resolveTeam(): Promise<void> {
-    if (this.teamResolved) return;
+    if (this.teamResolved) {
+      return;
+    }
 
     if (this.teamId !== undefined) {
       this.teamResolved = true;
@@ -183,7 +187,7 @@ export class LinearTaskListClient extends TaskListClient {
       }
       this.teamId = match.id;
     } else if (teams.length === 1) {
-      this.teamId = teams[0]!.id;
+      this.teamId = teams[0].id;
     } else if (teams.length === 0) {
       throw new Error("No teams found in Linear workspace");
     } else {
@@ -224,7 +228,7 @@ export class LinearTaskListClient extends TaskListClient {
 
     const json = (await response.json()) as GraphQLResponse<T>;
     if (json.errors && json.errors.length > 0) {
-      throw new Error(`Linear API error: ${json.errors[0]!.message}`);
+      throw new Error(`Linear API error: ${json.errors[0].message}`);
     }
 
     return json.data;
