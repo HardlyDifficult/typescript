@@ -1,6 +1,6 @@
 # @hardlydifficult/text
 
-Text utilities for error formatting, template replacement, chunking, and line numbering.
+Text utilities for error formatting, template replacement, chunking, slugification, duration formatting, YAML/JSON conversion, linkification, and line numbering.
 
 ## Installation
 
@@ -8,25 +8,35 @@ Text utilities for error formatting, template replacement, chunking, and line nu
 npm install @hardlydifficult/text
 ```
 
-## API
+## Usage
+
+```typescript
+import * as text from "@hardlydifficult/text";
+
+// Quick example
+const output = text.replaceTemplate("Hello {{name}}!", { name: "World" });
+console.log(output); // "Hello World!"
+```
+
+## Error Handling
 
 ### `getErrorMessage(err: unknown): string`
 
-Extract a message string from an unknown error. Returns `err.message` for `Error` instances, `String(err)` otherwise.
+Extract a message string from an unknown error.
 
 ```typescript
 import { getErrorMessage } from "@hardlydifficult/text";
 
 try {
-  await riskyOperation();
+  throw new Error("Something went wrong");
 } catch (err) {
-  console.error(getErrorMessage(err));
+  console.error(getErrorMessage(err)); // "Something went wrong"
 }
 ```
 
 ### `formatError(err: unknown, context?: string): string`
 
-Format an error for user-facing output. Prepends an optional context prefix.
+Format an error with an optional context prefix.
 
 ```typescript
 import { formatError } from "@hardlydifficult/text";
@@ -37,11 +47,19 @@ formatError(new Error("not found")); // "not found"
 
 ### `formatErrorForLog(err: unknown): string`
 
-Format an error for logging. Returns the message for `Error` instances, `String(err)` otherwise.
+Format an error for logging. Returns `err.message` for `Error` instances, `String(err)` otherwise.
+
+```typescript
+import { formatErrorForLog } from "@hardlydifficult/text";
+
+formatErrorForLog(new Error("Database error")); // "Database error"
+```
+
+## Template Replacement
 
 ### `replaceTemplate(template: string, values: Record<string, string>): string`
 
-Replace `{{variable}}` placeholders with provided values. Unmatched placeholders are left as-is.
+Replace `{{variable}}` placeholders with provided values.
 
 ```typescript
 import { replaceTemplate } from "@hardlydifficult/text";
@@ -55,7 +73,7 @@ replaceTemplate("Hello {{name}}, welcome to {{place}}!", {
 
 ### `extractPlaceholders(template: string): string[]`
 
-Extract all unique placeholder names from a template.
+Extract all unique placeholder names from a template string.
 
 ```typescript
 import { extractPlaceholders } from "@hardlydifficult/text";
@@ -63,33 +81,49 @@ import { extractPlaceholders } from "@hardlydifficult/text";
 extractPlaceholders("{{name}} is in {{place}}"); // ["name", "place"]
 ```
 
+## Text Processing
+
 ### `chunkText(text: string, maxLength: number): string[]`
 
-Split text into chunks of at most `maxLength` characters. Prefers breaking on newlines, then spaces, and falls back to hard breaks.
+Split text into chunks of at most `maxLength` characters, preferring line breaks and spaces.
 
 ```typescript
 import { chunkText } from "@hardlydifficult/text";
 
-const chunks = chunkText(longMessage, 2000);
-for (const chunk of chunks) {
-  await channel.send(chunk);
-}
+const text = "Line 1\nLine 2\nThis is a very long line that needs to be chunked.";
+const chunks = chunkText(text, 20);
+// ["Line 1\nLine 2", "This is a very", "long line that", "needs to be", "chunked."]
 ```
 
 ### `slugify(input: string, maxLength?: number): string`
 
-Convert a string to a URL/filename-safe slug. Lowercases, replaces non-alphanumeric runs with hyphens, truncates at word boundaries.
+Convert a string to a URL/filename-safe slug.
 
 ```typescript
 import { slugify } from "@hardlydifficult/text";
 
 slugify("My Feature Name!"); // "my-feature-name"
 slugify("My Feature Name!", 10); // "my-feature"
+slugify("  spaces & symbols!  "); // "spaces-symbols"
+```
+
+### `formatWithLineNumbers(content: string, startLine?: number): string`
+
+Format text content with right-aligned line numbers.
+
+```typescript
+import { formatWithLineNumbers } from "@hardlydifficult/text";
+
+formatWithLineNumbers("foo\nbar\nbaz");
+// " 1: foo\n 2: bar\n 3: baz"
+
+formatWithLineNumbers("hello\nworld", 10);
+// "10: hello\n11: world"
 ```
 
 ### `formatDuration(ms: number): string`
 
-Format milliseconds as a short human-readable duration. Shows at most two units, skipping trailing zeros.
+Format milliseconds as a human-readable duration string.
 
 ```typescript
 import { formatDuration } from "@hardlydifficult/text";
@@ -100,9 +134,11 @@ formatDuration(500);       // "<1s"
 formatDuration(90_000_000); // "1d 1h"
 ```
 
-### `convertFormat(content: string, to: TextFormat): string`
+## Format Conversion
 
-Convert between JSON and YAML string formats. Auto-detects the input format and serializes to the requested output format.
+### `convertFormat(content: string, to: "json" | "yaml"): string`
+
+Convert between JSON and YAML string formats with automatic input detection.
 
 ```typescript
 import { convertFormat } from "@hardlydifficult/text";
@@ -120,74 +156,72 @@ convertFormat("name: Alice\nage: 30", "json");
 // }
 ```
 
-The function tries to parse as JSON first, then falls back to YAML. Returns pretty-printed JSON with 2-space indent or clean YAML. Throws a descriptive error if the input is neither valid JSON nor YAML.
+### `formatYaml(data: any): string`
 
-### `formatWithLineNumbers(content: string, startLine?: number): string`
-
-Format text content with right-aligned line numbers. Each line is prefixed with its line number, padded to align properly based on the maximum line number.
+Serialize data to clean YAML, using block literals for long strings containing colons.
 
 ```typescript
-import { formatWithLineNumbers } from "@hardlydifficult/text";
+import { formatYaml } from "@hardlydifficult/text";
 
-// Default: starts at line 1
-formatWithLineNumbers("foo\nbar\nbaz");
-// 1: foo
-// 2: bar
-// 3: baz
-
-// Custom starting line for displaying file ranges
-formatWithLineNumbers("hello\nworld", 10);
-// 10: hello
-// 11: world
-
-// Proper alignment for larger line numbers
-formatWithLineNumbers("line 1\nline 2\n...\nline 100", 98);
-//  98: line 1
-//  99: line 2
-// 100: ...
-// 101: line 100
+formatYaml({ message: "Hello: World" });
+// "message: >\n  Hello: World"
 ```
 
-This is useful for displaying code snippets, file contents, or log output with line numbers for reference.
+### `healYaml(dirtyYaml: string): string`
 
-### `createLinker(rules?)`
+Clean malformed YAML by stripping code fences and quoting problematic scalars containing colons.
 
-Create a reusable linker that turns matched text patterns into platform-specific links.
+```typescript
+import { healYaml } from "@hardlydifficult/text";
+
+healYaml('message: "Hello: World"'); // "message: >\n  Hello: World"
+```
+
+## Link Generation
+
+### `createLinker(rules?: LinkRule[]): { linkText(text: string, options?: LinkOptions): string; apply: typeof linkText }`
+
+Create a configurable linker to transform text patterns into platform-specific links.
 
 Supports:
-
-- plain strings
-- idempotent re-runs (won't double-link existing linked text)
-- skipping code spans/backticks and existing links by default
-- deterministic conflict handling (priority, then longest match, then rule order)
+- Plain strings
+- Idempotent re-runs
+- Automatic skipping of code spans and existing links
+- Deterministic conflict resolution (priority, then longest match, then rule order)
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
 
 const linker = createLinker()
   .linear("fairmint")
-  .githubPr("Fairmint/api")
-  .custom(/\bINC-\d+\b/g, ({ match }) => `https://incident.io/${match}`);
+  .githubPr("Fairmint/api");
 
-const slack = linker.linkText("Fix ENG-533 and PR#42", { format: "slack" });
+linker.linkText("Fix ENG-533 and PR#42", { format: "slack" });
 // "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> and <https://github.com/Fairmint/api/pull/42|PR#42>"
+
+linker.linkText("Fix ENG-533 and PR#42", { format: "markdown" });
+// "[ENG-533](https://linear.app/fairmint/issue/ENG-533) and [PR#42](https://github.com/Fairmint/api/pull/42)"
 ```
 
-You can also pass rules up front:
+Supported formats: `slack` (`<url|text>`), `markdown`/`discord` (`[text](url)`), `plaintext` (raw URL).
+
+## File Tree Rendering
+
+### `buildFileTree(files: string[], options?: FileTreeOptions): string`
+
+Build and render a hierarchical file tree with depth-based truncation and directory collapsing.
 
 ```typescript
-const linker = createLinker([
-  {
-    pattern: /\b([A-Z]{2,6}-\d+)\b/g,
-    href: "https://linear.app/fairmint/issue/$1",
-  },
-]);
+import { buildFileTree } from "@hardlydifficult/text";
+
+const files = [
+  "src/index.ts",
+  "src/utils.ts",
+  "src/components/Button.tsx",
+];
+
+buildFileTree(files);
+// "src/\n├── index.ts\n├── utils.ts\n└── components/\n   └── Button.tsx"
 ```
 
-Formats:
-
-- `slack` → `<url|text>`
-- `markdown` / `discord` → `[text](url)`
-- `plaintext` → raw `url`
-
-`linker.apply(text, options)` is an alias of `linker.linkText(text, options)`.
+Options include `maxDepth`, `maxDirectories`, and `collapseDirectories` for controlling tree rendering behavior.
