@@ -22,6 +22,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/teardown](./packages/teardown) | Idempotent LIFO resource cleanup with signal trapping (SIGTERM/SIGINT) and async teardown support |
 | [@hardlydifficult/text](./packages/text) | Text utilities for chunking, formatting, templating, slug generation, and LLM-repairable YAML/JSON |
 | [@hardlydifficult/throttle](./packages/throttle) | Rate limiting with token buckets, exponential backoff, and throttled batch updates for async workloads |
+| [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint, Prettier, and TypeScript config |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Session-based usage tracking with persistent state, deep cost aggregation, and configurable spend limits |
 | [@hardlydifficult/workflow-engine](./packages/workflow-engine) | Stateful workflow engine with typed state machines, pipelines, gates, retries, and persistence via StateTracker |
 
