@@ -69,9 +69,17 @@ describe("buildFileTree", () => {
   describe("details", () => {
     it("renders detail lines under a file", () => {
       const details = new Map([
-        ["src/index.ts", ["> main (5-20): App entry point.", "> shutdown (22-35): Cleanup handler."]],
+        [
+          "src/index.ts",
+          [
+            "> main (5-20): App entry point.",
+            "> shutdown (22-35): Cleanup handler.",
+          ],
+        ],
       ]);
-      const result = buildFileTree(["src/index.ts", "src/utils.ts"], { details });
+      const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+        details,
+      });
       expect(result).toBe(
         [
           "src/",
@@ -84,9 +92,7 @@ describe("buildFileTree", () => {
     });
 
     it("does not render details for directories", () => {
-      const details = new Map([
-        ["src", ["should not appear"]],
-      ]);
+      const details = new Map([["src", ["should not appear"]]]);
       const result = buildFileTree(["src/index.ts"], { details });
       expect(result).toBe(["src/", "  index.ts"].join("\n"));
     });
@@ -109,7 +115,9 @@ describe("buildFileTree", () => {
       const details = new Map([
         ["src/index.ts", ["> main (5-20): Entry point."]],
       ]);
-      const result = buildFileTree(["src/index.ts", "src/utils.ts"], { details });
+      const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+        details,
+      });
       expect(result).toContain("    > main (5-20): Entry point.");
       expect(result).not.toContain("utils.ts\n    >");
     });
