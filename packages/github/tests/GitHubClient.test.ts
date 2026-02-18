@@ -25,6 +25,7 @@ const createMockOctokit = () => ({
     listCommits: vi.fn(),
     listReviews: vi.fn(),
     merge: vi.fn(),
+    create: vi.fn(),
   },
   checks: {
     listForRef: vi.fn(),
@@ -35,12 +36,20 @@ const createMockOctokit = () => ({
   },
   git: {
     getTree: vi.fn(),
+    getRef: vi.fn(),
+    createRef: vi.fn(),
+    updateRef: vi.fn(),
+    createBlob: vi.fn(),
+    createTree: vi.fn(),
+    createCommit: vi.fn(),
+    getCommit: vi.fn(),
   },
   repos: {
     get: vi.fn(),
     getContent: vi.fn(),
     listForOrg: vi.fn(),
     listForUser: vi.fn(),
+    merge: vi.fn(),
   },
   search: {
     issuesAndPullRequests: vi.fn(),
@@ -455,6 +464,301 @@ describe("GitHubClient", () => {
         q: "is:pr is:open author:testuser",
         per_page: 100,
         sort: "updated",
+      });
+    });
+  });
+
+  describe("repo().getBranchSha", () => {
+    it("returns SHA when branch exists", async () => {
+      mockOctokit.git.getRef.mockResolvedValue({
+        data: { ref: "refs/heads/main", object: { sha: "abc123" } },
+      });
+
+      const result = await client.repo("owner", "repo").getBranchSha("main");
+
+      expect(result).toBe("abc123");
+      expect(mockOctokit.git.getRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "heads/main",
+      });
+    });
+
+    it("returns null when branch does not exist (404)", async () => {
+      const notFoundError = Object.assign(new Error("Not Found"), {
+        status: 404,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+
+      const result = await client
+        .repo("owner", "repo")
+        .getBranchSha("nonexistent");
+
+      expect(result).toBeNull();
+    });
+
+    it("rethrows non-404 errors", async () => {
+      const serverError = Object.assign(new Error("Server Error"), {
+        status: 500,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(serverError);
+
+      await expect(
+        client.repo("owner", "repo").getBranchSha("main")
+      ).rejects.toThrow("Server Error");
+    });
+  });
+
+  describe("repo().mergeBranch", () => {
+    it("returns SHA on 201 merge created", async () => {
+      mockOctokit.repos.merge.mockResolvedValue({
+        status: 201,
+        data: { sha: "merge-sha-123" },
+      });
+
+      const result = await client
+        .repo("owner", "repo")
+        .mergeBranch("main", "feature");
+
+      expect(result).toBe("merge-sha-123");
+      expect(mockOctokit.repos.merge).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        base: "main",
+        head: "feature",
+        commit_message: "Merge feature into main",
+      });
+    });
+
+    it("returns null on 204 already up-to-date", async () => {
+      mockOctokit.repos.merge.mockResolvedValue({
+        status: 204,
+        data: {},
+      });
+
+      const result = await client
+        .repo("owner", "repo")
+        .mergeBranch("main", "feature");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("repo().createBranch", () => {
+    it("calls createRef with refs/heads/ prefix", async () => {
+      mockOctokit.git.createRef.mockResolvedValue({});
+
+      await client.repo("owner", "repo").createBranch("my-branch", "sha123");
+
+      expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "refs/heads/my-branch",
+        sha: "sha123",
+      });
+    });
+  });
+
+  describe("repo().updateBranch", () => {
+    it("calls updateRef with heads/ prefix", async () => {
+      mockOctokit.git.updateRef.mockResolvedValue({});
+
+      await client.repo("owner", "repo").updateBranch("my-branch", "newsha123");
+
+      expect(mockOctokit.git.updateRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "heads/my-branch",
+        sha: "newsha123",
+      });
+    });
+  });
+
+  describe("repo().createPR", () => {
+    it("returns number and url", async () => {
+      mockOctokit.pulls.create.mockResolvedValue({
+        data: { number: 42, html_url: "https://github.com/owner/repo/pull/42" },
+      });
+
+      const result = await client.repo("owner", "repo").createPR({
+        head: "feature",
+        base: "main",
+        title: "My PR",
+        body: "PR body",
+      });
+
+      expect(result).toEqual({
+        number: 42,
+        url: "https://github.com/owner/repo/pull/42",
+      });
+      expect(mockOctokit.pulls.create).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        head: "feature",
+        base: "main",
+        title: "My PR",
+        body: "PR body",
+      });
+    });
+  });
+
+  describe("repo().commitFiles", () => {
+    const setupCommitMocks = () => {
+      mockOctokit.git.createBlob.mockResolvedValue({
+        data: { sha: "blob-sha-1" },
+      });
+      mockOctokit.git.getCommit.mockResolvedValue({
+        data: { tree: { sha: "parent-tree-sha" } },
+      });
+      mockOctokit.git.createTree.mockResolvedValue({
+        data: { sha: "new-tree-sha" },
+      });
+      mockOctokit.git.createCommit.mockResolvedValue({
+        data: { sha: "new-commit-sha" },
+      });
+    };
+
+    it("creates new branch when branch does not exist", async () => {
+      setupCommitMocks();
+      const notFoundError = Object.assign(new Error("Not Found"), {
+        status: 404,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+      mockOctokit.git.createRef.mockResolvedValue({});
+
+      const result = await client.repo("owner", "repo").commitFiles({
+        branch: "new-branch",
+        files: [{ path: "README.md", content: "# Hello" }],
+        message: "Add README",
+        parentSha: "parent-sha-123",
+      });
+
+      expect(result).toEqual({
+        commitSha: "new-commit-sha",
+        branchCreated: true,
+      });
+      expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "refs/heads/new-branch",
+        sha: "new-commit-sha",
+      });
+      expect(mockOctokit.git.updateRef).not.toHaveBeenCalled();
+    });
+
+    it("updates existing branch when branch already exists", async () => {
+      setupCommitMocks();
+      mockOctokit.git.getRef.mockResolvedValue({
+        data: {
+          ref: "refs/heads/existing-branch",
+          object: { sha: "existing-sha" },
+        },
+      });
+      mockOctokit.git.updateRef.mockResolvedValue({});
+
+      const result = await client.repo("owner", "repo").commitFiles({
+        branch: "existing-branch",
+        files: [{ path: "README.md", content: "# Updated" }],
+        message: "Update README",
+        parentSha: "parent-sha-123",
+      });
+
+      expect(result).toEqual({
+        commitSha: "new-commit-sha",
+        branchCreated: false,
+      });
+      expect(mockOctokit.git.updateRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "heads/existing-branch",
+        sha: "new-commit-sha",
+      });
+      expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
+    });
+
+    it("sends author when provided", async () => {
+      setupCommitMocks();
+      const notFoundError = Object.assign(new Error("Not Found"), {
+        status: 404,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+      mockOctokit.git.createRef.mockResolvedValue({});
+
+      await client.repo("owner", "repo").commitFiles({
+        branch: "new-branch",
+        files: [{ path: "file.txt", content: "content" }],
+        message: "Commit with author",
+        parentSha: "parent-sha",
+        author: { name: "AI Bot", email: "ai@example.com" },
+      });
+
+      expect(mockOctokit.git.createCommit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          author: { name: "AI Bot", email: "ai@example.com" },
+        })
+      );
+    });
+
+    it("omits author field when not provided", async () => {
+      setupCommitMocks();
+      const notFoundError = Object.assign(new Error("Not Found"), {
+        status: 404,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+      mockOctokit.git.createRef.mockResolvedValue({});
+
+      await client.repo("owner", "repo").commitFiles({
+        branch: "new-branch",
+        files: [{ path: "file.txt", content: "content" }],
+        message: "Commit without author",
+        parentSha: "parent-sha",
+      });
+
+      const callArgs = mockOctokit.git.createCommit.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(callArgs).not.toHaveProperty("author");
+    });
+
+    it("creates blobs and tree correctly for multiple files", async () => {
+      mockOctokit.git.createBlob
+        .mockResolvedValueOnce({ data: { sha: "blob-sha-1" } })
+        .mockResolvedValueOnce({ data: { sha: "blob-sha-2" } });
+      mockOctokit.git.getCommit.mockResolvedValue({
+        data: { tree: { sha: "parent-tree-sha" } },
+      });
+      mockOctokit.git.createTree.mockResolvedValue({
+        data: { sha: "new-tree-sha" },
+      });
+      mockOctokit.git.createCommit.mockResolvedValue({
+        data: { sha: "new-commit-sha" },
+      });
+      const notFoundError = Object.assign(new Error("Not Found"), {
+        status: 404,
+      });
+      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+      mockOctokit.git.createRef.mockResolvedValue({});
+
+      await client.repo("owner", "repo").commitFiles({
+        branch: "new-branch",
+        files: [
+          { path: "file1.md", content: "content1" },
+          { path: "file2.md", content: "content2" },
+        ],
+        message: "Add files",
+        parentSha: "parent-sha",
+      });
+
+      expect(mockOctokit.git.createBlob).toHaveBeenCalledTimes(2);
+      expect(mockOctokit.git.createTree).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        base_tree: "parent-tree-sha",
+        tree: [
+          { path: "file1.md", mode: "100644", type: "blob", sha: "blob-sha-1" },
+          { path: "file2.md", mode: "100644", type: "blob", sha: "blob-sha-2" },
+        ],
       });
     });
   });
