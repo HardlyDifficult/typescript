@@ -141,7 +141,9 @@ describe("buildFileTree", () => {
         { collapseDirs: ["test"] }
       );
       expect(result).toBe(
-        ["src/", "  index.ts", "", "test/", "  (3 files across 2 dirs)"].join("\n")
+        ["src/", "  index.ts", "", "test/", "  (3 files across 2 dirs)"].join(
+          "\n"
+        )
       );
     });
 
