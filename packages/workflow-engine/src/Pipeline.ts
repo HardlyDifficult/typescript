@@ -182,7 +182,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
     const index = this.engine.data.currentStepIndex;
     const stepDef = this.stepDefs[index];
 
-    this.logger.info("Pipeline gate resumed", {
+    this.logger.debug("Pipeline gate resumed", {
       pipeline: this.engine.data.steps[0]?.name,
       step: stepDef.name,
       hasData: data !== undefined,
