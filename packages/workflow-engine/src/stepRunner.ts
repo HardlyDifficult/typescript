@@ -125,7 +125,7 @@ export async function enterGate<TData extends Record<string, unknown>>(
     }
   }
 
-  deps.logger.info("Pipeline gate reached", {
+  deps.logger.debug("Pipeline gate reached", {
     pipeline: pipelineKey(deps),
     step: stepDef.name,
   });
@@ -165,7 +165,7 @@ export async function runStep<TData extends Record<string, unknown>>(
     });
   }
 
-  deps.logger.info("Pipeline step started", {
+  deps.logger.debug("Pipeline step started", {
     pipeline: pipelineKey(deps),
     step: stepDef.name,
   });
@@ -189,7 +189,7 @@ export async function runStep<TData extends Record<string, unknown>>(
         d.currentStepIndex = index + 1;
       });
 
-      deps.logger.info("Pipeline step completed", {
+      deps.logger.debug("Pipeline step completed", {
         pipeline: pipelineKey(deps),
         step: stepDef.name,
         attempt,
