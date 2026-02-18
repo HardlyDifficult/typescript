@@ -490,7 +490,9 @@ describe("GitHubClient", () => {
       });
       mockOctokit.git.getRef.mockRejectedValue(notFoundError);
 
-      const result = await client.repo("owner", "repo").getBranchSha("nonexistent");
+      const result = await client
+        .repo("owner", "repo")
+        .getBranchSha("nonexistent");
 
       expect(result).toBeNull();
     });
@@ -514,7 +516,9 @@ describe("GitHubClient", () => {
         data: { sha: "merge-sha-123" },
       });
 
-      const result = await client.repo("owner", "repo").mergeBranch("main", "feature");
+      const result = await client
+        .repo("owner", "repo")
+        .mergeBranch("main", "feature");
 
       expect(result).toBe("merge-sha-123");
       expect(mockOctokit.repos.merge).toHaveBeenCalledWith({
@@ -532,7 +536,9 @@ describe("GitHubClient", () => {
         data: {},
       });
 
-      const result = await client.repo("owner", "repo").mergeBranch("main", "feature");
+      const result = await client
+        .repo("owner", "repo")
+        .mergeBranch("main", "feature");
 
       expect(result).toBeNull();
     });
@@ -627,7 +633,10 @@ describe("GitHubClient", () => {
         parentSha: "parent-sha-123",
       });
 
-      expect(result).toEqual({ commitSha: "new-commit-sha", branchCreated: true });
+      expect(result).toEqual({
+        commitSha: "new-commit-sha",
+        branchCreated: true,
+      });
       expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
@@ -640,7 +649,10 @@ describe("GitHubClient", () => {
     it("updates existing branch when branch already exists", async () => {
       setupCommitMocks();
       mockOctokit.git.getRef.mockResolvedValue({
-        data: { ref: "refs/heads/existing-branch", object: { sha: "existing-sha" } },
+        data: {
+          ref: "refs/heads/existing-branch",
+          object: { sha: "existing-sha" },
+        },
       });
       mockOctokit.git.updateRef.mockResolvedValue({});
 
@@ -651,7 +663,10 @@ describe("GitHubClient", () => {
         parentSha: "parent-sha-123",
       });
 
-      expect(result).toEqual({ commitSha: "new-commit-sha", branchCreated: false });
+      expect(result).toEqual({
+        commitSha: "new-commit-sha",
+        branchCreated: false,
+      });
       expect(mockOctokit.git.updateRef).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
@@ -699,7 +714,10 @@ describe("GitHubClient", () => {
         parentSha: "parent-sha",
       });
 
-      const callArgs = mockOctokit.git.createCommit.mock.calls[0]![0] as Record<string, unknown>;
+      const callArgs = mockOctokit.git.createCommit.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
       expect(callArgs).not.toHaveProperty("author");
     });
 

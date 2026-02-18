@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/rest";
+import { type Octokit } from "@octokit/rest";
 
 import { buildTimeline, type TimelineEntry } from "./timeline.js";
 import type {

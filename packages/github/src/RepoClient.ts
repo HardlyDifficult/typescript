@@ -1,11 +1,11 @@
-import { Octokit } from "@octokit/rest";
+import { type Octokit } from "@octokit/rest";
 
 import { PRClient } from "./PRClient.js";
 import type {
   CommitFilesOptions,
   CommitResult,
-  CreatePROptions,
   CreatedPR,
+  CreatePROptions,
   KeyFile,
   PullRequest,
   RepoContext,
@@ -128,7 +128,9 @@ export class RepoClient {
       });
       return ref.object.sha;
     } catch (err) {
-      if (isNotFoundError(err)) return null;
+      if (isNotFoundError(err)) {
+        return null;
+      }
       throw err;
     }
   }
@@ -145,7 +147,9 @@ export class RepoClient {
       head,
       commit_message: `Merge ${head} into ${base}`,
     });
-    if ((response.status as number) === 204) return null;
+    if ((response.status as number) === 204) {
+      return null;
+    }
     return (response.data as unknown as { sha: string }).sha;
   }
 

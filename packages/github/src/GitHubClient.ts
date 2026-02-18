@@ -2,11 +2,7 @@ import { Octokit } from "@octokit/rest";
 
 import { PRWatcher } from "./PRWatcher.js";
 import { RepoClient } from "./RepoClient.js";
-import type {
-  ContributionRepo,
-  PullRequest,
-  WatchOptions,
-} from "./types.js";
+import type { ContributionRepo, PullRequest, WatchOptions } from "./types.js";
 
 export { PRClient } from "./PRClient.js";
 export { RepoClient } from "./RepoClient.js";
