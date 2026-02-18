@@ -147,6 +147,11 @@ export interface TreeEntry {
   readonly size?: number;
 }
 
+export interface FileTreeResult {
+  readonly entries: readonly TreeEntry[];
+  readonly rootSha: string;
+}
+
 // --- Repo context types ---
 
 export interface RepoContext {

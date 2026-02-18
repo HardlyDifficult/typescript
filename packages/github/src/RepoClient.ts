@@ -6,6 +6,7 @@ import type {
   CommitResult,
   CreatedPR,
   CreatePROptions,
+  FileTreeResult,
   KeyFile,
   PullRequest,
   RepoContext,
@@ -59,7 +60,7 @@ export class RepoClient {
     return response.data as unknown as Repository;
   }
 
-  async getFileTree(sha = "HEAD"): Promise<readonly TreeEntry[]> {
+  async getFileTree(sha = "HEAD"): Promise<FileTreeResult> {
     const response = await this.octokit.git.getTree({
       owner: this.owner,
       repo: this.name,
@@ -67,7 +68,10 @@ export class RepoClient {
       recursive: "1",
     });
 
-    return response.data.tree as unknown as readonly TreeEntry[];
+    return {
+      entries: response.data.tree as unknown as readonly TreeEntry[],
+      rootSha: response.data.sha,
+    };
   }
 
   async getFileContent(filePath: string, ref?: string): Promise<string> {
@@ -87,7 +91,7 @@ export class RepoClient {
     filesToFetch: readonly string[],
     maxFileChars: number
   ): Promise<RepoContext> {
-    const tree = await this.getFileTree();
+    const { entries: tree } = await this.getFileTree();
     const filePaths = tree.filter((e) => e.type === "blob").map((e) => e.path);
     const treePathSet = new Set(filePaths);
     const keyFiles: KeyFile[] = [];
