@@ -31,6 +31,7 @@ export type {
   PushEvent,
   StatusChangedEvent,
   TreeEntry,
+  FileTreeResult,
   RepoContext,
   KeyFile,
   CommitAuthor,
