@@ -544,6 +544,71 @@ describe("UsageTracker", () => {
       vi.useRealTimers();
     });
 
+    it("backfills missing top-level keys in cumulative when schema gains new fields", async () => {
+      // Simulate a state file written before a new metric group was added.
+      // The persisted cumulative only has "api", but the new default also has "audio".
+      const filePath = path.join(testDir, "schema-migration.json");
+      const oldState = {
+        value: {
+          cumulative: {
+            api: { requests: 7, tokens: 500, costUsd: 0.07 },
+            // "audio" is absent — added to schema after this state was saved
+          },
+          session: defaults,
+          trackingSince: new Date().toISOString(),
+          sessionStartedAt: new Date().toISOString(),
+          spendEntries: [],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+      fs.writeFileSync(filePath, JSON.stringify(oldState));
+
+      const tracker = await UsageTracker.create({
+        key: "schema-migration",
+        default: defaults,
+        stateDirectory: testDir,
+      });
+
+      // Existing data is preserved
+      expect(tracker.cumulative.api.requests).toBe(7);
+      expect(tracker.cumulative.api.tokens).toBe(500);
+      // Missing key is backfilled with defaults (not undefined)
+      expect(tracker.cumulative.audio).toEqual(defaults.audio);
+      expect(tracker.cumulative.audio.requests).toBe(0);
+    });
+
+    it("backfills missing nested fields in cumulative when schema gains new fields", async () => {
+      // Simulate a state file written before a new field was added inside an existing group.
+      // The persisted cumulative.api is missing "costUsd" (added to schema later).
+      const filePath = path.join(testDir, "nested-migration.json");
+      const oldState = {
+        value: {
+          cumulative: {
+            api: { requests: 3, tokens: 200 }, // costUsd missing
+            audio: { requests: 1, durationSeconds: 30 },
+          },
+          session: defaults,
+          trackingSince: new Date().toISOString(),
+          sessionStartedAt: new Date().toISOString(),
+          spendEntries: [],
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+      fs.writeFileSync(filePath, JSON.stringify(oldState));
+
+      const tracker = await UsageTracker.create({
+        key: "nested-migration",
+        default: defaults,
+        stateDirectory: testDir,
+      });
+
+      // Existing nested data is preserved
+      expect(tracker.cumulative.api.requests).toBe(3);
+      expect(tracker.cumulative.api.tokens).toBe(200);
+      // Missing nested field is backfilled with the default value (0)
+      expect(tracker.cumulative.api.costUsd).toBe(0);
+    });
+
     it("handles state files without spendEntries (backward compat)", async () => {
       // Write a state file without spendEntries (simulating old format)
       const filePath = path.join(testDir, "old-format.json");

@@ -46,6 +46,39 @@ export class UsageTracker<T extends NumericRecord> {
         : 0;
   }
 
+  /**
+   * Recursively fills in missing keys in `target` from `defaults`.
+   * Only adds fields that are absent or undefined — never overwrites existing values.
+   *
+   * Uses `unknown` for intermediate values because persisted state loaded from disk
+   * may have `undefined` entries for keys added to the schema after the state was
+   * first written, even though the TypeScript type says `number | NumericRecord`.
+   */
+  private static mergeDefaults<U extends NumericRecord>(
+    target: U,
+    defaults: U
+  ): U {
+    const result = { ...target } as Record<string, unknown>;
+    for (const key of Object.keys(defaults)) {
+      const targetVal: unknown = result[key];
+      const defaultVal: unknown = (defaults as Record<string, unknown>)[key];
+      if (targetVal === undefined) {
+        result[key] = structuredClone(defaultVal);
+      } else if (
+        typeof targetVal === "object" &&
+        targetVal !== null &&
+        typeof defaultVal === "object" &&
+        defaultVal !== null
+      ) {
+        result[key] = UsageTracker.mergeDefaults(
+          targetVal as NumericRecord,
+          defaultVal as NumericRecord
+        );
+      }
+    }
+    return result as U;
+  }
+
   /** Create a UsageTracker, load persisted state, and start a new session. */
   static async create<T extends NumericRecord>(
     options: UsageTrackerOptions<T>
@@ -71,6 +104,17 @@ export class UsageTracker<T extends NumericRecord> {
     if (!Array.isArray(tracker.state.spendEntries)) {
       tracker.update({ spendEntries: [] } as Partial<PersistedUsageState<T>>);
     }
+
+    // Backfill any fields added to the schema after the state was first persisted.
+    // StateTracker's v1 envelope format returns stored data as-is without merging
+    // defaults, so new top-level or nested keys will be missing in old state files.
+    const mergedCumulative = UsageTracker.mergeDefaults(
+      tracker.state.cumulative,
+      options.default
+    );
+    tracker.update({
+      cumulative: mergedCumulative,
+    } as Partial<PersistedUsageState<T>>);
 
     const instance = new UsageTracker(options, tracker);
 
