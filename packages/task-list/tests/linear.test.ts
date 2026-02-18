@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FullState } from "../src/FullState.js";
 import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
 import { LinearTaskListClient } from "../src/linear/index.js";
@@ -355,7 +354,7 @@ describe("LinearTaskListClient", () => {
   });
 
   describe("getProject", () => {
-    it("returns a Project with statuses, tasks, and labels as strings", async () => {
+    it("returns a Project with Status and Label objects", async () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({
           organization: { urlKey: "myorg" },
@@ -371,8 +370,15 @@ describe("LinearTaskListClient", () => {
       expect(project).toBeInstanceOf(Project);
       expect(project.id).toBe("proj-1");
       expect(project.name).toBe("Q1 Roadmap");
-      expect(project.statuses).toEqual(["Todo", "In Progress", "Done"]);
-      expect(project.labels).toEqual(["Bug", "Feature"]);
+      expect(project.statuses).toEqual([
+        { id: "ws1", name: "Todo" },
+        { id: "ws2", name: "In Progress" },
+        { id: "ws3", name: "Done" },
+      ]);
+      expect(project.labels).toEqual([
+        { id: "ll1", name: "Bug", color: "#ff0000" },
+        { id: "ll2", name: "Feature", color: "#00ff00" },
+      ]);
       expect(project.tasks).toHaveLength(1);
       expect(project.tasks[0]!.status).toBe("Todo");
     });
@@ -437,31 +443,6 @@ describe("LinearTaskListClient", () => {
       expect(body.variables.input.priority).toBe(2);
     });
 
-    it("createTask sends singular label", async () => {
-      mockFetch.mockResolvedValueOnce(
-        graphqlResponse({
-          organization: { urlKey: "myorg" },
-          project: { ...linearProject, issues: { nodes: [] } },
-          team: teamData,
-        })
-      );
-      const project = await client.getProject("proj-1");
-
-      mockFetch.mockResolvedValueOnce(
-        graphqlResponse({ issueCreate: { issue: linearIssue } })
-      );
-      const createPromise = project.createTask("Fix it", {
-        label: "Bug",
-      });
-      await vi.runAllTimersAsync();
-      await createPromise;
-
-      const body = JSON.parse(
-        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
-      ) as { variables: { input: Record<string, unknown> } };
-      expect(body.variables.input.labelIds).toEqual(["ll1"]);
-    });
-
     it("createTask uses default status when not specified", async () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({
@@ -490,7 +471,7 @@ describe("LinearTaskListClient", () => {
   });
 
   describe("getProjects", () => {
-    it("returns a FullState with all projects", async () => {
+    it("returns Project[] with all projects", async () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({
           organization: { urlKey: "myorg" },
@@ -507,12 +488,12 @@ describe("LinearTaskListClient", () => {
           },
         })
       );
-      const state = await client.getProjects();
+      const projects = await client.getProjects();
 
-      expect(state).toBeInstanceOf(FullState);
-      expect(state.projects).toHaveLength(1);
-      expect(state.projects[0]!.name).toBe("Q1 Roadmap");
-      expect(state.projects[0]!.tasks).toHaveLength(1);
+      expect(projects).toBeInstanceOf(Array);
+      expect(projects).toHaveLength(1);
+      expect(projects[0]!.name).toBe("Q1 Roadmap");
+      expect(projects[0]!.tasks).toHaveLength(1);
     });
 
     it("supports chaining: findProject → createTask", async () => {
@@ -532,8 +513,8 @@ describe("LinearTaskListClient", () => {
           },
         })
       );
-      const state = await client.getProjects();
-      const project = state.findProject("Q1 Roadmap");
+      const projects = await client.getProjects();
+      const project = projects.find((p) => p.name === "Q1 Roadmap")!;
 
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ issueCreate: { issue: linearIssue } })

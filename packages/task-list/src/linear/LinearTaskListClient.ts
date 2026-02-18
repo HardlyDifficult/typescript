@@ -1,118 +1,33 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
-import { FullState } from "../FullState.js";
 import { Project } from "../Project.js";
+import { buildContextResolvers } from "../resolvers.js";
 import { Task } from "../Task.js";
 import { TaskListClient } from "../TaskListClient.js";
 import type { LinearConfig, TaskContext, TaskData } from "../types.js";
 
+import {
+  type GraphQLResponse,
+  ISSUE_CREATE_MUTATION,
+  ISSUE_FETCH_QUERY,
+  ISSUE_FIELDS,
+  ISSUE_UPDATE_MUTATION,
+  type IssueCreateData,
+  type IssueQueryData,
+  type IssueUpdateData,
+  LABEL_CREATE_MUTATION,
+  LABEL_DELETE_MUTATION,
+  type LabelCreateData,
+  type LinearIssue,
+  type LinearIssueLabel,
+  type LinearWorkflowState,
+  PRIORITY_NAME_TO_NUMBER,
+  type ProjectQueryData,
+  type ProjectsQueryData,
+  type TeamsQueryData,
+} from "./queries.js";
+
 const LINEAR_API_URL = "https://api.linear.app/graphql";
-
-// --- Internal Linear API response shapes (not exported) ---
-
-interface LinearProject {
-  id: string;
-  name: string;
-  url: string;
-}
-
-interface LinearWorkflowState {
-  id: string;
-  name: string;
-}
-
-interface LinearIssueLabel {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface LinearIssue {
-  id: string;
-  title: string;
-  description: string | null;
-  url: string;
-  priority: number;
-  state: { id: string };
-  team: { id: string };
-  project: { id: string } | null;
-  labels: { nodes: LinearIssueLabel[] };
-}
-
-// --- GraphQL response wrappers ---
-
-interface GraphQLResponse<T> {
-  data: T;
-  errors?: { message: string }[];
-}
-
-interface TeamsQueryData {
-  teams: { nodes: { id: string; name: string }[] };
-}
-
-interface ProjectsQueryData {
-  organization: { urlKey: string };
-  team: {
-    projects: {
-      nodes: (LinearProject & {
-        issues: { nodes: LinearIssue[] };
-      })[];
-    };
-    states: { nodes: LinearWorkflowState[] };
-    labels: { nodes: LinearIssueLabel[] };
-  };
-}
-
-interface ProjectQueryData {
-  organization: { urlKey: string };
-  project: LinearProject & {
-    issues: { nodes: LinearIssue[] };
-  };
-  team: {
-    states: { nodes: LinearWorkflowState[] };
-    labels: { nodes: LinearIssueLabel[] };
-  };
-}
-
-interface IssueQueryData {
-  issue: LinearIssue;
-  team: {
-    states: { nodes: LinearWorkflowState[] };
-    labels: { nodes: LinearIssueLabel[] };
-  };
-}
-
-interface IssueCreateData {
-  issueCreate: {
-    issue: LinearIssue;
-  };
-}
-
-interface IssueUpdateData {
-  issueUpdate: {
-    issue: LinearIssue;
-  };
-}
-
-// --- Priority mapping ---
-
-const PRIORITY_NAME_TO_NUMBER: Partial<Record<string, number>> = {
-  none: 0,
-  urgent: 1,
-  high: 2,
-  medium: 3,
-  low: 4,
-};
-
-// --- GraphQL query fragments ---
-
-const ISSUE_FIELDS = `
-  id title description url priority
-  state { id }
-  team { id }
-  project { id }
-  labels { nodes { id name color } }
-`;
 
 /**
  * Linear implementation of TaskListClient.
@@ -243,7 +158,11 @@ export class LinearTaskListClient extends TaskListClient {
       description: issue.description ?? "",
       statusId: issue.state.id,
       projectId: issue.project?.id ?? "",
-      labels: issue.labels.nodes.map((l) => ({ id: l.id, name: l.name })),
+      labels: issue.labels.nodes.map((l) => ({
+        id: l.id,
+        name: l.name,
+        color: l.color,
+      })),
       url: issue.url,
       priority: issue.priority,
     };
@@ -256,6 +175,8 @@ export class LinearTaskListClient extends TaskListClient {
     labels: readonly LinearIssueLabel[]
   ): TaskContext {
     return {
+      ...buildContextResolvers(states, labels),
+
       createTask: async (params): Promise<TaskData> => {
         const input: Record<string, unknown> = {
           teamId: this.getTeamId(),
@@ -276,11 +197,7 @@ export class LinearTaskListClient extends TaskListClient {
         }
 
         const result = await this.request<IssueCreateData>(
-          `mutation($input: IssueCreateInput!) {
-            issueCreate(input: $input) {
-              issue { ${ISSUE_FIELDS} }
-            }
-          }`,
+          ISSUE_CREATE_MUTATION,
           { input }
         );
         return this.toTaskData(result.issueCreate.issue);
@@ -305,40 +222,70 @@ export class LinearTaskListClient extends TaskListClient {
         }
 
         const result = await this.request<IssueUpdateData>(
-          `mutation($id: String!, $input: IssueUpdateInput!) {
-            issueUpdate(id: $id, input: $input) {
-              issue { ${ISSUE_FIELDS} }
-            }
-          }`,
+          ISSUE_UPDATE_MUTATION,
           { id: params.taskId, input }
         );
         return this.toTaskData(result.issueUpdate.issue);
       },
 
-      resolveStatusId: (name: string): string => {
-        const lower = name.toLowerCase();
-        const state = states.find((s) => s.name.toLowerCase().includes(lower));
-        if (!state) {
-          throw new Error(`Status "${name}" not found`);
+      addTaskLabel: async (
+        taskId: string,
+        labelId: string
+      ): Promise<TaskData> => {
+        const issueData = await this.request<{ issue: LinearIssue }>(
+          ISSUE_FETCH_QUERY,
+          { id: taskId }
+        );
+        const currentIds = issueData.issue.labels.nodes.map((l) => l.id);
+        if (!currentIds.includes(labelId)) {
+          currentIds.push(labelId);
         }
-        return state.id;
+        const result = await this.request<IssueUpdateData>(
+          ISSUE_UPDATE_MUTATION,
+          { id: taskId, input: { labelIds: currentIds } }
+        );
+        return this.toTaskData(result.issueUpdate.issue);
       },
 
-      resolveStatusName: (id: string): string => {
-        const state = states.find((s) => s.id === id);
-        if (!state) {
-          throw new Error(`Status with ID "${id}" not found`);
-        }
-        return state.name;
+      removeTaskLabel: async (
+        taskId: string,
+        labelId: string
+      ): Promise<TaskData> => {
+        const issueData = await this.request<{ issue: LinearIssue }>(
+          ISSUE_FETCH_QUERY,
+          { id: taskId }
+        );
+        const currentIds = issueData.issue.labels.nodes
+          .map((l) => l.id)
+          .filter((id) => id !== labelId);
+        const result = await this.request<IssueUpdateData>(
+          ISSUE_UPDATE_MUTATION,
+          { id: taskId, input: { labelIds: currentIds } }
+        );
+        return this.toTaskData(result.issueUpdate.issue);
       },
 
-      resolveLabelId: (name: string): string => {
-        const lower = name.toLowerCase();
-        const label = labels.find((l) => l.name.toLowerCase().includes(lower));
-        if (!label) {
-          throw new Error(`Label "${name}" not found`);
+      createLabel: async (
+        name: string,
+        color?: string
+      ): Promise<{ id: string; name: string; color: string }> => {
+        const input: Record<string, unknown> = {
+          teamId: this.getTeamId(),
+          name,
+        };
+        if (color !== undefined) {
+          input.color = color;
         }
-        return label.id;
+        const result = await this.request<LabelCreateData>(
+          LABEL_CREATE_MUTATION,
+          { input }
+        );
+        const l = result.issueLabelCreate.issueLabel;
+        return { id: l.id, name: l.name, color: l.color };
+      },
+
+      deleteLabel: async (labelId: string): Promise<void> => {
+        await this.request(LABEL_DELETE_MUTATION, { id: labelId });
       },
 
       resolvePriority: (name: string): number => {
@@ -355,7 +302,7 @@ export class LinearTaskListClient extends TaskListClient {
 
   // --- Abstract method implementations ---
 
-  async getProjects(): Promise<FullState> {
+  async getProjects(): Promise<Project[]> {
     const teamId = this.getTeamId();
     const data = await this.request<ProjectsQueryData>(
       `query($teamId: String!, $teamIdFilter: ID!) {
@@ -381,17 +328,19 @@ export class LinearTaskListClient extends TaskListClient {
       data.team.labels.nodes
     );
 
-    const projects = data.team.projects.nodes.map((p) => {
+    return data.team.projects.nodes.map((p) => {
       return new Project(
         { id: p.id, name: p.name, url: p.url },
         data.team.states.nodes.map((s) => ({ id: s.id, name: s.name })),
         p.issues.nodes.map((i) => new Task(this.toTaskData(i), ctx)),
-        data.team.labels.nodes.map((l) => ({ id: l.id, name: l.name })),
+        data.team.labels.nodes.map((l) => ({
+          id: l.id,
+          name: l.name,
+          color: l.color,
+        })),
         ctx
       );
     });
-
-    return new FullState(projects);
   }
 
   async getProject(projectId: string): Promise<Project> {
@@ -422,7 +371,11 @@ export class LinearTaskListClient extends TaskListClient {
       { id: data.project.id, name: data.project.name, url: data.project.url },
       data.team.states.nodes.map((s) => ({ id: s.id, name: s.name })),
       data.project.issues.nodes.map((i) => new Task(this.toTaskData(i), ctx)),
-      data.team.labels.nodes.map((l) => ({ id: l.id, name: l.name })),
+      data.team.labels.nodes.map((l) => ({
+        id: l.id,
+        name: l.name,
+        color: l.color,
+      })),
       ctx
     );
   }

@@ -1,6 +1,11 @@
-import type { TaskContext, TaskData, UpdateTaskParams } from "./types.js";
+import type {
+  Priority,
+  TaskContext,
+  TaskData,
+  UpdateTaskParams,
+} from "./types.js";
 
-const PRIORITY_NUMBER_TO_NAME: Record<number, string> = {
+const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
   0: "None",
   1: "Urgent",
   2: "High",
@@ -20,9 +25,10 @@ export class Task {
   readonly projectId: string;
   readonly labels: readonly string[];
   readonly url: string;
-  readonly priority: string | undefined;
+  readonly priority: Priority | undefined;
 
-  private readonly context: TaskContext;
+  /** @internal */
+  readonly context: TaskContext;
 
   constructor(data: TaskData, context: TaskContext) {
     this.id = data.id;
@@ -45,8 +51,6 @@ export class Task {
    * @returns New Task reflecting the server state after update
    */
   async update(params: UpdateTaskParams): Promise<Task> {
-    const allLabels = mergeLabels(params.labels, params.label);
-
     const data = await this.context.updateTask({
       taskId: this.id,
       name: params.name,
@@ -55,8 +59,8 @@ export class Task {
         params.status !== undefined && params.status !== ""
           ? this.context.resolveStatusId(params.status)
           : undefined,
-      labelIds: allLabels
-        ? allLabels.map((n) => this.context.resolveLabelId(n))
+      labelIds: params.labels
+        ? params.labels.map((n) => this.context.resolveLabelId(n))
         : undefined,
       priority:
         params.priority !== undefined && this.context.resolvePriority
@@ -65,15 +69,32 @@ export class Task {
     });
     return new Task(data, this.context);
   }
-}
 
-/** Merge singular `label` into `labels` array */
-export function mergeLabels(
-  labels?: readonly string[],
-  label?: string
-): readonly string[] | undefined {
-  if (label !== undefined) {
-    return labels ? [...labels, label] : [label];
+  /**
+   * Add a label to this task by name.
+   * @returns New Task with the label added
+   */
+  async addLabel(name: string): Promise<Task> {
+    const labelId = this.context.resolveLabelId(name);
+    const data = await this.context.addTaskLabel(this.id, labelId);
+    return new Task(data, this.context);
   }
-  return labels;
+
+  /**
+   * Remove a label from this task by name.
+   * @returns New Task with the label removed
+   */
+  async removeLabel(name: string): Promise<Task> {
+    const labelId = this.context.resolveLabelId(name);
+    const data = await this.context.removeTaskLabel(this.id, labelId);
+    return new Task(data, this.context);
+  }
+
+  /**
+   * Set the task's status by name.
+   * @returns New Task with the updated status
+   */
+  async setStatus(name: string): Promise<Task> {
+    return this.update({ status: name });
+  }
 }
