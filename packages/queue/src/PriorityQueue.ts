@@ -84,6 +84,27 @@ export interface PriorityQueue<T> {
 
   /** Clear all items from the queue. */
   clear(): void;
+
+  /**
+   * Change the priority of an existing item.
+   * Removes it from its current bucket and appends to the new bucket.
+   * Preserves data and enqueuedAt; updates priority.
+   * @returns true if the item was found and updated
+   */
+  updatePriority(id: string, newPriority: Priority): boolean;
+
+  /**
+   * Move an item before another item within the same priority bucket.
+   * Both items must exist and share the same priority.
+   * @returns true if the move succeeded
+   */
+  moveBefore(itemId: string, beforeItemId: string): boolean;
+
+  /**
+   * Move an item to the end of its priority bucket.
+   * @returns true if the item was found and moved
+   */
+  moveToEnd(itemId: string): boolean;
 }
 
 /**
@@ -169,6 +190,58 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
       buckets.high.length = 0;
       buckets.medium.length = 0;
       buckets.low.length = 0;
+    },
+
+    updatePriority(id: string, newPriority: Priority): boolean {
+      for (const p of PRIORITY_ORDER) {
+        const idx = buckets[p].findIndex((item) => item.id === id);
+        if (idx !== -1) {
+          const [item] = buckets[p].splice(idx, 1);
+          // Create new item with updated priority (preserves data + enqueuedAt)
+          const updated: QueueItem<T> = {
+            data: item.data,
+            priority: newPriority,
+            enqueuedAt: item.enqueuedAt,
+            id: item.id,
+          };
+          buckets[newPriority].push(updated);
+          return true;
+        }
+      }
+      return false;
+    },
+
+    moveBefore(itemId: string, beforeItemId: string): boolean {
+      // Find both items - they must be in the same priority bucket
+      for (const p of PRIORITY_ORDER) {
+        const bucket = buckets[p];
+        const itemIdx = bucket.findIndex((i) => i.id === itemId);
+        const beforeIdx = bucket.findIndex((i) => i.id === beforeItemId);
+        if (itemIdx !== -1 && beforeIdx !== -1 && itemIdx !== beforeIdx) {
+          const [item] = bucket.splice(itemIdx, 1);
+          // Recalculate target index after removal
+          const newBeforeIdx = bucket.findIndex((i) => i.id === beforeItemId);
+          bucket.splice(newBeforeIdx, 0, item);
+          return true;
+        }
+      }
+      return false;
+    },
+
+    moveToEnd(itemId: string): boolean {
+      for (const p of PRIORITY_ORDER) {
+        const bucket = buckets[p];
+        const idx = bucket.findIndex((i) => i.id === itemId);
+        if (idx !== -1 && idx < bucket.length - 1) {
+          const [item] = bucket.splice(idx, 1);
+          bucket.push(item);
+          return true;
+        }
+        if (idx === bucket.length - 1) {
+          return true; // Already at end
+        }
+      }
+      return false;
     },
   };
 }
