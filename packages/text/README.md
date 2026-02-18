@@ -156,7 +156,7 @@ convertFormat("name: Alice\nage: 30", "json");
 // }
 ```
 
-### `formatYaml(data: any): string`
+### `formatYaml(data: unknown): string`
 
 Serialize data to clean YAML, using block literals for long strings containing colons.
 
@@ -204,6 +204,13 @@ linker.linkText("Fix ENG-533 and PR#42", { format: "markdown" });
 ```
 
 Supported formats: `slack` (`<url|text>`), `markdown`/`discord` (`[text](url)`), `plaintext` (raw URL).
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `format` | Target output format | `"markdown"` |
+| `platform` | Alias for `format` | `"markdown"` |
+| `skipCode` | Skip linkification inside code spans | `true` |
+| `skipExistingLinks` | Skip linkification inside existing links | `true` |
 
 ## File Tree Rendering
 
