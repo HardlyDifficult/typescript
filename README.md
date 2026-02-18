@@ -1,6 +1,6 @@
 # TypeScript Monorepo
 
-Focused, opinionated, easy-to-use npm packages for AI, chat, state management, workflows, and CI infrastructure.
+Focused, opinionated, easy-to-use npm packages.
 
 ## Packages
 
