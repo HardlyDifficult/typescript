@@ -128,6 +128,9 @@ export function buildFileTree(
     const toShow = truncated ? sorted.slice(0, limit) : sorted;
 
     for (const child of toShow) {
+      if (depth === 1 && lines.length > 0) {
+        lines.push("");
+      }
       const marker = child.isDir ? "/" : "";
       const annotation = annotations?.get(child.fullPath) ?? "";
       const suffix = annotation !== "" ? ` — ${annotation}` : "";

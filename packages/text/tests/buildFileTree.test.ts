@@ -5,13 +5,13 @@ describe("buildFileTree", () => {
   it("renders a simple file tree", () => {
     const result = buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
     expect(result).toBe(
-      ["src/", "  index.ts", "  utils.ts", "README.md"].join("\n")
+      ["src/", "  index.ts", "  utils.ts", "", "README.md"].join("\n")
     );
   });
 
   it("sorts directories before files", () => {
     const result = buildFileTree(["file.ts", "dir/child.ts"]);
-    expect(result).toBe(["dir/", "  child.ts", "file.ts"].join("\n"));
+    expect(result).toBe(["dir/", "  child.ts", "", "file.ts"].join("\n"));
   });
 
   it("truncates level 2 children", () => {
@@ -141,7 +141,9 @@ describe("buildFileTree", () => {
         { collapseDirs: ["test"] }
       );
       expect(result).toBe(
-        ["src/", "  index.ts", "test/", "  (3 files across 2 dirs)"].join("\n")
+        ["src/", "  index.ts", "", "test/", "  (3 files across 2 dirs)"].join(
+          "\n"
+        )
       );
     });
 
@@ -150,7 +152,7 @@ describe("buildFileTree", () => {
         collapseDirs: ["test"],
       });
       expect(result).toBe(
-        ["src/", "  index.ts", "test/", "  (2 files)"].join("\n")
+        ["src/", "  index.ts", "", "test/", "  (2 files)"].join("\n")
       );
     });
 
