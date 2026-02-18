@@ -9,6 +9,8 @@ export interface BuildTreeOptions {
   maxLevel2?: number;
   maxLevel3?: number;
   annotations?: ReadonlyMap<string, string>;
+  /** Extra indented lines to show under a file entry (e.g. key sections). Only applies to files, not directories. */
+  details?: ReadonlyMap<string, readonly string[]>;
   /** Directory names to collapse. Matched dirs show a content summary instead of expanding children. */
   collapseDirs?: readonly string[];
 }
@@ -64,6 +66,7 @@ export function buildFileTree(
     maxLevel2 = FILE_TREE_DEFAULTS.maxLevel2,
     maxLevel3 = FILE_TREE_DEFAULTS.maxLevel3,
     annotations,
+    details,
     collapseDirs,
   } = options;
   const collapseSet = collapseDirs ? new Set(collapseDirs) : undefined;
@@ -129,6 +132,13 @@ export function buildFileTree(
       const annotation = annotations?.get(child.fullPath) ?? "";
       const suffix = annotation !== "" ? ` — ${annotation}` : "";
       lines.push(`${prefix}${child.name}${marker}${suffix}`);
+
+      // Render detail lines under files (e.g. key sections)
+      if (!child.isDir && details?.has(child.fullPath) === true) {
+        for (const detail of details.get(child.fullPath)!) {
+          lines.push(`${prefix}  ${detail}`);
+        }
+      }
 
       if (child.isDir && collapseSet?.has(child.name) === true) {
         const { files, dirs } = countDescendants(child);

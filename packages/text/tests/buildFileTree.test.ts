@@ -66,6 +66,69 @@ describe("buildFileTree", () => {
     });
   });
 
+  describe("details", () => {
+    it("renders detail lines under a file", () => {
+      const details = new Map([
+        [
+          "src/index.ts",
+          [
+            "> main (5-20): App entry point.",
+            "> shutdown (22-35): Cleanup handler.",
+          ],
+        ],
+      ]);
+      const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+        details,
+      });
+      expect(result).toBe(
+        [
+          "src/",
+          "  index.ts",
+          "    > main (5-20): App entry point.",
+          "    > shutdown (22-35): Cleanup handler.",
+          "  utils.ts",
+        ].join("\n")
+      );
+    });
+
+    it("does not render details for directories", () => {
+      const details = new Map([["src", ["should not appear"]]]);
+      const result = buildFileTree(["src/index.ts"], { details });
+      expect(result).toBe(["src/", "  index.ts"].join("\n"));
+    });
+
+    it("combines with annotations", () => {
+      const annotations = new Map([["index.ts", "Main entry point"]]);
+      const details = new Map([
+        ["index.ts", ["> main (1-10): Starts the app."]],
+      ]);
+      const result = buildFileTree(["index.ts"], { annotations, details });
+      expect(result).toBe(
+        [
+          "index.ts — Main entry point",
+          "  > main (1-10): Starts the app.",
+        ].join("\n")
+      );
+    });
+
+    it("skips files without details", () => {
+      const details = new Map([
+        ["src/index.ts", ["> main (5-20): Entry point."]],
+      ]);
+      const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+        details,
+      });
+      expect(result).toContain("    > main (5-20): Entry point.");
+      expect(result).not.toContain("utils.ts\n    >");
+    });
+
+    it("renders empty array as no details", () => {
+      const details = new Map([["index.ts", []]]);
+      const result = buildFileTree(["index.ts"], { details });
+      expect(result).toBe("index.ts");
+    });
+  });
+
   describe("collapseDirs", () => {
     it("collapses matching directory with summary", () => {
       const result = buildFileTree(
