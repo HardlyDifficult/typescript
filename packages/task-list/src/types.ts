@@ -64,14 +64,6 @@ export interface CreateLabelOptions {
 }
 
 /**
- * Result of a bulk update operation
- */
-export interface BulkUpdateResult {
-  readonly updated: readonly import("./Task.js").Task[];
-  readonly count: number;
-}
-
-/**
  * Options for creating a task (passed to Project.createTask)
  */
 export interface CreateTaskOptions {

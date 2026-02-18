@@ -1,6 +1,5 @@
 import { Task } from "./Task.js";
 import type {
-  BulkUpdateResult,
   CreateLabelOptions,
   CreateTaskOptions,
   Label,
@@ -9,6 +8,14 @@ import type {
   TaskFilter,
   UpdateTaskParams,
 } from "./types.js";
+
+/**
+ * Result of a bulk update operation
+ */
+export interface BulkUpdateResult {
+  readonly updated: readonly Task[];
+  readonly count: number;
+}
 
 /**
  * A project (Trello Board, Linear Project) with task creation capability.

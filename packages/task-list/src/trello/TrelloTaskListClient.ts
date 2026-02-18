@@ -1,6 +1,7 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
 import { Project } from "../Project.js";
+import { buildContextResolvers } from "../resolvers.js";
 import { Task } from "../Task.js";
 import { TaskListClient } from "../TaskListClient.js";
 import type { TaskContext, TaskData, TrelloConfig } from "../types.js";
@@ -103,8 +104,7 @@ export class TrelloTaskListClient extends TaskListClient {
     boardId: string
   ): TaskContext {
     return {
-      labels: labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
-      statuses: lists.map((l) => ({ id: l.id, name: l.name })),
+      ...buildContextResolvers(lists, labels),
 
       createTask: async (params): Promise<TaskData> => {
         const body: Record<string, string> = {
@@ -191,32 +191,6 @@ export class TrelloTaskListClient extends TaskListClient {
         await this.request(`/labels/${labelId}`, {
           method: "DELETE",
         });
-      },
-
-      resolveStatusId: (name: string): string => {
-        const lower = name.toLowerCase();
-        const list = lists.find((l) => l.name.toLowerCase().includes(lower));
-        if (!list) {
-          throw new Error(`Status "${name}" not found`);
-        }
-        return list.id;
-      },
-
-      resolveStatusName: (id: string): string => {
-        const list = lists.find((l) => l.id === id);
-        if (!list) {
-          throw new Error(`Status with ID "${id}" not found`);
-        }
-        return list.name;
-      },
-
-      resolveLabelId: (name: string): string => {
-        const lower = name.toLowerCase();
-        const label = labels.find((l) => l.name.toLowerCase().includes(lower));
-        if (!label) {
-          throw new Error(`Label "${name}" not found`);
-        }
-        return label.id;
       },
     };
   }

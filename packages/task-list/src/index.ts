@@ -11,8 +11,8 @@ export {
   type Priority,
   type TaskFilter,
   type CreateLabelOptions,
-  type BulkUpdateResult,
 } from "./types.js";
+export { type BulkUpdateResult } from "./Project.js";
 
 // Core classes
 export { TaskListClient } from "./TaskListClient.js";

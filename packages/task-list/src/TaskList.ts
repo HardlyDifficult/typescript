@@ -1,8 +1,7 @@
-import type { Project } from "./Project.js";
+import type { BulkUpdateResult, Project } from "./Project.js";
 import type { Task } from "./Task.js";
 import type { TaskListClient } from "./TaskListClient.js";
 import type {
-  BulkUpdateResult,
   CreateLabelOptions,
   CreateTaskOptions,
   Label,
