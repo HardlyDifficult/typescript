@@ -125,9 +125,7 @@ describe("formatYaml", () => {
       expect(result).toContain("purpose: |");
 
       // SHA should be plain
-      expect(result).toContain(
-        "sha: 3dfc0b60591e167f743c0587f87f51b10af64c31"
-      );
+      expect(result).toContain("sha: 3dfc0b60591e167f743c0587f87f51b10af64c31");
 
       // Lines and labels stay as plain scalars (no quotes needed)
       expect(result).toContain("lines: 1-10");
