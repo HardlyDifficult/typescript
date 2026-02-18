@@ -46,6 +46,35 @@ export class UsageTracker<T extends NumericRecord> {
         : 0;
   }
 
+  /**
+   * Recursively fills in missing keys in `target` from `defaults`.
+   * Only adds fields that are absent or undefined — never overwrites existing values.
+   */
+  private static mergeDefaults<U extends NumericRecord>(
+    target: U,
+    defaults: U
+  ): U {
+    const result = { ...target } as NumericRecord;
+    for (const key of Object.keys(defaults) as Array<keyof U>) {
+      if (result[key as string] === undefined) {
+        result[key as string] = structuredClone(
+          defaults[key] as NumericRecord[string]
+        );
+      } else if (
+        typeof result[key as string] === "object" &&
+        result[key as string] !== null &&
+        typeof defaults[key] === "object" &&
+        defaults[key] !== null
+      ) {
+        result[key as string] = UsageTracker.mergeDefaults(
+          result[key as string] as NumericRecord,
+          defaults[key] as NumericRecord
+        ) as NumericRecord[string];
+      }
+    }
+    return result as U;
+  }
+
   /** Create a UsageTracker, load persisted state, and start a new session. */
   static async create<T extends NumericRecord>(
     options: UsageTrackerOptions<T>
@@ -71,6 +100,17 @@ export class UsageTracker<T extends NumericRecord> {
     if (!Array.isArray(tracker.state.spendEntries)) {
       tracker.update({ spendEntries: [] } as Partial<PersistedUsageState<T>>);
     }
+
+    // Backfill any fields added to the schema after the state was first persisted.
+    // StateTracker's v1 envelope format returns stored data as-is without merging
+    // defaults, so new top-level or nested keys will be missing in old state files.
+    const mergedCumulative = UsageTracker.mergeDefaults(
+      tracker.state.cumulative,
+      options.default
+    );
+    tracker.update({
+      cumulative: mergedCumulative,
+    } as Partial<PersistedUsageState<T>>);
 
     const instance = new UsageTracker(options, tracker);
 
