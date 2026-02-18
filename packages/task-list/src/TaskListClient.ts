@@ -35,9 +35,7 @@ export abstract class TaskListClient {
   async findProject(name: string): Promise<Project> {
     const projects = await this.getProjects();
     const lower = name.toLowerCase();
-    const project = projects.find((p) =>
-      p.name.toLowerCase().includes(lower)
-    );
+    const project = projects.find((p) => p.name.toLowerCase().includes(lower));
     if (!project) {
       throw new Error(`Project "${name}" not found`);
     }

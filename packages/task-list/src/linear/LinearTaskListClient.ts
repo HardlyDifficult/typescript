@@ -196,8 +196,10 @@ export class LinearTaskListClient extends TaskListClient {
           input.priority = params.priority;
         }
 
-        const result =
-          await this.request<IssueCreateData>(ISSUE_CREATE_MUTATION, { input });
+        const result = await this.request<IssueCreateData>(
+          ISSUE_CREATE_MUTATION,
+          { input }
+        );
         return this.toTaskData(result.issueCreate.issue);
       },
 

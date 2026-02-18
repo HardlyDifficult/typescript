@@ -24,9 +24,7 @@ export function buildContextResolvers(
 
     resolveStatusId(name: string): string {
       const lower = name.toLowerCase();
-      const status = statuses.find((s) =>
-        s.name.toLowerCase().includes(lower)
-      );
+      const status = statuses.find((s) => s.name.toLowerCase().includes(lower));
       if (!status) {
         throw new Error(`Status "${name}" not found`);
       }
@@ -43,9 +41,7 @@ export function buildContextResolvers(
 
     resolveLabelId(name: string): string {
       const lower = name.toLowerCase();
-      const label = labels.find((l) =>
-        l.name.toLowerCase().includes(lower)
-      );
+      const label = labels.find((l) => l.name.toLowerCase().includes(lower));
       if (!label) {
         throw new Error(`Label "${name}" not found`);
       }

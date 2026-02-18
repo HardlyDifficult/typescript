@@ -112,9 +112,7 @@ export class Project {
 
     return this.tasks.filter((task) => {
       if (filter.status !== undefined) {
-        if (
-          !task.status.toLowerCase().includes(filter.status.toLowerCase())
-        ) {
+        if (!task.status.toLowerCase().includes(filter.status.toLowerCase())) {
           return false;
         }
       }
@@ -130,9 +128,7 @@ export class Project {
       if (filter.labels !== undefined) {
         for (const required of filter.labels) {
           if (
-            !task.labels.some(
-              (l) => l.toLowerCase() === required.toLowerCase()
-            )
+            !task.labels.some((l) => l.toLowerCase() === required.toLowerCase())
           ) {
             return false;
           }
@@ -206,9 +202,7 @@ export class Project {
    */
   findLabel(name: string): Label {
     const lower = name.toLowerCase();
-    const label = this.labels.find((l) =>
-      l.name.toLowerCase().includes(lower)
-    );
+    const label = this.labels.find((l) => l.name.toLowerCase().includes(lower));
     if (!label) {
       throw new Error(`Label "${name}" not found in project "${this.name}"`);
     }

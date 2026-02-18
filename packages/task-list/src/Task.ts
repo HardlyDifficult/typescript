@@ -1,4 +1,9 @@
-import type { Priority, TaskContext, TaskData, UpdateTaskParams } from "./types.js";
+import type {
+  Priority,
+  TaskContext,
+  TaskData,
+  UpdateTaskParams,
+} from "./types.js";
 
 const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
   0: "None",
