@@ -1,6 +1,6 @@
 # @hardlydifficult/text
 
-Text utilities for error formatting, template replacement, chunking, slugification, duration formatting, YAML/JSON conversion, linkification, and line numbering.
+Text utilities for error formatting, template replacement, text chunking, slugification, duration formatting, YAML/JSON conversion, link generation, and file tree rendering.
 
 ## Installation
 
