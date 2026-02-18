@@ -33,4 +33,10 @@ export type {
   TreeEntry,
   RepoContext,
   KeyFile,
+  CommitAuthor,
+  CommitFile,
+  CommitFilesOptions,
+  CommitResult,
+  CreatePROptions,
+  CreatedPR,
 } from "./types.js";

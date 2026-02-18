@@ -237,3 +237,40 @@ export interface PushEvent {
   readonly sha: string;
   readonly previousSha: string;
 }
+
+// --- Git Data API types ---
+
+export interface CommitAuthor {
+  readonly name: string;
+  readonly email: string;
+}
+
+export interface CommitFile {
+  readonly path: string;
+  readonly content: string;
+}
+
+export interface CommitFilesOptions {
+  readonly branch: string;
+  readonly files: readonly CommitFile[];
+  readonly message: string;
+  readonly parentSha: string;
+  readonly author?: CommitAuthor;
+}
+
+export interface CommitResult {
+  readonly commitSha: string;
+  readonly branchCreated: boolean;
+}
+
+export interface CreatePROptions {
+  readonly head: string;
+  readonly base: string;
+  readonly title: string;
+  readonly body: string;
+}
+
+export interface CreatedPR {
+  readonly number: number;
+  readonly url: string;
+}
