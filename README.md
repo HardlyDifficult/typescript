@@ -6,7 +6,7 @@ Focused, opinionated, easy-to-use npm packages.
 
 | Package | Description |
 |---------|-------------|
-| [@hardlydifficult/ai](./packages/ai) | Unified AI SDK integration with LLMs (Anthropic, Ollama), agent orchestration, and robust structured output parsing |
+| [@hardlydifficult/ai](./packages/ai) | Unified AI SDK integration with LLMs (Anthropic Claude, Ollama), agent orchestration, and structured output parsing |
 | [@hardlydifficult/chat](./packages/chat) | Platform-agnostic chat abstraction for Discord and Slack with threading, streaming, and batch operations |
 | [@hardlydifficult/ci-scripts](./packages/ci-scripts) | CI automation for dependency validation, topological publishing, and auto-lint fixes |
 | [@hardlydifficult/collections](./packages/collections) | Low-level array and filesystem utilities for batched processing and traversal |
@@ -20,7 +20,7 @@ Focused, opinionated, easy-to-use npm packages.
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | Persistent state manager with atomic I/O, debounced auto-save, and legacy version fallback |
 | [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task-list abstraction (Trello, Linear) with unified data resolution |
 | [@hardlydifficult/teardown](./packages/teardown) | Idempotent LIFO resource cleanup with signal trapping and graceful async teardown |
-| [@hardlydifficult/text](./packages/text) | Text manipulation: chunking, formatting, YAML/JSON conversion, slugification |
+| [@hardlydifficult/text](./packages/text) | Text manipulation: chunking, formatting, YAML/JSON conversion, and sanitization |
 | [@hardlydifficult/throttle](./packages/throttle) | Token bucket rate limiting with exponential backoff, error detection, and retry callbacks |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Session-based usage tracking with cumulative aggregation, spend limits, and resume-time estimation |
 | [@hardlydifficult/workflow-engine](./packages/workflow-engine) | Stateful workflow engine with typed state machines, linear pipelines, and persistence |
