@@ -1,8 +1,14 @@
-import type { FullState } from "./FullState.js";
 import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
 import type { TaskListClient } from "./TaskListClient.js";
-import type { CreateTaskOptions, UpdateTaskParams } from "./types.js";
+import type {
+  BulkUpdateResult,
+  CreateLabelOptions,
+  CreateTaskOptions,
+  Label,
+  TaskFilter,
+  UpdateTaskParams,
+} from "./types.js";
 
 /**
  * Fluent entry point for task list operations.
@@ -11,7 +17,7 @@ import type { CreateTaskOptions, UpdateTaskParams } from "./types.js";
  *
  * @example
  * ```typescript
- * createTaskList("linear").getProject("Bot").createTask({ name: "Fix bug", label: "Bug" })
+ * createTaskList("linear").getProject("Bot").createTask({ name: "Fix bug", labels: ["Bug"] })
  * ```
  */
 export class TaskList {
@@ -27,7 +33,7 @@ export class TaskList {
   }
 
   /** Fetch all projects with tasks, statuses, and labels. */
-  async getProjects(): Promise<FullState> {
+  async getProjects(): Promise<Project[]> {
     const client = await this.clientPromise;
     return client.getProjects();
   }
@@ -57,6 +63,30 @@ export class ProjectRef implements PromiseLike<Project> {
   ): Promise<Task> {
     const project = await this.resolve();
     return project.createTask(options.name, options);
+  }
+
+  /** Filter tasks in this project. */
+  async getTasks(filter?: TaskFilter): Promise<readonly Task[]> {
+    const project = await this.resolve();
+    return project.getTasks(filter);
+  }
+
+  /** Bulk update tasks matching the filter. */
+  async updateTasks(
+    filter: TaskFilter,
+    changes: UpdateTaskParams
+  ): Promise<BulkUpdateResult> {
+    const project = await this.resolve();
+    return project.updateTasks(filter, changes);
+  }
+
+  /** Create a label on this project. */
+  async createLabel(
+    name: string,
+    options?: CreateLabelOptions
+  ): Promise<Label> {
+    const project = await this.resolve();
+    return project.createLabel(name, options);
   }
 
   then<T1 = Project, T2 = never>(
@@ -89,6 +119,24 @@ export class TaskRef implements PromiseLike<Task> {
   async update(params: UpdateTaskParams): Promise<Task> {
     const task = await this.resolve();
     return task.update(params);
+  }
+
+  /** Add a label to this task. */
+  async addLabel(name: string): Promise<Task> {
+    const task = await this.resolve();
+    return task.addLabel(name);
+  }
+
+  /** Remove a label from this task. */
+  async removeLabel(name: string): Promise<Task> {
+    const task = await this.resolve();
+    return task.removeLabel(name);
+  }
+
+  /** Set status on this task. */
+  async setStatus(name: string): Promise<Task> {
+    const task = await this.resolve();
+    return task.setStatus(name);
   }
 
   then<T1 = Task, T2 = never>(

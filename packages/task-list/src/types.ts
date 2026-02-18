@@ -25,14 +25,60 @@ export type TaskListConfig = TrelloConfig | LinearConfig;
 export type Provider = "trello" | "linear";
 
 /**
+ * A label with identity and color
+ */
+export interface Label {
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
+}
+
+/**
+ * A workflow status with identity
+ */
+export interface Status {
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * Priority levels
+ */
+export type Priority = "None" | "Urgent" | "High" | "Medium" | "Low";
+
+/**
+ * Filter criteria for querying tasks
+ */
+export interface TaskFilter {
+  readonly label?: string;
+  readonly labels?: readonly string[];
+  readonly status?: string;
+  readonly priority?: Priority;
+}
+
+/**
+ * Options for creating a label
+ */
+export interface CreateLabelOptions {
+  readonly color?: string;
+}
+
+/**
+ * Result of a bulk update operation
+ */
+export interface BulkUpdateResult {
+  readonly updated: readonly import("./Task.js").Task[];
+  readonly count: number;
+}
+
+/**
  * Options for creating a task (passed to Project.createTask)
  */
 export interface CreateTaskOptions {
   readonly description?: string | undefined;
-  readonly label?: string | undefined;
   readonly labels?: readonly string[] | undefined;
   readonly status?: string | undefined;
-  readonly priority?: string | undefined;
+  readonly priority?: Priority | undefined;
 }
 
 /**
@@ -42,9 +88,8 @@ export interface UpdateTaskParams {
   readonly name?: string | undefined;
   readonly description?: string | undefined;
   readonly status?: string | undefined;
-  readonly label?: string | undefined;
   readonly labels?: readonly string[] | undefined;
-  readonly priority?: string | undefined;
+  readonly priority?: Priority | undefined;
 }
 
 /**
@@ -57,7 +102,11 @@ export interface TaskData {
   readonly description: string;
   readonly statusId: string;
   readonly projectId: string;
-  readonly labels: readonly { readonly id: string; readonly name: string }[];
+  readonly labels: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly color: string;
+  }[];
   readonly url: string;
   readonly priority?: number;
 }
@@ -85,8 +134,24 @@ export interface TaskContext {
     priority?: number;
   }): Promise<TaskData>;
 
+  addTaskLabel(taskId: string, labelId: string): Promise<TaskData>;
+  removeTaskLabel(taskId: string, labelId: string): Promise<TaskData>;
+
+  createLabel(
+    name: string,
+    color?: string
+  ): Promise<{ id: string; name: string; color: string }>;
+  deleteLabel(labelId: string): Promise<void>;
+
   resolveStatusId(name: string): string;
   resolveStatusName(id: string): string;
   resolveLabelId(name: string): string;
   resolvePriority?(name: string): number;
+
+  readonly labels: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly color: string;
+  }[];
+  readonly statuses: readonly { readonly id: string; readonly name: string }[];
 }

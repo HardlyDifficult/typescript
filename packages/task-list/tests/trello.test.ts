@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FullState } from "../src/FullState.js";
 import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
 import { TrelloTaskListClient } from "../src/trello/TrelloTaskListClient.js";
@@ -143,7 +142,7 @@ describe("TrelloTaskListClient", () => {
   });
 
   describe("getProject", () => {
-    it("returns a Project with statuses, tasks, and labels as strings", async () => {
+    it("returns a Project with Status and Label objects", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
       mockFetch.mockResolvedValueOnce(
         jsonResponse([trelloList, trelloListDone])
@@ -159,10 +158,15 @@ describe("TrelloTaskListClient", () => {
       expect(project.id).toBe("b1");
       expect(project.name).toBe("My Board");
       expect(project.url).toBe("https://trello.com/b/b1");
-      expect(project.statuses).toEqual(["To Do", "Done"]);
+      expect(project.statuses).toEqual([
+        { id: "l1", name: "To Do" },
+        { id: "l2", name: "Done" },
+      ]);
       expect(project.tasks).toHaveLength(1);
       expect(project.tasks[0]!.status).toBe("To Do");
-      expect(project.labels).toEqual(["Bug"]);
+      expect(project.labels).toEqual([
+        { id: "lb1", name: "Bug", color: "red" },
+      ]);
     });
 
     it("createTask resolves status and labels by name", async () => {
@@ -226,7 +230,7 @@ describe("TrelloTaskListClient", () => {
   });
 
   describe("getProjects", () => {
-    it("returns a FullState with all projects", async () => {
+    it("returns Project[] with all projects", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
@@ -234,14 +238,14 @@ describe("TrelloTaskListClient", () => {
 
       const promise = client.getProjects();
       await vi.runAllTimersAsync();
-      const state = await promise;
+      const projects = await promise;
 
-      expect(state).toBeInstanceOf(FullState);
-      expect(state.projects).toHaveLength(1);
-      expect(state.projects[0]!.name).toBe("My Board");
+      expect(projects).toBeInstanceOf(Array);
+      expect(projects).toHaveLength(1);
+      expect(projects[0]!.name).toBe("My Board");
     });
 
-    it("supports chaining: findProject → createTask", async () => {
+    it("supports chaining: find project → createTask", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloBoard]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloList]));
       mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
@@ -249,8 +253,8 @@ describe("TrelloTaskListClient", () => {
 
       const getPromise = client.getProjects();
       await vi.runAllTimersAsync();
-      const state = await getPromise;
-      const project = state.findProject("My Board");
+      const projects = await getPromise;
+      const project = projects.find((p) => p.name === "My Board")!;
 
       mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
       const createPromise = project.createTask("Chained task");

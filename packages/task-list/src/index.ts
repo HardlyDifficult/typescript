@@ -6,13 +6,18 @@ export {
   type LinearConfig,
   type TaskListConfig,
   type Provider,
+  type Label,
+  type Status,
+  type Priority,
+  type TaskFilter,
+  type CreateLabelOptions,
+  type BulkUpdateResult,
 } from "./types.js";
 
 // Core classes
 export { TaskListClient } from "./TaskListClient.js";
 export { Task } from "./Task.js";
 export { Project } from "./Project.js";
-export { FullState } from "./FullState.js";
 
 // Fluent builder
 export { TaskList, ProjectRef, TaskRef } from "./TaskList.js";
@@ -57,7 +62,7 @@ export async function createTaskListClient(
  * @example
  * ```typescript
  * // Explicit provider
- * createTaskList("linear").getProject("Bot").createTask({ name: "Fix bug", label: "Bug" })
+ * createTaskList("linear").getProject("Bot").createTask({ name: "Fix bug", labels: ["Bug"] })
  *
  * // With team name
  * createTaskList("linear", { team: "MyTeam" }).getProject("Bot").createTask({ name: "Fix bug" })

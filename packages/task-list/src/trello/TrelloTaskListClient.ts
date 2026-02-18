@@ -1,6 +1,5 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
-import { FullState } from "../FullState.js";
 import { Project } from "../Project.js";
 import { Task } from "../Task.js";
 import { TaskListClient } from "../TaskListClient.js";
@@ -87,7 +86,11 @@ export class TrelloTaskListClient extends TaskListClient {
       description: c.desc,
       statusId: c.idList,
       projectId: c.idBoard,
-      labels: c.labels.map((l) => ({ id: l.id, name: l.name })),
+      labels: c.labels.map((l) => ({
+        id: l.id,
+        name: l.name,
+        color: l.color,
+      })),
       url: c.url,
     };
   }
@@ -96,9 +99,13 @@ export class TrelloTaskListClient extends TaskListClient {
 
   private createContext(
     lists: readonly TrelloList[],
-    labels: readonly TrelloLabel[]
+    labels: readonly TrelloLabel[],
+    boardId: string
   ): TaskContext {
     return {
+      labels: labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+      statuses: lists.map((l) => ({ id: l.id, name: l.name })),
+
       createTask: async (params): Promise<TaskData> => {
         const body: Record<string, string> = {
           name: params.name,
@@ -138,6 +145,54 @@ export class TrelloTaskListClient extends TaskListClient {
         return this.toTaskData(card);
       },
 
+      addTaskLabel: async (
+        taskId: string,
+        labelId: string
+      ): Promise<TaskData> => {
+        await this.request(`/cards/${taskId}/idLabels`, {
+          method: "POST",
+          body: JSON.stringify({ value: labelId }),
+        });
+        // Re-fetch card to get updated state
+        const card = await this.request<TrelloCard>(`/cards/${taskId}`);
+        return this.toTaskData(card);
+      },
+
+      removeTaskLabel: async (
+        taskId: string,
+        labelId: string
+      ): Promise<TaskData> => {
+        await this.request(`/cards/${taskId}/idLabels/${labelId}`, {
+          method: "DELETE",
+        });
+        const card = await this.request<TrelloCard>(`/cards/${taskId}`);
+        return this.toTaskData(card);
+      },
+
+      createLabel: async (
+        name: string,
+        color?: string
+      ): Promise<{ id: string; name: string; color: string }> => {
+        const body: Record<string, string> = { name };
+        if (color !== undefined) {
+          body.color = color;
+        }
+        const label = await this.request<TrelloLabel>(
+          `/boards/${boardId}/labels`,
+          {
+            method: "POST",
+            body: JSON.stringify(body),
+          }
+        );
+        return { id: label.id, name: label.name, color: label.color };
+      },
+
+      deleteLabel: async (labelId: string): Promise<void> => {
+        await this.request(`/labels/${labelId}`, {
+          method: "DELETE",
+        });
+      },
+
       resolveStatusId: (name: string): string => {
         const lower = name.toLowerCase();
         const list = lists.find((l) => l.name.toLowerCase().includes(lower));
@@ -168,29 +223,27 @@ export class TrelloTaskListClient extends TaskListClient {
 
   // --- Abstract method implementations ---
 
-  async getProjects(): Promise<FullState> {
+  async getProjects(): Promise<Project[]> {
     const trelloBoards =
       await this.request<TrelloBoard[]>("/members/me/boards");
 
-    const projects = await Promise.all(
+    return Promise.all(
       trelloBoards.map(async (tb) => {
         const [lists, cards, labels] = await Promise.all([
           this.request<TrelloList[]>(`/boards/${tb.id}/lists`),
           this.request<TrelloCard[]>(`/boards/${tb.id}/cards`),
           this.request<TrelloLabel[]>(`/boards/${tb.id}/labels`),
         ]);
-        const ctx = this.createContext(lists, labels);
+        const ctx = this.createContext(lists, labels, tb.id);
         return new Project(
           { id: tb.id, name: tb.name, url: tb.url },
           lists.map((l) => ({ id: l.id, name: l.name })),
           cards.map((c) => new Task(this.toTaskData(c), ctx)),
-          labels.map((l) => ({ id: l.id, name: l.name })),
+          labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
           ctx
         );
       })
     );
-
-    return new FullState(projects);
   }
 
   async getProject(projectId: string): Promise<Project> {
@@ -201,12 +254,12 @@ export class TrelloTaskListClient extends TaskListClient {
       this.request<TrelloLabel[]>(`/boards/${projectId}/labels`),
     ]);
 
-    const ctx = this.createContext(trelloLists, trelloLabels);
+    const ctx = this.createContext(trelloLists, trelloLabels, tb.id);
     return new Project(
       { id: tb.id, name: tb.name, url: tb.url },
       trelloLists.map((l) => ({ id: l.id, name: l.name })),
       trelloCards.map((c) => new Task(this.toTaskData(c), ctx)),
-      trelloLabels.map((l) => ({ id: l.id, name: l.name })),
+      trelloLabels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
       ctx
     );
   }
@@ -217,7 +270,7 @@ export class TrelloTaskListClient extends TaskListClient {
       this.request<TrelloList[]>(`/boards/${card.idBoard}/lists`),
       this.request<TrelloLabel[]>(`/boards/${card.idBoard}/labels`),
     ]);
-    const ctx = this.createContext(lists, labels);
+    const ctx = this.createContext(lists, labels, card.idBoard);
     return new Task(this.toTaskData(card), ctx);
   }
 }
