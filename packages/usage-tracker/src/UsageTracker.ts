@@ -49,27 +49,31 @@ export class UsageTracker<T extends NumericRecord> {
   /**
    * Recursively fills in missing keys in `target` from `defaults`.
    * Only adds fields that are absent or undefined — never overwrites existing values.
+   *
+   * Uses `unknown` for intermediate values because persisted state loaded from disk
+   * may have `undefined` entries for keys added to the schema after the state was
+   * first written, even though the TypeScript type says `number | NumericRecord`.
    */
   private static mergeDefaults<U extends NumericRecord>(
     target: U,
     defaults: U
   ): U {
-    const result = { ...target } as NumericRecord;
-    for (const key of Object.keys(defaults) as Array<keyof U>) {
-      if (result[key as string] === undefined) {
-        result[key as string] = structuredClone(
-          defaults[key] as NumericRecord[string]
-        );
+    const result = { ...target } as Record<string, unknown>;
+    for (const key of Object.keys(defaults)) {
+      const targetVal: unknown = result[key];
+      const defaultVal: unknown = (defaults as Record<string, unknown>)[key];
+      if (targetVal === undefined) {
+        result[key] = structuredClone(defaultVal);
       } else if (
-        typeof result[key as string] === "object" &&
-        result[key as string] !== null &&
-        typeof defaults[key] === "object" &&
-        defaults[key] !== null
+        typeof targetVal === "object" &&
+        targetVal !== null &&
+        typeof defaultVal === "object" &&
+        defaultVal !== null
       ) {
-        result[key as string] = UsageTracker.mergeDefaults(
-          result[key as string] as NumericRecord,
-          defaults[key] as NumericRecord
-        ) as NumericRecord[string];
+        result[key] = UsageTracker.mergeDefaults(
+          targetVal as NumericRecord,
+          defaultVal as NumericRecord
+        );
       }
     }
     return result as U;
