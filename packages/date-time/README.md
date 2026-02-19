@@ -41,8 +41,9 @@ import { toMilliseconds } from '@hardlydifficult/date-time';
 
 toMilliseconds({ value: 2, unit: 'seconds' });      // 2000
 toMilliseconds({ value: 1, unit: 'hours' });        // 3600000
-toMilliseconds({ value: 0.5, unit: 'seconds' });    // 500 (fractional values supported)
+toMilliseconds({ value: 0.5, unit: 'seconds' });    // 500
 toMilliseconds({ value: 0, unit: 'minutes' });      // 0
+toMilliseconds({ value: 1, unit: 'days' });         // 86400000
 ```
 
-Supports all time units and handles fractional values correctly.
+Supports all time units (`milliseconds`, `seconds`, `minutes`, `hours`, `days`) and handles fractional values and zero correctly.
