@@ -54,7 +54,7 @@ describe("createAgent", () => {
     it("returns text and usage", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "Done analyzing",
-        usage: { inputTokens: 100, outputTokens: 50 },
+        usage: { inputTokens: 100, outputTokens: 50, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -77,7 +77,7 @@ describe("createAgent", () => {
     it("records usage via tracker", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "result",
-        usage: { inputTokens: 20, outputTokens: 10 },
+        usage: { inputTokens: 20, outputTokens: 10, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -97,7 +97,7 @@ describe("createAgent", () => {
     it("records prompt and response in usage", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "Done analyzing",
-        usage: { inputTokens: 100, outputTokens: 50 },
+        usage: { inputTokens: 100, outputTokens: 50, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -118,7 +118,7 @@ describe("createAgent", () => {
     it("converts ToolMap to SDK tool calls", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "done",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -142,7 +142,7 @@ describe("createAgent", () => {
     it("passes maxSteps and temperature as options", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "done",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -170,7 +170,7 @@ describe("createAgent", () => {
     it("uses default options when none provided", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "done",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -206,7 +206,7 @@ describe("createAgent", () => {
           await tools.read_file.execute({ path: "src/index.ts" });
           return {
             text: "done",
-            usage: { inputTokens: 10, outputTokens: 5 },
+            usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
           };
         }
       );
@@ -234,14 +234,14 @@ describe("createAgent", () => {
   describe("stream", () => {
     function mockStreamResult(
       parts: Array<{ type: string; text?: string; toolName?: string }>,
-      usage = { inputTokens: 10, outputTokens: 5 }
+      usage: Record<string, unknown> = { inputTokens: 10, outputTokens: 5 }
     ) {
       async function* fullStream() {
         for (const part of parts) yield part;
       }
       return {
         fullStream: fullStream(),
-        usage: Promise.resolve(usage),
+        usage: Promise.resolve({ inputTokenDetails: {}, ...usage }),
       };
     }
 

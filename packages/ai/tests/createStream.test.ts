@@ -30,14 +30,14 @@ function mockLogger(): {
 /** Create a mock streamText result that yields the given chunks. */
 function mockStreamResult(
   chunks: string[],
-  usage = { inputTokens: 10, outputTokens: 5 }
+  usage: Record<string, unknown> = { inputTokens: 10, outputTokens: 5 }
 ) {
   async function* textStream() {
     for (const chunk of chunks) yield chunk;
   }
   return {
     textStream: textStream(),
-    usage: Promise.resolve(usage),
+    usage: Promise.resolve({ inputTokenDetails: {}, ...usage }),
   };
 }
 

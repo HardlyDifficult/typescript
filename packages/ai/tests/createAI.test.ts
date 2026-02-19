@@ -57,7 +57,7 @@ describe("createAI", () => {
     it("returns text and usage", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "Hello world",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -70,10 +70,10 @@ describe("createAI", () => {
       expect(msg.usage.durationMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("passes system prompt to generateText", async () => {
+    it("passes system prompt to generateText with cache control", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -84,13 +84,19 @@ describe("createAI", () => {
         string,
         unknown
       >;
-      expect(callArgs).toHaveProperty("system", "You are helpful");
+      expect(callArgs).toHaveProperty("system", {
+        role: "system",
+        content: "You are helpful",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
     });
 
     it("omits system when not provided", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -107,7 +113,7 @@ describe("createAI", () => {
     it("uses default maxOutputTokens of 4096", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -124,7 +130,7 @@ describe("createAI", () => {
     it("uses custom maxTokens from options", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -146,7 +152,7 @@ describe("createAI", () => {
     it("handles missing usage fields gracefully", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: {},
+        usage: { inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -162,7 +168,7 @@ describe("createAI", () => {
     it("logs debug before and after each call", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -192,7 +198,7 @@ describe("createAI", () => {
     it("fires for every chat call", async () => {
       mockGenerateText.mockResolvedValue({
         text: "response",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -209,7 +215,7 @@ describe("createAI", () => {
     it("fires for reply calls", async () => {
       mockGenerateText.mockResolvedValue({
         text: "response",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -224,7 +230,7 @@ describe("createAI", () => {
     it("records prompt and response", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "Hello world",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -239,7 +245,7 @@ describe("createAI", () => {
     it("records systemPrompt when provided", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -252,7 +258,7 @@ describe("createAI", () => {
     it("records follow-up prompt on reply", async () => {
       mockGenerateText.mockResolvedValue({
         text: "response",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -272,7 +278,11 @@ describe("createAI", () => {
               () =>
                 resolve({
                   text: "response",
-                  usage: { inputTokens: 1, outputTokens: 1 },
+                  usage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    inputTokenDetails: {},
+                  },
                 }),
               10
             )
@@ -291,7 +301,7 @@ describe("createAI", () => {
     it("returns text directly", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "Hello world",
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -304,7 +314,7 @@ describe("createAI", () => {
     it("fires tracker for text calls", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
-        usage: { inputTokens: 15, outputTokens: 8 },
+        usage: { inputTokens: 15, outputTokens: 8, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -320,7 +330,7 @@ describe("createAI", () => {
     it("returns structured data directly", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: '{"name":"Alice","age":30}',
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
         output: { name: "Alice", age: 30 },
       });
 
@@ -336,7 +346,7 @@ describe("createAI", () => {
     it("passes output config to generateText", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "{}",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
         output: {},
       });
 
@@ -356,7 +366,7 @@ describe("createAI", () => {
     it("fires tracker for zod calls", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "{}",
-        usage: { inputTokens: 15, outputTokens: 8 },
+        usage: { inputTokens: 15, outputTokens: 8, inputTokenDetails: {} },
         output: {},
       });
 
@@ -375,11 +385,11 @@ describe("createAI", () => {
       mockGenerateText
         .mockResolvedValueOnce({
           text: "First response",
-          usage: { inputTokens: 10, outputTokens: 5 },
+          usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
         })
         .mockResolvedValueOnce({
           text: "Second response",
-          usage: { inputTokens: 20, outputTokens: 10 },
+          usage: { inputTokens: 20, outputTokens: 10, inputTokenDetails: {} },
         });
 
       const tracker = createMockTracker();
@@ -410,11 +420,11 @@ describe("createAI", () => {
       mockGenerateText
         .mockResolvedValueOnce({
           text: "First response",
-          usage: { inputTokens: 10, outputTokens: 5 },
+          usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
         })
         .mockResolvedValueOnce({
           text: '{"result":true}',
-          usage: { inputTokens: 20, outputTokens: 10 },
+          usage: { inputTokens: 20, outputTokens: 10, inputTokenDetails: {} },
           output: { result: true },
         });
 
@@ -428,10 +438,10 @@ describe("createAI", () => {
       expect(tracker.calls).toHaveLength(2);
     });
 
-    it("preserves system prompt across replies", async () => {
+    it("preserves system prompt with cache control across replies", async () => {
       mockGenerateText.mockResolvedValue({
         text: "response",
-        usage: { inputTokens: 1, outputTokens: 1 },
+        usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
       });
 
       const tracker = createMockTracker();
@@ -444,7 +454,13 @@ describe("createAI", () => {
         string,
         unknown
       >;
-      expect(secondCallArgs).toHaveProperty("system", "system instructions");
+      expect(secondCallArgs).toHaveProperty("system", {
+        role: "system",
+        content: "system instructions",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
     });
   });
 });
