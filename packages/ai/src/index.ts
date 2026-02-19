@@ -25,3 +25,4 @@ export {
   toPlainTextMessages,
   type MultimodalMessage,
 } from "./multimodal.js";
+export { AgentConversation, type SendFn } from "./AgentConversation.js";
