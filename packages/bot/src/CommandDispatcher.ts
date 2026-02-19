@@ -1,10 +1,6 @@
 /**
- * Message dispatcher — routes messages to commands, handles typing
- *
- * UI philosophy: the chat channel is treated as a text-based UI, not a chat room.
- * - User command messages are deleted after processing
- * - Typing indicator is shown while any work is in-flight
- * - Informative responses include a dismiss reaction
+ * Message dispatcher — routes messages to commands, handles typing indicators,
+ * and cleans up user messages after processing.
  *
  * Application-specific behavior (e.g., AI command suggestions for unrecognized
  * input) is plugged in via the `onUnrecognized` callback.
