@@ -27,9 +27,9 @@ export class RequestTracker {
       set = new Set();
       this.listeners.set(event, set);
     }
-    set.add(listener as RequestTrackerEvents[keyof RequestTrackerEvents]);
+    set.add(listener);
     return () => {
-      set.delete(listener as RequestTrackerEvents[keyof RequestTrackerEvents]);
+      set.delete(listener);
     };
   }
 
@@ -38,7 +38,9 @@ export class RequestTracker {
    * Returns false if draining — caller should send a rejection response.
    */
   tryAccept(): boolean {
-    if (this._draining) return false;
+    if (this._draining) {
+      return false;
+    }
     this._active++;
     return true;
   }
@@ -61,7 +63,9 @@ export class RequestTracker {
    * Emits draining immediately and drained when active reaches zero.
    */
   startDraining(reason: string): void {
-    if (this._draining) return;
+    if (this._draining) {
+      return;
+    }
     this._draining = true;
     this.emit("draining", reason);
     if (this._active === 0) {
@@ -83,7 +87,9 @@ export class RequestTracker {
   private emit(event: "draining", reason: string): void;
   private emit(event: keyof RequestTrackerEvents, ...args: unknown[]): void {
     const set = this.listeners.get(event);
-    if (!set) return;
+    if (!set) {
+      return;
+    }
     for (const listener of set) {
       (listener as (...a: unknown[]) => void)(...args);
     }

@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+
 import type {
   BackoffOptions,
   HeartbeatOptions,
@@ -74,9 +75,9 @@ export class ReconnectingWebSocket<T> {
       set = new Set();
       this.eventListeners.set(event, set);
     }
-    set.add(listener as WebSocketEvents<T>[keyof WebSocketEvents<T>]);
+    set.add(listener);
     return () => {
-      set.delete(listener as WebSocketEvents<T>[keyof WebSocketEvents<T>]);
+      set.delete(listener);
     };
   }
 
@@ -202,10 +203,7 @@ export class ReconnectingWebSocket<T> {
       const parsed = JSON.parse(raw) as T;
       this.emit("message", parsed);
     } catch (err) {
-      this.emit(
-        "error",
-        err instanceof Error ? err : new Error(String(err))
-      );
+      this.emit("error", err instanceof Error ? err : new Error(String(err)));
     }
   }
 
@@ -252,7 +250,9 @@ export class ReconnectingWebSocket<T> {
   private emit(event: "message", data: T): void;
   private emit(event: keyof WebSocketEvents<T>, ...args: unknown[]): void {
     const set = this.eventListeners.get(event);
-    if (!set) return;
+    if (!set) {
+      return;
+    }
     for (const listener of set) {
       (listener as (...a: unknown[]) => void)(...args);
     }

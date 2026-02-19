@@ -1,9 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { WebSocketServer } from "ws";
-import { ReconnectingWebSocket, getBackoffDelay } from "../src/ReconnectingWebSocket.js";
+import {
+  ReconnectingWebSocket,
+  getBackoffDelay,
+} from "../src/ReconnectingWebSocket.js";
 
 /** Start a WebSocketServer on a random port, return it and its URL. */
-async function createServer(): Promise<{ server: WebSocketServer; url: string }> {
+async function createServer(): Promise<{
+  server: WebSocketServer;
+  url: string;
+}> {
   return new Promise((resolve) => {
     const server = new WebSocketServer({ port: 0 });
     server.on("listening", () => {
@@ -126,7 +132,9 @@ describe("ReconnectingWebSocket", () => {
       });
 
       let openCount = 0;
-      client.on("open", () => { openCount++; });
+      client.on("open", () => {
+        openCount++;
+      });
 
       client.connect();
       await waitFor(() => openCount === 1);
@@ -147,7 +155,9 @@ describe("ReconnectingWebSocket", () => {
       });
 
       let openCount = 0;
-      client.on("open", () => { openCount++; });
+      client.on("open", () => {
+        openCount++;
+      });
 
       client.connect();
       await waitFor(() => openCount === 1);
@@ -170,7 +180,9 @@ describe("ReconnectingWebSocket", () => {
       });
 
       let openCount = 0;
-      client.on("open", () => { openCount++; });
+      client.on("open", () => {
+        openCount++;
+      });
 
       client.connect();
       await waitFor(() => openCount === 1);
@@ -194,7 +206,9 @@ describe("ReconnectingWebSocket", () => {
       const client = new ReconnectingWebSocket({ url });
 
       let openCount = 0;
-      client.on("open", () => { openCount++; });
+      client.on("open", () => {
+        openCount++;
+      });
 
       client.connect();
       client.connect();
@@ -229,7 +243,9 @@ describe("ReconnectingWebSocket", () => {
       });
 
       let openCount = 0;
-      client.on("open", () => { openCount++; });
+      client.on("open", () => {
+        openCount++;
+      });
 
       client.connect();
       await waitFor(() => openCount === 1);
