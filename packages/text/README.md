@@ -11,154 +11,199 @@ npm install @hardlydifficult/text
 ## Quick Start
 
 ```typescript
-import * as text from "@hardlydifficult/text";
+import {
+  replaceTemplate,
+  chunkText,
+  slugify,
+  formatDuration,
+  buildFileTree,
+  convertFormat,
+  createLinker,
+} from "@hardlydifficult/text";
 
 // Template replacement
-const greeting = text.replaceTemplate("Hello {{name}}!", { name: "World" });
-console.log(greeting); // "Hello World!"
+const greeting = replaceTemplate("Hello {{name}}!", { name: "Alice" });
+// "Hello Alice!"
 
-// Text chunking
-const chunks = text.chunkText("Line 1\nLine 2\nLong line", 15);
-console.log(chunks); // ["Line 1\nLine 2", "Long line"]
+// Split long text into chunks
+const chunks = chunkText("Line 1\nLine 2\nLine 3", 10);
+// ["Line 1\nLine 2", "Line 3"]
 
-// Slugification
-console.log(text.slugify("My Feature Name!")); // "my-feature-name"
+// Convert to URL-safe slug
+const slug = slugify("My Feature Name!", 10);
+// "my-feature"
 
-// Duration formatting
-console.log(text.formatDuration(125_000)); // "2m 5s"
+// Format duration in ms
+const formatted = formatDuration(125_000);
+// "2m 5s"
+
+// Build a file tree
+const tree = buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
+// src/
+//   index.ts
+//   utils.ts
+//
+// README.md
+
+// Convert between JSON/YAML
+const yaml = convertFormat('{"name":"Alice"}', "yaml");
+// name: Alice
 ```
 
 ## Error Handling
 
-### `getErrorMessage(err: unknown): string`
-
-Extract a message string from an unknown error.
+Consistent error extraction and formatting utilities.
 
 ```typescript
-import { getErrorMessage } from "@hardlydifficult/text";
+import { getErrorMessage, formatError, formatErrorForLog } from "@hardlydifficult/text";
 
-try {
-  throw new Error("Something went wrong");
-} catch (err) {
-  console.error(getErrorMessage(err)); // "Something went wrong"
-}
+const err = new Error("disk full");
+
+getErrorMessage(err); // "disk full"
+formatError(err, "Failed to save"); // "Failed to save: disk full"
+formatErrorForLog(err); // "disk full"
 ```
 
-### `formatError(err: unknown, context?: string): string`
+### Functions
 
-Format an error with an optional context prefix.
-
-```typescript
-import { formatError } from "@hardlydifficult/text";
-
-formatError(new Error("not found"), "User lookup"); // "User lookup: not found"
-formatError(new Error("not found")); // "not found"
-```
-
-### `formatErrorForLog(err: unknown): string`
-
-Format an error for logging. Returns `err.message` for `Error` instances, `String(err)` otherwise.
-
-```typescript
-import { formatErrorForLog } from "@hardlydifficult/text";
-
-formatErrorForLog(new Error("Database error")); // "Database error"
-```
+| Function | Description |
+|----------|-------------|
+| `getErrorMessage(err)` | Extract message string from unknown error |
+| `formatError(err, context?)` | Format error with optional context prefix |
+| `formatErrorForLog(err)` | Format error for logging (non-Error → string) |
 
 ## Template Replacement
 
-### `replaceTemplate(template: string, values: Record<string, string>): string`
-
-Replace `{{variable}}` placeholders with provided values.
+Simple string interpolation using `{{variable}}` syntax.
 
 ```typescript
-import { replaceTemplate } from "@hardlydifficult/text";
+import { replaceTemplate, extractPlaceholders } from "@hardlydifficult/text";
 
-replaceTemplate("Hello {{name}}, welcome to {{place}}!", {
+const text = replaceTemplate("Hello {{name}}! You are {{age}}.", {
   name: "Alice",
-  place: "Wonderland",
+  age: "30",
 });
-// "Hello Alice, welcome to Wonderland!"
+// "Hello Alice! You are 30."
+
+const vars = extractPlaceholders("{{greeting}}, {{name}}!");
+// ["greeting", "name"]
 ```
 
-### `extractPlaceholders(template: string): string[]`
+### Functions
 
-Extract all unique placeholder names from a template string.
+| Function | Description |
+|----------|-------------|
+| `replaceTemplate(template, values)` | Replace all `{{variable}}` placeholders |
+| `extractPlaceholders(template)` | Return unique placeholder names |
 
-```typescript
-import { extractPlaceholders } from "@hardlydifficult/text";
+## Text Chunking
 
-extractPlaceholders("{{name}} is in {{place}}"); // ["name", "place"]
-```
-
-## Text Processing
-
-### `chunkText(text: string, maxLength: number): string[]`
-
-Split text into chunks of at most `maxLength` characters, preferring line breaks and spaces for natural breaks.
+Split long text into manageable chunks respecting natural breaks.
 
 ```typescript
 import { chunkText } from "@hardlydifficult/text";
 
-const text = "Line 1\nLine 2\nThis is a very long line that needs to be chunked.";
-const chunks = chunkText(text, 20);
-// ["Line 1\nLine 2", "This is a very", "long line that", "needs to be", "chunked."]
+const text = "line one\nline two\nline three";
+chunkText(text, 18);
+// ["line one\nline two", "line three"]
 ```
 
-### `slugify(input: string, maxLength?: number): string`
+### Behavior
 
-Convert a string to a URL/filename-safe slug by lowercasing, replacing non-alphanumeric characters with hyphens, and optionally truncating at hyphen boundaries.
+- Breaks on newlines first, then spaces
+- Falls back to hard breaks when no natural break point exists
+- Trims leading whitespace from subsequent chunks
+
+## Slugification
+
+Convert strings to URL/filename-safe slugs.
 
 ```typescript
 import { slugify } from "@hardlydifficult/text";
 
 slugify("My Feature Name!"); // "my-feature-name"
 slugify("My Feature Name!", 10); // "my-feature"
-slugify("  spaces & symbols!  "); // "spaces-symbols"
 ```
 
-### `formatWithLineNumbers(content: string, startLine?: number): string`
+### Features
 
-Format text content with right-aligned line numbers.
+- Lowercases and replaces non-alphanumeric runs with single hyphens
+- Trims leading/trailing hyphens
+- Optional `maxLength` truncates at hyphen boundary when possible
 
-```typescript
-import { formatWithLineNumbers } from "@hardlydifficult/text";
+## Duration Formatting
 
-formatWithLineNumbers("foo\nbar\nbaz");
-// " 1: foo\n 2: bar\n 3: baz"
-
-formatWithLineNumbers("hello\nworld", 10);
-// "10: hello\n11: world"
-```
-
-### `formatDuration(ms: number): string`
-
-Format milliseconds as a human-readable duration string, showing up to two units and using "<1s" for sub-second values.
+Format milliseconds as human-readable duration strings.
 
 ```typescript
 import { formatDuration } from "@hardlydifficult/text";
 
-formatDuration(125_000);   // "2m 5s"
+formatDuration(125_000); // "2m 5s"
 formatDuration(3_600_000); // "1h"
-formatDuration(500);       // "<1s"
-formatDuration(90_000_000); // "1d 1h"
+formatDuration(500); // "<1s"
 ```
+
+### Format Rules
+
+| Duration | Output |
+|----------|--------|
+| < 1000ms | `<1s` |
+| 1–59 seconds | `<seconds>s` |
+| 1–59 minutes | `<minutes>m` or `<minutes>m <seconds>s` |
+| 1–23 hours | `<hours>h` or `<hours>h <minutes>m` |
+| ≥ 1 day | `<days>d` or `<days>d <hours>h` |
+
+## File Tree Rendering
+
+Build and render hierarchical file trees with depth-based truncation and annotations.
+
+```typescript
+import { buildFileTree, FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
+import type { BuildTreeOptions } from "@hardlydifficult/text";
+
+const paths = [
+  "src/index.ts",
+  "test/unit/a.test.ts",
+  "test/unit/b.test.ts",
+];
+
+const options: BuildTreeOptions = {
+  maxLevel2: 2,
+  annotations: new Map([["src/index.ts", "Entry point"]]),
+  collapseDirs: ["test"],
+};
+
+buildFileTree(paths, options);
+// src/
+//   index.ts — Entry point
+//
+// test/
+//   (2 files across 1 dir)
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxLevel2` | `number` | 10 | Max children to show at depth 2 (top-level dirs) |
+| `maxLevel3` | `number` | 3 | Max children to show at depth 3 (files/dirs inside top dirs) |
+| `annotations` | `Map<string, string>` | `undefined` | File/dir descriptions |
+| `details` | `Map<string, string[]>` | `undefined` | Extra lines to show under file entries |
+| `collapseDirs` | `string[]` | `undefined` | Directory names to collapse and summarize |
 
 ## Format Conversion
 
-### `convertFormat(content: string, to: "json" | "yaml"): string`
-
-Convert between JSON and YAML string formats with automatic input format detection.
+Convert text between JSON and YAML with auto-detection.
 
 ```typescript
 import { convertFormat } from "@hardlydifficult/text";
+import type { TextFormat } from "@hardlydifficult/text";
 
 // JSON to YAML
-convertFormat('{"name": "Alice", "age": 30}', "yaml");
+convertFormat('{"name":"Alice"}', "yaml");
 // name: Alice
-// age: 30
 
-// YAML to JSON
+// YAML to JSON (pretty-printed with 2-space indent)
 convertFormat("name: Alice\nage: 30", "json");
 // {
 //   "name": "Alice",
@@ -166,33 +211,63 @@ convertFormat("name: Alice\nage: 30", "json");
 // }
 ```
 
-### `formatYaml(data: unknown): string`
+### Functions
 
-Serialize data to clean YAML, using block literals for long strings containing colons.
+| Function | Description |
+|----------|-------------|
+| `convertFormat(content, to)` | Parse input and re-serialize to `json` or `yaml` |
+
+## YAML Formatting
+
+Serialize data to clean YAML, using block literals for long strings containing `: `.
 
 ```typescript
 import { formatYaml } from "@hardlydifficult/text";
 
-formatYaml({ message: "Hello: World" });
-// "message: >\n  Hello: World"
+formatYaml({
+  purpose:
+    "Core AI SDK: LLM integrations (Anthropic, Ollama) and streaming support.",
+});
+// purpose: |
+//   Core AI SDK: LLM integrations (Anthropic, Ollama) and streaming support.
 ```
 
-### `healYaml(dirtyYaml: string): string`
+### Behavior
 
-Clean malformed YAML by stripping markdown code fences and quoting problematic scalar values containing colons.
+- Long strings (`>60 chars`) containing `: ` render as block literals (`|`)
+- Short strings and safe scalars remain plain or quoted as needed
+- Preserves round-trip parseability
+
+## YAML Healing
+
+Sanitize malformed YAML from LLMs by stripping code fences and quoting scalar values containing colons.
 
 ```typescript
 import { healYaml } from "@hardlydifficult/text";
+import { parse } from "yaml";
 
-healYaml('```yaml\nmessage: Hello: World\n```');
-// "message: >\n  Hello: World"
+const badYaml = `\`\`\`yaml
+purpose: |
+  Core AI: LLM integrations (Anthropic, Ollama)
+description: Main deps: Node, TypeScript, Vitest.
+\`\`\``;
+
+const cleaned = healYaml(badYaml);
+// purpose: |
+//   Core AI: LLM integrations (Anthropic, Ollama)
+// description: "Main deps: Node, TypeScript, Vitest."
+
+parse(cleaned); // Parses successfully
 ```
 
-## Link Generation
+### Fixes Applied
 
-### `createLinker(initialRules?: LinkRule[]): Linker`
+- Strips markdown code fences (` ```yaml ` or ` ``` `)
+- Quotes plain scalar values containing `: ` to avoid parse errors
 
-Create a configurable linker to transform text patterns into platform-specific links. The linker is idempotent by default, skips code spans and existing links, and resolves overlapping matches deterministically.
+## Linkification
+
+Transform text with issue/PR references into formatted links.
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
@@ -201,177 +276,71 @@ const linker = createLinker()
   .linear("fairmint")
   .githubPr("Fairmint/api");
 
-linker.linkText("Fix ENG-533 and PR#42", { format: "slack" });
-// "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> and <https://github.com/Fairmint/api/pull/42|PR#42>"
-
-linker.linkText("Fix ENG-533 and PR#42", { format: "markdown" });
-// "[ENG-533](https://linear.app/fairmint/issue/ENG-533) and [PR#42](https://github.com/Fairmint/api/pull/42)"
+const output = linker.apply("Fix ENG-533 and PR#42", { platform: "slack" });
+// Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> <https://github.com/Fairmint/api/pull/42|PR#42>
 ```
 
-#### Linker Methods
+### Platforms
 
-**`.linear(workspace: string, options?: { name?: string; priority?: number }): Linker`**
+| Platform | Output Format |
+|----------|---------------|
+| `slack` | `<href\|text>` |
+| `discord` | `[text](href)` |
+| `markdown` | `[text](href)` |
+| `plaintext` | `href` (raw URL) |
 
-Add a rule for Linear issue references (e.g., `ENG-533`).
+### Linker Methods
 
-```typescript
-const linker = createLinker().linear("fairmint");
-linker.linkText("Fix ENG-533", { format: "markdown" });
-// "[ENG-533](https://linear.app/fairmint/issue/ENG-533)"
-```
+| Method | Description |
+|--------|-------------|
+| `custom(pattern, toHref, options)` | Register a new rule with regex pattern and href builder |
+| `linear(workspace, options)` | Match `PROJECT-123` and link to Linear |
+| `githubPr(repository, options)` | Match `PR#123` and link to GitHub Pull Request |
+| `apply(text, options)` | Transform text with configured rules |
 
-**`.githubPr(repository: string, options?: { name?: string; priority?: number }): Linker`**
-
-Add a rule for GitHub pull request references (e.g., `PR#42`).
-
-```typescript
-const linker = createLinker().githubPr("Fairmint/api");
-linker.linkText("Merge PR#42", { format: "markdown" });
-// "[PR#42](https://github.com/Fairmint/api/pull/42)"
-```
-
-**`.custom(pattern: RegExp, toHref: string | LinkHrefBuilder, options?: { name?: string; priority?: number }): Linker`**
-
-Add a custom rule with a regex pattern and URL template or callback.
-
-```typescript
-const linker = createLinker().custom(
-  /\bINC-\d+\b/g,
-  ({ match }) => `https://incident.io/${match}`
-);
-linker.linkText("Resolve INC-99", { format: "markdown" });
-// "[INC-99](https://incident.io/INC-99)"
-```
-
-**`.linkText(input: string, options?: LinkerApplyOptions): string`**
-
-Apply all configured rules to the input text and return formatted links.
-
-**`.apply(input: string, options?: LinkerApplyOptions): string`**
-
-Alias for `linkText()`.
-
-#### Link Options
+### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `format` | `"slack" \| "discord" \| "markdown" \| "plaintext"` | `"markdown"` | Target output format |
-| `platform` | `"slack" \| "discord" \| "markdown" \| "plaintext"` | `"markdown"` | Alias for `format` |
-| `skipCode` | `boolean` | `true` | Skip linkification inside code spans (backticks and fenced blocks) |
-| `skipExistingLinks` | `boolean` | `true` | Skip linkification inside existing links (Slack, Markdown, and plain URLs) |
+| `format` / `platform` | `LinkerPlatform` | `"markdown"` | Output format |
+| `skipCode` | `boolean` | `true` | Skip linkification inside code blocks/inline code |
+| `skipExistingLinks` | `boolean` | `true` | Skip linkification inside existing links |
 
-#### URL Template Syntax
+### LinkRule Options
 
-When using a string template for `href` or `toHref`, the following substitutions are available:
+| Property | Type | Description |
+|----------|------|-------------|
+| `pattern` | `RegExp` | Match pattern (global matching enforced) |
+| `href` / `toHref` | `string` or `LinkHrefBuilder` | URL template (supports `$0`/`$&`, `$1`..`$N`) or callback |
+| `priority` | `number` | `0` | Higher priority wins overlapping matches |
 
-- `$0` or `$&` — Full regex match
-- `$1`, `$2`, etc. — Capture groups
-- `$$` — Literal `$`
+## Text with Line Numbers
+
+Format text content with right-aligned line numbers.
 
 ```typescript
-const linker = createLinker().custom(
-  /\b([A-Z]{2,6})-(\d+)\b/g,
-  "https://example.com/issues/$1/$2"
-);
-linker.linkText("ENG-533", { format: "markdown" });
-// "[ENG-533](https://example.com/issues/ENG/533)"
+import { formatWithLineNumbers } from "@hardlydifficult/text";
+
+formatWithLineNumbers("foo\nbar\nbaz");
+// 1: foo
+// 2: bar
+// 3: baz
+
+formatWithLineNumbers("hello\nworld", 10);
+// 10: hello
+// 11: world
 ```
 
-## File Tree Rendering
+## Markdown Fence Escaping
 
-### `buildFileTree(files: string[], options?: BuildTreeOptions): string`
-
-Build and render a hierarchical file tree with depth-based truncation and optional annotations.
+Escape content by wrapping with more backticks than contained in the content.
 
 ```typescript
-import { buildFileTree } from "@hardlydifficult/text";
+import { escapeFence } from "@hardlydifficult/text";
 
-const files = [
-  "src/index.ts",
-  "src/utils.ts",
-  "src/components/Button.tsx",
-  "README.md",
-];
+const result = escapeFence("content with ``` triple backticks");
+// { fence: "````", content: "content with ``` triple backticks" }
 
-buildFileTree(files);
-// src/
-//   index.ts
-//   utils.ts
-//   components/
-//     Button.tsx
-//
-// README.md
-```
-
-#### Tree Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxLevel2` | `number` | `10` | Maximum children to show at depth 2 |
-| `maxLevel3` | `number` | `3` | Maximum children to show at depth 3+ |
-| `annotations` | `Map<string, string>` | — | Descriptions to append to entries (e.g., `"src/index.ts" → "Main entry point"`) |
-| `details` | `Map<string, string[]>` | — | Extra indented lines to show under file entries (e.g., key sections) |
-| `collapseDirs` | `string[]` | — | Directory names to collapse with a summary instead of expanding |
-
-#### Annotations Example
-
-```typescript
-const annotations = new Map([
-  ["src", "Source code"],
-  ["src/index.ts", "Main entry point"],
-]);
-
-buildFileTree(["src/index.ts", "src/utils.ts"], { annotations });
-// src/ — Source code
-//   index.ts — Main entry point
-//   utils.ts
-```
-
-#### Details Example
-
-```typescript
-const details = new Map([
-  [
-    "src/index.ts",
-    [
-      "> main (5-20): App entry point.",
-      "> shutdown (22-35): Cleanup handler.",
-    ],
-  ],
-]);
-
-buildFileTree(["src/index.ts"], { details });
-// src/
-//   index.ts
-//     > main (5-20): App entry point.
-//     > shutdown (22-35): Cleanup handler.
-```
-
-#### Collapsed Directories Example
-
-```typescript
-buildFileTree(
-  [
-    "node_modules/package-a/index.js",
-    "node_modules/package-b/index.js",
-    "src/index.ts",
-  ],
-  { collapseDirs: ["node_modules"] }
-);
-// node_modules/
-//   (2 files across 2 dirs)
-//
-// src/
-//   index.ts
-```
-
-### `FILE_TREE_DEFAULTS`
-
-Default truncation limits for file tree rendering.
-
-```typescript
-import { FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
-
-console.log(FILE_TREE_DEFAULTS.maxLevel2); // 10
-console.log(FILE_TREE_DEFAULTS.maxLevel3); // 3
+// Use as:
+// ${result.fence}${result.content}${result.fence}
 ```

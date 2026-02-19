@@ -1,14 +1,39 @@
 # @hardlydifficult/poller
 
-Polls async functions at configurable intervals and triggers callbacks only when the result changes—using deep equality detection via JSON serialization.
+A generic polling utility that periodically fetches data and invokes a callback only when the result changes, using JSON-based deep equality comparison.
 
-## Install
+## Installation
 
 ```bash
 npm install @hardlydifficult/poller
 ```
 
 ## Quick Start
+
+```typescript
+import { Poller } from "@hardlydifficult/poller";
+
+// Create a poller that fetches mock API data every 5 seconds
+const poller = new Poller(
+  async () => {
+    const response = await fetch("https://api.example.com/status");
+    return await response.json();
+  },
+  (current, previous) => {
+    console.log("Status changed:", current);
+  },
+  5000,
+  (error) => {
+    console.error("Polling error:", error);
+  }
+);
+
+await poller.start();  // Begins polling immediately
+// ... later
+poller.stop();         // Stops polling
+```
+
+### Basic Usage
 
 ```typescript
 import { Poller } from "@hardlydifficult/poller";
@@ -51,7 +76,7 @@ await poller.start();
 // Fetches immediately, then every 10 seconds
 ```
 
-### start()
+### `start()`
 
 Starts polling. Fetches immediately, then at the configured interval. Calling `start()` multiple times is safe (idempotent).
 
@@ -60,7 +85,7 @@ await poller.start(); // Fetches immediately
 await poller.start(); // No-op, already running
 ```
 
-### stop()
+### `stop()`
 
 Stops polling and cleans up all timers.
 
@@ -72,6 +97,9 @@ poller.stop();
 ## Change Detection
 
 Changes are detected using JSON serialization for deep equality. Structurally identical objects are considered unchanged—even if they are different references.
+
+- On first poll, `onChange(current, undefined)` is invoked.
+- On subsequent polls, `onChange(current, previous)` is invoked only if the new value differs structurally.
 
 ```typescript
 const poller = new Poller(
@@ -89,6 +117,10 @@ await poller.start();
 ## Manual Triggers
 
 Call `trigger()` to manually poll immediately, with optional debouncing. Multiple rapid triggers are coalesced into a single poll.
+
+- Accepts a `debounceMs` parameter (default: `1000`).
+- Multiple rapid calls reset the debounce timer — only the last trigger fires.
+- No-op if the poller is not running.
 
 ```typescript
 const poller = new Poller(
@@ -113,7 +145,8 @@ poller.trigger(500); // Only one poll fires after 500ms
 
 ## Error Handling
 
-Errors during fetch are passed to the optional `onError` callback. Polling continues regardless of errors.
+- Errors during fetch are caught and passed to the optional `onError` callback.
+- Polling continues after errors — no automatic retry logic is applied.
 
 ```typescript
 const poller = new Poller(
@@ -129,33 +162,38 @@ const poller = new Poller(
 await poller.start();
 ```
 
+## Core Features
+
+### Polling Lifecycle
+
+The `Poller` manages its lifecycle with `start()` and `stop()` methods.
+
+- `start()`: Begins polling immediately and then at the configured interval. Idempotent — calling it multiple times has no effect after the first call.
+- `stop()`: Clears the polling timer and any pending debounced triggers. No-op if already stopped.
+
+### Concurrent Fetch Handling
+
+Overlapping fetches (e.g., due to slow network) are automatically skipped:
+- If `poll()` is already running when the interval fires, the next poll is skipped until the current one completes.
+
 ## API Reference
 
-### Constructor
+### `Poller<T>` Constructor
 
-```typescript
-new Poller<T>(
-  fetchFn: () => Promise<T>,
-  onChange: (current: T, previous: T | undefined) => void,
-  intervalMs: number,
-  onError?: (error: unknown) => void
-)
-```
-
-| Parameter | Description |
-|---|---|
-| `fetchFn` | Async function that returns the current state |
-| `onChange` | Called with `(current, previous)` when state changes |
-| `intervalMs` | Polling interval in milliseconds |
-| `onError` | Optional error handler; polling continues on errors |
+| Parameter   | Type                                  | Description                              |
+|-------------|---------------------------------------|------------------------------------------|
+| `fetchFn`   | `() => Promise<T>`                    | Async function returning the current state |
+| `onChange`  | `(current: T, previous: T | undefined) => void` | Callback invoked on state changes        |
+| `intervalMs`| `number`                              | Polling interval in milliseconds         |
+| `onError?`  | `(error: unknown) => void`            | Optional callback for fetch errors       |
 
 ### Methods
 
-| Method | Description |
-|---|---|
-| `start()` | Start polling (fetches immediately, then at interval) |
-| `stop()` | Stop polling and clean up timers |
-| `trigger(debounceMs?)` | Manually trigger a poll with debounce (default `1000`ms) |
+| Method       | Signature                              | Description                                  |
+|--------------|----------------------------------------|----------------------------------------------|
+| `start()`    | `(): Promise<void>`                    | Begins polling (immediate + interval-based) |
+| `stop()`     | `(): void`                             | Stops polling and clears timers              |
+| `trigger()`  | `(debounceMs?: number) => void`        | Triggers a debounced manual poll             |
 
 ### Behavior
 

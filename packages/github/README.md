@@ -1,6 +1,6 @@
-# @hardlydifficult/github
+# @hardleydifficult/github
 
-Typed GitHub API client wrapping Octokit with a chainable API.
+Typed GitHub API client wrapping Octokit with a chainable API, plus a robust pull request watcher.
 
 ## Install
 
@@ -9,6 +9,8 @@ npm install @hardlydifficult/github
 ```
 
 ## Usage
+
+### Core GitHub Client
 
 ```typescript
 import { GitHubClient } from "@hardlydifficult/github";
@@ -43,7 +45,7 @@ const contributed = await github.getContributedRepos(30);
 const myPRs = await github.getMyOpenPRs();
 ```
 
-### Watching for PR activity
+### Watching for PR Activity
 
 Poll repos and your open PRs for real-time updates — no webhooks required.
 
@@ -84,6 +86,10 @@ watcher.onClosed((event) => {
   console.log(`PR #${event.pr.number} was closed`);
 });
 
+watcher.onStatusChanged((event) => {
+  console.log("Status changed from", event.previousStatus, "to", event.status);
+});
+
 watcher.onPollComplete((event) => {
   console.log(`Poll complete — tracking ${event.prs.length} PRs`);
 });
@@ -98,12 +104,37 @@ watcher.stop();        // stop polling
 
 The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent polls fire granular events for new comments, reviews, check run changes, metadata updates (draft, labels, mergeable state), and state transitions.
 
+### Dynamic Repo Management
+
+```typescript
+watcher.addRepo("new/owner/new-repo");
+watcher.removeRepo("old/owner/old-repo");
+```
+
+### Classification
+
+You can classify PRs using the `classifyPR` function:
+
+```typescript
+const watcher = github.watch({
+  repos: ["owner/repo"],
+  classifyPR: (prEvent, activity) => {
+    if (activity.reviews.some(r => r.state === "APPROVED")) {
+      return "approved";
+    } else if (activity.checkRuns.some(c => c.status === "in_progress")) {
+      return "ci_running";
+    }
+    return "needs_review";
+  },
+});
+```
+
 ## API
 
 ### `GitHubClient`
 
 | Method | Description |
-|--------|-------------|
+|--------|-----------|
 | `static create(token?)` | Create client (token defaults to `GH_PAT` env var) |
 | `repo(owner, name)` | Get a `RepoClient` scoped to owner/repo |
 | `watch(options)` | Create a `PRWatcher` for polling PR activity |
@@ -114,7 +145,7 @@ The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent
 ### `RepoClient`
 
 | Method | Description |
-|--------|-------------|
+|--------|-----------|
 | `pr(number)` | Get a `PRClient` scoped to a pull request |
 | `getOpenPRs()` | List open pull requests |
 | `get()` | Get repository info |
@@ -122,7 +153,7 @@ The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent
 ### `PRClient`
 
 | Method | Description |
-|--------|-------------|
+|--------|-----------|
 | `get()` | Get pull request details |
 | `getDiff()` | Get PR diff as string |
 | `getFiles()` | List files changed in the PR |
@@ -139,7 +170,7 @@ The first poll fires `onNewPR` for all existing open PRs (discovery). Subsequent
 Created via `github.watch(options)`. All `on*` methods return an unsubscribe function.
 
 | Method | Description |
-|--------|-------------|
+|--------|-----------|
 | `onNewPR(callback)` | New PR appeared in a watched repo or user's PRs |
 | `onComment(callback)` | New comment posted on a tracked PR |
 | `onReview(callback)` | New review submitted on a tracked PR |
@@ -147,6 +178,7 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 | `onPRUpdated(callback)` | PR metadata changed (draft, labels, mergeable state) |
 | `onMerged(callback)` | Tracked PR was merged |
 | `onClosed(callback)` | Tracked PR was closed without merge |
+| `onStatusChanged(callback)` | PR classification status changed (see `classifyPR`) |
 | `onPollComplete(callback)` | Poll cycle finished — receives snapshot of all tracked PRs |
 | `onError(callback)` | Polling or callback error |
 | `start()` | Begin polling (initial poll + interval) |
@@ -162,10 +194,9 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 | `repos` | `string[]` | `[]` | Repos to watch (`"owner/repo"` format) |
 | `myPRs` | `boolean` | `false` | Also watch all open PRs by the authenticated user |
 | `intervalMs` | `number` | `30000` | Polling interval in milliseconds |
-
-### Types
-
-`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PRUpdatedEvent`, `PollCompleteEvent`, `TimelineEntry`, `TimelineEntryKind`
+| `classifyPR` | `(event, activity) => string` | `undefined` | Function to classify PR status |
+| `stalePRThresholdMs` | `number` | `60000` | How long to keep PR snapshots for removed/closed PRs |
+| `throttle` | `object` | `undefined` | Optional throttle configuration for GitHub API calls |
 
 ### Timeline Utilities
 
@@ -175,3 +206,11 @@ Created via `github.watch(options)`. All `on*` methods return an unsubscribe fun
 | `formatTimeline(entries)` | Render timeline as readable markdown text |
 
 These are also available standalone (no `PRClient` needed) for custom pipelines.
+
+## Types
+
+`PullRequest`, `Repository`, `User`, `CheckRun`, `PullRequestReview`, `PullRequestComment`, `PullRequestFile`, `PullRequestCommit`, `Label`, `ContributionRepo`, `MergeableState`, `WatchOptions`, `PREvent`, `CommentEvent`, `ReviewEvent`, `CheckRunEvent`, `PRUpdatedEvent`, `PollCompleteEvent`, `TimelineEntry`, `TimelineEntryKind`
+
+## License
+
+MIT

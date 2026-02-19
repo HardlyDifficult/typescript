@@ -1,6 +1,6 @@
 # @hardlydifficult/date-time
 
-Date and time utilities for TypeScript, providing human-readable duration types with millisecond conversion.
+A TypeScript library providing human-readable duration types and millisecond conversion utilities.
 
 ## Installation
 
@@ -11,11 +11,62 @@ npm install @hardlydifficult/date-time
 ## Quick Start
 
 ```typescript
-import { toMilliseconds, type TimeSpan } from '@hardlydifficult/date-time';
+import { toMilliseconds, type TimeSpan } from "@hardlydifficult/date-time";
 
-const delay: TimeSpan = { value: 1.5, unit: 'minutes' };
-console.log(toMilliseconds(delay)); // 90000
+const duration: TimeSpan = { value: 2.5, unit: "minutes" };
+console.log(toMilliseconds(duration)); // 150000
 ```
+
+## Duration Conversion
+
+The package provides a strongly-typed `TimeSpan` interface and a utility function `toMilliseconds` for converting time durations to milliseconds.
+
+### TimeSpan Interface
+
+Represents a time duration with a numeric value and a unit.
+
+| Property | Type     | Description              |
+|----------|----------|-------------------------|
+| value    | `number` | The numeric value        |
+| unit     | `TimeUnit` | The time unit of the value |
+
+### TimeUnit Type
+
+Supported time units:
+
+- `"milliseconds"`
+- `"seconds"`
+- `"minutes"`
+- `"hours"`
+- `"days"`
+
+### toMilliseconds Function
+
+Converts a `TimeSpan` to its equivalent value in milliseconds.
+
+```typescript
+import { toMilliseconds, type TimeSpan } from "@hardlydifficult/date-time";
+
+// Convert various durations
+const durations: TimeSpan[] = [
+  { value: 1, unit: "seconds" },
+  { value: 0.5, unit: "hours" },
+  { value: 2, unit: "days" }
+];
+
+durations.forEach(duration => {
+  console.log(toMilliseconds(duration)); // 1000, 1800000, 172800000
+});
+```
+
+### Example: Duration to Milliseconds Table
+
+| Duration                | Milliseconds |
+|-------------------------|--------------|
+| 1 second                | 1,000        |
+| 1.5 minutes             | 90,000       |
+| 2 hours                 | 7,200,000    |
+| 0.5 days                | 43,200,000   |
 
 ## TimeSpan
 

@@ -1,6 +1,6 @@
 # @hardlydifficult/ai
 
-Unified AI client with chainable structured output, callback-based streaming, tool-calling agents, required usage tracking, and response parsing utilities.
+Unified AI client with chainable structured output, streaming, tool-calling agents, and response utilities.
 
 ## Installation
 
@@ -11,352 +11,373 @@ npm install @hardlydifficult/ai
 ## Quick Start
 
 ```typescript
-import { createAI, claude } from "@hardlydifficult/ai";
-import { Logger, ConsolePlugin } from "@hardlydifficult/logger";
+import { createAI, claude, createPromptLoader } from "@hardlydifficult/ai";
+import type { AITracker } from "@hardlydifficult/ai";
 
-const logger = new Logger().use(new ConsolePlugin());
-const tracker = {
+// Create an Anthropic model from a short variant name
+const model = claude("sonnet");
+
+// Example tracker implementation
+const tracker: AITracker = {
   record(usage) {
-    console.log(`Tokens: ${usage.inputTokens} in, ${usage.outputTokens} out`);
+    console.log("Tokens used:", usage.inputTokens + usage.outputTokens);
   },
 };
 
-const ai = createAI(claude("sonnet"), tracker, logger);
+// Create the AI client
+const ai = createAI(model, tracker, console);
 
-// Simple chat
-const msg = await ai.chat("Explain closures");
-console.log(msg.text);
+// Chat with structured output
+const data = await ai.chat("What is the capital of France?").zod(
+  z.object({ city: z.string(), country: z.string() })
+);
 
-// Structured output
-const task = await ai.chat("Create a task").zod(TaskSchema);
-console.log(task); // { title: "...", priority: "high" }
+// Stream a response
+await ai.stream([{ role: "user", content: "Explain quantum physics" }], (chunk) => {
+  process.stdout.write(chunk);
+});
 
-// Conversation
-const reply = await msg.reply("Give me a TypeScript example");
-console.log(reply.text);
+// Use tool-calling agents
+const agent = ai.agent({
+  readFile: {
+    description: "Read a file from disk",
+    inputSchema: z.object({ path: z.string() }),
+    execute: async ({ path }) => `Contents of ${path}`,
+  },
+});
+
+const result = await agent.run([{ role: "user", content: "Read src/index.ts" }]);
 ```
 
 ## AI Client
 
-### `createAI(model, tracker, logger, options?)`
+Creates an AI client with chat, streaming, and agent support, integrating usage tracking and logging.
 
-Creates an AI client. Usage tracking and logging are **required** — every call automatically fires `tracker.record()` and logs via `logger`.
+### createAI(model, tracker, logger, options?)
+
+Creates an AI client bound to a specific language model.
+
+| Parameter | Type | Description |
+|----------|------|-------------|
+| model | `LanguageModel` | AI SDK language model instance |
+| tracker | `AITracker` | Usage tracking implementation |
+| logger | `Logger` | Logging implementation |
+| options?.maxTokens | `number` | Maximum output tokens (default: 4096) |
+| options?.temperature | `number` | Temperature for generation (default: undefined) |
 
 ```typescript
 import { createAI, claude } from "@hardlydifficult/ai";
+import type { AITracker } from "@hardlydifficult/ai";
 
-const ai = createAI(claude("sonnet"), tracker, logger);
-const ai = createAI(claude("sonnet"), tracker, logger, { maxTokens: 8192 });
-```
+const model = claude("sonnet");
 
-**Options:**
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `maxTokens` | `number` | `4096` | Maximum output tokens per request |
-| `temperature` | `number` | — | Sampling temperature (0–2) |
-
-## Chat & Replies
-
-### `chat(prompt, systemPrompt?)`
-
-Send a prompt and get a rich response with usage info and conversation support.
-
-```typescript
-const msg = await ai.chat("Explain closures");
-msg.text;  // "A closure is..."
-msg.usage; // { inputTokens: 50, outputTokens: 200, durationMs: 1200, ... }
-
-// With system prompt
-const msg = await ai.chat("Explain closures", "You are a TypeScript tutor");
-```
-
-### `.text()` — String Shorthand
-
-Get just the text without the full message object.
-
-```typescript
-const text = await ai.chat("Summarize this").text(); // → string
-```
-
-### `.zod(schema)` — Structured Output
-
-Chain `.zod(schema)` to constrain the model's output format AND validate the result. The schema does triple duty: constrains output, validates response, provides TypeScript types.
-
-```typescript
-import { z } from "zod";
-
-const TaskSchema = z.object({
-  title: z.string(),
-  priority: z.enum(["high", "medium", "low"]),
-});
-
-const data = await ai.chat("Create a task for fixing the login bug").zod(TaskSchema);
-// { title: "Fix login bug", priority: "high" } — typed as z.infer<typeof TaskSchema>
-```
-
-### `.reply(prompt)` — Conversation
-
-Continue a conversation. Message history accumulates automatically.
-
-```typescript
-const msg1 = await ai.chat("What is a monad?");
-const msg2 = await msg1.reply("Give me a TypeScript example");
-const msg3 = await msg2.reply("Now formalize it").zod(DefinitionSchema);
-```
-
-## Streaming
-
-### `stream(messages, onText)`
-
-Stream text deltas via callback. Returns accumulated text + usage when done.
-
-```typescript
-const result = await ai.stream(
-  [{ role: "user", content: "Write a poem" }],
-  (text) => process.stdout.write(text)
-);
-result.text;  // full accumulated text
-result.usage; // { inputTokens, outputTokens, durationMs }
-```
-
-## Tool-Calling Agents
-
-### `agent(tools, options?)`
-
-Create a tool-calling agent. Tools are plain objects — no SDK imports needed. Tool calls and results are auto-logged via Logger.
-
-```typescript
-import type { ToolMap } from "@hardlydifficult/ai";
-import { z } from "zod";
-
-const tools: ToolMap = {
-  read_file: {
-    description: "Read a file",
-    inputSchema: z.object({ path: z.string() }),
-    execute: async ({ path }) => fs.readFileSync(path, "utf-8"),
-  },
-  write_file: {
-    description: "Write a file",
-    inputSchema: z.object({ path: z.string(), content: z.string() }),
-    execute: async ({ path, content }) => {
-      fs.writeFileSync(path, content);
-      return "File written";
-    },
+const tracker: AITracker = {
+  record(usage) {
+    console.log(`Input: ${usage.inputTokens}, Output: ${usage.outputTokens}`);
   },
 };
 
-// Non-streaming
-const result = await ai.agent(tools).run([
-  { role: "user", content: "Read config.json and tell me the version" },
-]);
-console.log(result.text);
+const ai = createAI(model, tracker, console, { maxTokens: 8192 });
+```
 
-// Streaming with text callback
-await ai.agent(tools).stream(
-  [{ role: "user", content: "Create a new file" }],
-  (text) => process.stdout.write(text)
+### AI.chat(prompt, systemPrompt?)
+
+Initiates a chat conversation with an optional system prompt.
+
+```typescript
+const ai = createAI(model, tracker, console);
+
+// Basic chat
+const msg = await ai.chat("Hello, world!");
+
+// With structured output
+const data = await ai.chat("Extract user data").zod(
+  z.object({ name: z.string(), age: z.number() })
 );
 
-// Streaming with tool call markers
-await ai.agent(tools, { maxSteps: 20 }).stream(
-  [{ role: "user", content: "Read and modify a file" }],
-  {
-    onText: (text) => process.stdout.write(text),
-    onToolCall: (name, input) => console.log(`→ ${name}(${JSON.stringify(input)})`),
-    onToolResult: (name, result) => console.log(`← ${result.slice(0, 50)}...`),
-  }
+// Chain reply
+const reply = await msg.reply("Follow up question");
+```
+
+### AI.stream(messages, onText)
+
+Streams a response token-by-token.
+
+| Parameter | Type | Description |
+|----------|------|-------------|
+| messages | `Message[]` | Message history |
+| onText | `(text: string) => void` | Callback for each text chunk |
+
+```typescript
+await ai.stream(
+  [{ role: "user", content: "Write a haiku" }],
+  (chunk) => process.stdout.write(chunk)
 );
 ```
 
-**Agent Options:**
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `maxSteps` | `number` | `10` | Maximum tool-calling iterations |
-| `temperature` | `number` | `0.7` | Sampling temperature |
-| `maxTokens` | `number` | `4096` | Maximum output tokens |
+### AI.agent(tools, options?)
 
-## Model Helpers
+Creates a tool-calling agent.
 
-### `claude(variant)`
+```typescript
+const agent = ai.agent(
+  {
+    search: {
+      description: "Search the web",
+      inputSchema: z.object({ query: z.string() }),
+      execute: async ({ query }) => `Results for ${query}`,
+    },
+  },
+  { maxSteps: 5 }
+);
 
-Short names for Anthropic models. Uses auto-resolving aliases — always gets the latest snapshot.
+const result = await agent.run([{ role: "user", content: "Search for AI news" }]);
+```
+
+## LLM Providers
+
+### claude(variant)
+
+Creates an Anthropic language model from a short variant name.
 
 ```typescript
 import { claude } from "@hardlydifficult/ai";
 
-claude("sonnet"); // claude-sonnet-4-5
-claude("haiku");  // claude-haiku-4-5
-claude("opus");   // claude-opus-4-6
+const sonnet = claude("sonnet"); // claude-sonnet-4-5
+const haiku = claude("haiku");   // claude-haiku-4-5
+const opus = claude("opus");     // claude-opus-4-6
 ```
 
-### `ollama(model)`
+### ollama(model)
 
-Ollama models. Names match whatever is installed locally. Includes extended timeouts for large model loading and keep-alive support.
+Creates an Ollama language model with extended HTTP timeouts and `keep_alive: -1` support.
 
 ```typescript
 import { ollama } from "@hardlydifficult/ai";
 
-ollama("qwen3-coder-next:latest");
-ollama("llama3.3");
+const model = ollama("llama3"); // Uses installed local model
 ```
 
-## Usage Tracking
+## Agents
 
-`createAI` requires an `AITracker` — no AI without tracking. The tracker fires for every call (`chat`, `reply`, `zod`, `stream`, `agent`). Usage includes prompt/response content alongside token counts.
+### AgentConversation
+
+Maintains a multi-turn conversation with an AI model.
 
 ```typescript
-import type { AITracker } from "@hardlydifficult/ai";
+import { AgentConversation } from "@hardlydifficult/ai";
 
-const tracker: AITracker = {
-  record({ inputTokens, outputTokens, durationMs, prompt, response, systemPrompt }) {
-    const cost = inputTokens * 3 / 1_000_000 + outputTokens * 15 / 1_000_000;
-    console.log(`Cost: $${cost.toFixed(4)} | Prompt: ${prompt}`);
-  },
+const sendFn = async (messages: Message[]): Promise<string> => {
+  const lastUser = messages.filter(m => m.role === "user").pop();
+  return lastUser ? `Echo: ${lastUser.content}` : "";
 };
 
-const ai = createAI(claude("sonnet"), tracker, logger);
+const conversation = new AgentConversation(sendFn, {
+  systemPrompt: "You are a helpful assistant.",
+});
+
+const response1 = await conversation.send("Hello");
+const response2 = await conversation.send("How are you?");
+const history = conversation.getHistory(); // Full conversation
 ```
 
-**Usage Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `inputTokens` | `number` | Tokens in the prompt |
-| `outputTokens` | `number` | Tokens in the response |
-| `durationMs` | `number` | Request duration in milliseconds |
-| `prompt` | `string` | Last user message |
-| `response` | `string` | Full response text |
-| `systemPrompt?` | `string` | System prompt (only for `chat()` calls) |
+### createAgent(model, tools, tracker, logger, options?)
 
-## Response Parsing
+Creates an agent with tool-calling, streaming, and usage tracking.
 
-### `extractJson(text, sentinel?)`
+```typescript
+import { createAgent } from "@hardlydifficult/ai";
 
-Extract JSON from AI response text using a three-pass strategy: direct parse, code blocks, balanced braces.
+const agent = createAgent(
+  model,
+  {
+    calculate: {
+      description: "Perform a calculation",
+      inputSchema: z.object({ expression: z.string() }),
+      execute: async ({ expression }) => `Result: ${expression}`,
+    },
+  },
+  tracker,
+  console
+);
+
+// Run agent (non-streaming)
+const result = await agent.run([
+  { role: "user", content: "Calculate 2+2" },
+]);
+
+// Stream agent
+await agent.stream(
+  [{ role: "user", content: "Tell a joke" }],
+  { onText: (t) => console.log(t) }
+);
+```
+
+## Streaming
+
+### runStream(model, tracker, logger, messages, onText, maxTokens, temperature?)
+
+Streams a response token-by-token and records usage.
+
+```typescript
+import { runStream } from "@hardlydifficult/ai";
+
+await runStream(
+  model,
+  tracker,
+  console,
+  [{ role: "user", content: "Hello" }],
+  (text) => process.stdout.write(text),
+  4096, // maxTokens
+  0.7   // temperature
+);
+```
+
+## Message Operations
+
+### extractJson(text, sentinel?)
+
+Extracts JSON values from text using progressive strategies: direct parse, code blocks, then balanced-brace scanning.
 
 ```typescript
 import { extractJson } from "@hardlydifficult/ai";
 
-extractJson('Here is the result:\n```json\n{"key": "value"}\n```');
-// [{ key: "value" }]
+const text = 'Result: {"name":"Alice"} in prose';
+const results = extractJson(text); // [{ name: "Alice" }]
 
-extractJson('The answer is {"a":1} in the text.');
-// [{ a: 1 }]
-
-// Sentinel: return empty if text contains the sentinel
-extractJson('NO_FINDINGS: no issues detected', "NO_FINDINGS");
-// []
+// Extract from code blocks
+const codeResult = extractJson("```json\n{\"a\":1}\n```"); // [{ a: 1 }]
 ```
 
-### `extractTyped(text, schema, sentinel?)`
+### extractTyped(text, schema, sentinel?)
 
-Extract and validate JSON against a schema. Works with any object that has a `safeParse` method (Zod, custom validators, etc.).
+Extracts and validates typed JSON objects from text using a schema-like interface.
 
 ```typescript
 import { extractTyped } from "@hardlydifficult/ai";
 import { z } from "zod";
 
-const Person = z.object({ name: z.string(), age: z.number() });
-
-extractTyped('{"name": "Alice", "age": 30}', Person);
+const text = '{"name":"Alice","age":30}';
+const results = extractTyped(text, z.object({ name: z.string(), age: z.number() }));
 // [{ name: "Alice", age: 30 }]
-
-extractTyped('Invalid: {"name": "Bob"}', Person);
-// [] — age is missing, validation fails
-
-extractTyped('{"name": "Charlie", "age": 25} NO_RESULTS', Person, "NO_RESULTS");
-// [] — sentinel found
 ```
 
-### `extractCodeBlock(text, lang?)`
+### extractCodeBlock(text, lang?)
 
-Extract fenced code block contents, optionally filtered by language tag.
+Extracts fenced code blocks from text, optionally filtered by language tag.
 
 ```typescript
 import { extractCodeBlock } from "@hardlydifficult/ai";
 
-extractCodeBlock('```json\n{"a":1}\n```\n```js\nconst x = 1;\n```');
-// ['{"a":1}', 'const x = 1;']
-
-extractCodeBlock('```json\n{"a":1}\n```\n```js\nconst x = 1;\n```', "json");
-// ['{"a":1}']
+const text = "```ts\nconst x = 1;\n```\n```json\n{\"a\":1}\n```";
+const tsCode = extractCodeBlock(text, "ts"); // ["const x = 1;"]
+const jsonCode = extractCodeBlock(text, "json"); // ['{"a":1}']
 ```
 
-### `extractTag(text, tagName)`
+### extractStructured(text, schema, sentinel?)
 
-Extract content from XML-style tags. Useful for AI responses that wrap output in tags like `<result>...</result>`.
+Extracts and validates structured data using a schema-like interface.
 
 ```typescript
-import { extractTag } from "@hardlydifficult/ai";
+import { extractStructured } from "@hardlydifficult/ai";
+import { z } from "zod";
 
-const text = "Some thinking...<result>The answer is 42</result>";
-extractTag(text, "result");
-// "The answer is 42"
-
-extractTag(text, "missing");
-// null
+const text = '{"name":"Alice","age":30}';
+const results = extractStructured(text, z.object({ name: z.string(), age: z.number() }));
+// [{ name: "Alice", age: 30 }]
 ```
 
-## Multimodal Messages
+## Response Utilities
 
-### `extractTextContent(content)`
+### Message
 
-Extract plain text from multimodal content (string or content array).
+Represents a chat message with methods for extracting structured data.
 
 ```typescript
-import { extractTextContent } from "@hardlydifficult/ai";
+import { Message } from "@hardlydifficult/ai";
 
-extractTextContent("plain text");
-// "plain text"
+const msg = new Message("Hello", 10, 5);
 
-extractTextContent([
-  { type: "text", text: "Hello" },
-  { type: "image", url: "..." },
-  { type: "text", text: "World" },
-]);
-// "Hello\nWorld"
+const text = msg.text(); // "Hello"
+const json = msg.json(); // Attempts to parse as JSON
+const zodData = msg.zod(z.object({ foo: z.string() })); // Validates with Zod
 ```
 
-### `toPlainTextMessages(messages)`
+### Message.reply(prompt)
 
-Convert multimodal messages to plain text messages. Flattens any multimodal content arrays to plain text strings.
+Appends a follow-up message to the conversation history.
 
 ```typescript
-import { toPlainTextMessages } from "@hardlydifficult/ai";
+const msg = await ai.chat("What is TypeScript?");
+const reply = await msg.reply("Explain the benefits");
+```
 
-const messages = [
-  {
-    role: "user",
-    content: [
-      { type: "text", text: "Describe this" },
-      { type: "image", url: "..." },
-    ],
-  },
-];
+## Utility Functions
 
-const plain = toPlainTextMessages(messages);
-// [{ role: "user", content: "Describe this" }]
+### createPromptLoader(directory, filename)
+
+Loads prompt files from disk with caching.
+
+```typescript
+import { createPromptLoader } from "@hardlydifficult/ai";
+
+const load = createPromptLoader("prompts", "system.md");
+
+const systemPrompt = load(); // Returns file contents
 ```
 
 ## Types
 
-All public types are exported for TypeScript integration:
+### AITracker
+
+Records usage statistics from AI interactions.
 
 ```typescript
-import type {
-  AI,
-  AITracker,
-  AIOptions,
-  Agent,
-  AgentOptions,
-  AgentResult,
-  AgentCallbacks,
-  ChatMessage,
-  ChatCall,
-  Message,
-  ToolMap,
-  ToolDefinition,
-  Usage,
-  MultimodalMessage,
-  SchemaLike,
-} from "@hardlydifficult/ai";
+import { AITracker } from "@hardlydifficult/ai";
+
+const tracker: AITracker = {
+  record(usage: Usage) {
+    console.log(`Tokens: ${usage.inputTokens + usage.outputTokens}`);
+  },
+};
 ```
+
+### Usage
+
+Represents token usage from an AI call.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| inputTokens | `number` | Number of input tokens |
+| outputTokens | `number` | Number of output tokens |
+| inputTokenDetails | `Record<string, unknown>` | Provider-specific input token details |
+| prompt? | `string` | Prompt text |
+| response? | `string` | Response text |
+| systemPrompt? | `string` | System prompt text |
+| durationMs? | `number` | Duration in milliseconds |
+
+### ToolMap
+
+Mapping of tool names to tool definitions.
+
+```typescript
+import { ToolMap } from "@hardlydifficult/ai";
+
+const tools: ToolMap = {
+  search: {
+    description: "Search the web",
+    inputSchema: z.object({ query: z.string() }),
+    execute: async ({ query }) => `Results for ${query}`,
+  },
+};
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
