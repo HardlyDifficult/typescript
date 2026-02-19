@@ -187,7 +187,7 @@ export class ConnectionHandler {
     // Replace existing worker with same ID
     const existing = this.pool.get(message.workerId);
     if (existing !== undefined) {
-      this.logger.info("Replacing existing worker connection", {
+      this.logger.debug("Replacing existing worker connection", {
         workerId: message.workerId,
       });
 
@@ -249,7 +249,7 @@ export class ConnectionHandler {
     };
     ws.send(JSON.stringify(ack));
 
-    this.logger.info("Worker registered", {
+    this.logger.debug("Worker registered", {
       workerId: message.workerId,
       workerName: message.workerName,
       models: message.capabilities.models.map((m) => m.modelId),
@@ -319,7 +319,7 @@ export class ConnectionHandler {
       }
 
       this.pool.remove(workerId);
-      this.logger.info("Worker disconnected", { workerId, code, reason });
+      this.logger.debug("Worker disconnected", { workerId, code, reason });
 
       for (const handler of this.disconnectedHandlers) {
         try {

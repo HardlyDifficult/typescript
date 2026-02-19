@@ -251,7 +251,7 @@ export class WorkerServer {
       });
 
       this.httpServer.listen(this.port, () => {
-        this.logger.info("HTTP + WebSocket server started", {
+        this.logger.debug("HTTP + WebSocket server started", {
           port: this.port,
         });
 
@@ -290,7 +290,7 @@ export class WorkerServer {
     return new Promise((resolve) => {
       server.close(() => {
         this.httpServer = null;
-        this.logger.info("HTTP + WebSocket server stopped");
+        this.logger.debug("HTTP + WebSocket server stopped");
         resolve();
       });
     });
