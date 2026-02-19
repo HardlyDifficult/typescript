@@ -108,9 +108,9 @@ export function createAgent(
         prompt: messages[messages.length - 1].content,
         response: result.text,
         cacheCreationTokens:
-          resultUsage.inputTokenDetails?.cacheWriteTokens ?? undefined,
+          resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
         cacheReadTokens:
-          resultUsage.inputTokenDetails?.cacheReadTokens ?? undefined,
+          resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,
       };
 
       tracker.record(usage);
@@ -172,9 +172,9 @@ export function createAgent(
         prompt: messages[messages.length - 1].content,
         response: accumulated,
         cacheCreationTokens:
-          resultUsage.inputTokenDetails?.cacheWriteTokens ?? undefined,
+          resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
         cacheReadTokens:
-          resultUsage.inputTokenDetails?.cacheReadTokens ?? undefined,
+          resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,
       };
 
       tracker.record(usage);
