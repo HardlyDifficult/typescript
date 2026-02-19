@@ -191,11 +191,14 @@ export class ReconnectingWebSocket<T> {
 
   private onMessage(data: WebSocket.RawData): void {
     try {
-      const raw = Buffer.isBuffer(data)
-        ? data.toString("utf8")
-        : Array.isArray(data)
-          ? Buffer.concat(data).toString("utf8")
-          : Buffer.from(data).toString("utf8");
+      let raw: string;
+      if (Buffer.isBuffer(data)) {
+        raw = data.toString("utf8");
+      } else if (Array.isArray(data)) {
+        raw = Buffer.concat(data).toString("utf8");
+      } else {
+        raw = Buffer.from(data).toString("utf8");
+      }
       const parsed = JSON.parse(raw) as T;
       this.emit("message", parsed);
     } catch (err) {
