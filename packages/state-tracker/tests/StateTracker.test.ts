@@ -349,6 +349,59 @@ describe("StateTracker", () => {
       expect(content.lastUpdated).toBeDefined();
     });
 
+    it("loadAsync merges v1 envelope value with defaults for missing keys", async () => {
+      const tracker = new StateTracker({
+        key: "v1-merge",
+        default: { count: 0, name: "default", extra: true },
+        stateDirectory: testDir,
+      });
+
+      // Write v1 envelope format missing the "extra" key
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({
+          value: { count: 42, name: "loaded" },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+
+      // Missing "extra" key should come from defaults
+      expect(tracker.state).toEqual({
+        count: 42,
+        name: "loaded",
+        extra: true,
+      });
+    });
+
+    it("sync load merges v1 envelope value with defaults for missing keys", () => {
+      const tracker = new StateTracker({
+        key: "v1-merge-sync",
+        default: { count: 0, name: "default", extra: true },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({
+          value: { count: 42, name: "loaded" },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      const value = tracker.load();
+
+      expect(value).toEqual({
+        count: 42,
+        name: "loaded",
+        extra: true,
+      });
+      expect(tracker.state).toEqual(value);
+    });
+
     it("loadAsync is idempotent (calling twice is a no-op)", async () => {
       const tracker = new StateTracker({
         key: "idempotent",
