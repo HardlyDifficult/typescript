@@ -118,7 +118,9 @@ export class CommandRegistry<TState extends CoreBotState = CoreBotState> {
 
     for (const command of sorted) {
       const parse = this.parsers.get(command.prefix);
-      if (parse === undefined) { continue; }
+      if (parse === undefined) {
+        continue;
+      }
       const parsed = parse(normalizedInput, input);
       if (parsed !== null) {
         return { command, parsed };
@@ -152,7 +154,9 @@ export class CommandRegistry<TState extends CoreBotState = CoreBotState> {
    * Check if two prefixes conflict (one is prefix of the other).
    */
   private prefixesConflict(a: string, b: string): boolean {
-    if (a === b) { return true; }
+    if (a === b) {
+      return true;
+    }
     // "merge" and "merge all" conflict, but "prs" and "push" don't
     return a.startsWith(`${b} `) || b.startsWith(`${a} `);
   }

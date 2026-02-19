@@ -9,14 +9,8 @@ export type {
 } from "./types";
 
 // Registry & Dispatcher
-export {
-  CommandRegistry,
-  type RegisteredCommand,
-} from "./CommandRegistry";
-export {
-  CommandDispatcher,
-  type DispatcherOptions,
-} from "./CommandDispatcher";
+export { CommandRegistry, type RegisteredCommand } from "./CommandRegistry";
+export { CommandDispatcher, type DispatcherOptions } from "./CommandDispatcher";
 
 // Job Lifecycle
 export {
@@ -28,7 +22,4 @@ export {
 } from "./jobLifecycle";
 
 // Helpers
-export {
-  formatWorkerError,
-  RECOVERABLE_WORKER_ERRORS,
-} from "./workerErrors";
+export { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from "./workerErrors";

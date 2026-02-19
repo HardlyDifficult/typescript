@@ -12,9 +12,7 @@ import type { Message } from "../Message";
 import type { CommandRegistry } from "./CommandRegistry";
 import type { CommandContext, CoreBotState } from "./types";
 
-export interface DispatcherOptions<
-  TState extends CoreBotState = CoreBotState,
-> {
+export interface DispatcherOptions<TState extends CoreBotState = CoreBotState> {
   /** Channel to dispatch messages for */
   channel: Channel;
   /** Command registry */
@@ -28,7 +26,10 @@ export interface DispatcherOptions<
   /** Called when the owner's user ID is first captured from an incoming message */
   onOwnerIdCaptured?: (userId: string) => void;
   /** Called when no command matches. Receives a CommandContext for executing suggestions. If not provided, sends a dismissable error. */
-  onUnrecognized?: (input: string, ctx: CommandContext<TState>) => Promise<void>;
+  onUnrecognized?: (
+    input: string,
+    ctx: CommandContext<TState>
+  ) => Promise<void>;
   /** Called when a parse fails (invalid args). Default: post dismissable error. */
   onParseError?: (error: string) => void;
 }
@@ -105,7 +106,9 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
     } finally {
       // Delete the user's command message unless a thread was created on it
       if (!this.messagesWithThreads.delete(message.id)) {
-        message.delete().catch(() => { /* swallow */ });
+        message.delete().catch(() => {
+          /* swallow */
+        });
       }
 
       // Remove from in-flight commands and stop typing if all done
@@ -144,11 +147,7 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
         }
         return await channel.postMessage(content);
       },
-      sendFile: (
-        content: string | Buffer,
-        filename: string,
-        msg?: string
-      ) => {
+      sendFile: (content: string | Buffer, filename: string, msg?: string) => {
         const buffer =
           typeof content === "string" ? Buffer.from(content, "utf-8") : content;
         void channel.postMessage(msg ?? "", {

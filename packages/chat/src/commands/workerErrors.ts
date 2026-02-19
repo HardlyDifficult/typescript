@@ -35,8 +35,6 @@ export function formatWorkerError(
   fallbackMessage?: string
 ): string {
   return (
-    WORKER_ERROR_MESSAGES[errorCode] ??
-    fallbackMessage ??
-    `Error: ${errorCode}`
+    WORKER_ERROR_MESSAGES[errorCode] ?? fallbackMessage ?? `Error: ${errorCode}`
   );
 }

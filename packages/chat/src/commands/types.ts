@@ -90,7 +90,10 @@ export interface Command<TState extends CoreBotState = CoreBotState> {
    * Execute the command.
    * The user's command message is automatically deleted on completion.
    */
-  execute(ctx: CommandContext<TState>, args: Record<string, unknown>): Promise<void>;
+  execute(
+    ctx: CommandContext<TState>,
+    args: Record<string, unknown>
+  ): Promise<void>;
 }
 
 /**

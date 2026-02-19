@@ -45,16 +45,26 @@ export function setupJobLifecycle(
   // Add cancel emoji and listen for clicks
   originalMessage.addReactions([EMOJI_CANCEL]);
   originalMessage.onReaction((event) => {
-    if (completed) { return; }
-    if (event.emoji !== EMOJI_CANCEL) { return; }
-    if (event.user.username !== ownerUsername) { return; }
+    if (completed) {
+      return;
+    }
+    if (event.emoji !== EMOJI_CANCEL) {
+      return;
+    }
+    if (event.user.username !== ownerUsername) {
+      return;
+    }
     abortController.abort();
   });
 
   // Listen for "cancel" / "stop" text replies in the thread
   const unsubReply = thread.onReply((msg) => {
-    if (completed) { return; }
-    if (msg.author?.username !== ownerUsername) { return; }
+    if (completed) {
+      return;
+    }
+    if (msg.author?.username !== ownerUsername) {
+      return;
+    }
     const text = (msg.content ?? "").trim().toLowerCase();
     if (text === "cancel" || text === "stop") {
       abortController.abort();
@@ -63,7 +73,9 @@ export function setupJobLifecycle(
 
   return {
     complete() {
-      if (completed) { return; }
+      if (completed) {
+        return;
+      }
       completed = true;
 
       // Stop listening for cancel signals
@@ -72,12 +84,20 @@ export function setupJobLifecycle(
 
       // Swap cancel emoji for delete emoji
       originalMessage.setReactions([EMOJI_DISMISS], (event) => {
-        if (event.emoji !== EMOJI_DISMISS) { return; }
-        if (event.user.username !== ownerUsername) { return; }
+        if (event.emoji !== EMOJI_DISMISS) {
+          return;
+        }
+        if (event.user.username !== ownerUsername) {
+          return;
+        }
 
         // Delete the original message and the entire thread
-        originalMessage.delete().catch(() => { /* swallow */ });
-        thread.delete().catch(() => { /* swallow */ });
+        originalMessage.delete().catch(() => {
+          /* swallow */
+        });
+        thread.delete().catch(() => {
+          /* swallow */
+        });
       });
     },
   };
