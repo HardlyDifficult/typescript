@@ -29,7 +29,7 @@ export class AgentConversation {
   constructor(sendFn: SendFn, options?: { systemPrompt?: string }) {
     this.sendFn = sendFn;
 
-    if (options?.systemPrompt) {
+    if (options?.systemPrompt !== undefined && options.systemPrompt !== "") {
       this.history.push({ role: "system", content: options.systemPrompt });
     }
   }
