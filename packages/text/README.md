@@ -8,14 +8,24 @@ Text utilities for error formatting, template replacement, text chunking, slugif
 npm install @hardlydifficult/text
 ```
 
-## Usage
+## Quick Start
 
 ```typescript
 import * as text from "@hardlydifficult/text";
 
-// Quick example
-const output = text.replaceTemplate("Hello {{name}}!", { name: "World" });
-console.log(output); // "Hello World!"
+// Template replacement
+const greeting = text.replaceTemplate("Hello {{name}}!", { name: "World" });
+console.log(greeting); // "Hello World!"
+
+// Text chunking
+const chunks = text.chunkText("Line 1\nLine 2\nLong line", 15);
+console.log(chunks); // ["Line 1\nLine 2", "Long line"]
+
+// Slugification
+console.log(text.slugify("My Feature Name!")); // "my-feature-name"
+
+// Duration formatting
+console.log(text.formatDuration(125_000)); // "2m 5s"
 ```
 
 ## Error Handling
@@ -85,7 +95,7 @@ extractPlaceholders("{{name}} is in {{place}}"); // ["name", "place"]
 
 ### `chunkText(text: string, maxLength: number): string[]`
 
-Split text into chunks of at most `maxLength` characters, preferring line breaks and spaces.
+Split text into chunks of at most `maxLength` characters, preferring line breaks and spaces for natural breaks.
 
 ```typescript
 import { chunkText } from "@hardlydifficult/text";
@@ -97,7 +107,7 @@ const chunks = chunkText(text, 20);
 
 ### `slugify(input: string, maxLength?: number): string`
 
-Convert a string to a URL/filename-safe slug.
+Convert a string to a URL/filename-safe slug by lowercasing, replacing non-alphanumeric characters with hyphens, and optionally truncating at hyphen boundaries.
 
 ```typescript
 import { slugify } from "@hardlydifficult/text";
@@ -123,7 +133,7 @@ formatWithLineNumbers("hello\nworld", 10);
 
 ### `formatDuration(ms: number): string`
 
-Format milliseconds as a human-readable duration string.
+Format milliseconds as a human-readable duration string, showing up to two units and using "<1s" for sub-second values.
 
 ```typescript
 import { formatDuration } from "@hardlydifficult/text";
@@ -138,7 +148,7 @@ formatDuration(90_000_000); // "1d 1h"
 
 ### `convertFormat(content: string, to: "json" | "yaml"): string`
 
-Convert between JSON and YAML string formats with automatic input detection.
+Convert between JSON and YAML string formats with automatic input format detection.
 
 ```typescript
 import { convertFormat } from "@hardlydifficult/text";
@@ -169,25 +179,20 @@ formatYaml({ message: "Hello: World" });
 
 ### `healYaml(dirtyYaml: string): string`
 
-Clean malformed YAML by stripping code fences and quoting problematic scalars containing colons.
+Clean malformed YAML by stripping markdown code fences and quoting problematic scalar values containing colons.
 
 ```typescript
 import { healYaml } from "@hardlydifficult/text";
 
-healYaml('message: "Hello: World"'); // "message: >\n  Hello: World"
+healYaml('```yaml\nmessage: Hello: World\n```');
+// "message: >\n  Hello: World"
 ```
 
 ## Link Generation
 
-### `createLinker(rules?: LinkRule[]): { linkText(text: string, options?: LinkOptions): string; apply: typeof linkText }`
+### `createLinker(initialRules?: LinkRule[]): Linker`
 
-Create a configurable linker to transform text patterns into platform-specific links.
-
-Supports:
-- Plain strings
-- Idempotent re-runs
-- Automatic skipping of code spans and existing links
-- Deterministic conflict resolution (priority, then longest match, then rule order)
+Create a configurable linker to transform text patterns into platform-specific links. The linker is idempotent by default, skips code spans and existing links, and resolves overlapping matches deterministically.
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
@@ -203,20 +208,80 @@ linker.linkText("Fix ENG-533 and PR#42", { format: "markdown" });
 // "[ENG-533](https://linear.app/fairmint/issue/ENG-533) and [PR#42](https://github.com/Fairmint/api/pull/42)"
 ```
 
-Supported formats: `slack` (`<url|text>`), `markdown`/`discord` (`[text](url)`), `plaintext` (raw URL).
+#### Linker Methods
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `format` | Target output format | `"markdown"` |
-| `platform` | Alias for `format` | `"markdown"` |
-| `skipCode` | Skip linkification inside code spans | `true` |
-| `skipExistingLinks` | Skip linkification inside existing links | `true` |
+**`.linear(workspace: string, options?: { name?: string; priority?: number }): Linker`**
+
+Add a rule for Linear issue references (e.g., `ENG-533`).
+
+```typescript
+const linker = createLinker().linear("fairmint");
+linker.linkText("Fix ENG-533", { format: "markdown" });
+// "[ENG-533](https://linear.app/fairmint/issue/ENG-533)"
+```
+
+**`.githubPr(repository: string, options?: { name?: string; priority?: number }): Linker`**
+
+Add a rule for GitHub pull request references (e.g., `PR#42`).
+
+```typescript
+const linker = createLinker().githubPr("Fairmint/api");
+linker.linkText("Merge PR#42", { format: "markdown" });
+// "[PR#42](https://github.com/Fairmint/api/pull/42)"
+```
+
+**`.custom(pattern: RegExp, toHref: string | LinkHrefBuilder, options?: { name?: string; priority?: number }): Linker`**
+
+Add a custom rule with a regex pattern and URL template or callback.
+
+```typescript
+const linker = createLinker().custom(
+  /\bINC-\d+\b/g,
+  ({ match }) => `https://incident.io/${match}`
+);
+linker.linkText("Resolve INC-99", { format: "markdown" });
+// "[INC-99](https://incident.io/INC-99)"
+```
+
+**`.linkText(input: string, options?: LinkerApplyOptions): string`**
+
+Apply all configured rules to the input text and return formatted links.
+
+**`.apply(input: string, options?: LinkerApplyOptions): string`**
+
+Alias for `linkText()`.
+
+#### Link Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `format` | `"slack" \| "discord" \| "markdown" \| "plaintext"` | `"markdown"` | Target output format |
+| `platform` | `"slack" \| "discord" \| "markdown" \| "plaintext"` | `"markdown"` | Alias for `format` |
+| `skipCode` | `boolean` | `true` | Skip linkification inside code spans (backticks and fenced blocks) |
+| `skipExistingLinks` | `boolean` | `true` | Skip linkification inside existing links (Slack, Markdown, and plain URLs) |
+
+#### URL Template Syntax
+
+When using a string template for `href` or `toHref`, the following substitutions are available:
+
+- `$0` or `$&` — Full regex match
+- `$1`, `$2`, etc. — Capture groups
+- `$$` — Literal `$`
+
+```typescript
+const linker = createLinker().custom(
+  /\b([A-Z]{2,6})-(\d+)\b/g,
+  "https://example.com/issues/$1/$2"
+);
+linker.linkText("ENG-533", { format: "markdown" });
+// "[ENG-533](https://example.com/issues/ENG/533)"
+```
 
 ## File Tree Rendering
 
-### `buildFileTree(files: string[], options?: FileTreeOptions): string`
+### `buildFileTree(files: string[], options?: BuildTreeOptions): string`
 
-Build and render a hierarchical file tree with depth-based truncation and directory collapsing.
+Build and render a hierarchical file tree with depth-based truncation and optional annotations.
 
 ```typescript
 import { buildFileTree } from "@hardlydifficult/text";
@@ -225,10 +290,88 @@ const files = [
   "src/index.ts",
   "src/utils.ts",
   "src/components/Button.tsx",
+  "README.md",
 ];
 
 buildFileTree(files);
-// "src/\n├── index.ts\n├── utils.ts\n└── components/\n   └── Button.tsx"
+// src/
+//   index.ts
+//   utils.ts
+//   components/
+//     Button.tsx
+//
+// README.md
 ```
 
-Options include `maxDepth`, `maxDirectories`, and `collapseDirectories` for controlling tree rendering behavior.
+#### Tree Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxLevel2` | `number` | `10` | Maximum children to show at depth 2 |
+| `maxLevel3` | `number` | `3` | Maximum children to show at depth 3+ |
+| `annotations` | `Map<string, string>` | — | Descriptions to append to entries (e.g., `"src/index.ts" → "Main entry point"`) |
+| `details` | `Map<string, string[]>` | — | Extra indented lines to show under file entries (e.g., key sections) |
+| `collapseDirs` | `string[]` | — | Directory names to collapse with a summary instead of expanding |
+
+#### Annotations Example
+
+```typescript
+const annotations = new Map([
+  ["src", "Source code"],
+  ["src/index.ts", "Main entry point"],
+]);
+
+buildFileTree(["src/index.ts", "src/utils.ts"], { annotations });
+// src/ — Source code
+//   index.ts — Main entry point
+//   utils.ts
+```
+
+#### Details Example
+
+```typescript
+const details = new Map([
+  [
+    "src/index.ts",
+    [
+      "> main (5-20): App entry point.",
+      "> shutdown (22-35): Cleanup handler.",
+    ],
+  ],
+]);
+
+buildFileTree(["src/index.ts"], { details });
+// src/
+//   index.ts
+//     > main (5-20): App entry point.
+//     > shutdown (22-35): Cleanup handler.
+```
+
+#### Collapsed Directories Example
+
+```typescript
+buildFileTree(
+  [
+    "node_modules/package-a/index.js",
+    "node_modules/package-b/index.js",
+    "src/index.ts",
+  ],
+  { collapseDirs: ["node_modules"] }
+);
+// node_modules/
+//   (2 files across 2 dirs)
+//
+// src/
+//   index.ts
+```
+
+### `FILE_TREE_DEFAULTS`
+
+Default truncation limits for file tree rendering.
+
+```typescript
+import { FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
+
+console.log(FILE_TREE_DEFAULTS.maxLevel2); // 10
+console.log(FILE_TREE_DEFAULTS.maxLevel3); // 3
+```

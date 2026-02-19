@@ -2,6 +2,7 @@ import WebSocket from "ws";
 
 import type {
   BackoffOptions,
+  HeartbeatOptions,
   WebSocketEvents,
   WebSocketOptions,
 } from "./types.js";
@@ -12,7 +13,7 @@ const BACKOFF_DEFAULTS: Required<BackoffOptions> = {
   multiplier: 2,
 };
 
-const HEARTBEAT_DEFAULTS = {
+const HEARTBEAT_DEFAULTS: Required<HeartbeatOptions> = {
   intervalMs: 30000,
   timeoutMs: 10000,
 };
@@ -26,7 +27,7 @@ const HEARTBEAT_DEFAULTS = {
  */
 export function getBackoffDelay(
   attempt: number,
-  options: Required<BackoffOptions>,
+  options: Required<BackoffOptions>
 ): number {
   const delay = options.initialDelayMs * Math.pow(options.multiplier, attempt);
   return Math.min(delay, options.maxDelayMs);
@@ -42,7 +43,7 @@ export class ReconnectingWebSocket<T> {
   private ws: WebSocket | null = null;
   private readonly url: string;
   private readonly backoff: Required<BackoffOptions>;
-  private readonly heartbeat: { intervalMs: number; timeoutMs: number };
+  private readonly heartbeat: Required<HeartbeatOptions>;
   private reconnectAttempt = 0;
   private shouldReconnect = true;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
@@ -50,8 +51,8 @@ export class ReconnectingWebSocket<T> {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private readonly eventListeners = new Map<
-    string,
-    Set<(...args: unknown[]) => void>
+    keyof WebSocketEvents<T>,
+    Set<WebSocketEvents<T>[keyof WebSocketEvents<T>]>
   >();
 
   constructor(options: WebSocketOptions) {
@@ -67,17 +68,16 @@ export class ReconnectingWebSocket<T> {
    */
   on<K extends keyof WebSocketEvents<T>>(
     event: K,
-    listener: WebSocketEvents<T>[K],
+    listener: WebSocketEvents<T>[K]
   ): () => void {
     let set = this.eventListeners.get(event);
     if (!set) {
       set = new Set();
       this.eventListeners.set(event, set);
     }
-    const fn = listener as (...args: unknown[]) => void;
-    set.add(fn);
+    set.add(listener);
     return () => {
-      set.delete(fn);
+      set.delete(listener);
     };
   }
 
@@ -99,7 +99,6 @@ export class ReconnectingWebSocket<T> {
     }
 
     this.shouldReconnect = true;
-
     this.ws = new WebSocket(this.url);
 
     this.ws.on("open", () => {
@@ -204,17 +203,13 @@ export class ReconnectingWebSocket<T> {
       const parsed = JSON.parse(raw) as T;
       this.emit("message", parsed);
     } catch (err) {
-      this.emit(
-        "error",
-        err instanceof Error ? err : new Error(String(err)),
-      );
+      this.emit("error", err instanceof Error ? err : new Error(String(err)));
     }
   }
 
   private sendHeartbeat(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.ping();
-
       this.heartbeatTimeout = setTimeout(() => {
         this.ws?.terminate();
       }, this.heartbeat.timeoutMs);
@@ -249,7 +244,11 @@ export class ReconnectingWebSocket<T> {
     }, delay);
   }
 
-  private emit(event: string, ...args: unknown[]): void {
+  private emit(event: "open"): void;
+  private emit(event: "close", code: number, reason: string): void;
+  private emit(event: "error", error: Error): void;
+  private emit(event: "message", data: T): void;
+  private emit(event: keyof WebSocketEvents<T>, ...args: unknown[]): void {
     const set = this.eventListeners.get(event);
     if (!set) {
       return;

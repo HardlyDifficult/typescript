@@ -1,9 +1,11 @@
 {
-  "name": "@hardlydifficult/websocket",
+  "name": "@hardlydifficult/pr-analyzer",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -13,15 +15,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "ws": "8.19.0"
+    "@hardlydifficult/github": "file:../github"
   },
   "devDependencies": {
     "@types/node": "25.2.3",
-    "@types/ws": "8.18.1",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }

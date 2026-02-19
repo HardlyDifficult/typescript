@@ -18,6 +18,7 @@ export type {
 } from "./types.js";
 export { extractCodeBlock } from "./extractCodeBlock.js";
 export { extractJson } from "./extractJson.js";
+export { extractTag } from "./extractTag.js";
 export { extractTyped, type SchemaLike } from "./extractTyped.js";
 export {
   extractTextContent,

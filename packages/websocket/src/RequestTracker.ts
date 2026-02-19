@@ -9,10 +9,9 @@ import type { RequestTrackerEvents } from "./types.js";
 export class RequestTracker {
   private _active = 0;
   private _draining = false;
-
   private readonly listeners = new Map<
-    string,
-    Set<(...args: unknown[]) => void>
+    keyof RequestTrackerEvents,
+    Set<RequestTrackerEvents[keyof RequestTrackerEvents]>
   >();
 
   /**
@@ -21,17 +20,16 @@ export class RequestTracker {
    */
   on<K extends keyof RequestTrackerEvents>(
     event: K,
-    listener: RequestTrackerEvents[K],
+    listener: RequestTrackerEvents[K]
   ): () => void {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
       this.listeners.set(event, set);
     }
-    const fn = listener as (...args: unknown[]) => void;
-    set.add(fn);
+    set.add(listener);
     return () => {
-      set.delete(fn);
+      set.delete(listener);
     };
   }
 
@@ -85,7 +83,9 @@ export class RequestTracker {
     return this._active;
   }
 
-  private emit(event: string, ...args: unknown[]): void {
+  private emit(event: "drained"): void;
+  private emit(event: "draining", reason: string): void;
+  private emit(event: keyof RequestTrackerEvents, ...args: unknown[]): void {
     const set = this.listeners.get(event);
     if (!set) {
       return;

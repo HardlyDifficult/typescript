@@ -15,17 +15,22 @@ Focused, opinionated, easy-to-use npm packages for AI, chat, CI automation, data
 | [@hardlydifficult/github](./packages/github) | Typed GitHub API client for PR monitoring and repo operations using Octokit |
 | [@hardlydifficult/logger](./packages/logger) | Plugin-based structured logger (Console, File, Discord) with JSONL, filtering, and async error handling |
 | [@hardlydifficult/poller](./packages/poller) | Generic polling utility with deep-equality change detection and lifecycle management |
+| [@hardlydifficult/pr-analyzer](./packages/pr-analyzer) | GitHub PR analysis pipeline for CI status, reviews, and merge decision classification |
 | [@hardlydifficult/queue](./packages/queue) | High-performance priority queue with O(1) enqueue/dequeue and FIFO ordering per bucket |
+| [@hardlydifficult/repo-processor](./packages/repo-processor) | Incremental GitHub repository processor with tree diffs, parallel file processing, and state persistence |
 | [@hardlydifficult/shared-config](./packages/shared-config) | Shared configs for TypeScript compilation, linting, and postinstall file management |
 | [@hardlydifficult/state-tracker](./packages/state-tracker) | Persistent state manager with atomic I/O, debounced auto-save, and legacy version fallback |
 | [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task-list abstraction (Trello, Linear) with unified data resolution |
 | [@hardlydifficult/teardown](./packages/teardown) | Idempotent LIFO resource cleanup with signal trapping and async teardown support |
 | [@hardlydifficult/text](./packages/text) | Text manipulation: chunking, formatting, YAML/JSON conversion, and templating |
 | [@hardlydifficult/throttle](./packages/throttle) | Token bucket rate limiting with exponential backoff and retry callbacks |
+| [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint and TypeScript configuration with strict compiler settings |
 | [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Session-based usage tracking with cumulative aggregation, spend limits, and resume-time estimation |
+| [@hardlydifficult/websocket](./packages/websocket) | Resilient WebSocket client with exponential backoff, heartbeat detection, and type-safe event handling |
 | [@hardlydifficult/workflow-engine](./packages/workflow-engine) | Stateful workflow engine with typed state machines, linear pipelines, and persistence |
 
 ## GitHub Actions Setup
 
-Add an `NPM_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with an [npm automation token](https://www.npmjs.com/settings/~/tokens).  
+Add an `NPM_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with an [npm automation token](https://www.npmjs.com/settings/~/tokens).
+
 Add a `PAT_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with a [GitHub PAT](https://github.com/settings/tokens) that has `repo` scope (used by CI auto-fix workflow).

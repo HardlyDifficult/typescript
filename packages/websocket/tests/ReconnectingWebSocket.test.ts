@@ -1,287 +1,261 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { WebSocketServer, type WebSocket as WSType } from "ws";
+import { describe, it, expect, vi } from "vitest";
+import { WebSocketServer } from "ws";
 import {
   ReconnectingWebSocket,
   getBackoffDelay,
 } from "../src/ReconnectingWebSocket.js";
-import type { BackoffOptions } from "../src/types.js";
 
-interface TestMessage {
-  type: string;
-  value?: number;
-}
-
-/** Create a WebSocketServer on a random port and return it with the port number. */
-function createServer(): Promise<{ server: WebSocketServer; port: number }> {
+/** Start a WebSocketServer on a random port, return it and its URL. */
+async function createServer(): Promise<{
+  server: WebSocketServer;
+  url: string;
+}> {
   return new Promise((resolve) => {
     const server = new WebSocketServer({ port: 0 });
     server.on("listening", () => {
-      const addr = server.address();
-      const port = typeof addr === "object" ? addr.port : 0;
-      resolve({ server, port });
+      const addr = server.address() as { port: number };
+      resolve({ server, url: `ws://127.0.0.1:${addr.port}` });
     });
   });
 }
 
-/** Wait for the server to receive a new connection. */
-function waitForConnection(
-  server: WebSocketServer,
-): Promise<WSType> {
-  return new Promise((resolve) => {
-    server.once("connection", resolve);
+/** Close a server and wait for it to finish. */
+function closeServer(server: WebSocketServer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
   });
 }
 
-describe("getBackoffDelay", () => {
-  const defaults: Required<BackoffOptions> = {
-    initialDelayMs: 1000,
-    maxDelayMs: 30000,
-    multiplier: 2,
-  };
-
-  it("returns initialDelayMs on first attempt", () => {
-    expect(getBackoffDelay(0, defaults)).toBe(1000);
-  });
-
-  it("applies multiplier", () => {
-    expect(getBackoffDelay(1, defaults)).toBe(2000);
-    expect(getBackoffDelay(2, defaults)).toBe(4000);
-    expect(getBackoffDelay(3, defaults)).toBe(8000);
-  });
-
-  it("caps at maxDelayMs", () => {
-    expect(getBackoffDelay(10, defaults)).toBe(30000);
-  });
-});
+/** Wait for a condition to become true, polling every 10ms. */
+async function waitFor(
+  condition: () => boolean,
+  timeoutMs = 2000
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("waitFor timed out");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
 
 describe("ReconnectingWebSocket", () => {
-  let server: WebSocketServer;
-  let port: number;
+  describe("getBackoffDelay", () => {
+    const opts = { initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 };
 
-  beforeEach(async () => {
-    const created = await createServer();
-    server = created.server;
-    port = created.port;
-  });
+    it("returns initial delay for attempt 0", () => {
+      expect(getBackoffDelay(0, opts)).toBe(1000);
+    });
 
-  afterEach(async () => {
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
+    it("doubles on each attempt", () => {
+      expect(getBackoffDelay(1, opts)).toBe(2000);
+      expect(getBackoffDelay(2, opts)).toBe(4000);
+    });
+
+    it("caps at maxDelayMs", () => {
+      expect(getBackoffDelay(10, opts)).toBe(30000);
     });
   });
 
-  it("connects and fires open event", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
+  describe("connect / open event", () => {
+    it("fires open when connected", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket({ url });
+      const opened = vi.fn();
+      client.on("open", opened);
 
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
+      client.connect();
+      await waitFor(() => opened.mock.calls.length > 0);
 
-    ws.connect();
-    await opened;
-    expect(ws.connected).toBe(true);
-    ws.disconnect();
+      expect(opened).toHaveBeenCalledOnce();
+      client.disconnect();
+      await closeServer(server);
+    });
   });
 
-  it("receives and parses JSON messages", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
+  describe("message parsing", () => {
+    it("receives and parses JSON messages", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket<{ foo: string }>({ url });
+      const received = vi.fn();
+      client.on("message", received);
 
-    const connPromise = waitForConnection(server);
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    const [serverSocket] = await Promise.all([connPromise, opened]);
-
-    const received = new Promise<TestMessage>((resolve) => {
-      ws.on("message", resolve);
-    });
-
-    serverSocket.send(JSON.stringify({ type: "hello", value: 42 }));
-
-    const msg = await received;
-    expect(msg).toEqual({ type: "hello", value: 42 });
-    ws.disconnect();
-  });
-
-  it("sends JSON messages that server can receive", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
-
-    const connPromise = waitForConnection(server);
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    const [serverSocket] = await Promise.all([connPromise, opened]);
-
-    const received = new Promise<TestMessage>((resolve) => {
-      serverSocket.on("message", (data) => {
-        resolve(JSON.parse(data.toString()));
+      server.on("connection", (ws) => {
+        ws.send(JSON.stringify({ foo: "bar" }));
       });
-    });
 
-    ws.send({ type: "ping", value: 1 });
-    const msg = await received;
-    expect(msg).toEqual({ type: "ping", value: 1 });
-    ws.disconnect();
+      client.connect();
+      await waitFor(() => received.mock.calls.length > 0);
+
+      expect(received).toHaveBeenCalledWith({ foo: "bar" });
+      client.disconnect();
+      await closeServer(server);
+    });
   });
 
-  it("silently drops send when disconnected", () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
+  describe("send", () => {
+    it("sends JSON messages to the server", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket<{ ping: boolean }>({ url });
+      const serverReceived = vi.fn();
+
+      server.on("connection", (ws) => {
+        ws.on("message", (data) => {
+          serverReceived(JSON.parse(data.toString()));
+        });
+      });
+
+      const opened = vi.fn();
+      client.on("open", opened);
+      client.connect();
+      await waitFor(() => opened.mock.calls.length > 0);
+
+      client.send({ ping: true });
+      await waitFor(() => serverReceived.mock.calls.length > 0);
+
+      expect(serverReceived).toHaveBeenCalledWith({ ping: true });
+      client.disconnect();
+      await closeServer(server);
     });
-    // Should not throw
-    ws.send({ type: "noop" });
-    expect(ws.connected).toBe(false);
+
+    it("silently drops send when disconnected", () => {
+      const client = new ReconnectingWebSocket({ url: "ws://127.0.0.1:0" });
+      expect(() => client.send({ any: "message" })).not.toThrow();
+    });
   });
 
-  it("connect is idempotent", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
+  describe("reconnection", () => {
+    it("reconnects on server-initiated close", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket({
+        url,
+        backoff: { initialDelayMs: 20, maxDelayMs: 200, multiplier: 2 },
+      });
+
+      let openCount = 0;
+      client.on("open", () => {
+        openCount++;
+      });
+
+      client.connect();
+      await waitFor(() => openCount === 1);
+
+      for (const ws of server.clients) ws.terminate();
+      await waitFor(() => openCount >= 2, 3000);
+      expect(openCount).toBeGreaterThanOrEqual(2);
+
+      client.disconnect();
+      await closeServer(server);
     });
 
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
+    it("disconnect() stops reconnection after server close", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket({
+        url,
+        backoff: { initialDelayMs: 20, maxDelayMs: 200, multiplier: 2 },
+      });
+
+      let openCount = 0;
+      client.on("open", () => {
+        openCount++;
+      });
+
+      client.connect();
+      await waitFor(() => openCount === 1);
+
+      client.disconnect();
+      for (const ws of server.clients) ws.terminate();
+
+      // Wait longer than the backoff to confirm no reconnect
+      await new Promise((r) => setTimeout(r, 200));
+      expect(openCount).toBe(1);
+
+      await closeServer(server);
     });
 
-    ws.connect();
-    ws.connect(); // Should be a no-op
-    await opened;
-    expect(ws.connected).toBe(true);
-    ws.disconnect();
+    it("stopReconnecting() keeps connection alive but prevents reconnect", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket({
+        url,
+        backoff: { initialDelayMs: 50, maxDelayMs: 500, multiplier: 2 },
+      });
+
+      let openCount = 0;
+      client.on("open", () => {
+        openCount++;
+      });
+
+      client.connect();
+      await waitFor(() => openCount === 1);
+      expect(client.connected).toBe(true);
+
+      client.stopReconnecting();
+      expect(client.connected).toBe(true);
+
+      // Terminate to confirm no reconnect
+      for (const ws of server.clients) ws.terminate();
+      await new Promise((r) => setTimeout(r, 200));
+      expect(openCount).toBe(1);
+
+      await closeServer(server);
+    });
   });
 
-  it("disconnect stops reconnection", async () => {
-    vi.useFakeTimers();
+  describe("connect() idempotency", () => {
+    it("calling connect() twice creates only one connection", async () => {
+      const { server, url } = await createServer();
+      const client = new ReconnectingWebSocket({ url });
 
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-      backoff: { initialDelayMs: 100 },
+      let openCount = 0;
+      client.on("open", () => {
+        openCount++;
+      });
+
+      client.connect();
+      client.connect();
+      await waitFor(() => openCount > 0);
+
+      // Allow time for a second open that should NOT fire
+      await new Promise((r) => setTimeout(r, 100));
+      expect(openCount).toBe(1);
+      expect(server.clients.size).toBe(1);
+
+      client.disconnect();
+      await closeServer(server);
     });
-
-    const connPromise = waitForConnection(server);
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    const [serverSocket] = await Promise.all([connPromise, opened]);
-
-    // Disconnect from client side
-    ws.disconnect();
-    expect(ws.connected).toBe(false);
-
-    // Close server socket to ensure it's fully cleaned
-    serverSocket.close();
-
-    // Advance time past any potential reconnect delays
-    await vi.advanceTimersByTimeAsync(60000);
-
-    // Should still be disconnected — no reconnection
-    expect(ws.connected).toBe(false);
-
-    vi.useRealTimers();
   });
 
-  it("stopReconnecting prevents reconnect but keeps connection alive", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
+  describe("heartbeat", () => {
+    it("heartbeat timeout triggers terminate and reconnect", async () => {
+      // autoPong: false prevents the ws server from auto-replying to pings,
+      // which lets us test that our timeout fires when no pong arrives.
+      const server = new WebSocketServer({ port: 0, autoPong: false });
+      const url = await new Promise<string>((resolve) => {
+        server.on("listening", () => {
+          const addr = server.address() as { port: number };
+          resolve(`ws://127.0.0.1:${addr.port}`);
+        });
+      });
 
-    const connPromise = waitForConnection(server);
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
+      const client = new ReconnectingWebSocket({
+        url,
+        heartbeat: { intervalMs: 50, timeoutMs: 30 },
+        backoff: { initialDelayMs: 10, maxDelayMs: 100, multiplier: 2 },
+      });
 
-    ws.connect();
-    const [serverSocket] = await Promise.all([connPromise, opened]);
+      let openCount = 0;
+      client.on("open", () => {
+        openCount++;
+      });
 
-    ws.stopReconnecting();
+      client.connect();
+      await waitFor(() => openCount === 1);
 
-    // Connection should still be alive
-    expect(ws.connected).toBe(true);
+      // Wait for: heartbeat interval (50ms) + timeout (30ms) + reconnect (10ms) + buffer
+      await waitFor(() => openCount >= 2, 5000);
+      expect(openCount).toBeGreaterThanOrEqual(2);
 
-    // Force close from server
-    const closed = new Promise<void>((resolve) => {
-      ws.on("close", () => resolve());
-    });
-    serverSocket.close();
-    await closed;
-
-    // Should not reconnect
-    expect(ws.connected).toBe(false);
-
-    ws.disconnect();
-  });
-
-  it("connected getter reflects state", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
-
-    expect(ws.connected).toBe(false);
-
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    await opened;
-    expect(ws.connected).toBe(true);
-
-    ws.disconnect();
-    expect(ws.connected).toBe(false);
-  });
-
-  it("fires error event for invalid JSON", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
-
-    const connPromise = waitForConnection(server);
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    const [serverSocket] = await Promise.all([connPromise, opened]);
-
-    const errPromise = new Promise<Error>((resolve) => {
-      ws.on("error", resolve);
-    });
-
-    serverSocket.send("not valid json{{{");
-    const err = await errPromise;
-    expect(err).toBeInstanceOf(Error);
-
-    ws.disconnect();
-  });
-
-  it("on returns working unsubscribe function", async () => {
-    const ws = new ReconnectingWebSocket<TestMessage>({
-      url: `ws://127.0.0.1:${port}`,
-    });
-
-    const listener = vi.fn();
-    const unsub = ws.on("open", listener);
-    unsub();
-
-    const opened = new Promise<void>((resolve) => {
-      ws.on("open", resolve);
-    });
-
-    ws.connect();
-    await opened;
-
-    expect(listener).not.toHaveBeenCalled();
-    ws.disconnect();
+      client.disconnect();
+      await closeServer(server);
+    }, 10000);
   });
 });

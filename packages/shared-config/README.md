@@ -1,6 +1,6 @@
 # @hardlydifficult/shared-config
 
-Shared configuration files synced to consuming repos via a `postinstall` hook.
+Automatically syncs shared configuration files to consuming repositories via a `postinstall` hook.
 
 ## Installation
 
@@ -8,27 +8,64 @@ Shared configuration files synced to consuming repos via a `postinstall` hook.
 npm install -D @hardlydifficult/shared-config
 ```
 
-## What Gets Synced
+## Quick Start
 
-| Path | Strategy | Details |
-|------|----------|---------|
-| `.gitignore` | Overwrite | Shared config is authoritative |
-| `.github/dependabot.yml` | Overwrite | Shared config is authoritative |
+After installation, the package automatically syncs shared configuration files to your repository root. No additional setup required—the `postinstall` hook runs automatically on `npm install`.
+
+```bash
+# Files are synced automatically
+npm install
+```
 
 ## How It Works
 
-The package has a `postinstall` hook that runs automatically on `npm install`. It copies the bundled shared files into the consuming repo's root directory using the strategies listed above.
+The package includes a `postinstall` script that runs automatically after installation. It:
 
-No manual steps required after installation. Every `npm install` re-syncs the files.
+1. Detects your repository root using the `INIT_CWD` environment variable (set by npm) or by walking up the directory tree
+2. Locates the bundled shared configuration files
+3. Copies them to your repository root, overwriting any existing versions
 
-## Updating
+The script runs silently if it cannot determine the repository root or find the configuration files, ensuring it never breaks the installation process.
+
+## Synced Files
+
+| File | Strategy | Purpose |
+|------|----------|---------|
+| `.gitignore` | Overwrite | Shared ignore rules for Node.js projects (node_modules, dist, coverage, .turbo, logs, .env files) |
+| `.github/dependabot.yml` | Overwrite | Automated dependency updates for npm packages, GitHub Actions, and git submodules on a weekly schedule |
+
+## Re-syncing Configuration
+
+To re-sync files with the currently installed version:
 
 ```bash
-# Re-sync with the currently installed version
 npm install
+```
 
-# Bump to the latest published version
+To update to the latest published version and re-sync:
+
+```bash
 npm install @hardlydifficult/shared-config@latest
 ```
 
-Both commands trigger the `postinstall` hook, which re-syncs all shared files.
+Both commands trigger the `postinstall` hook automatically.
+
+## Development
+
+Build the package:
+
+```bash
+npm run build
+```
+
+Lint TypeScript without emitting:
+
+```bash
+npm run lint
+```
+
+Clean build artifacts:
+
+```bash
+npm run clean
+```
