@@ -24,8 +24,7 @@ interface CacheableMessage {
 export function addCacheControl(messages: Message[]): CacheableMessage[] {
   return messages.map((msg, i): CacheableMessage => {
     const isSystem = msg.role === "system";
-    const isPrefixBoundary =
-      messages.length >= 3 && i === messages.length - 2;
+    const isPrefixBoundary = messages.length >= 3 && i === messages.length - 2;
 
     if (isSystem || isPrefixBoundary) {
       return {

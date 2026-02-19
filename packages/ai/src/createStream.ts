@@ -47,8 +47,7 @@ export async function runStream(
     response: accumulated,
     cacheCreationTokens:
       resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
-    cacheReadTokens:
-      resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,
+    cacheReadTokens: resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,
   };
 
   tracker.record(usage);

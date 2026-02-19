@@ -278,7 +278,11 @@ describe("createAI", () => {
               () =>
                 resolve({
                   text: "response",
-                  usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
+                  usage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    inputTokenDetails: {},
+                  },
                 }),
               10
             )
