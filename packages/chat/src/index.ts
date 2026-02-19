@@ -44,6 +44,27 @@ export { createMessageTracker, type MessageTracker } from "./MessageTracker";
 export { DiscordChatClient } from "./discord";
 export { SlackChatClient } from "./slack";
 
+// Commands
+export {
+  type Command,
+  type CommandContext,
+  type ArgShape,
+  type ParseResult,
+  type Agent,
+  type CoreBotState,
+  CommandRegistry,
+  type RegisteredCommand,
+  CommandDispatcher,
+  type DispatcherOptions,
+  setupJobLifecycle,
+  type JobLifecycleOptions,
+  type JobLifecycleHandle,
+  EMOJI_CANCEL,
+  EMOJI_DISMISS,
+  formatWorkerError,
+  RECOVERABLE_WORKER_ERRORS,
+} from "./commands";
+
 // Factory
 import { type ChatClient } from "./ChatClient";
 import { DiscordChatClient } from "./discord";
