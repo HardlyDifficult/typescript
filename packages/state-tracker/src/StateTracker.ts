@@ -109,6 +109,18 @@ export class StateTracker<T> {
       if (envelope.value === undefined) {
         return structuredClone(this.defaultValue);
       }
+      if (
+        envelope.value !== null &&
+        typeof envelope.value === "object" &&
+        typeof this.defaultValue === "object" &&
+        this.defaultValue !== null &&
+        !Array.isArray(envelope.value)
+      ) {
+        return {
+          ...structuredClone(this.defaultValue),
+          ...(envelope.value as Record<string, unknown>),
+        } as T;
+      }
       return envelope.value as T;
     }
 
@@ -133,31 +145,21 @@ export class StateTracker<T> {
 
   /** Sync load — v1 compatible. Also updates internal state cache. */
   load(): T {
+    this._loaded = true;
+    this._storageAvailable = true;
+
     if (!fs.existsSync(this.filePath)) {
       this._state = structuredClone(this.defaultValue);
-      this._loaded = true;
-      this._storageAvailable = true;
       return this._state;
     }
     try {
       const data = fs.readFileSync(this.filePath, "utf-8");
-      const state = JSON.parse(data) as Record<string, unknown>;
-      const { value } = state;
-      if (value === undefined) {
-        this._state = structuredClone(this.defaultValue);
-        this._loaded = true;
-        this._storageAvailable = true;
-        return this.defaultValue;
-      }
-      this._state = structuredClone(value as T);
-      this._loaded = true;
-      this._storageAvailable = true;
-      return value as T;
+      const parsed: unknown = JSON.parse(data);
+      this._state = this.extractValue(parsed);
+      return this._state;
     } catch {
       this._state = structuredClone(this.defaultValue);
-      this._loaded = true;
-      this._storageAvailable = true;
-      return this.defaultValue;
+      return this._state;
     }
   }
 
