@@ -236,6 +236,8 @@ export class ConnectionHandler {
       activeRequests: 0,
       pendingRequests: new Set(),
       completedRequests: 0,
+      requestCategories: new Map(),
+      categoryActiveRequests: new Map(),
     };
 
     this.pool.add(worker);
@@ -345,6 +347,7 @@ export class ConnectionHandler {
       activeRequests: 0,
       completedRequests: 0,
       pendingRequestIds: new Set(),
+      categoryActiveRequests: new Map(),
     };
   }
 }

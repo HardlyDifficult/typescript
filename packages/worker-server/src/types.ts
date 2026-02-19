@@ -33,6 +33,8 @@ export interface WorkerCapabilities {
   models: ModelInfo[];
   maxConcurrentRequests: number;
   metadata?: Record<string, unknown>;
+  /** Per-category concurrency limits (category → max concurrent). Optional. */
+  concurrencyLimits?: Record<string, number>;
 }
 
 /**
@@ -50,6 +52,8 @@ export interface WorkerInfo {
   readonly activeRequests: number;
   readonly completedRequests: number;
   readonly pendingRequestIds: ReadonlySet<string>;
+  /** Active request count per category (category → count). */
+  readonly categoryActiveRequests: ReadonlyMap<string, number>;
 }
 
 /**
@@ -67,6 +71,10 @@ export interface ConnectedWorker {
   activeRequests: number;
   readonly pendingRequests: Set<string>;
   completedRequests: number;
+  /** Maps requestId → category for category-aware release. */
+  readonly requestCategories: Map<string, string>;
+  /** Active request count per category (category → count). */
+  readonly categoryActiveRequests: Map<string, number>;
 }
 
 /** Configuration for the WorkerServer. */

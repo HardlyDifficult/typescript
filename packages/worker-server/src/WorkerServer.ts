@@ -129,8 +129,8 @@ export class WorkerServer {
   // ========== Pool Queries ==========
 
   /** Get the least-loaded available worker supporting the given model. */
-  getAvailableWorker(model: string): WorkerInfo | null {
-    const worker = this.pool.getAvailableWorker(model);
+  getAvailableWorker(model: string, category?: string): WorkerInfo | null {
+    const worker = this.pool.getAvailableWorker(model, category);
     return worker !== null ? toWorkerInfo(worker) : null;
   }
 
@@ -158,8 +158,8 @@ export class WorkerServer {
   // ========== Request Tracking ==========
 
   /** Track a request as assigned to a worker. */
-  trackRequest(workerId: string, requestId: string): void {
-    this.pool.trackRequest(workerId, requestId);
+  trackRequest(workerId: string, requestId: string, category?: string): void {
+    this.pool.trackRequest(workerId, requestId, category);
   }
 
   /** Release a tracked request. */
