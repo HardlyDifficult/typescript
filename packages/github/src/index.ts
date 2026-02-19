@@ -41,3 +41,10 @@ export type {
   CreatePROptions,
   CreatedPR,
 } from "./types.js";
+
+export {
+  parseGitHubFileUrl,
+  parseGitHubDirectoryUrl,
+  type GitHubFileInfo,
+  type GitHubDirectoryInfo,
+} from "./githubUrlParser.js";

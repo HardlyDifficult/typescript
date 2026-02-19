@@ -50,8 +50,8 @@ const store = new StateTracker<number>({
   default: 0,
 });
 
-const count = store.load();
-store.save(count + 1);
+const count = store.load(); // returns current state
+store.save(count + 1); // writes entire state atomically
 ```
 
 ### Async API
@@ -94,12 +94,33 @@ await store.saveAsync(); // Force immediate save
 |--------|-------------|
 | `loadAsync()` | Async load with graceful degradation (safe to call multiple times) |
 | `saveAsync()` | Async atomic save (temp file + rename) |
-| `load()` | Sync load |
-| `save(value)` | Sync save (overwrites entire state) |
+| `load()` | Sync load (v1 compatible envelope format) |
+| `save(value)` | Sync save (overwrites entire state, v1 compatible) |
 | `update(changes)` | Shallow merge for object state, triggers auto-save |
 | `set(newState)` | Replace entire state, triggers auto-save |
 | `reset()` | Restore to defaults, triggers auto-save |
 | `getFilePath()` | Returns the full path to the state file |
+
+### `update()`
+
+For object state types, `update()` merges partial changes:
+
+```typescript
+const store = new StateTracker<{ count: number; name: string }>({
+  key: "demo",
+  default: { count: 0, name: "initial" },
+});
+
+store.update({ count: 42 });
+console.log(store.state); // { count: 42, name: "initial" }
+```
+
+Calling `update()` on a primitive state throws:
+
+```typescript
+const primitive = new StateTracker<number>({ key: "num", default: 0 });
+primitive.update(100 as never); // throws: "update() can only be used when state is a non-array object"
+```
 
 ## Event Handling
 
@@ -113,6 +134,13 @@ const store = new StateTracker<AppState>({
     console.log(`[${level}] ${message}`, context);
   },
 });
+
+await store.loadAsync();
+// Example output: [info] No existing state file, using defaults { path: ".../app.json" }
+
+store.set({ version: 2 });
+await store.saveAsync();
+// Example output: [debug] Saved state to disk { path: ".../app.json" }
 ```
 
 Event levels: `"debug"`, `"info"`, `"warn"`, `"error"`
@@ -124,7 +152,7 @@ Event levels: `"debug"`, `"info"`, `"warn"`, `"error"`
 - **Key sanitization** to prevent path traversal (alphanumeric, hyphens, underscores only)
 - **Graceful degradation** — runs in-memory when disk is unavailable
 - **Auto-save** — debounced saves after state mutations
-- **Legacy format support** — reads both v1 envelope format and raw PersistentStore formats
+- **Legacy format support** — reads both v1 envelope format and legacy PersistentStore formats
 
 ## Legacy Format Migration
 
@@ -136,6 +164,14 @@ The library transparently handles migration from legacy formats:
 await store.loadAsync();
 
 // Subsequent save writes new envelope format:
-// { value: { count: 42, extra: true }, lastUpdated: "..." }
+// { value: { count: 42, extra: true }, lastUpdated: "2025-01-01T..." }
 await store.saveAsync();
 ```
+
+## Exported Types
+
+The package also exports the following types for advanced usage:
+
+- `StateTrackerOptions<T>` — Constructor options interface
+- `StateTrackerEvent` — Event payload interface `{ level, message, context? }`
+- `StateTrackerEventLevel` — Event level union type `"debug" \| "info" \| "warn" \| "error"`

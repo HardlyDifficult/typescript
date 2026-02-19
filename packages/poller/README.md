@@ -1,6 +1,6 @@
 # @hardlydifficult/poller
 
-Polls an async function at a configurable interval and triggers callbacks when the result changes.
+Polls async functions at configurable intervals and triggers callbacks only when the result changes—using deep equality detection via JSON serialization.
 
 ## Install
 
@@ -30,7 +30,7 @@ poller.stop();
 
 ## Polling
 
-The `Poller` class periodically fetches data and invokes a callback when the result changes. It fetches immediately on `start()`, then at the configured interval.
+The `Poller` class fetches data at a configurable interval and invokes a callback when the result changes. It fetches immediately on `start()`, then at the configured interval.
 
 ```typescript
 import { Poller } from "@hardlydifficult/poller";
@@ -51,9 +51,27 @@ await poller.start();
 // Fetches immediately, then every 10 seconds
 ```
 
+### start()
+
+Starts polling. Fetches immediately, then at the configured interval. Calling `start()` multiple times is safe (idempotent).
+
+```typescript
+await poller.start(); // Fetches immediately
+await poller.start(); // No-op, already running
+```
+
+### stop()
+
+Stops polling and cleans up all timers.
+
+```typescript
+poller.stop();
+// No more polls will fire
+```
+
 ## Change Detection
 
-Changes are detected using JSON serialization for deep equality. Structurally identical objects are considered unchanged, even if they are different references.
+Changes are detected using JSON serialization for deep equality. Structurally identical objects are considered unchanged—even if they are different references.
 
 ```typescript
 const poller = new Poller(
@@ -111,32 +129,6 @@ const poller = new Poller(
 await poller.start();
 ```
 
-## Lifecycle
-
-### `start()`
-
-Starts polling. Fetches immediately, then at the configured interval. Calling `start()` multiple times is safe (idempotent).
-
-```typescript
-const poller = new Poller(
-  async () => await fetchData(),
-  (current) => console.log("Updated:", current),
-  5000
-);
-
-await poller.start(); // Fetches immediately
-await poller.start(); // No-op, already running
-```
-
-### `stop()`
-
-Stops polling and cleans up all timers.
-
-```typescript
-poller.stop();
-// No more polls will fire
-```
-
 ## API Reference
 
 ### Constructor
@@ -151,7 +143,7 @@ new Poller<T>(
 ```
 
 | Parameter | Description |
-|-----------|-------------|
+|---|---|
 | `fetchFn` | Async function that returns the current state |
 | `onChange` | Called with `(current, previous)` when state changes |
 | `intervalMs` | Polling interval in milliseconds |
@@ -160,14 +152,14 @@ new Poller<T>(
 ### Methods
 
 | Method | Description |
-|--------|-------------|
+|---|---|
 | `start()` | Start polling (fetches immediately, then at interval) |
 | `stop()` | Stop polling and clean up timers |
-| `trigger(debounceMs?)` | Manually trigger a poll with debounce (default 1000ms) |
+| `trigger(debounceMs?)` | Manually trigger a poll with debounce (default `1000`ms) |
 
 ### Behavior
 
-- **Deep equality** — uses JSON serialization to detect changes
+- **Deep equality** — uses JSON serialization to detect structural changes
 - **Overlap prevention** — skips a poll if the previous fetch is still running
 - **Error resilience** — continues polling after fetch errors
 - **Idempotent start** — calling `start()` multiple times is safe

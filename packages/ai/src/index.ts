@@ -26,3 +26,4 @@ export {
   type MultimodalMessage,
 } from "./multimodal.js";
 export { AgentConversation, type SendFn } from "./AgentConversation.js";
+export { createPromptLoader } from "./promptLoader.js";
