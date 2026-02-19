@@ -100,10 +100,14 @@ export class WorkerPool {
       }
 
       // Check per-category limit when applicable
-      if (category !== undefined && worker.capabilities.concurrencyLimits !== undefined) {
+      if (
+        category !== undefined &&
+        worker.capabilities.concurrencyLimits !== undefined
+      ) {
         if (category in worker.capabilities.concurrencyLimits) {
           const categoryLimit = worker.capabilities.concurrencyLimits[category];
-          const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
+          const categoryCount =
+            worker.categoryActiveRequests.get(category) ?? 0;
           if (categoryCount >= categoryLimit) {
             continue;
           }
@@ -154,7 +158,7 @@ export class WorkerPool {
       worker.requestCategories.set(requestId, category);
       worker.categoryActiveRequests.set(
         category,
-        (worker.categoryActiveRequests.get(category) ?? 0) + 1,
+        (worker.categoryActiveRequests.get(category) ?? 0) + 1
       );
     }
 
