@@ -23,7 +23,7 @@ export interface HeartbeatOptions {
 /**
  * Configuration options for ReconnectingWebSocket.
  */
-export interface WebSocketOptions<T> {
+export interface WebSocketOptions {
   /** WebSocket server URL */
   url: string;
   /** Backoff configuration for reconnection */

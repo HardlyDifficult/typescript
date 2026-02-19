@@ -54,7 +54,7 @@ export class ReconnectingWebSocket<T> {
     Set<WebSocketEvents<T>[keyof WebSocketEvents<T>]>
   >();
 
-  constructor(options: WebSocketOptions<T>) {
+  constructor(options: WebSocketOptions) {
     this.url = options.url;
     this.backoff = { ...BACKOFF_DEFAULTS, ...options.backoff };
     this.heartbeat = { ...HEARTBEAT_DEFAULTS, ...options.heartbeat };
@@ -191,7 +191,12 @@ export class ReconnectingWebSocket<T> {
 
   private onMessage(data: WebSocket.RawData): void {
     try {
-      const parsed = JSON.parse(data.toString()) as T;
+      const raw = Buffer.isBuffer(data)
+        ? data.toString("utf8")
+        : Array.isArray(data)
+          ? Buffer.concat(data).toString("utf8")
+          : Buffer.from(data).toString("utf8");
+      const parsed = JSON.parse(raw) as T;
       this.emit("message", parsed);
     } catch (err) {
       this.emit(
