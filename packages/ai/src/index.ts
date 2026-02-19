@@ -25,3 +25,6 @@ export {
   toPlainTextMessages,
   type MultimodalMessage,
 } from "./multimodal.js";
+
+export { isWaitingForInput } from "./questionDetection.js";
+export { createPromptLoader } from "./promptLoader.js";

@@ -19,3 +19,4 @@ export {
   type LinkerApplyOptions,
   type LinkerPlatform,
 } from "./linker.js";
+export { escapeFence } from "./escapeFence.js";
