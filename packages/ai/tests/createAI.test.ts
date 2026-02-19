@@ -70,7 +70,7 @@ describe("createAI", () => {
       expect(msg.usage.durationMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("passes system prompt to generateText", async () => {
+    it("passes system prompt to generateText with cache control", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "response",
         usage: { inputTokens: 1, outputTokens: 1 },
@@ -84,7 +84,13 @@ describe("createAI", () => {
         string,
         unknown
       >;
-      expect(callArgs).toHaveProperty("system", "You are helpful");
+      expect(callArgs).toHaveProperty("system", {
+        role: "system",
+        content: "You are helpful",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
     });
 
     it("omits system when not provided", async () => {
@@ -428,7 +434,7 @@ describe("createAI", () => {
       expect(tracker.calls).toHaveLength(2);
     });
 
-    it("preserves system prompt across replies", async () => {
+    it("preserves system prompt with cache control across replies", async () => {
       mockGenerateText.mockResolvedValue({
         text: "response",
         usage: { inputTokens: 1, outputTokens: 1 },
@@ -444,7 +450,13 @@ describe("createAI", () => {
         string,
         unknown
       >;
-      expect(secondCallArgs).toHaveProperty("system", "system instructions");
+      expect(secondCallArgs).toHaveProperty("system", {
+        role: "system",
+        content: "system instructions",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
     });
   });
 });

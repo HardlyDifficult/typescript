@@ -8,6 +8,7 @@ import {
   type Tool,
 } from "ai";
 
+import { addCacheControl } from "./addCacheControl.js";
 import type {
   Agent,
   AgentCallbacks,
@@ -91,7 +92,7 @@ export function createAgent(
 
       const result = await generateText({
         model,
-        messages,
+        messages: addCacheControl(messages),
         tools: sdkTools,
         stopWhen: stepCountIs(maxSteps),
         maxOutputTokens: maxTokens,
@@ -106,6 +107,10 @@ export function createAgent(
         durationMs,
         prompt: messages[messages.length - 1].content,
         response: result.text,
+        cacheCreationTokens:
+          resultUsage.inputTokenDetails?.cacheWriteTokens ?? undefined,
+        cacheReadTokens:
+          resultUsage.inputTokenDetails?.cacheReadTokens ?? undefined,
       };
 
       tracker.record(usage);
@@ -115,6 +120,12 @@ export function createAgent(
         durationMs,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
+        ...(usage.cacheCreationTokens !== undefined && {
+          cacheCreationTokens: usage.cacheCreationTokens,
+        }),
+        ...(usage.cacheReadTokens !== undefined && {
+          cacheReadTokens: usage.cacheReadTokens,
+        }),
       });
 
       return { text: result.text, usage };
@@ -136,7 +147,7 @@ export function createAgent(
 
       const result = streamText({
         model,
-        messages,
+        messages: addCacheControl(messages),
         tools: sdkTools,
         stopWhen: stepCountIs(maxSteps),
         maxOutputTokens: maxTokens,
@@ -160,6 +171,10 @@ export function createAgent(
         durationMs,
         prompt: messages[messages.length - 1].content,
         response: accumulated,
+        cacheCreationTokens:
+          resultUsage.inputTokenDetails?.cacheWriteTokens ?? undefined,
+        cacheReadTokens:
+          resultUsage.inputTokenDetails?.cacheReadTokens ?? undefined,
       };
 
       tracker.record(usage);
@@ -169,6 +184,12 @@ export function createAgent(
         durationMs,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
+        ...(usage.cacheCreationTokens !== undefined && {
+          cacheCreationTokens: usage.cacheCreationTokens,
+        }),
+        ...(usage.cacheReadTokens !== undefined && {
+          cacheReadTokens: usage.cacheReadTokens,
+        }),
       });
 
       return { text: accumulated, usage };

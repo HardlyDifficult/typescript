@@ -1,6 +1,7 @@
 import type { Logger } from "@hardlydifficult/logger";
 import { type LanguageModel, streamText } from "ai";
 
+import { addCacheControl } from "./addCacheControl.js";
 import type { AgentResult, AITracker, Message, Usage } from "./types.js";
 
 const DEFAULT_MAX_TOKENS = 4096;
@@ -23,7 +24,7 @@ export async function runStream(
 
   const result = streamText({
     model,
-    messages,
+    messages: addCacheControl(messages),
     maxOutputTokens: maxTokens,
     ...(temperature !== undefined && { temperature }),
   });
@@ -44,6 +45,10 @@ export async function runStream(
     durationMs,
     prompt: messages[messages.length - 1].content,
     response: accumulated,
+    cacheCreationTokens:
+      resultUsage.inputTokenDetails?.cacheWriteTokens ?? undefined,
+    cacheReadTokens:
+      resultUsage.inputTokenDetails?.cacheReadTokens ?? undefined,
   };
 
   tracker.record(usage);
@@ -53,6 +58,12 @@ export async function runStream(
     durationMs,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
+    ...(usage.cacheCreationTokens !== undefined && {
+      cacheCreationTokens: usage.cacheCreationTokens,
+    }),
+    ...(usage.cacheReadTokens !== undefined && {
+      cacheReadTokens: usage.cacheReadTokens,
+    }),
   });
 
   return { text: accumulated, usage };
