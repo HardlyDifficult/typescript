@@ -6,7 +6,9 @@
  * input) is plugged in via the `onUnrecognized` callback.
  */
 
-import type { Channel, Message } from "@hardlydifficult/chat";
+import type { Channel } from "../Channel";
+import type { Message } from "../Message";
+
 import type { CommandRegistry } from "./CommandRegistry";
 import type { CommandContext, CoreBotState } from "./types";
 
@@ -31,6 +33,7 @@ export interface DispatcherOptions<
   onParseError?: (error: string) => void;
 }
 
+/** Message dispatcher — routes messages to commands, handles typing indicators, and cleans up user messages after processing. */
 export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
   /** Messages that have threads created on them — skip deletion in finally block */
   private readonly messagesWithThreads = new Set<string>();
@@ -43,15 +46,15 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
   async handleMessage(message: Message): Promise<void> {
     const { channel, registry, state, ownerUsername } = this.options;
     const content = message.content ?? "";
-    const author = message.author;
+    const { author } = message;
 
     // Only respond to the owner (if configured)
-    if (ownerUsername && author?.username !== ownerUsername) {
+    if (ownerUsername !== undefined && author?.username !== ownerUsername) {
       return;
     }
 
     // Capture owner's user ID on first message
-    if (author?.id && !this.options.ownerUserId) {
+    if (author?.id !== undefined && this.options.ownerUserId === undefined) {
       this.options.ownerUserId = author.id;
       this.options.onOwnerIdCaptured?.(author.id);
     }
@@ -102,7 +105,7 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
     } finally {
       // Delete the user's command message unless a thread was created on it
       if (!this.messagesWithThreads.delete(message.id)) {
-        message.delete().catch(() => {});
+        message.delete().catch(() => { /* swallow */ });
       }
 
       // Remove from in-flight commands and stop typing if all done
@@ -113,10 +116,10 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
   private sendDismissable(content: string): void {
     const { channel } = this.options;
     const ownerId = this.options.ownerUserId;
-    if (ownerId) {
-      channel.postDismissable(content, ownerId);
+    if (ownerId !== undefined) {
+      void channel.postDismissable(content, ownerId);
     } else {
-      channel.postMessage(content);
+      void channel.postMessage(content);
     }
   }
 
@@ -127,29 +130,31 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
       state,
       channel,
       incomingMessage,
-      send: async (content: string) => {
-        channel.postMessage(content);
+      send: (content: string) => {
+        void channel.postMessage(content);
+        return Promise.resolve();
       },
       sendMessage: async (content: string) => {
         return await channel.postMessage(content);
       },
       sendDismissable: async (content: string) => {
         const ownerId = this.options.ownerUserId;
-        if (ownerId) {
+        if (ownerId !== undefined) {
           return await channel.postDismissable(content, ownerId);
         }
         return await channel.postMessage(content);
       },
-      sendFile: async (
+      sendFile: (
         content: string | Buffer,
         filename: string,
         msg?: string
       ) => {
         const buffer =
           typeof content === "string" ? Buffer.from(content, "utf-8") : content;
-        channel.postMessage(msg ?? "", {
+        void channel.postMessage(msg ?? "", {
           files: [{ content: buffer, name: filename }],
         });
+        return Promise.resolve();
       },
       startThread: async (name: string, autoArchiveDuration?: number) => {
         const thread = await incomingMessage.startThread(

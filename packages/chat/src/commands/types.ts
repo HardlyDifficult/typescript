@@ -6,7 +6,9 @@
  * parser based on the declared shape.
  */
 
-import type { Message, Channel, Thread } from "@hardlydifficult/chat";
+import type { Channel } from "../Channel";
+import type { Message } from "../Message";
+import type { Thread } from "../Thread";
 
 /**
  * Minimal shared state required by the framework.

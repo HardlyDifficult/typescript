@@ -6,7 +6,7 @@
  * ensures unambiguous command resolution.
  */
 
-import type { Command, ParseResult, ArgShape, CoreBotState } from "./types";
+import type { Command, CoreBotState, ParseResult } from "./types";
 
 export interface RegisteredCommand<
   TState extends CoreBotState = CoreBotState,
@@ -49,18 +49,18 @@ function buildParser(
       const bareRegex = new RegExp(`^!?${escaped}$`);
 
       return (normalizedInput, originalInput) => {
-        const match = normalizedInput.match(prefixRegex);
+        const match = prefixRegex.exec(normalizedInput);
         if (match) {
           // Extract from originalInput to preserve case
-          const originalMatch = originalInput.match(
-            new RegExp(`^!?\\S+\\s+(.+)$`)
+          const originalMatch = new RegExp(`^!?\\S+\\s+(.+)$`).exec(
+            originalInput
           );
-          const value = originalMatch?.[1]?.trim() ?? match[1]?.trim() ?? "";
+          const value = originalMatch?.[1].trim() ?? match[1].trim();
           return { valid: true, args: { [argName]: value } };
         }
 
         if (bareRegex.test(normalizedInput)) {
-          if (optional) {
+          if (optional === true) {
             return { valid: true, args: { [argName]: "" } };
           }
           return { valid: false, error: `Usage: ${usageStr}` };
@@ -72,9 +72,13 @@ function buildParser(
 
     case "custom":
       return args.parse;
+
+    default:
+      throw new Error(`Unknown arg type: ${(args as { type: string }).type}`);
   }
 }
 
+/** Command registry with conflict detection, auto-parsing, and longest-prefix-first matching. */
 export class CommandRegistry<TState extends CoreBotState = CoreBotState> {
   private readonly commands: RegisteredCommand<TState>[] = [];
   private readonly parsers = new Map<
@@ -113,7 +117,8 @@ export class CommandRegistry<TState extends CoreBotState = CoreBotState> {
     );
 
     for (const command of sorted) {
-      const parse = this.parsers.get(command.prefix)!;
+      const parse = this.parsers.get(command.prefix);
+      if (parse === undefined) { continue; }
       const parsed = parse(normalizedInput, input);
       if (parsed !== null) {
         return { command, parsed };
@@ -147,8 +152,8 @@ export class CommandRegistry<TState extends CoreBotState = CoreBotState> {
    * Check if two prefixes conflict (one is prefix of the other).
    */
   private prefixesConflict(a: string, b: string): boolean {
-    if (a === b) return true;
+    if (a === b) { return true; }
     // "merge" and "merge all" conflict, but "prs" and "push" don't
-    return a.startsWith(b + " ") || b.startsWith(a + " ");
+    return a.startsWith(`${b} `) || b.startsWith(`${a} `);
   }
 }

@@ -2,7 +2,7 @@
  * Worker error formatting — maps error codes to user-friendly messages
  */
 
-const WORKER_ERROR_MESSAGES: Record<string, string> = {
+const WORKER_ERROR_MESSAGES: Partial<Record<string, string>> = {
   MODEL_NOT_AVAILABLE:
     "No AI worker is available to handle this request. Please try again later.",
   TIMEOUT:
