@@ -92,7 +92,7 @@ function makeFailedCheck(name = "CI"): CheckRun {
 function makeComment(
   login: string,
   body: string,
-  created_at: string,
+  created_at: string
 ): PullRequestComment {
   return {
     id: Math.random(),
@@ -279,7 +279,14 @@ describe("analyzePR", () => {
         resolveStatus: () => "custom_status",
       };
 
-      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+      const result = await analyzePR(
+        client,
+        "owner",
+        "repo",
+        pr,
+        "@bot",
+        hooks
+      );
 
       expect(result.status).toBe("custom_status");
     });
@@ -291,7 +298,14 @@ describe("analyzePR", () => {
         resolveStatus: () => undefined,
       };
 
-      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+      const result = await analyzePR(
+        client,
+        "owner",
+        "repo",
+        pr,
+        "@bot",
+        hooks
+      );
 
       expect(result.status).toBe("ready_to_merge");
     });
@@ -308,13 +322,15 @@ describe("analyzePR", () => {
       expect(resolveStatus).toHaveBeenCalledWith(
         "ready_to_merge",
         expect.objectContaining({
-          checks: expect.arrayContaining([expect.objectContaining({ name: "CI" })]),
+          checks: expect.arrayContaining([
+            expect.objectContaining({ name: "CI" }),
+          ]),
           comments: expect.any(Array),
           reviews: expect.any(Array),
           ciStatus: expect.objectContaining({ allPassed: true }),
           hasConflicts: false,
           waitingOnBot: false,
-        }),
+        })
       );
     });
 
@@ -326,7 +342,14 @@ describe("analyzePR", () => {
           coreStatus === "ci_failed" ? "ai_processing" : undefined,
       };
 
-      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+      const result = await analyzePR(
+        client,
+        "owner",
+        "repo",
+        pr,
+        "@bot",
+        hooks
+      );
 
       expect(result.status).toBe("ai_processing");
     });

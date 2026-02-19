@@ -39,17 +39,17 @@ const NEEDS_BOT_BUMP_STATUSES: readonly string[] = ["waiting_on_bot"];
  */
 export function classifyPRs(
   prs: readonly ScannedPR[],
-  config?: ClassificationConfig,
+  config?: ClassificationConfig
 ): ScanResult {
   const readyForHuman = mergeStatuses(
     READY_FOR_HUMAN_STATUSES,
-    config?.readyForHuman,
+    config?.readyForHuman
   );
   const inProgress = mergeStatuses(IN_PROGRESS_STATUSES, config?.inProgress);
   const blocked = mergeStatuses(BLOCKED_STATUSES, config?.blocked);
   const needsBotBump = mergeStatuses(
     NEEDS_BOT_BUMP_STATUSES,
-    config?.needsBotBump,
+    config?.needsBotBump
   );
 
   return {
@@ -63,7 +63,7 @@ export function classifyPRs(
 
 function mergeStatuses(
   base: readonly string[],
-  extra?: readonly string[],
+  extra?: readonly string[]
 ): readonly string[] {
   if (!extra || extra.length === 0) {
     return base;

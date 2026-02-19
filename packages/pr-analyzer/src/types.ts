@@ -101,7 +101,7 @@ export interface AnalyzerHooks {
    */
   readonly resolveStatus?: (
     coreStatus: CorePRStatus,
-    details: AnalysisDetails,
+    details: AnalysisDetails
   ) => string | undefined;
 }
 

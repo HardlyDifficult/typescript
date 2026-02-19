@@ -53,7 +53,7 @@ export async function analyzePR(
   repo: string,
   pr: PullRequest,
   botMention: string,
-  hooks?: AnalyzerHooks,
+  hooks?: AnalyzerHooks
 ): Promise<ScannedPR> {
   // Fetch all required data in parallel
   const repoClient = client.repo(owner, repo);
@@ -104,14 +104,14 @@ export async function analyzeAll(
   client: GitHubClient,
   botMention: string,
   logger?: Logger,
-  hooks?: AnalyzerHooks,
+  hooks?: AnalyzerHooks
 ): Promise<ScannedPR[]> {
   const results: ScannedPR[] = [];
 
   for (const { pr, repoOwner, repoName } of prs) {
     try {
       results.push(
-        await analyzePR(client, repoOwner, repoName, pr, botMention, hooks),
+        await analyzePR(client, repoOwner, repoName, pr, botMention, hooks)
       );
     } catch (err) {
       logger?.error("Failed to analyze PR", {
@@ -145,7 +145,7 @@ function determineStatus(
   pr: PullRequest,
   ci: CIStatus,
   reviews: readonly PullRequestReview[],
-  waitingOnBot: boolean,
+  waitingOnBot: boolean
 ): CorePRStatus {
   if (pr.draft) {
     return "draft";
@@ -197,7 +197,7 @@ function analyzeCIStatus(checks: readonly CheckRun[]): CIStatus {
   const categorized = running.length + failed.length + passed.length;
   if (categorized !== checks.length) {
     const uncategorized = checks.filter(
-      (c) => !isCheckRunning(c) && !isCheckFailed(c) && !isCheckPassed(c),
+      (c) => !isCheckRunning(c) && !isCheckFailed(c) && !isCheckPassed(c)
     );
     running.push(...uncategorized);
   }
@@ -244,7 +244,7 @@ function formatCISummary(
   running: CheckRun[],
   failed: CheckRun[],
   passed: CheckRun[],
-  total: number,
+  total: number
 ): string {
   if (running.length > 0 && passed.length > 0) {
     return `CI running: ${String(running.length)} in progress, ${String(passed.length)} passed`;
@@ -284,7 +284,7 @@ function analyzeReviews(reviews: readonly PullRequestReview[]): {
   const latestReviews = Array.from(latestByUser.values());
   return {
     hasChangesRequested: latestReviews.some(
-      (r) => r.state === "CHANGES_REQUESTED",
+      (r) => r.state === "CHANGES_REQUESTED"
     ),
     hasApproval: latestReviews.some((r) => r.state === "APPROVED"),
   };
@@ -294,7 +294,7 @@ function analyzeReviews(reviews: readonly PullRequestReview[]): {
 
 function isWaitingOnBot(
   comments: readonly PullRequestComment[],
-  botMention: string,
+  botMention: string
 ): boolean {
   if (comments.length === 0) {
     return false;
@@ -302,7 +302,7 @@ function isWaitingOnBot(
 
   const botMentionLower = botMention.toLowerCase();
   const mentionComments = comments.filter((c) =>
-    c.body.toLowerCase().includes(botMentionLower),
+    c.body.toLowerCase().includes(botMentionLower)
   );
   if (mentionComments.length === 0) {
     return false;
@@ -333,6 +333,6 @@ function hasConflicts(pr: PullRequest): boolean {
 
 function calculateDaysSinceUpdate(updatedAt: string): number {
   return Math.floor(
-    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24),
+    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
   );
 }

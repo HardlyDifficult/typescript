@@ -55,7 +55,7 @@ export const PR_ACTIONS: Record<
 export function getAvailableActions(
   pr: ScannedPR,
   extraActions?: readonly ActionDefinition[],
-  context?: Record<string, boolean>,
+  context?: Record<string, boolean>
 ): PRActionDescriptor[] {
   const actions: PRActionDescriptor[] = [];
   const { status } = pr;

@@ -19,7 +19,7 @@ export async function scanSinglePR(
   owner: string,
   repo: string,
   prNumber: number,
-  hooks?: AnalyzerHooks,
+  hooks?: AnalyzerHooks
 ): Promise<ScannedPR> {
   const pr = await client.repo(owner, repo).pr(prNumber).get();
   return analyzePR(client, owner, repo, pr, botMention, hooks);

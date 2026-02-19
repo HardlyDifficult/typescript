@@ -10,7 +10,7 @@ function makeScannedPR(
     merged_at: string | null;
     hasConflicts: boolean;
     ciAllPassed: boolean;
-  }> = {},
+  }> = {}
 ): ScannedPR {
   const draft = overrides.draft ?? status === "draft";
   const merged_at = overrides.merged_at ?? null;
@@ -168,14 +168,16 @@ describe("getAvailableActions", () => {
   });
 
   describe("statuses with no core actions", () => {
-    it.each(["waiting_on_bot", "changes_requested", "ci_failed", "has_conflicts"])(
-      "returns empty actions for %s",
-      (status) => {
-        const pr = makeScannedPR(status);
-        const actions = getAvailableActions(pr);
-        expect(actions).toHaveLength(0);
-      },
-    );
+    it.each([
+      "waiting_on_bot",
+      "changes_requested",
+      "ci_failed",
+      "has_conflicts",
+    ])("returns empty actions for %s", (status) => {
+      const pr = makeScannedPR(status);
+      const actions = getAvailableActions(pr);
+      expect(actions).toHaveLength(0);
+    });
   });
 
   describe("action descriptors", () => {
@@ -211,7 +213,9 @@ describe("getAvailableActions", () => {
 
     it("adds extra actions when condition matches", () => {
       const pr = makeScannedPR("ci_failed");
-      const actions = getAvailableActions(pr, [fixCiAction], { isWorkPR: true });
+      const actions = getAvailableActions(pr, [fixCiAction], {
+        isWorkPR: true,
+      });
       expect(actions.map((a) => a.type)).toEqual(["fix_ci"]);
     });
 
