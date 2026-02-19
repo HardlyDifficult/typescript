@@ -36,6 +36,8 @@ function createWorker(overrides?: Partial<ConnectedWorker>): ConnectedWorker {
     activeRequests: 0,
     pendingRequests: new Set(),
     completedRequests: 0,
+    requestCategories: new Map(),
+    categoryActiveRequests: new Map(),
     ...overrides,
   };
 }

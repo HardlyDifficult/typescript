@@ -31,6 +31,7 @@ export function toWorkerInfo(w: ConnectedWorker): WorkerInfo {
     activeRequests: w.activeRequests,
     completedRequests: w.completedRequests,
     pendingRequestIds: w.pendingRequests,
+    categoryActiveRequests: w.categoryActiveRequests,
   };
 }
 
@@ -71,8 +72,11 @@ export class WorkerPool {
 
   /**
    * Get the least-loaded available worker supporting the given model.
+   * If category is provided and the worker has a concurrencyLimits entry for
+   * that category, the category slot count is checked in addition to the
+   * overall maxConcurrentRequests limit.
    */
-  getAvailableWorker(model: string): ConnectedWorker | null {
+  getAvailableWorker(model: string, category?: string): ConnectedWorker | null {
     let bestWorker: ConnectedWorker | null = null;
     let lowestLoad = Infinity;
 
@@ -93,6 +97,17 @@ export class WorkerPool {
 
       if (worker.activeRequests >= worker.capabilities.maxConcurrentRequests) {
         continue;
+      }
+
+      // Check per-category limit when applicable
+      if (category !== undefined && worker.capabilities.concurrencyLimits !== undefined) {
+        const categoryLimit = worker.capabilities.concurrencyLimits[category];
+        if (categoryLimit !== undefined) {
+          const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
+          if (categoryCount >= categoryLimit) {
+            continue;
+          }
+        }
       }
 
       const load =
@@ -123,8 +138,10 @@ export class WorkerPool {
 
   /**
    * Track a request as sent to a worker.
+   * If category is provided it is stored for automatic lookup on release and
+   * the per-category active count is incremented.
    */
-  trackRequest(workerId: string, requestId: string): void {
+  trackRequest(workerId: string, requestId: string, category?: string): void {
     const worker = this.workers.get(workerId);
     if (worker === undefined) {
       return;
@@ -133,6 +150,14 @@ export class WorkerPool {
     worker.activeRequests++;
     worker.pendingRequests.add(requestId);
 
+    if (category !== undefined) {
+      worker.requestCategories.set(requestId, category);
+      worker.categoryActiveRequests.set(
+        category,
+        (worker.categoryActiveRequests.get(category) ?? 0) + 1,
+      );
+    }
+
     if (worker.activeRequests >= worker.capabilities.maxConcurrentRequests) {
       worker.status = WorkerStatus.Busy;
     }
@@ -140,6 +165,7 @@ export class WorkerPool {
 
   /**
    * Release a request from whichever worker is handling it.
+   * Category is looked up automatically from the stored requestCategories map.
    */
   releaseRequest(
     requestId: string,
@@ -149,6 +175,14 @@ export class WorkerPool {
       if (worker.pendingRequests.has(requestId)) {
         worker.pendingRequests.delete(requestId);
         worker.activeRequests = Math.max(0, worker.activeRequests - 1);
+
+        // Decrement per-category count if this request had a category
+        const category = worker.requestCategories.get(requestId);
+        if (category !== undefined) {
+          worker.requestCategories.delete(requestId);
+          const prev = worker.categoryActiveRequests.get(category) ?? 0;
+          worker.categoryActiveRequests.set(category, Math.max(0, prev - 1));
+        }
 
         if (options?.incrementCompleted === true) {
           worker.completedRequests++;
