@@ -101,8 +101,8 @@ export class WorkerPool {
 
       // Check per-category limit when applicable
       if (category !== undefined && worker.capabilities.concurrencyLimits !== undefined) {
-        const categoryLimit = worker.capabilities.concurrencyLimits[category];
-        if (categoryLimit !== undefined) {
+        if (category in worker.capabilities.concurrencyLimits) {
+          const categoryLimit = worker.capabilities.concurrencyLimits[category];
           const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
           if (categoryCount >= categoryLimit) {
             continue;
