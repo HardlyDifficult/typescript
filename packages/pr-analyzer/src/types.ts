@@ -2,19 +2,23 @@
  * PR Analysis Types
  */
 
-import type { PullRequest, Repository } from "@hardlydifficult/github";
+import type {
+  CheckRun,
+  PullRequest,
+  PullRequestComment,
+  PullRequestReview,
+  Repository,
+} from "@hardlydifficult/github";
 
 /**
- * Possible statuses for a PR
+ * Core PR statuses derived purely from GitHub data.
+ * Consumers can extend with custom statuses via AnalyzerHooks.
  */
-export type PRStatus =
+export type CorePRStatus =
   | "draft"
   | "ci_running"
   | "ci_failed"
-  | "ai_processing"
-  | "ai_reviewing"
   | "needs_review"
-  | "needs_human_review"
   | "changes_requested"
   | "approved"
   | "has_conflicts"
@@ -22,12 +26,13 @@ export type PRStatus =
   | "waiting_on_bot";
 
 /**
- * A PR that has been scanned and analyzed
+ * A PR that has been scanned and analyzed.
+ * Status is `string` to allow custom statuses from hooks.
  */
 export interface ScannedPR {
   readonly pr: PullRequest;
   readonly repo: Repository;
-  readonly status: PRStatus;
+  readonly status: string;
   readonly ciStatus: CIStatus;
   readonly ciSummary: string;
   readonly hasConflicts: boolean;
@@ -71,4 +76,51 @@ export interface DiscoveredPR {
 export interface Logger {
   info(message: string, context?: Record<string, unknown>): void;
   error(message: string, context?: Record<string, unknown>): void;
+}
+
+/**
+ * Raw analysis data passed to hooks for custom status resolution.
+ */
+export interface AnalysisDetails {
+  readonly comments: readonly PullRequestComment[];
+  readonly checks: readonly CheckRun[];
+  readonly reviews: readonly PullRequestReview[];
+  readonly ciStatus: CIStatus;
+  readonly hasConflicts: boolean;
+  readonly waitingOnBot: boolean;
+}
+
+/**
+ * Hooks for customizing analysis behavior.
+ * Consumers can override status determination with custom logic.
+ */
+export interface AnalyzerHooks {
+  /**
+   * Called after the core status is determined.
+   * Return a custom status string to override, or undefined to keep the core status.
+   */
+  readonly resolveStatus?: (
+    coreStatus: CorePRStatus,
+    details: AnalysisDetails,
+  ) => string | undefined;
+}
+
+/**
+ * Configuration for extending classification buckets with custom statuses.
+ */
+export interface ClassificationConfig {
+  readonly readyForHuman?: readonly string[];
+  readonly inProgress?: readonly string[];
+  readonly blocked?: readonly string[];
+  readonly needsBotBump?: readonly string[];
+}
+
+/**
+ * Definition for a custom action provided by consumers.
+ */
+export interface ActionDefinition {
+  readonly type: string;
+  readonly label: string;
+  readonly description: string;
+  readonly when: (pr: ScannedPR, context: Record<string, boolean>) => boolean;
 }

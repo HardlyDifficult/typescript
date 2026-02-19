@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { classifyPRs } from "../src/classification.js";
-import type { ScannedPR, PRStatus } from "../src/types.js";
+import type { ScannedPR } from "../src/types.js";
 import type { PullRequest, Repository } from "@hardlydifficult/github";
 
-function makePR(status: PRStatus): ScannedPR {
+function makePR(status: string): ScannedPR {
   const pr: PullRequest = {
     id: 1,
     number: 1,
@@ -83,11 +83,6 @@ describe("classifyPRs", () => {
     expect(result.readyForHuman).toHaveLength(1);
   });
 
-  it("places needs_human_review into readyForHuman", () => {
-    const result = classifyPRs([makePR("needs_human_review")]);
-    expect(result.readyForHuman).toHaveLength(1);
-  });
-
   it("places changes_requested into readyForHuman", () => {
     const result = classifyPRs([makePR("changes_requested")]);
     expect(result.readyForHuman).toHaveLength(1);
@@ -110,16 +105,6 @@ describe("classifyPRs", () => {
     const result = classifyPRs([makePR("ci_running")]);
     expect(result.inProgress).toHaveLength(1);
     expect(result.readyForHuman).toHaveLength(0);
-  });
-
-  it("places ai_processing into inProgress", () => {
-    const result = classifyPRs([makePR("ai_processing")]);
-    expect(result.inProgress).toHaveLength(1);
-  });
-
-  it("places ai_reviewing into inProgress", () => {
-    const result = classifyPRs([makePR("ai_reviewing")]);
-    expect(result.inProgress).toHaveLength(1);
   });
 
   it("places draft into blocked", () => {
@@ -170,5 +155,47 @@ describe("classifyPRs", () => {
     expect(result.needsBotBump).toHaveLength(1);
     expect(result.inProgress).toHaveLength(1);
     expect(result.blocked).toHaveLength(1);
+  });
+
+  // --- ClassificationConfig extension tests ---
+
+  it("extends readyForHuman with config", () => {
+    const prs = [makePR("custom_ready")];
+    const result = classifyPRs(prs, { readyForHuman: ["custom_ready"] });
+    expect(result.readyForHuman).toHaveLength(1);
+  });
+
+  it("extends inProgress with config", () => {
+    const prs = [makePR("ai_processing"), makePR("ci_running")];
+    const result = classifyPRs(prs, { inProgress: ["ai_processing"] });
+    expect(result.inProgress).toHaveLength(2);
+  });
+
+  it("extends blocked with config", () => {
+    const prs = [makePR("custom_blocked")];
+    const result = classifyPRs(prs, { blocked: ["custom_blocked"] });
+    expect(result.blocked).toHaveLength(1);
+  });
+
+  it("extends needsBotBump with config", () => {
+    const prs = [makePR("custom_waiting")];
+    const result = classifyPRs(prs, { needsBotBump: ["custom_waiting"] });
+    expect(result.needsBotBump).toHaveLength(1);
+  });
+
+  it("unknown statuses are unclassified without config", () => {
+    const prs = [makePR("ai_processing")];
+    const result = classifyPRs(prs);
+    expect(result.readyForHuman).toHaveLength(0);
+    expect(result.inProgress).toHaveLength(0);
+    expect(result.blocked).toHaveLength(0);
+    expect(result.needsBotBump).toHaveLength(0);
+    expect(result.all).toHaveLength(1);
+  });
+
+  it("config does not remove core statuses", () => {
+    const prs = [makePR("draft"), makePR("custom_blocked")];
+    const result = classifyPRs(prs, { blocked: ["custom_blocked"] });
+    expect(result.blocked).toHaveLength(2);
   });
 });

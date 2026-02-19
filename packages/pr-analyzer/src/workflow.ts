@@ -7,7 +7,7 @@
 import type { GitHubClient } from "@hardlydifficult/github";
 
 import { analyzePR } from "./analysis.js";
-import type { ScannedPR } from "./types.js";
+import type { AnalyzerHooks, ScannedPR } from "./types.js";
 
 /**
  * Scan a single PR by repo and number.
@@ -18,8 +18,9 @@ export async function scanSinglePR(
   botMention: string,
   owner: string,
   repo: string,
-  prNumber: number
+  prNumber: number,
+  hooks?: AnalyzerHooks,
 ): Promise<ScannedPR> {
   const pr = await client.repo(owner, repo).pr(prNumber).get();
-  return analyzePR(client, owner, repo, pr, botMention);
+  return analyzePR(client, owner, repo, pr, botMention, hooks);
 }

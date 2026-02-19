@@ -8,6 +8,7 @@ import type {
   PullRequestComment,
   PullRequestReview,
 } from "@hardlydifficult/github";
+import type { AnalyzerHooks } from "../src/types.js";
 
 // --- Mock builders ---
 
@@ -91,7 +92,7 @@ function makeFailedCheck(name = "CI"): CheckRun {
 function makeComment(
   login: string,
   body: string,
-  created_at: string
+  created_at: string,
 ): PullRequestComment {
   return {
     id: Math.random(),
@@ -99,17 +100,6 @@ function makeComment(
     body,
     created_at,
     updated_at: created_at,
-    html_url: "",
-  };
-}
-
-function makeApprovalReview(login = "reviewer"): PullRequestReview {
-  return {
-    id: 1,
-    user: { login, id: 50, avatar_url: "", html_url: "" },
-    body: "LGTM",
-    state: "APPROVED",
-    submitted_at: "2024-01-02T00:00:00Z",
     html_url: "",
   };
 }
@@ -234,101 +224,6 @@ describe("analyzePR", () => {
     expect(result.status).toBe("changes_requested");
   });
 
-  it("returns approved when reviewer approves and no CI", async () => {
-    const pr = makePR();
-    const reviews = [makeApprovalReview()];
-    // No checks — allPassed would be true (no checks = allPassed per impl)
-    // But approval comes after allPassed check, so need to test carefully
-    // The logic: if ci.allPassed → ready_to_merge, else if approval → approved
-    // With no checks, allPassed = true, so it returns ready_to_merge.
-    // To get "approved" we need checks but none that passed (impossible with current logic).
-    // Actually looking at the code: "allPassed" with 0 checks = true → ready_to_merge.
-    // So "approved" is only reachable when there are checks but they're not all passing.
-    // That means we can't easily test it with the current priority order...
-    // Let's verify the approved path is reachable only when CI checks exist but aren't all passed.
-    // Actually re-reading: approved comes AFTER allPassed, so with checks, if not allPassed and has approval.
-    // With no checks, allPassed=true → ready_to_merge always wins.
-    // Test: has checks, not all passed (some neutral), has approval.
-    const checks: CheckRun[] = [
-      {
-        id: 1,
-        name: "lint",
-        status: "completed",
-        conclusion: "success",
-        started_at: null,
-        completed_at: null,
-        html_url: "",
-      },
-    ];
-    const client = makeMockClient({ pr, checks, reviews });
-
-    const result = await analyzePR(client, "owner", "repo", pr, "@bot");
-
-    // With all checks passed AND approval, ready_to_merge takes precedence
-    expect(result.status).toBe("ready_to_merge");
-  });
-
-  it("returns needs_review with no checks and no reviews", async () => {
-    // With 0 checks: allPassed=true → ready_to_merge
-    // We need a scenario where ci.allPassed is false and no approval
-    // That can't happen with 0 checks per the implementation
-    // Instead test needs_review: we need a PR where allPassed=false and no approval
-    // That means have a check, but... the running check makes it ci_running
-    // The "needs_review" path seems hard to hit: it's the fallthrough case
-    // after changes_requested, allPassed, and hasApproval all return false.
-    // This happens when there are 0 checks (allPassed=true) — wait, that would be ready_to_merge.
-    // Actually needs_review is reached when: not draft, not ci_running, not ai_processing,
-    // not ci_failed, not has_conflicts, not waiting_on_bot, not changes_requested,
-    // not ci_all_passed, not approved → needs_review.
-    // To get there: need checks that are "uncategorized" so not all running/failed/passed.
-    // The impl says if categorized != total, uncategorized treated as running.
-    // So needs_review is only reachable if there are 0 checks and allPassed=true → no, that's ready_to_merge.
-    // needs_review is essentially the "impossible" fallthrough in the current logic.
-    // Let's just verify the scanned PR has the right shape.
-    const pr = makePR();
-    const client = makeMockClient({ pr, checks: [makePassedCheck()] });
-    const result = await analyzePR(client, "owner", "repo", pr, "@bot");
-
-    expect(result.pr).toBe(pr);
-    expect(result.ciStatus).toBeDefined();
-    expect(result.daysSinceUpdate).toBeGreaterThanOrEqual(0);
-  });
-
-  it("returns ai_processing when there is a recent AI bot comment", async () => {
-    const pr = makePR();
-    const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 min ago
-    const comments = [
-      makeComment("cursor-bot", "I'm working on this fix", recentTime),
-    ];
-    const client = makeMockClient({
-      pr,
-      checks: [makeRunningCheck()],
-      comments,
-    });
-
-    const result = await analyzePR(client, "owner", "repo", pr, "@bot");
-
-    // ci_running has higher priority than ai_processing in determineStatus
-    expect(result.status).toBe("ci_running");
-  });
-
-  it("returns ai_processing when AI bot commented recently and CI is not running", async () => {
-    const pr = makePR();
-    const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 min ago
-    const comments = [
-      makeComment("cursor", "Fixing the issue now", recentTime),
-    ];
-    const client = makeMockClient({
-      pr,
-      checks: [makePassedCheck()],
-      comments,
-    });
-
-    const result = await analyzePR(client, "owner", "repo", pr, "@bot");
-
-    expect(result.status).toBe("ai_processing");
-  });
-
   it("returns correct hasConflicts flag", async () => {
     const pr = makePR({ mergeable: false, mergeable_state: "conflicting" });
     const client = makeMockClient({ pr, checks: [makePassedCheck()] });
@@ -363,5 +258,86 @@ describe("analyzePR", () => {
     const result = await analyzePR(client, "owner", "repo", pr, "@cursor");
 
     expect(result.waitingOnBot).toBe(false);
+  });
+
+  it("populates daysSinceUpdate and ciSummary", async () => {
+    const pr = makePR();
+    const client = makeMockClient({ pr, checks: [makePassedCheck()] });
+    const result = await analyzePR(client, "owner", "repo", pr, "@bot");
+
+    expect(result.daysSinceUpdate).toBeGreaterThanOrEqual(0);
+    expect(result.ciSummary).toBeDefined();
+  });
+
+  // --- AnalyzerHooks extension tests ---
+
+  describe("hooks", () => {
+    it("resolveStatus can override core status", async () => {
+      const pr = makePR();
+      const client = makeMockClient({ pr, checks: [makePassedCheck()] });
+      const hooks: AnalyzerHooks = {
+        resolveStatus: () => "custom_status",
+      };
+
+      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+
+      expect(result.status).toBe("custom_status");
+    });
+
+    it("resolveStatus returning undefined keeps core status", async () => {
+      const pr = makePR();
+      const client = makeMockClient({ pr, checks: [makePassedCheck()] });
+      const hooks: AnalyzerHooks = {
+        resolveStatus: () => undefined,
+      };
+
+      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+
+      expect(result.status).toBe("ready_to_merge");
+    });
+
+    it("resolveStatus receives core status and analysis details", async () => {
+      const pr = makePR();
+      const checks = [makePassedCheck()];
+      const client = makeMockClient({ pr, checks });
+      const resolveStatus = vi.fn().mockReturnValue(undefined);
+      const hooks: AnalyzerHooks = { resolveStatus };
+
+      await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+
+      expect(resolveStatus).toHaveBeenCalledWith(
+        "ready_to_merge",
+        expect.objectContaining({
+          checks: expect.arrayContaining([expect.objectContaining({ name: "CI" })]),
+          comments: expect.any(Array),
+          reviews: expect.any(Array),
+          ciStatus: expect.objectContaining({ allPassed: true }),
+          hasConflicts: false,
+          waitingOnBot: false,
+        }),
+      );
+    });
+
+    it("resolveStatus can override based on core status", async () => {
+      const pr = makePR();
+      const client = makeMockClient({ pr, checks: [makeFailedCheck()] });
+      const hooks: AnalyzerHooks = {
+        resolveStatus: (coreStatus) =>
+          coreStatus === "ci_failed" ? "ai_processing" : undefined,
+      };
+
+      const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+
+      expect(result.status).toBe("ai_processing");
+    });
+
+    it("works without hooks (backward compatible)", async () => {
+      const pr = makePR();
+      const client = makeMockClient({ pr, checks: [makePassedCheck()] });
+
+      const result = await analyzePR(client, "owner", "repo", pr, "@bot");
+
+      expect(result.status).toBe("ready_to_merge");
+    });
   });
 });

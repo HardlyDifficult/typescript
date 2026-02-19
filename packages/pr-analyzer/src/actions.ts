@@ -2,46 +2,38 @@
  * PR Action Resolution
  *
  * Determines which actions are available for a PR based on its status.
- * This is the single source of truth for action definitions — clients
+ * This is the single source of truth for core action definitions — clients
  * (web, Discord, voice) render from these descriptors.
+ *
+ * Consumers can provide extra actions via ActionDefinition[].
  */
 
-import type { ScannedPR } from "./types.js";
+import type { ActionDefinition, ScannedPR } from "./types.js";
 
 /**
- * Unique identifier for each action type.
- * Add new actions here — clients render based on this discriminator.
+ * Core action types built into the package.
+ * Consumers can define additional action types via ActionDefinition.
  */
-export type PRActionType =
-  | "merge"
-  | "fix_ci"
-  | "recreate"
-  | "mark_ready"
-  | "enable_auto_merge";
+export type CorePRActionType = "merge" | "mark_ready" | "enable_auto_merge";
 
 /**
  * Describes an available action for a PR.
+ * `type` is `string` to allow custom action types from consumers.
  */
 export interface PRActionDescriptor {
-  readonly type: PRActionType;
+  readonly type: string;
   readonly label: string;
   readonly description: string;
 }
 
 /**
- * Action registry — maps each action type to its metadata.
- * Single source of truth; new actions are added here.
+ * Core action registry — maps each core action type to its metadata.
  */
 export const PR_ACTIONS: Record<
-  PRActionType,
+  CorePRActionType,
   Omit<PRActionDescriptor, "type">
 > = {
   merge: { label: "Merge", description: "Squash and merge this PR" },
-  fix_ci: { label: "Fix CI", description: "Post @cursor fix CI comment" },
-  recreate: {
-    label: "Recreate",
-    description: "Post @dependabot recreate comment",
-  },
   mark_ready: {
     label: "Mark Ready",
     description: "Mark this draft PR as ready for review",
@@ -56,37 +48,23 @@ export const PR_ACTIONS: Record<
  * Determine which actions are available for a given PR.
  *
  * @param pr - The scanned PR object
- * @param options - Additional context needed for conditional actions
+ * @param extraActions - Additional actions provided by consumers
+ * @param context - Key-value context for evaluating extra action conditions
  * @returns Array of available action descriptors
  */
 export function getAvailableActions(
   pr: ScannedPR,
-  options: {
-    isDependabot: boolean;
-    isWorkPR: boolean;
-  }
+  extraActions?: readonly ActionDefinition[],
+  context?: Record<string, boolean>,
 ): PRActionDescriptor[] {
   const actions: PRActionDescriptor[] = [];
   const { status } = pr;
 
+  // Core actions based on status
   switch (status) {
     case "ready_to_merge":
     case "approved":
-    case "needs_human_review":
       actions.push({ type: "merge", ...PR_ACTIONS.merge });
-      break;
-    case "ci_failed":
-      if (options.isWorkPR) {
-        actions.push({ type: "fix_ci", ...PR_ACTIONS.fix_ci });
-      }
-      if (options.isDependabot) {
-        actions.push({ type: "recreate", ...PR_ACTIONS.recreate });
-      }
-      break;
-    case "has_conflicts":
-      if (options.isDependabot) {
-        actions.push({ type: "recreate", ...PR_ACTIONS.recreate });
-      }
       break;
     case "draft":
       if (pr.ciStatus.allPassed && !pr.hasConflicts) {
@@ -95,7 +73,6 @@ export function getAvailableActions(
       break;
     case "ci_running":
     case "needs_review":
-      // Enable auto-merge for PRs waiting on CI or review
       if (!pr.pr.draft && !pr.hasConflicts && pr.pr.merged_at === null) {
         actions.push({
           type: "enable_auto_merge",
@@ -105,6 +82,20 @@ export function getAvailableActions(
       break;
     default:
       break;
+  }
+
+  // Evaluate extra actions from consumers
+  if (extraActions) {
+    const ctx = context ?? {};
+    for (const action of extraActions) {
+      if (action.when(pr, ctx)) {
+        actions.push({
+          type: action.type,
+          label: action.label,
+          description: action.description,
+        });
+      }
+    }
   }
 
   return actions;

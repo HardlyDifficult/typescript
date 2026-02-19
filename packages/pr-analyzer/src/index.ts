@@ -10,10 +10,15 @@ export { analyzePR, analyzeAll } from "./analysis.js";
 export { classifyPRs } from "./classification.js";
 export { getAvailableActions, PR_ACTIONS } from "./actions.js";
 export type {
-  PRStatus,
+  CorePRStatus,
   ScannedPR,
   ScanResult,
   CIStatus,
+  DiscoveredPR,
   Logger,
+  AnalysisDetails,
+  AnalyzerHooks,
+  ClassificationConfig,
+  ActionDefinition,
 } from "./types.js";
-export type { PRActionType, PRActionDescriptor } from "./actions.js";
+export type { CorePRActionType, PRActionDescriptor } from "./actions.js";

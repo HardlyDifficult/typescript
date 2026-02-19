@@ -4,57 +4,69 @@
  * Classifies PRs into action buckets:
  *   - readyForHuman: PRs that need human attention (review, approve, merge)
  *   - needsBotBump: PRs waiting on a bot response
- *   - inProgress: PRs with active work (CI running, AI processing)
+ *   - inProgress: PRs with active work (CI running)
  *   - blocked: PRs waiting but no active work (draft, CI failed, conflicts)
+ *
+ * Consumers can extend buckets via ClassificationConfig.
  */
 
-import type { PRStatus, ScannedPR, ScanResult } from "./types.js";
+import type { ClassificationConfig, ScannedPR, ScanResult } from "./types.js";
 
-/**
- * Classify PRs into action buckets
- */
-export function classifyPRs(prs: readonly ScannedPR[]): ScanResult {
-  return {
-    all: prs,
-    readyForHuman: prs.filter(isReadyForHuman),
-    needsBotBump: prs.filter(needsBotBump),
-    inProgress: prs.filter(isInProgress),
-    blocked: prs.filter(isBlocked),
-  };
-}
+// --- Core status lists ---
 
-// --- Classification predicates ---
-
-const READY_FOR_HUMAN_STATUSES: PRStatus[] = [
-  "needs_human_review",
+const READY_FOR_HUMAN_STATUSES: readonly string[] = [
   "needs_review",
   "changes_requested",
   "approved",
   "ready_to_merge",
 ];
 
-// In progress = something is actively working
-const IN_PROGRESS_STATUSES: PRStatus[] = [
-  "ci_running",
-  "ai_processing",
-  "ai_reviewing",
+const IN_PROGRESS_STATUSES: readonly string[] = ["ci_running"];
+
+const BLOCKED_STATUSES: readonly string[] = [
+  "draft",
+  "ci_failed",
+  "has_conflicts",
 ];
 
-// Blocked = waiting but nothing actively working
-const BLOCKED_STATUSES: PRStatus[] = ["draft", "ci_failed", "has_conflicts"];
+const NEEDS_BOT_BUMP_STATUSES: readonly string[] = ["waiting_on_bot"];
 
-function isReadyForHuman(pr: ScannedPR): boolean {
-  return READY_FOR_HUMAN_STATUSES.includes(pr.status);
+/**
+ * Classify PRs into action buckets.
+ *
+ * @param prs - The PRs to classify
+ * @param config - Optional extra statuses to include in each bucket
+ */
+export function classifyPRs(
+  prs: readonly ScannedPR[],
+  config?: ClassificationConfig,
+): ScanResult {
+  const readyForHuman = mergeStatuses(
+    READY_FOR_HUMAN_STATUSES,
+    config?.readyForHuman,
+  );
+  const inProgress = mergeStatuses(IN_PROGRESS_STATUSES, config?.inProgress);
+  const blocked = mergeStatuses(BLOCKED_STATUSES, config?.blocked);
+  const needsBotBump = mergeStatuses(
+    NEEDS_BOT_BUMP_STATUSES,
+    config?.needsBotBump,
+  );
+
+  return {
+    all: prs,
+    readyForHuman: prs.filter((pr) => readyForHuman.includes(pr.status)),
+    needsBotBump: prs.filter((pr) => needsBotBump.includes(pr.status)),
+    inProgress: prs.filter((pr) => inProgress.includes(pr.status)),
+    blocked: prs.filter((pr) => blocked.includes(pr.status)),
+  };
 }
 
-function needsBotBump(pr: ScannedPR): boolean {
-  return pr.status === "waiting_on_bot";
-}
-
-function isInProgress(pr: ScannedPR): boolean {
-  return IN_PROGRESS_STATUSES.includes(pr.status);
-}
-
-function isBlocked(pr: ScannedPR): boolean {
-  return BLOCKED_STATUSES.includes(pr.status);
+function mergeStatuses(
+  base: readonly string[],
+  extra?: readonly string[],
+): readonly string[] {
+  if (!extra || extra.length === 0) {
+    return base;
+  }
+  return [...base, ...extra];
 }
