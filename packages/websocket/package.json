@@ -1,0 +1,27 @@
+{
+  "name": "@hardlydifficult/websocket",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ws": "8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.2.3",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
