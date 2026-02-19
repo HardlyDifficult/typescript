@@ -25,3 +25,5 @@ export {
   toPlainTextMessages,
   type MultimodalMessage,
 } from "./multimodal.js";
+
+export { createPromptLoader } from "./promptLoader.js";
