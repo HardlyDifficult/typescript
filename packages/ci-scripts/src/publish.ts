@@ -242,7 +242,8 @@ function getLatestNpmPatchVersion(
     const allVersions = exec(`npm view ${packageName} versions --json`, {
       ignoreError: false,
     });
-    const versions = JSON.parse(allVersions) as string[];
+    const parsed = JSON.parse(allVersions) as string | string[];
+    const versions = Array.isArray(parsed) ? parsed : [parsed];
 
     // Filter to versions matching our major.minor and find the highest patch
     const matchingVersions = versions
