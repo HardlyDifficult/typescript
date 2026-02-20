@@ -5,7 +5,7 @@ import type { HttpMethod } from "./types";
 
 /** Declarative configuration for a REST operation. */
 export interface OperationConfig<Params, Response> {
-  readonly params: z.ZodSchema<Params>;
+  readonly params: z.ZodType<Params>;
   readonly method: HttpMethod;
   readonly url: (params: Params, baseUrl: string) => string;
   readonly body?: (
@@ -31,7 +31,7 @@ export function defineOperation<Params, Response>(
 }
 
 /** Validate params against a Zod schema, throwing ValidationError on failure. */
-export function validateParams<T>(params: T, schema: z.ZodSchema<T>): T {
+export function validateParams<T>(params: T, schema: z.ZodType<T>): T {
   try {
     return schema.parse(params);
   } catch (error) {
