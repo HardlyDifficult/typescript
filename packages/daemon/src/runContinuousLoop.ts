@@ -32,28 +32,34 @@ export interface ContinuousLoopOptions {
  *
  * @param options - Configuration for the continuous loop
  */
-export async function runContinuousLoop(options: ContinuousLoopOptions): Promise<void> {
+export async function runContinuousLoop(
+  options: ContinuousLoopOptions,
+): Promise<void> {
   const { intervalSeconds, runCycle, onShutdown } = options;
 
   let shutdownRequested = false;
   let sleepResolve: (() => void) | null = null;
-  let sleepTimeout: NodeJS.Timeout | null = null;
+  let sleepTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const handleShutdown = (signal: string): void => {
-    console.log(`\n⚠️ Received ${signal}, shutting down gracefully...`);
+    console.warn(`Received ${signal}, shutting down gracefully...`);
     shutdownRequested = true;
-    if (sleepTimeout) {
+    if (sleepTimeout !== null) {
       clearTimeout(sleepTimeout);
       sleepTimeout = null;
     }
-    if (sleepResolve) {
+    if (sleepResolve !== null) {
       sleepResolve();
       sleepResolve = null;
     }
   };
 
-  const sigintHandler = (): void => handleShutdown("SIGINT");
-  const sigtermHandler = (): void => handleShutdown("SIGTERM");
+  const sigintHandler = (): void => {
+    handleShutdown("SIGINT");
+  };
+  const sigtermHandler = (): void => {
+    handleShutdown("SIGTERM");
+  };
 
   process.on("SIGINT", sigintHandler);
   process.on("SIGTERM", sigtermHandler);
@@ -65,27 +71,38 @@ export async function runContinuousLoop(options: ContinuousLoopOptions): Promise
       try {
         await runCycle(isShutdownRequested);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`\n❌ Cycle error: ${errorMessage}`);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(`Cycle error: ${errorMessage}`);
       }
 
-      if (shutdownRequested) break;
-      console.log(`\n⏳ Waiting ${intervalSeconds}s before next cycle...`);
-      await new Promise<void>((resolve) => {
-        sleepResolve = resolve;
-        sleepTimeout = setTimeout(() => {
-          sleepTimeout = null;
-          sleepResolve = null;
-          resolve();
-        }, intervalSeconds * 1000);
+      if (shutdownRequested) {
+        break;
+      }
+
+      await interruptibleSleep(intervalSeconds * 1000, () => {
+        return new Promise<void>((resolve) => {
+          sleepResolve = resolve;
+          sleepTimeout = setTimeout(() => {
+            sleepTimeout = null;
+            sleepResolve = null;
+            resolve();
+          }, intervalSeconds * 1000);
+        });
       });
     }
-    console.log("✅ Shutdown complete");
   } finally {
     process.off("SIGINT", sigintHandler);
     process.off("SIGTERM", sigtermHandler);
-    if (onShutdown) {
+    if (onShutdown !== undefined) {
       await onShutdown();
     }
   }
+}
+
+async function interruptibleSleep(
+  _durationMs: number,
+  createSleepPromise: () => Promise<void>,
+): Promise<void> {
+  await createSleepPromise();
 }
