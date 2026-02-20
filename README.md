@@ -1,36 +1,66 @@
 # TypeScript Monorepo
 
-Focused, opinionated, easy-to-use npm packages for AI, chat, CI automation, data structures, and more.
+Focused, opinionated, easy-to-use npm packages for building robust TypeScript applications — from AI integrations to workflow automation.
 
 ## Packages
 
+### AI & Language Models
 | Package | Description |
 |---------|-------------|
-| [@hardlydifficult/ai](./packages/ai) | Unified AI SDK integration for LLMs (Anthropic Claude, Ollama) with agent orchestration and structured output parsing |
-| [@hardlydifficult/chat](./packages/chat) | Platform-agnostic chat abstraction for Discord and Slack with threading, streaming, and batch operations |
-| [@hardlydifficult/ci-scripts](./packages/ci-scripts) | CI automation for dependency validation, topological publishing, and auto-lint fixes via PAT-authenticated Git |
-| [@hardlydifficult/collections](./packages/collections) | Low-level array and filesystem utilities for batched processing and directory traversal |
-| [@hardlydifficult/date-time](./packages/date-time) | Strongly-typed `TimeSpan` duration model with unit-aware conversion and edge-case validation |
-| [@hardlydifficult/document-generator](./packages/document-generator) | Fluent document builder rendering to Markdown, Slack mrkdwn, and plain text |
-| [@hardlydifficult/github](./packages/github) | Typed GitHub API client for PR monitoring and repo operations using Octokit |
-| [@hardlydifficult/logger](./packages/logger) | Plugin-based structured logger (Console, File, Discord) with JSONL, filtering, and async error handling |
-| [@hardlydifficult/poller](./packages/poller) | Generic polling utility with deep-equality change detection and lifecycle management |
-| [@hardlydifficult/pr-analyzer](./packages/pr-analyzer) | GitHub PR analysis pipeline for CI status, reviews, and merge decision classification |
-| [@hardlydifficult/queue](./packages/queue) | High-performance priority queue with O(1) enqueue/dequeue and FIFO ordering per bucket |
-| [@hardlydifficult/repo-processor](./packages/repo-processor) | Incremental GitHub repository processor with tree diffs, parallel file processing, and state persistence |
-| [@hardlydifficult/shared-config](./packages/shared-config) | Shared configs for TypeScript compilation, linting, and postinstall file management |
-| [@hardlydifficult/state-tracker](./packages/state-tracker) | Persistent state manager with atomic I/O, debounced auto-save, and legacy version fallback |
-| [@hardlydifficult/task-list](./packages/task-list) | Provider-agnostic task-list abstraction (Trello, Linear) with unified data resolution |
-| [@hardlydifficult/teardown](./packages/teardown) | Idempotent LIFO resource cleanup with signal trapping and async teardown support |
-| [@hardlydifficult/text](./packages/text) | Text manipulation: chunking, formatting, YAML/JSON conversion, and templating |
-| [@hardlydifficult/throttle](./packages/throttle) | Token bucket rate limiting with exponential backoff and retry callbacks |
-| [@hardlydifficult/ts-config](./packages/ts-config) | Shared ESLint and TypeScript configuration with strict compiler settings |
-| [@hardlydifficult/usage-tracker](./packages/usage-tracker) | Session-based usage tracking with cumulative aggregation, spend limits, and resume-time estimation |
-| [@hardlydifficult/websocket](./packages/websocket) | Resilient WebSocket client with exponential backoff, heartbeat detection, and type-safe event handling |
-| [@hardlydifficult/workflow-engine](./packages/workflow-engine) | Stateful workflow engine with typed state machines, linear pipelines, and persistence |
+| [ai](./packages/ai) | Core AI SDK with Anthropic/ollama integrations, agent tool-calling, and robust response parsing |
+
+### GitHub & CI Automation
+| Package | Description |
+|---------|-------------|
+| [github](./packages/github) | Typed, polling-based GitHub API client for PR monitoring with state snapshotting |
+| [ci-scripts](./packages/ci-scripts) | CI utilities for monorepo publishing, dependency validation, and auto-lint/fix commits |
+
+### Async & Control Flow
+| Package | Description |
+|---------|-------------|
+| [poller](./packages/poller) | Generic polling utility with deep-equality change detection and debounced triggers |
+| [throttle](./packages/throttle) | Rate-limiting with exponential backoff and connection error detection |
+| [teardown](./packages/teardown) | Idempotent resource cleanup with signal trapping and LIFO execution order |
+| [workflow-engine](./packages/workflow-engine) | Typed workflow engine with state machines, data cursors, and lifecycle hooks |
+
+### Messaging & Integration
+| Package | Description |
+|---------|-------------|
+| [chat](./packages/chat) | Platform-agnostic chat bot with Discord/Slack support, batching, threading, and streaming |
+| [websocket](./packages/websocket) | Resilient WebSocket client with reconnection, heartbeat, and request tracking |
+| [worker-server](./packages/worker-server) | WebSocket-based worker server with health monitoring and load balancing |
+
+### Data & State Management
+| Package | Description |
+|---------|-------------|
+| [state-tracker](./packages/state-tracker) | Robust state persistence with atomic writes and automatic fallback to in-memory mode |
+| [usage-tracker](./packages/usage-tracker) | Usage and cost tracking with session/cumulative metrics and persisted state |
+| [queue](./packages/queue) | High-performance priority queue with O(1) operations and dynamic reordering |
+
+### Tools & Utilities
+| Package | Description |
+|---------|-------------|
+| [collections](./packages/collections) | Low-level utilities for array chunking and hierarchical path grouping |
+| [date-time](./packages/date-time) | Strongly-typed TimeSpan utility with millisecond conversion |
+| [document-generator](./packages/document-generator) | Fluent document generation for Markdown, Slack mrkdwn, and plain text |
+| [http](./packages/http) | HTTP utilities with constant-time comparison, body limits, and CORS |
+| [logger](./packages/logger) | Plugin-based structured logging with configurable handlers and severity filtering |
+| [pr-analyzer](./packages/pr-analyzer) | PR analysis pipeline for GitHub: aggregates CI/reviews/conflicts and determines merge readiness |
+| [repo-processor](./packages/repo-processor) | Incremental GitHub repo processor with bottom-up file handling and tree diff detection |
+| [task-list](./packages/task-list) | Provider-agnostic task-list abstraction with Trello/Linear integrations |
+| [text](./packages/text) | Text processing utilities for chunking, formatting, and YAML/JSON conversion |
+| [shared-config](./packages/shared-config) | Shared configs (TS/ESLint/Prettier) auto-synced to repo root |
+
+### Tooling & Infrastructure
+| Package | Description |
+|---------|-------------|
+| [ts-config](./packages/ts-config) | Shareable TypeScript, ESLint (flat config), and Prettier configs |
 
 ## GitHub Actions Setup
 
-Add an `NPM_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with an [npm automation token](https://www.npmjs.com/settings/~/tokens).
+To enable full automation in this monorepo, ensure the following secrets are configured:
 
-Add a `PAT_TOKEN` [repository secret](https://github.com/HardlyDifficult/typescript/settings/secrets/actions) with a [GitHub PAT](https://github.com/settings/tokens) that has `repo` scope (used by CI auto-fix workflow).
+- `NPM_TOKEN` – Required for publishing packages to npm (set as a repository secret in GitHub)
+- `PAT_TOKEN` – Required for auto-fixing lint issues and tagging releases in CI (must be a GitHub Personal Access Token with `repo` scope)
+
+These enable CI scripts (in [`ci-scripts`](./packages/ci-scripts)) to auto-version, lint, and publish packages.
