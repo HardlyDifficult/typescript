@@ -217,6 +217,41 @@ export class WorkerPool {
     return count;
   }
 
+  /**
+   * Count total free slots for the given model across all available workers.
+   * Accounts for per-category limits when category is provided.
+   */
+  getAvailableSlotCount(model: string, category?: string): number {
+    let count = 0;
+    for (const worker of this.workers.values()) {
+      if (worker.status !== WorkerStatus.Available) {
+        continue;
+      }
+      const supportsModel = worker.capabilities.models.some(
+        (m) =>
+          m.modelId === model ||
+          m.modelId.includes(model) ||
+          model.includes(m.modelId)
+      );
+      if (!supportsModel) {
+        continue;
+      }
+      const workerFreeSlots =
+        worker.capabilities.maxConcurrentRequests - worker.activeRequests;
+      if (
+        category !== undefined &&
+        worker.capabilities.concurrencyLimits?.[category] !== undefined
+      ) {
+        const categoryLimit = worker.capabilities.concurrencyLimits[category];
+        const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
+        count += Math.min(workerFreeSlots, categoryLimit - categoryCount);
+      } else {
+        count += workerFreeSlots;
+      }
+    }
+    return count;
+  }
+
   /** Get public info about all connected workers. */
   getWorkerInfoList(): WorkerInfo[] {
     return Array.from(this.workers.values()).map(toWorkerInfo);
