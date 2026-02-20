@@ -68,7 +68,7 @@ function createInterruptibleSleep(durationMs: number): {
  * @param options - Configuration for the continuous loop
  */
 export async function runContinuousLoop(
-  options: ContinuousLoopOptions,
+  options: ContinuousLoopOptions
 ): Promise<void> {
   const { intervalSeconds, runCycle, onShutdown } = options;
 
