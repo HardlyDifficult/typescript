@@ -126,10 +126,10 @@ export class HttpClient {
         );
       }
 
-      const status = error.response.status;
-      const statusText = error.response.statusText;
+      const {status} = error.response;
+      const {statusText} = error.response;
       const data = ((error.response.data as Record<string, unknown> | null) ??
-        {}) as Record<string, unknown>;
+        {});
       const code = typeof data.code === "string" ? data.code : undefined;
       const message =
         typeof data.message === "string" ? data.message : undefined;
