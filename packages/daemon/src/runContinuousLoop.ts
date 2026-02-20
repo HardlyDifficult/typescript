@@ -21,6 +21,41 @@ export interface ContinuousLoopOptions {
 }
 
 /**
+ * Creates an interruptible sleep that can be woken early by calling the returned cancel function.
+ *
+ * @returns An object with a promise that resolves after durationMs or when cancel() is called
+ */
+function createInterruptibleSleep(durationMs: number): {
+  promise: Promise<void>;
+  cancel: () => void;
+} {
+  let resolve: (() => void) | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+    timeout = setTimeout(() => {
+      timeout = null;
+      resolve = null;
+      r();
+    }, durationMs);
+  });
+
+  const cancel = (): void => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    if (resolve !== null) {
+      resolve();
+      resolve = null;
+    }
+  };
+
+  return { promise, cancel };
+}
+
+/**
  * Run a function in a continuous loop with graceful shutdown support.
  *
  * Features:
@@ -38,19 +73,14 @@ export async function runContinuousLoop(
   const { intervalSeconds, runCycle, onShutdown } = options;
 
   let shutdownRequested = false;
-  let sleepResolve: (() => void) | null = null;
-  let sleepTimeout: ReturnType<typeof setTimeout> | null = null;
+  let cancelCurrentSleep: (() => void) | null = null;
 
   const handleShutdown = (signal: string): void => {
     console.warn(`Received ${signal}, shutting down gracefully...`);
     shutdownRequested = true;
-    if (sleepTimeout !== null) {
-      clearTimeout(sleepTimeout);
-      sleepTimeout = null;
-    }
-    if (sleepResolve !== null) {
-      sleepResolve();
-      sleepResolve = null;
+    if (cancelCurrentSleep !== null) {
+      cancelCurrentSleep();
+      cancelCurrentSleep = null;
     }
   };
 
@@ -80,16 +110,10 @@ export async function runContinuousLoop(
         break;
       }
 
-      await interruptibleSleep(intervalSeconds * 1000, () => {
-        return new Promise<void>((resolve) => {
-          sleepResolve = resolve;
-          sleepTimeout = setTimeout(() => {
-            sleepTimeout = null;
-            sleepResolve = null;
-            resolve();
-          }, intervalSeconds * 1000);
-        });
-      });
+      const sleep = createInterruptibleSleep(intervalSeconds * 1000);
+      cancelCurrentSleep = sleep.cancel;
+      await sleep.promise;
+      cancelCurrentSleep = null;
     }
   } finally {
     process.off("SIGINT", sigintHandler);
@@ -98,11 +122,4 @@ export async function runContinuousLoop(
       await onShutdown();
     }
   }
-}
-
-async function interruptibleSleep(
-  _durationMs: number,
-  createSleepPromise: () => Promise<void>,
-): Promise<void> {
-  await createSleepPromise();
 }
