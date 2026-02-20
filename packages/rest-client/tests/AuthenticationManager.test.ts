@@ -57,7 +57,7 @@ describe("AuthenticationManager", () => {
       const mgr = new AuthenticationManager({
         type: "generator",
         generate,
-        cacheDurationMs: 600_000,
+        cacheDurationMs: 30_000,
       });
 
       await mgr.authenticate();

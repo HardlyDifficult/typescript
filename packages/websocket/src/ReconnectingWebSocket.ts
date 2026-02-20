@@ -99,9 +99,12 @@ export class ReconnectingWebSocket<T> {
    * resetting the attempt counter.
    *
    * When `auth` is configured, fetches a bearer token before connecting.
-   * The returned promise resolves once the socket is created (not necessarily open).
    */
-  async connect(): Promise<void> {
+  connect(): void {
+    void this.connectInternal();
+  }
+
+  private async connectInternal(): Promise<void> {
     if (this.ws) {
       return;
     }
@@ -198,7 +201,7 @@ export class ReconnectingWebSocket<T> {
     }
 
     this.shouldReconnect = true;
-    void this.connect();
+    void this.connectInternal();
   }
 
   /**
@@ -300,7 +303,7 @@ export class ReconnectingWebSocket<T> {
       this.reconnectAttempt++;
       this.reconnectTimeout = null;
       this.ws = null;
-      void this.connect();
+      void this.connectInternal();
     }, delay);
   }
 

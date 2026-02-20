@@ -48,7 +48,7 @@ describe("ReconnectingWebSocket auth", () => {
 
     const opened = vi.fn();
     client.on("open", opened);
-    await client.connect();
+    client.connect();
     await waitFor(() => opened.mock.calls.length > 0);
 
     expect(receivedHeaders["authorization"]).toBe("Bearer my-secret-token");
@@ -83,7 +83,7 @@ describe("ReconnectingWebSocket auth", () => {
       openCount++;
     });
 
-    await client.connect();
+    client.connect();
     await waitFor(() => openCount === 1);
 
     // Force server-initiated close to trigger reconnect
@@ -118,7 +118,7 @@ describe("ReconnectingWebSocket auth", () => {
 
     const opened = vi.fn();
     client.on("open", opened);
-    await client.connect();
+    client.connect();
     await waitFor(() => opened.mock.calls.length > 0);
 
     expect(receivedAuth).toBe("Bearer async-token");
@@ -143,7 +143,7 @@ describe("ReconnectingWebSocket auth", () => {
 
     const opened = vi.fn();
     client.on("open", opened);
-    await client.connect();
+    client.connect();
     await waitFor(() => opened.mock.calls.length > 0);
 
     expect(receivedHeaders["authorization"]).toBe("Bearer tok");
@@ -171,7 +171,7 @@ describe("ReconnectingWebSocket auth", () => {
       openCount++;
     });
 
-    await client.connect();
+    client.connect();
     await waitFor(() => openCount === 1);
 
     client.reconnect();
@@ -204,7 +204,7 @@ describe("ReconnectingWebSocket auth", () => {
 
     const opened = vi.fn();
     client.on("open", opened);
-    await client.connect();
+    client.connect();
 
     // Should recover on reconnect
     await waitFor(() => opened.mock.calls.length > 0, 3000);

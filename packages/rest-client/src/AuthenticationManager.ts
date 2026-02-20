@@ -172,7 +172,12 @@ export class AuthenticationManager {
     if (this.tokenExpiry === null) {
       return true;
     }
-    const bufferMs = 5 * 60 * 1000;
+    const lifetimeMs = this.getTokenLifetimeMs();
+    const defaultBufferMs = 5 * 60 * 1000;
+    const bufferMs =
+      lifetimeMs !== null
+        ? Math.min(defaultBufferMs, Math.floor(lifetimeMs / 2))
+        : defaultBufferMs;
     return Date.now() < this.tokenExpiry - bufferMs;
   }
 }

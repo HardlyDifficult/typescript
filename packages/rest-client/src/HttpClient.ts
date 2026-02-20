@@ -71,7 +71,9 @@ export class HttpClient {
   ): Promise<T> {
     try {
       const response = await fn();
-      this.logger?.debug?.(`${method} ${url}`, { status: 200 });
+      this.logger?.debug?.(`${method} ${url}`, {
+        status: (response as { status?: number }).status ?? 200,
+      });
       return response.data;
     } catch (error) {
       if (attempt < this.retry.maxAttempts && this.isRetryable(error)) {
@@ -117,8 +119,15 @@ export class HttpClient {
 
   private toTypedError(error: unknown): Error {
     if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      const data = (error.response?.data ?? {}) as Record<string, unknown>;
+      if (error.response === undefined) {
+        return new NetworkError(
+          `Request failed: ${error.message}`,
+          error.code !== undefined ? { code: error.code } : undefined,
+        );
+      }
+
+      const { status, statusText, data: rawData } = error.response;
+      const data = (rawData ?? {}) as Record<string, unknown>;
       const code = typeof data.code === "string" ? data.code : undefined;
       const message =
         typeof data.message === "string" ? data.message : undefined;
@@ -151,11 +160,11 @@ export class HttpClient {
         }
       }
 
-      return new HttpError(msg, status, error.response?.statusText, data);
+      return new HttpError(msg, status, statusText, data);
     }
 
     return new NetworkError(
-      `Request failed: ${error instanceof Error ? error.message : String(error)}`
+      `Request failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
