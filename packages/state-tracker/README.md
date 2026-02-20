@@ -1,6 +1,6 @@
 # @hardlydifficult/state-tracker
 
-Atomic JSON state persistence with sync/async APIs, auto-save debouncing, and graceful degradation to in-memory mode for TypeScript.
+Atomic JSON state persistence with sync/async APIs, auto-save debouncing, typed migrations, key sanitization, and graceful fallback to in-memory mode.
 
 ## Installation
 
@@ -13,28 +13,119 @@ npm install @hardlydifficult/state-tracker
 ```typescript
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
-const tracker = new StateTracker({
-  key: "user-settings",
-  default: { theme: "light", notifications: true },
+interface AppConfig {
+  version: string;
+  theme: "light" | "dark";
+}
+
+const tracker = new StateTracker<AppConfig>({
+  key: "app-config",
+  default: { version: "1.0.0", theme: "light" },
   autoSaveMs: 1000,
 });
 
-// Load persisted state (sync or async)
-tracker.load(); // or await tracker.loadAsync();
+await tracker.loadAsync(); // Loads from disk, enables isPersistent tracking
+tracker.update({ theme: "dark" }); // Auto-saves after 1s of inactivity
+console.log(tracker.state); // { version: "1.0.0", theme: "dark" }
+```
 
-// Update state and auto-save
-tracker.update({ theme: "dark" });
-// State is saved automatically after 1 second of inactivity
+## Core Features
 
-// Read current state
-console.log(tracker.state); // { theme: "dark", notifications: true }
+### State Persistence
+
+The `StateTracker` class provides atomic JSON-based state persistence with auto-save support.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `key` | `string` | Unique identifier for the state file (alphanumeric, hyphens, underscores only) |
+| `default` | `T` | Default state if no persisted data exists |
+| `stateDirectory` | `string` (default: `~/.app-state` or `$STATE_TRACKER_DIR`) | Directory to store state files |
+| `autoSaveMs` | `number` (default: `0`) | Debounce delay in ms for auto-save |
+| `migration` | `Migration<T>` (deprecated) | Optional migration function (use `loadOrDefault()` with `defineStateMigration` instead) |
+| `onEvent` | `(event: StateTrackerEvent) => void` | Callback for internal events (debug/info/warn/error) |
+
+#### Async vs Sync Persistence
+
+```typescript
+// Async (recommended for production)
+await tracker.loadAsync();
+await tracker.saveAsync();
+
+// Sync fallback (throws if file access fails)
+tracker.load();
+tracker.save({ theme: "dark" });
+```
+
+### Key Sanitization
+
+Invalid keys (including `__proto__`, `constructor`, `prototype`) are sanitized automatically to prevent prototype pollution and path traversal.
+
+```typescript
+tracker.set("__proto__", { malicious: true }); // ignored
+tracker.set("normalKey", "value"); // works as expected
+```
+
+### Typed Migrations
+
+Support for typed migrations from older state formats using `loadOrDefault()` and `defineStateMigration()`.
+
+```typescript
+import { defineStateMigration } from "@hardlydifficult/state-tracker";
+
+interface LegacyConfig {
+  theme: "light" | "dark";
+}
+
+interface Config {
+  version: string;
+  theme: "light" | "dark";
+}
+
+const legacyMigration = defineStateMigration<Config, LegacyConfig>({
+  name: "legacy-config",
+  isLegacy(input): input is LegacyConfig {
+    return (
+      typeof input === "object" &&
+      input !== null &&
+      !Array.isArray(input) &&
+      "theme" in input &&
+      !("version" in input)
+    );
+  },
+  migrate(legacy) {
+    return { version: "1.0.0", ...legacy };
+  },
+});
+
+const tracker = new StateTracker<Config>({
+  key: "config",
+  default: { version: "1.1.0", theme: "dark" },
+});
+
+const state = tracker.loadOrDefault({ migrations: [legacyMigration] });
+```
+
+### Graceful Degradation
+
+If persistent storage fails (e.g., due to permissions or path issues), the tracker falls back to in-memory mode without throwing errors.
+
+```typescript
+const tracker = new StateTracker<AppConfig>({
+  key: "config",
+  default: { version: "1.0.0", theme: "light" },
+});
+
+await tracker.loadAsync();
+if (!tracker.isPersistent) {
+  console.warn("Running in-memory mode");
+}
 ```
 
 ## State Management
 
 The `StateTracker` class provides a robust interface for managing persistent application state.
 
-### Constructor
+### Constructor Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -42,6 +133,7 @@ The `StateTracker` class provides a robust interface for managing persistent app
 | `default` | `T` | — | Default state value used if no persisted state exists |
 | `stateDirectory` | `string` | `~/.app-state` or `$STATE_TRACKER_DIR` | Directory to store state files |
 | `autoSaveMs` | `number` | `0` | Debounce delay (ms) for auto-save after state changes |
+| `migration` | `Migration<T>` | — | **Deprecated:** Use `defineStateMigration` with `loadOrDefault` instead |
 | `onEvent` | `(event: StateTrackerEvent) => void` | `undefined` | Callback for internal events (debug/info/warn/error) |
 
 ### State Accessors
@@ -292,3 +384,12 @@ STATE_TRACKER_DIR=/custom/path npm start
 - **Legacy format support** — reads both v1 envelope format and legacy PersistentStore formats
 - **Typed migration helper** — declarative migration rules for old JSON shapes
 - **Optional save metadata** — annotate saved state with `saveWithMeta(...)`
+- **API consistency** — all operations work seamlessly across sync/async modes
+
+## Appendix: Platform Behavior
+
+| Environment | Persistence | Fallback Behavior |
+|-------------|-------------|-------------------|
+| Node.js | ✅ File system access | Falls back to memory on errors |
+| Browser | ❌ No file system access | Always in-memory only |
+| Bun/Deno | ⚠️ Experimental support | Depends on environment capabilities |
