@@ -42,8 +42,9 @@ export function setupJobLifecycle(
   const { originalMessage, thread, abortController, ownerUsername } = options;
   let completed = false;
 
-  // Add cancel emoji and listen for clicks
-  originalMessage.addReactions([EMOJI_CANCEL]);
+  // Add cancel emoji and listen for clicks (use setReactions so trackedEmojis
+  // is populated — complete() relies on setReactions diff to remove the cancel emoji)
+  originalMessage.setReactions([EMOJI_CANCEL]);
   originalMessage.onReaction((event) => {
     if (completed) {
       return;
