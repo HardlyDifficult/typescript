@@ -122,14 +122,14 @@ export class HttpClient {
       if (error.response === undefined) {
         return new NetworkError(
           `Request failed: ${error.message}`,
-          error.code !== undefined ? { code: error.code } : undefined,
+          error.code !== undefined ? { code: error.code } : undefined
         );
       }
 
-      const {status} = error.response;
-      const {statusText} = error.response;
-      const data = ((error.response.data as Record<string, unknown> | null) ??
-        {});
+      const { status } = error.response;
+      const { statusText } = error.response;
+      const data =
+        (error.response.data as Record<string, unknown> | null) ?? {};
       const code = typeof data.code === "string" ? data.code : undefined;
       const message =
         typeof data.message === "string" ? data.message : undefined;
@@ -166,7 +166,7 @@ export class HttpClient {
     }
 
     return new NetworkError(
-      `Request failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Request failed: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }

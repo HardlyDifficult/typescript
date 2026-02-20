@@ -13,8 +13,10 @@ describe("runContinuousLoop", () => {
 
   it("runs cycle until shutdown is requested", async () => {
     let runCount = 0;
-    
-    const runCycle = async (isShutdownRequested: () => boolean): Promise<void> => {
+
+    const runCycle = async (
+      isShutdownRequested: () => boolean
+    ): Promise<void> => {
       runCount++;
       if (runCount >= 3) {
         // Trigger shutdown from inside the cycle
@@ -39,7 +41,7 @@ describe("runContinuousLoop", () => {
 
   it("calls onShutdown when finished", async () => {
     const onShutdown = vi.fn().mockResolvedValue(undefined);
-    
+
     const runCycle = async (): Promise<void> => {
       process.emit("SIGINT");
     };
@@ -58,7 +60,7 @@ describe("runContinuousLoop", () => {
 
   it("catches cycle errors and continues", async () => {
     let runCount = 0;
-    
+
     const runCycle = async (): Promise<void> => {
       runCount++;
       if (runCount === 1) {
@@ -85,8 +87,10 @@ describe("runContinuousLoop", () => {
 
   it("passes isShutdownRequested to runCycle", async () => {
     let checkedIsShutdown = false;
-    
-    const runCycle = async (isShutdownRequested: () => boolean): Promise<void> => {
+
+    const runCycle = async (
+      isShutdownRequested: () => boolean
+    ): Promise<void> => {
       checkedIsShutdown = isShutdownRequested();
       process.emit("SIGTERM");
     };
