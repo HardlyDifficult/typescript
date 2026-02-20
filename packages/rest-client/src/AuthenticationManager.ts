@@ -120,7 +120,7 @@ export class AuthenticationManager {
         response.data.access_token === ""
       ) {
         throw new AuthenticationError(
-          `Authentication response missing access_token from ${config.tokenUrl}`,
+          `Authentication response missing access_token from ${config.tokenUrl}`
         );
       }
 
