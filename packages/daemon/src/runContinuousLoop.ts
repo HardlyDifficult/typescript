@@ -99,7 +99,6 @@ export async function runContinuousLoop(
   const shouldContinue = (): boolean => !shutdownRequested;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (shouldContinue()) {
       try {
         await runCycle(isShutdownRequested);
@@ -109,7 +108,6 @@ export async function runContinuousLoop(
         console.error(`Cycle error: ${errorMessage}`);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (!shouldContinue()) {
         break;
       }
