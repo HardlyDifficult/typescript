@@ -74,12 +74,60 @@ const tracker = new StateTracker({
 const config = tracker.load(); // Loads from disk or uses default
 ```
 
+#### `loadOrDefault(options?): T`
+Explicit "safe load" convenience. Behaves like `load()` and supports typed legacy migrations.
+
+```typescript
+import { defineStateMigration, StateTracker } from "@hardlydifficult/state-tracker";
+
+interface LegacySyncState {
+  offset: number;
+  completedIds: string[];
+}
+
+const tracker = new StateTracker({
+  key: "sync-state",
+  default: { cursor: 0, done: [] as string[] },
+});
+
+const legacyMigration = defineStateMigration<
+  { cursor: number; done: string[] },
+  LegacySyncState
+>({
+  name: "sync-state-v0",
+  isLegacy(input): input is LegacySyncState {
+    return (
+      input !== null &&
+      typeof input === "object" &&
+      !Array.isArray(input) &&
+      typeof (input as Record<string, unknown>).offset === "number" &&
+      Array.isArray((input as Record<string, unknown>).completedIds)
+    );
+  },
+  migrate(legacy) {
+    return { cursor: legacy.offset, done: legacy.completedIds };
+  },
+});
+
+const state = tracker.loadOrDefault({ migrations: [legacyMigration] });
+```
+
 #### `save(value: T): void`
 Synchronous atomic save using temp file + rename.
 
 ```typescript
 tracker.save({ version: 2 });
 // File is updated atomically; previous state preserved if crash occurs mid-write
+```
+
+#### `saveWithMeta(value: T, meta?: Record<string, unknown>): void`
+Synchronous atomic save with optional metadata in the envelope.
+
+```typescript
+tracker.saveWithMeta(
+  { version: 3 },
+  { source: "sync-script", reason: "manual-run" }
+);
 ```
 
 #### `loadAsync(): Promise<void>`
@@ -170,7 +218,8 @@ await tracker.loadAsync();
 ```json
 {
   "value": { "theme": "dark", "notifications": true },
-  "lastUpdated": "2024-05-01T12:00:00.000Z"
+  "lastUpdated": "2024-05-01T12:00:00.000Z",
+  "meta": { "source": "sync-script" }
 }
 ```
 
@@ -184,6 +233,9 @@ The tracker automatically detects and merges legacy raw JSON objects with defaul
 ```
 
 After the first `saveAsync()`, files are rewritten in the v2 envelope format.
+
+For custom legacy formats, use typed migrations with `defineStateMigration(...)`
+and pass them to `loadOrDefault({ migrations })`.
 
 ## Auto-Save Behavior
 
@@ -238,3 +290,5 @@ STATE_TRACKER_DIR=/custom/path npm start
 - **Graceful degradation** — runs in-memory when disk is unavailable
 - **Auto-save** — debounced saves after state mutations
 - **Legacy format support** — reads both v1 envelope format and legacy PersistentStore formats
+- **Typed migration helper** — declarative migration rules for old JSON shapes
+- **Optional save metadata** — annotate saved state with `saveWithMeta(...)`

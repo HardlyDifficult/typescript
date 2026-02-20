@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { StateTracker, type StateTrackerEvent } from "../src/StateTracker";
+import {
+  defineStateMigration,
+  StateTracker,
+  type StateTrackerEvent,
+} from "../src/StateTracker";
 
 describe("StateTracker", () => {
   let testDir: string;
@@ -177,6 +181,130 @@ describe("StateTracker", () => {
 
       const value = tracker.load();
       expect(value).toBe(300);
+    });
+  });
+
+  describe("loadOrDefault", () => {
+    it("returns default when file is missing", () => {
+      const tracker = new StateTracker({
+        key: "load-or-default",
+        default: { cursor: 0, done: [] as string[] },
+        stateDirectory: testDir,
+      });
+
+      const value = tracker.loadOrDefault();
+      expect(value).toEqual({ cursor: 0, done: [] });
+    });
+
+    it("applies typed migration for legacy raw state files", () => {
+      interface LegacySyncState {
+        offset: number;
+        completedIds: string[];
+      }
+
+      const tracker = new StateTracker({
+        key: "legacy-raw",
+        default: { cursor: 0, done: [] as string[] },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ offset: 7, completedIds: ["a", "b"] }),
+        "utf-8"
+      );
+
+      const migration = defineStateMigration<
+        { cursor: number; done: string[] },
+        LegacySyncState
+      >({
+        name: "sync-state-v0",
+        isLegacy(input): input is LegacySyncState {
+          if (input === null || typeof input !== "object" || Array.isArray(input)) {
+            return false;
+          }
+          const record = input as Record<string, unknown>;
+          return (
+            typeof record.offset === "number" &&
+            Array.isArray(record.completedIds)
+          );
+        },
+        migrate(legacy) {
+          return {
+            cursor: legacy.offset,
+            done: legacy.completedIds,
+          };
+        },
+      });
+
+      const value = tracker.loadOrDefault({ migrations: [migration] });
+      expect(value).toEqual({ cursor: 7, done: ["a", "b"] });
+    });
+
+    it("applies migrations to envelope value payloads", () => {
+      interface LegacySyncState {
+        offset: number;
+      }
+
+      const tracker = new StateTracker({
+        key: "legacy-envelope",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({
+          value: { offset: 22 },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      const migration = defineStateMigration<{ cursor: number }, LegacySyncState>({
+        name: "sync-state-envelope-v0",
+        isLegacy(input): input is LegacySyncState {
+          if (input === null || typeof input !== "object" || Array.isArray(input)) {
+            return false;
+          }
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(legacy) {
+          return { cursor: legacy.offset };
+        },
+      });
+
+      const value = tracker.loadOrDefault({ migrations: [migration] });
+      expect(value).toEqual({ cursor: 22 });
+    });
+  });
+
+  describe("saveWithMeta", () => {
+    it("persists metadata in the envelope", () => {
+      const tracker = new StateTracker({
+        key: "save-with-meta",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+      });
+
+      tracker.saveWithMeta(
+        { cursor: 99 },
+        { source: "sync-script", reason: "manual-run" }
+      );
+
+      const file = JSON.parse(fs.readFileSync(tracker.getFilePath(), "utf-8")) as {
+        value: { cursor: number };
+        lastUpdated: string;
+        meta: Record<string, unknown>;
+      };
+
+      expect(file.value).toEqual({ cursor: 99 });
+      expect(typeof file.lastUpdated).toBe("string");
+      expect(file.meta).toEqual({
+        source: "sync-script",
+        reason: "manual-run",
+      });
+      expect(tracker.load()).toEqual({ cursor: 99 });
     });
   });
 

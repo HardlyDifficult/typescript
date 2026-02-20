@@ -19,6 +19,24 @@ export interface StateTrackerOptions<T> {
   onEvent?: (event: StateTrackerEvent) => void;
 }
 
+export interface StateTrackerMigration<TCurrent, TLegacy = unknown> {
+  readonly name?: string;
+  isLegacy(input: unknown): input is TLegacy;
+  migrate(legacy: TLegacy): TCurrent;
+}
+
+export interface StateTrackerLoadOrDefaultOptions<T> {
+  migrations?: readonly StateTrackerMigration<T, unknown>[];
+}
+
+export type StateTrackerSaveMeta = Record<string, unknown>;
+
+export function defineStateMigration<TCurrent, TLegacy>(
+  migration: StateTrackerMigration<TCurrent, TLegacy>
+): StateTrackerMigration<TCurrent, TLegacy> {
+  return migration;
+}
+
 /** Atomic JSON state persistence with file-based storage, auto-save, and graceful degradation to in-memory mode. */
 export class StateTracker<T> {
   private readonly filePath: string;
@@ -92,12 +110,101 @@ export class StateTracker<T> {
     }
   }
 
+  private buildEnvelope(
+    value: T,
+    meta?: StateTrackerSaveMeta
+  ): Record<string, unknown> {
+    const envelope: Record<string, unknown> = {
+      value,
+      lastUpdated: new Date().toISOString(),
+    };
+    if (meta !== undefined) {
+      envelope.meta = structuredClone(meta);
+    }
+    return envelope;
+  }
+
+  private writeEnvelopeSync(envelope: Record<string, unknown>): void {
+    const tempFilePath = `${this.filePath}.tmp`;
+    fs.writeFileSync(tempFilePath, JSON.stringify(envelope, null, 2), "utf-8");
+    fs.renameSync(tempFilePath, this.filePath);
+  }
+
+  private mergeWithDefaults(value: unknown): T {
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      typeof this.defaultValue === "object" &&
+      this.defaultValue !== null &&
+      !Array.isArray(value)
+    ) {
+      return {
+        ...structuredClone(this.defaultValue),
+        ...(value as Record<string, unknown>),
+      } as T;
+    }
+    return value as T;
+  }
+
+  private extractMigrationCandidate(parsed: unknown): unknown {
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      "value" in (parsed as Record<string, unknown>)
+    ) {
+      return (parsed as Record<string, unknown>).value;
+    }
+    return parsed;
+  }
+
+  private tryApplyMigrations(
+    parsed: unknown,
+    migrations?: readonly StateTrackerMigration<T, unknown>[]
+  ): T | undefined {
+    if (migrations === undefined || migrations.length === 0) {
+      return undefined;
+    }
+
+    const candidate = this.extractMigrationCandidate(parsed);
+    for (const migration of migrations) {
+      if (!migration.isLegacy(candidate)) {
+        continue;
+      }
+
+      try {
+        const migrated = migration.migrate(candidate);
+        this.emit("info", "Migrated legacy state payload", {
+          migration: migration.name ?? "anonymous",
+        });
+        return this.mergeWithDefaults(migrated);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        this.emit("warn", "Legacy state migration failed", {
+          migration: migration.name ?? "anonymous",
+          error: errorMessage,
+        });
+        return structuredClone(this.defaultValue);
+      }
+    }
+
+    return undefined;
+  }
+
   /**
    * Extract value from parsed JSON content.
    * Handles v1 envelope format ({value, lastUpdated}) and legacy
    * PersistentStore format (raw T without envelope, merged with defaults).
    */
-  private extractValue(parsed: unknown): T {
+  private extractValue(
+    parsed: unknown,
+    migrations?: readonly StateTrackerMigration<T, unknown>[]
+  ): T {
+    const migrated = this.tryApplyMigrations(parsed, migrations);
+    if (migrated !== undefined) {
+      return migrated;
+    }
+
     if (
       parsed !== null &&
       typeof parsed === "object" &&
@@ -109,19 +216,7 @@ export class StateTracker<T> {
       if (envelope.value === undefined) {
         return structuredClone(this.defaultValue);
       }
-      if (
-        envelope.value !== null &&
-        typeof envelope.value === "object" &&
-        typeof this.defaultValue === "object" &&
-        this.defaultValue !== null &&
-        !Array.isArray(envelope.value)
-      ) {
-        return {
-          ...structuredClone(this.defaultValue),
-          ...(envelope.value as Record<string, unknown>),
-        } as T;
-      }
-      return envelope.value as T;
+      return this.mergeWithDefaults(envelope.value);
     }
 
     // Legacy PersistentStore format: raw T without envelope
@@ -133,10 +228,7 @@ export class StateTracker<T> {
       this.defaultValue !== null &&
       !Array.isArray(parsed)
     ) {
-      return {
-        ...structuredClone(this.defaultValue),
-        ...(parsed as Record<string, unknown>),
-      } as T;
+      return this.mergeWithDefaults(parsed);
     }
 
     // Fallback to defaults
@@ -145,6 +237,18 @@ export class StateTracker<T> {
 
   /** Sync load — v1 compatible. Also updates internal state cache. */
   load(): T {
+    return this.loadSync();
+  }
+
+  /**
+   * Sync load that explicitly falls back to defaults if disk state is missing,
+   * unreadable, or invalid. Supports optional typed legacy migrations.
+   */
+  loadOrDefault(options?: StateTrackerLoadOrDefaultOptions<T>): T {
+    return this.loadSync(options?.migrations);
+  }
+
+  private loadSync(migrations?: readonly StateTrackerMigration<T, unknown>[]): T {
     this._loaded = true;
     this._storageAvailable = true;
 
@@ -155,7 +259,7 @@ export class StateTracker<T> {
     try {
       const data = fs.readFileSync(this.filePath, "utf-8");
       const parsed: unknown = JSON.parse(data);
-      this._state = this.extractValue(parsed);
+      this._state = this.extractValue(parsed, migrations);
       return this._state;
     } catch {
       this._state = structuredClone(this.defaultValue);
@@ -165,15 +269,15 @@ export class StateTracker<T> {
 
   /** Sync save — v1 compatible. Also updates internal state cache. */
   save(value: T): void {
+    this.saveWithMeta(value);
+  }
+
+  /** Sync save with optional metadata in the JSON envelope. */
+  saveWithMeta(value: T, meta?: StateTrackerSaveMeta): void {
     this.cancelPendingSave();
-    this._state = structuredClone(value);
-    const state: Record<string, unknown> = {
-      value,
-      lastUpdated: new Date().toISOString(),
-    };
-    const tempFilePath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf-8");
-    fs.renameSync(tempFilePath, this.filePath);
+    const clonedValue = structuredClone(value);
+    this._state = clonedValue;
+    this.writeEnvelopeSync(this.buildEnvelope(clonedValue, meta));
   }
 
   /**
@@ -229,14 +333,10 @@ export class StateTracker<T> {
     }
 
     try {
-      const state: Record<string, unknown> = {
-        value: this._state,
-        lastUpdated: new Date().toISOString(),
-      };
       const tempFilePath = `${this.filePath}.tmp`;
       await fsPromises.writeFile(
         tempFilePath,
-        JSON.stringify(state, null, 2),
+        JSON.stringify(this.buildEnvelope(this._state), null, 2),
         "utf-8"
       );
       await fsPromises.rename(tempFilePath, this.filePath);
@@ -294,13 +394,7 @@ export class StateTracker<T> {
       this.saveTimer = null;
       // Use sync save to avoid issues with untracked promises
       try {
-        const state: Record<string, unknown> = {
-          value: this._state,
-          lastUpdated: new Date().toISOString(),
-        };
-        const tempFilePath = `${this.filePath}.tmp`;
-        fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf-8");
-        fs.renameSync(tempFilePath, this.filePath);
+        this.writeEnvelopeSync(this.buildEnvelope(this._state));
         this.emit("debug", "Auto-saved state to disk", {
           path: this.filePath,
         });
