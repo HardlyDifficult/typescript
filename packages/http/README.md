@@ -1,6 +1,6 @@
 # @hardlydifficult/http
 
-HTTP utilities for safe request/response handling, including constant-time string comparison, body reading with size limits, and JSON responses with CORS headers.
+HTTP utilities for safe request/response handling: constant-time string comparison, body reading with size limits, and JSON responses with CORS headers.
 
 ## Installation
 
@@ -11,75 +11,104 @@ npm install @hardlydifficult/http
 ## Quick Start
 
 ```typescript
-import { readBody, sendJson, safeCompare } from '@hardlydifficult/http';
+import { createServer } from "http";
+import { readBody, sendJson, safeCompare } from "@hardlydifficult/http";
 
-// Safe string comparison
-const isMatch = safeCompare('secret', 'secret'); // true
+const server = createServer(async (req, res) => {
+  // Read request body safely
+  const body = await readBody(req);
+  const token = JSON.parse(body).token;
 
-// Read request body with 1MB limit
-const body = await readBody(req); // max 1MB
+  // Compare tokens securely
+  const isMatch = safeCompare(token, process.env.SECRET_TOKEN ?? "");
+  if (!isMatch) {
+    sendJson(res, 401, { error: "Unauthorized" }, "https://example.com");
+    return;
+  }
 
-// Send JSON response with CORS headers
-sendJson(res, { status: 'ok' });
+  // Send JSON response with CORS headers
+  sendJson(res, 200, { message: "Access granted" }, "https://example.com");
+});
+
+server.listen(3000);
 ```
 
-## HTTP Utilities
+## Request Handling
 
-### Safe String Comparison
+### `readBody`
 
-Performs constant-time comparison of two strings to prevent timing attacks.
+Reads the full request body as a string, rejecting if it exceeds `maxBytes`.
 
 ```typescript
-import { safeCompare } from '@hardlydifficult/http';
+import { readBody } from "@hardlydifficult/http";
 
-const result = safeCompare('abc123', 'abc123'); // true
-const fail = safeCompare('abc123', 'abc124');   // false
+// Default limit is 1 MB
+const body = await readBody(req);
+
+// Custom limit (e.g., 500 KB)
+const body = await readBody(req, 500 * 1024);
 ```
 
-| Parameter | Type   | Description         |
-|-----------|--------|---------------------|
-| a         | string | First string to compare |
-| b         | string | Second string to compare |
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `req` | `IncomingMessage` | Node.js HTTP request |
+| `maxBytes?` | `number` | Maximum body size in bytes (default: `1048576`) |
 
-### Reading Request Body
+Throws `"Payload too large"` error when body exceeds limit.
 
-Reads and returns the request body as a string, enforcing a maximum size limit of 1 MB.
+### `MAX_BODY_BYTES`
+
+Default maximum body size: `1024 * 1024` (1 MB).
 
 ```typescript
-import { readBody, MAX_BODY_BYTES } from '@hardlydifficult/http';
+import { MAX_BODY_BYTES } from "@hardlydifficult/http";
 
-const body = await readBody(req); // max 1,048,576 bytes (1 MB)
-// Throws Error if body exceeds MAX_BODY_BYTES
+console.log(MAX_BODY_BYTES); // 1048576
 ```
 
-| Parameter | Type               | Description                    |
-|-----------|--------------------|--------------------------------|
-| req       | IncomingMessage    | Node.js HTTP request object    |
+## Response Handling
 
-### Sending JSON Responses
+### `sendJson`
 
-Sends a JSON response with appropriate `Content-Type` and `Access-Control-Allow-Origin` headers.
+Sends a JSON response with CORS headers.
 
 ```typescript
-import { sendJson } from '@hardlydifficult/http';
+import { sendJson } from "@hardlydifficult/http";
 
-sendJson(res, { message: 'Hello world' });
-// Sends: {"message":"Hello world"} with CORS headers
+sendJson(res, 200, { data: "example" }, "https://example.com");
 ```
 
-| Parameter | Type     | Description                     |
-|-----------|----------|---------------------------------|
-| res       | ServerResponse | Node.js HTTP response object |
-| data      | unknown  | Data to serialize as JSON       |
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `res` | `ServerResponse` | Node.js HTTP response |
+| `status` | `number` | HTTP status code |
+| `body` | `unknown` | Serializable data to send |
+| `corsOrigin` | `string` | `Access-Control-Allow-Origin` value |
 
-## Appendix
+Sets headers:
+- `Content-Type: application/json`
+- `Access-Control-Allow-Origin: corsOrigin`
+- `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type, Authorization`
 
-### Body Size Limit Behavior
+## Security
 
-The `readBody` function enforces a strict 1 MB (`MAX_BODY_BYTES = 1024 * 1024`) limit. If the request body exceeds this, it throws an error:
+### `safeCompare`
+
+Constant-time string comparison to prevent timing attacks.
 
 ```typescript
-if (received > MAX_BODY_BYTES) {
-  throw new Error(`Body exceeded maximum size of ${MAX_BODY_BYTES} bytes`);
-}
+import { safeCompare } from "@hardlydifficult/http";
+
+const isValid = safeCompare(userInput, secretToken);
 ```
+
+Returns `true` for identical strings (including empty strings) and `false` otherwise, regardless of string length or content differences.
+
+Handles:
+- Equal/unequal strings
+- Different-length strings
+- Unicode characters
+- Empty strings
+
+All comparisons run in time proportional to the first string's length.
