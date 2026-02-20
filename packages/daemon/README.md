@@ -1,6 +1,9 @@
 # @hardlydifficult/daemon
 
-Idempotent resource teardown with signal trapping and LIFO cleanup ordering.
+Opinionated utilities for long-running Node.js services:
+
+- `createTeardown()` for idempotent cleanup with signal trapping
+- `runContinuousLoop()` for daemon-style cycle execution
 
 ## Installation
 
@@ -8,107 +11,89 @@ Idempotent resource teardown with signal trapping and LIFO cleanup ordering.
 npm install @hardlydifficult/daemon
 ```
 
-## Quick Start
+## Teardown management
+
+Use `createTeardown()` to register cleanup functions once and execute them from
+every exit path.
 
 ```typescript
-import { createTeardown, runContinuousLoop } from "@hardlydifficult/daemon";
+import { createTeardown } from "@hardlydifficult/daemon";
 
-// Register cleanup functions
 const teardown = createTeardown();
-teardown.add(() => console.log("Closing server"));
-teardown.add(() => console.log("Closing database"));
+teardown.add(() => server.stop());
+teardown.add(async () => {
+  await db.close();
+});
 teardown.trapSignals();
 
-// Run teardown when ready
 await teardown.run();
-// Logs:
-// Closing database
-// Closing server
 ```
 
-## Teardown Management
+Behavior:
 
-Resource cleanup registry with idempotent execution and LIFO ordering.
+- LIFO execution (last added, first run)
+- Idempotent `run()` (safe to call multiple times)
+- Per-function error isolation (one failing teardown does not block others)
+- `add()` returns an unregister function
 
-### `createTeardown()`
+## Continuous loop execution
 
-Creates a teardown registry for managing resource cleanup.
-
-```typescript
-const teardown = createTeardown();
-```
-
-#### `.add(fn: () => void | Promise<void>): () => void`
-
-Registers a teardown function. Returns an unregister function.
-
-```typescript
-const teardown = createTeardown();
-const unregister = teardown.add(async () => {
-  await server.close();
-});
-
-// Unregister before teardown if needed
-unregister();
-```
-
-#### `.run(): Promise<void>`
-
-Runs all teardown functions in LIFO order. Idempotent — subsequent calls are no-ops.
-
-```typescript
-const teardown = createTeardown();
-teardown.add(() => console.log("First"));
-teardown.add(() => console.log("Second"));
-
-await teardown.run();
-// Logs:
-// Second
-// First
-```
-
-#### `.trapSignals(): () => void`
-
-Wires SIGTERM/SIGINT handlers to run teardown and exit. Returns an untrap function to remove handlers.
-
-```typescript
-const teardown = createTeardown();
-const untrap = teardown.trapSignals();
-
-// Later, to stop trapping signals
-untrap();
-```
-
-## Continuous Loop Execution
-
-Runs cyclic tasks with graceful shutdown support.
-
-### `runContinuousLoop(options: ContinuousLoopOptions): Promise<void>`
-
-Executes a cycle function repeatedly with interruptible sleep and signal handling.
+Use `runContinuousLoop()` to run work cycles with graceful shutdown, dynamic
+delay control, and configurable error policy.
 
 ```typescript
 import { runContinuousLoop } from "@hardlydifficult/daemon";
 
 await runContinuousLoop({
-  intervalSeconds: 5,
-  runCycle: async (isShutdownRequested) => {
+  intervalSeconds: 30,
+  async runCycle(isShutdownRequested) {
     if (isShutdownRequested()) {
-      return;
+      return { stop: true };
     }
-    // Perform work here
-    console.log("Running cycle...");
+
+    const didWork = await syncQueue();
+    if (!didWork) {
+      return 60_000; // ms
+    }
+
+    return "immediate";
   },
-  onShutdown: async () => {
-    console.log("Shutdown complete");
-  }
+  onCycleError(error, context) {
+    notifyOps(error, { cycleNumber: context.cycleNumber });
+    return "continue"; // or "stop"
+  },
 });
 ```
 
-#### Options
+### Cycle return contract
 
-| Name              | Type                            | Description                                    |
-|-------------------|---------------------------------|------------------------------------------------|
-| `intervalSeconds` | `number`                        | Interval between cycles in seconds             |
-| `runCycle`        | `(isShutdownRequested: () => boolean) => Promise<unknown>` | Callback to run each cycle (shutdown check provided) |
-| `onShutdown?`     | `() => Promise<void>`           | Optional cleanup callback after shutdown       |
+`runCycle()` can return:
+
+- any value/`undefined`: use default `intervalSeconds`
+- `number`: use that delay in milliseconds
+- `"immediate"`: run the next cycle without sleeping
+- `{ stop: true }`: stop gracefully after current cycle
+- `{ nextDelayMs: number | "immediate", stop?: true }`: explicit control object
+
+### Optional delay resolver
+
+If your cycle returns domain data, derive schedule policy with
+`getNextDelayMs(result, context)`.
+
+### Error handling
+
+Use `onCycleError(error, context)` to route to Slack/Sentry and decide whether
+to `"continue"` or `"stop"`. Without this hook, cycle errors are logged and the
+loop continues.
+
+### Logger injection
+
+By default, warnings and errors use `console.warn` and `console.error`. Pass
+`logger` to integrate your own logging implementation:
+
+```typescript
+const logger = {
+  warn: (message, context) => myLogger.warn(message, context),
+  error: (message, context) => myLogger.error(message, context),
+};
+```
