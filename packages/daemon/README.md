@@ -1,9 +1,9 @@
 # @hardlydifficult/daemon
 
-Opinionated utilities for long-running scripts and services:
+Opinionated utilities for long-running Node.js services:
 
-- `createTeardown()` for idempotent cleanup
-- `runContinuousLoop()` for daemon-style cycle execution with graceful shutdown
+- `createTeardown()` for idempotent cleanup with signal trapping
+- `runContinuousLoop()` for daemon-style cycle execution
 
 ## Installation
 
@@ -11,16 +11,19 @@ Opinionated utilities for long-running scripts and services:
 npm install @hardlydifficult/daemon
 ```
 
-## createTeardown
+## Teardown management
 
-Register teardown functions once and call `run()` from every exit path.
+Use `createTeardown()` to register cleanup functions once and execute them from
+every exit path.
 
 ```typescript
 import { createTeardown } from "@hardlydifficult/daemon";
 
 const teardown = createTeardown();
 teardown.add(() => server.stop());
-teardown.add(() => db.close());
+teardown.add(async () => {
+  await db.close();
+});
 teardown.trapSignals();
 
 await teardown.run();
@@ -33,10 +36,10 @@ Behavior:
 - Per-function error isolation (one failing teardown does not block others)
 - `add()` returns an unregister function
 
-## runContinuousLoop
+## Continuous loop execution
 
-Run a cycle repeatedly with SIGINT/SIGTERM handling, optional per-cycle delay
-control, and hook-based error policy.
+Use `runContinuousLoop()` to run work cycles with graceful shutdown, dynamic
+delay control, and configurable error policy.
 
 ```typescript
 import { runContinuousLoop } from "@hardlydifficult/daemon";
@@ -49,12 +52,11 @@ await runContinuousLoop({
     }
 
     const didWork = await syncQueue();
-
     if (!didWork) {
-      return 60_000; // wait 60s before next cycle
+      return 60_000; // ms
     }
 
-    return "immediate"; // run next cycle without sleeping
+    return "immediate";
   },
   onCycleError(error, context) {
     notifyOps(error, { cycleNumber: context.cycleNumber });
@@ -67,28 +69,27 @@ await runContinuousLoop({
 
 `runCycle()` can return:
 
-- `void`/any value: use default `intervalSeconds`
+- any value/`undefined`: use default `intervalSeconds`
 - `number`: use that delay in milliseconds
-- `"immediate"`: skip sleep and run next cycle immediately
-- `{ stop: true }`: finish loop gracefully
+- `"immediate"`: run the next cycle without sleeping
+- `{ stop: true }`: stop gracefully after current cycle
 - `{ nextDelayMs: number | "immediate", stop?: true }`: explicit control object
 
 ### Optional delay resolver
 
-If your cycle returns domain data, keep it clean and derive delays with
+If your cycle returns domain data, derive schedule policy with
 `getNextDelayMs(result, context)`.
 
 ### Error handling
 
-Use `onCycleError(error, context)` to route errors to your own systems
-(Slack/Sentry/etc.) and decide whether to `"continue"` or `"stop"`.
-
-Without `onCycleError`, errors are logged and the loop continues.
+Use `onCycleError(error, context)` to route to Slack/Sentry and decide whether
+to `"continue"` or `"stop"`. Without this hook, cycle errors are logged and the
+loop continues.
 
 ### Logger injection
 
-By default, warnings/errors use `console.warn`/`console.error`.
-Provide `logger` to plug in your own logging implementation:
+By default, warnings and errors use `console.warn` and `console.error`. Pass
+`logger` to integrate your own logging implementation:
 
 ```typescript
 const logger = {

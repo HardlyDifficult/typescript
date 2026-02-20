@@ -17,19 +17,20 @@ export interface ContinuousLoopCycleContext {
 }
 
 /** Context provided to cycle error handling callbacks. */
-export interface ContinuousLoopErrorContext extends ContinuousLoopCycleContext {}
+export type ContinuousLoopErrorContext = ContinuousLoopCycleContext;
 
 /** Action returned by onCycleError to control loop behavior. */
 export type ContinuousLoopErrorAction = "continue" | "stop";
+
+type ContinuousLoopErrorDecision = ContinuousLoopErrorAction | undefined;
 
 /** Callback used to process cycle errors and decide loop policy. */
 export type ContinuousLoopErrorHandler = (
   error: unknown,
   context: ContinuousLoopErrorContext
 ) =>
-  | ContinuousLoopErrorAction
-  | void
-  | Promise<ContinuousLoopErrorAction | void>;
+  | ContinuousLoopErrorDecision
+  | Promise<ContinuousLoopErrorDecision>;
 
 /** Optional control directives that can be returned from runCycle. */
 export interface ContinuousLoopCycleControl {
