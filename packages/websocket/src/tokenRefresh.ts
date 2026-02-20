@@ -16,7 +16,7 @@
  */
 export function calculateTokenRefreshTime(
   issuedAt: number,
-  expiresAt: number,
+  expiresAt: number
 ): number {
   const lifetimeMs = expiresAt - issuedAt;
   const twoMinutesMs = 2 * 60 * 1000;

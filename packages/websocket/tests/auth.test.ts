@@ -23,7 +23,7 @@ function closeServer(server: WebSocketServer): Promise<void> {
 
 async function waitFor(
   condition: () => boolean,
-  timeoutMs = 2000,
+  timeoutMs = 2000
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!condition()) {

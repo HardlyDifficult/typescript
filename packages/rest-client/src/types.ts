@@ -41,7 +41,7 @@ export interface RetryConfig {
   /** Custom retryable check. Called with the status code and parsed response body. */
   readonly isRetryable?: (
     status: number,
-    body: Record<string, unknown>,
+    body: Record<string, unknown>
   ) => boolean;
 }
 

@@ -1,8 +1,7 @@
 import { AuthenticationManager } from "./AuthenticationManager";
-import { HttpClient } from "./HttpClient";
-import type { OperationConfig } from "./Operation";
-import { validateParams } from "./Operation";
 import { ConfigurationError } from "./errors";
+import { HttpClient } from "./HttpClient";
+import { type OperationConfig, validateParams } from "./Operation";
 import type { HttpMethod, RestClientConfig, RestClientLogger } from "./types";
 
 /**
@@ -27,14 +26,14 @@ export class RestClient {
   private readonly config: RestClientConfig;
 
   constructor(config: RestClientConfig) {
-    if (!config.baseUrl) {
+    if (config.baseUrl === "") {
       throw new ConfigurationError("baseUrl is required");
     }
 
     this.config = config;
     this.authManager = new AuthenticationManager(
       config.auth ?? { type: "none" },
-      config.logger,
+      config.logger
     );
     this.httpClient = new HttpClient({
       logger: config.logger,
@@ -64,7 +63,7 @@ export class RestClient {
    *   }
    */
   bind<Params, Response>(
-    config: OperationConfig<Params, Response>,
+    config: OperationConfig<Params, Response>
   ): (params: Params) => Promise<Response> {
     return async (params: Params) => {
       const validated = validateParams(params, config.params);
@@ -72,16 +71,18 @@ export class RestClient {
       const response = await this.executeMethod<Response>(
         config.method,
         url,
-        config.body?.(validated),
+        config.body?.(validated)
       );
-      return config.transform ? config.transform(response) : response;
+      return config.transform !== undefined
+        ? config.transform(response)
+        : response;
     };
   }
 
   /** Authenticate and set the bearer token for subsequent requests. */
   async authenticate(): Promise<string> {
     const token = await this.authManager.authenticate();
-    if (token) {
+    if (token !== "") {
       this.httpClient.setBearerToken(token);
     }
     return token;
@@ -136,7 +137,7 @@ export class RestClient {
   private async executeMethod<T>(
     method: HttpMethod,
     url: string,
-    data?: unknown,
+    data?: unknown
   ): Promise<T> {
     await this.authenticate();
     switch (method) {
@@ -150,6 +151,10 @@ export class RestClient {
         return this.httpClient.patch<T>(url, data);
       case "PUT":
         return this.httpClient.put<T>(url, data);
+      default:
+        throw new ConfigurationError(
+          `Unsupported HTTP method: ${method as string}`
+        );
     }
   }
 }

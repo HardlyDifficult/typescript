@@ -1,9 +1,10 @@
 import axios from "axios";
+
 import { AuthenticationError, HttpError } from "./errors";
 import type { AuthConfig, OAuth2Auth, RestClientLogger } from "./types";
 
 interface TokenResponse {
-  readonly access_token: string;
+  readonly access_token?: string;
   readonly token_type?: string;
   readonly expires_in?: number;
   readonly scope?: string;
@@ -17,11 +18,11 @@ export class AuthenticationManager {
 
   constructor(
     private readonly authConfig: AuthConfig,
-    private readonly logger?: RestClientLogger,
+    private readonly logger?: RestClientLogger
   ) {}
 
   async authenticate(): Promise<string> {
-    if (this.isTokenValid() && this.bearerToken) {
+    if (this.isTokenValid() && this.bearerToken !== null) {
       return this.bearerToken;
     }
 
@@ -43,6 +44,11 @@ export class AuthenticationManager {
 
       case "oauth2":
         return this.authenticateOAuth2(this.authConfig);
+
+      default:
+        throw new AuthenticationError(
+          `Unsupported auth type: ${(this.authConfig as { type: string }).type}`
+        );
     }
   }
 
@@ -61,7 +67,9 @@ export class AuthenticationManager {
   }
 
   getTokenLifetimeMs(): number | null {
-    if (this.tokenIssuedAt === null || this.tokenExpiry === null) return null;
+    if (this.tokenIssuedAt === null || this.tokenExpiry === null) {
+      return null;
+    }
     return this.tokenExpiry - this.tokenIssuedAt;
   }
 
@@ -72,19 +80,28 @@ export class AuthenticationManager {
     formData.append("grant_type", grantType);
     formData.append("client_id", config.clientId);
 
-    if (grantType === "client_credentials" && config.clientSecret) {
+    if (
+      grantType === "client_credentials" &&
+      config.clientSecret !== undefined &&
+      config.clientSecret !== ""
+    ) {
       formData.append("client_secret", config.clientSecret);
     }
-    if (config.audience) {
+    if (config.audience !== undefined && config.audience !== "") {
       formData.append("audience", config.audience);
     }
-    if (config.scope) {
+    if (config.scope !== undefined && config.scope !== "") {
       formData.append("scope", config.scope);
     }
     if (grantType === "password") {
-      if (!config.username || !config.password) {
+      if (
+        config.username === undefined ||
+        config.username === "" ||
+        config.password === undefined ||
+        config.password === ""
+      ) {
         throw new AuthenticationError(
-          "Password grant requires username and password",
+          "Password grant requires username and password"
         );
       }
       formData.append("username", config.username);
@@ -95,10 +112,13 @@ export class AuthenticationManager {
       const response = await axios.post<TokenResponse>(
         config.tokenUrl,
         formData.toString(),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
 
-      if (!response.data.access_token) {
+      if (
+        response.data.access_token === undefined ||
+        response.data.access_token === ""
+      ) {
         throw new AuthenticationError(
           `Authentication response missing access_token from ${config.tokenUrl}`,
         );
@@ -107,9 +127,11 @@ export class AuthenticationManager {
       this.bearerToken = response.data.access_token;
       this.tokenIssuedAt = Date.now();
 
-      if (response.data.expires_in) {
-        this.tokenExpiry =
-          this.tokenIssuedAt + response.data.expires_in * 1000;
+      if (
+        response.data.expires_in !== undefined &&
+        response.data.expires_in !== 0
+      ) {
+        this.tokenExpiry = this.tokenIssuedAt + response.data.expires_in * 1000;
       }
 
       this.logger?.debug?.("OAuth2 token acquired", {
@@ -119,30 +141,37 @@ export class AuthenticationManager {
 
       return this.bearerToken;
     } catch (error) {
-      if (error instanceof AuthenticationError) throw error;
+      if (error instanceof AuthenticationError) {
+        throw error;
+      }
 
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
-        const errorData = error.response?.data
-          ? JSON.stringify(error.response.data, null, 2)
-          : error.message;
+        const errorData =
+          error.response?.data !== undefined
+            ? JSON.stringify(error.response.data, null, 2)
+            : error.message;
 
         throw new HttpError(
-          `Authentication failed for ${config.tokenUrl}: ${status} ${errorData}`,
+          `Authentication failed for ${config.tokenUrl}: ${String(status)} ${errorData}`,
           status,
-          error.response?.statusText,
+          error.response?.statusText
         );
       }
 
       throw new AuthenticationError(
-        `Authentication failed for ${config.tokenUrl}: ${error instanceof Error ? error.message : String(error)}`,
+        `Authentication failed for ${config.tokenUrl}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
 
   private isTokenValid(): boolean {
-    if (!this.bearerToken) return false;
-    if (!this.tokenExpiry) return true;
+    if (this.bearerToken === null) {
+      return false;
+    }
+    if (this.tokenExpiry === null) {
+      return true;
+    }
     const bufferMs = 5 * 60 * 1000;
     return Date.now() < this.tokenExpiry - bufferMs;
   }

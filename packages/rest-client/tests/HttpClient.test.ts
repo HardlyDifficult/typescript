@@ -44,10 +44,9 @@ describe("HttpClient", () => {
         name: "Alice",
       });
       expect(result).toEqual({ id: 2 });
-      expect(mockInstance.post).toHaveBeenCalledWith(
-        "https://api.test/users",
-        { name: "Alice" },
-      );
+      expect(mockInstance.post).toHaveBeenCalledWith("https://api.test/users", {
+        name: "Alice",
+      });
     });
 
     it("DELETE returns response data", async () => {
@@ -77,7 +76,7 @@ describe("HttpClient", () => {
     it("sets Authorization header", () => {
       client.setBearerToken("tok123");
       expect(mockInstance.defaults.headers.common["Authorization"]).toBe(
-        "Bearer tok123",
+        "Bearer tok123"
       );
     });
 
@@ -85,7 +84,7 @@ describe("HttpClient", () => {
       client.setBearerToken("tok123");
       client.clearBearerToken();
       expect(
-        mockInstance.defaults.headers.common["Authorization"],
+        mockInstance.defaults.headers.common["Authorization"]
       ).toBeUndefined();
     });
   });
@@ -116,7 +115,7 @@ describe("HttpClient", () => {
       mockInstance.get.mockRejectedValue(axiosError);
 
       await expect(client.get("https://api.test/bad")).rejects.toThrow(
-        HttpError,
+        HttpError
       );
       expect(mockInstance.get).toHaveBeenCalledOnce();
     });
@@ -185,7 +184,7 @@ describe("HttpClient", () => {
       mockInstance.get.mockRejectedValue(serverError);
 
       await expect(client.get("https://api.test/down")).rejects.toThrow(
-        HttpError,
+        HttpError
       );
       // 1 initial + 2 retries = 3 total
       expect(mockInstance.get).toHaveBeenCalledTimes(3);
@@ -244,7 +243,7 @@ describe("HttpClient", () => {
       mockInstance.get.mockRejectedValue(new Error("socket hang up"));
 
       await expect(client.get("https://api.test/fail")).rejects.toThrow(
-        NetworkError,
+        NetworkError
       );
     });
   });
@@ -261,7 +260,7 @@ describe("HttpClient", () => {
       await loggingClient.get("https://api.test/log");
       expect(logger.debug).toHaveBeenCalledWith(
         "GET https://api.test/log",
-        expect.any(Object),
+        expect.any(Object)
       );
     });
 

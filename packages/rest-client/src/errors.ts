@@ -19,7 +19,7 @@ export class RestClientError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly context?: ErrorContext,
+    public readonly context?: ErrorContext
   ) {
     super(message);
     this.name = "RestClientError";
@@ -27,6 +27,9 @@ export class RestClientError extends Error {
   }
 }
 
+/**
+ *
+ */
 export class ConfigurationError extends RestClientError {
   public override readonly name = "ConfigurationError";
 
@@ -35,6 +38,9 @@ export class ConfigurationError extends RestClientError {
   }
 }
 
+/**
+ *
+ */
 export class AuthenticationError extends RestClientError {
   public override readonly name = "AuthenticationError";
 
@@ -43,6 +49,9 @@ export class AuthenticationError extends RestClientError {
   }
 }
 
+/**
+ *
+ */
 export class HttpError extends RestClientError {
   public override readonly name = "HttpError";
 
@@ -50,12 +59,15 @@ export class HttpError extends RestClientError {
     message: string,
     public readonly status?: number,
     public readonly statusText?: string,
-    response?: ErrorContext,
+    response?: ErrorContext
   ) {
     super(message, ErrorCode.HTTP_ERROR, response);
   }
 }
 
+/**
+ *
+ */
 export class ValidationError extends RestClientError {
   public override readonly name = "ValidationError";
 
@@ -64,6 +76,9 @@ export class ValidationError extends RestClientError {
   }
 }
 
+/**
+ *
+ */
 export class NetworkError extends RestClientError {
   public override readonly name = "NetworkError";
 

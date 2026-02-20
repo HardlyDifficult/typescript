@@ -28,7 +28,7 @@ const HEARTBEAT_DEFAULTS: Required<HeartbeatOptions> = {
  */
 export function getBackoffDelay(
   attempt: number,
-  options: Required<BackoffOptions>,
+  options: Required<BackoffOptions>
 ): number {
   const delay = options.initialDelayMs * Math.pow(options.multiplier, attempt);
   return Math.min(delay, options.maxDelayMs);
@@ -79,7 +79,7 @@ export class ReconnectingWebSocket<T> {
    */
   on<K extends keyof WebSocketEvents<T>>(
     event: K,
-    listener: WebSocketEvents<T>[K],
+    listener: WebSocketEvents<T>[K]
   ): () => void {
     let set = this.eventListeners.get(event);
     if (!set) {
@@ -119,17 +119,12 @@ export class ReconnectingWebSocket<T> {
     if (this.auth) {
       try {
         const token = await this.auth.getToken();
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
+        if (token !== "") {
+          headers.Authorization = `Bearer ${token}`;
         }
       } catch (err) {
-        this.emit(
-          "error",
-          err instanceof Error ? err : new Error(String(err)),
-        );
-        if (this.shouldReconnect) {
-          this.scheduleReconnect();
-        }
+        this.emit("error", err instanceof Error ? err : new Error(String(err)));
+        this.scheduleReconnect();
         return;
       }
     }
@@ -138,7 +133,7 @@ export class ReconnectingWebSocket<T> {
     this.ws = new WebSocket(
       this.url,
       this.protocols,
-      hasHeaders ? { headers } : undefined,
+      hasHeaders ? { headers } : undefined
     );
 
     this.ws.on("open", () => {

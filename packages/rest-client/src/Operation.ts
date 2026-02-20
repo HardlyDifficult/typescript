@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { ValidationError } from "./errors";
 import type { HttpMethod } from "./types";
 
@@ -7,7 +8,9 @@ export interface OperationConfig<Params, Response> {
   readonly params: z.ZodSchema<Params>;
   readonly method: HttpMethod;
   readonly url: (params: Params, baseUrl: string) => string;
-  readonly body?: (params: Params) => Record<string, unknown> | string | undefined;
+  readonly body?: (
+    params: Params
+  ) => Record<string, unknown> | string | undefined;
   readonly transform?: (response: Response) => Response;
 }
 
@@ -22,7 +25,7 @@ export interface OperationConfig<Params, Response> {
  *   });
  */
 export function defineOperation<Params, Response>(
-  config: OperationConfig<Params, Response>,
+  config: OperationConfig<Params, Response>
 ): OperationConfig<Params, Response> {
   return config;
 }
@@ -34,7 +37,7 @@ export function validateParams<T>(params: T, schema: z.ZodSchema<T>): T {
   } catch (error) {
     if (error instanceof z.ZodError) {
       throw new ValidationError(
-        `Parameter validation failed: ${error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")}`,
+        `Parameter validation failed: ${error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")}`
       );
     }
     throw error;

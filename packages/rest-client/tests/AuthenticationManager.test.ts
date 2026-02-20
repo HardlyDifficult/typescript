@@ -106,7 +106,7 @@ describe("AuthenticationManager", () => {
         expect.stringContaining("grant_type=client_credentials"),
         expect.objectContaining({
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        }),
+        })
       );
     });
 
@@ -251,10 +251,10 @@ describe("AuthenticationManager", () => {
       await mgr.authenticate();
 
       expect(mgr.getTokenIssuedAt()).toBe(
-        new Date("2025-01-01T00:00:00Z").getTime(),
+        new Date("2025-01-01T00:00:00Z").getTime()
       );
       expect(mgr.getTokenExpiryTime()).toBe(
-        new Date("2025-01-01T00:00:00Z").getTime() + 3600 * 1000,
+        new Date("2025-01-01T00:00:00Z").getTime() + 3600 * 1000
       );
       expect(mgr.getTokenLifetimeMs()).toBe(3600 * 1000);
     });

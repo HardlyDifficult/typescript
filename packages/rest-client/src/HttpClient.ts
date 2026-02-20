@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance } from "axios";
+
 import { HttpError, NetworkError } from "./errors";
 import type { RestClientLogger, RetryConfig } from "./types";
 
@@ -33,11 +34,11 @@ export class HttpClient {
   }
 
   setBearerToken(token: string): void {
-    this.instance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    this.instance.defaults.headers.common.Authorization = `Bearer ${token}`;
   }
 
   clearBearerToken(): void {
-    delete this.instance.defaults.headers.common["Authorization"];
+    delete this.instance.defaults.headers.common.Authorization;
   }
 
   async get<T>(url: string): Promise<T> {
@@ -54,7 +55,7 @@ export class HttpClient {
 
   async patch<T>(url: string, data?: unknown): Promise<T> {
     return this.withRetry("PATCH", url, () =>
-      this.instance.patch<T>(url, data),
+      this.instance.patch<T>(url, data)
     );
   }
 
@@ -66,7 +67,7 @@ export class HttpClient {
     method: string,
     url: string,
     fn: () => Promise<{ data: T }>,
-    attempt = 0,
+    attempt = 0
   ): Promise<T> {
     try {
       const response = await fn();
@@ -75,12 +76,12 @@ export class HttpClient {
     } catch (error) {
       if (attempt < this.retry.maxAttempts && this.isRetryable(error)) {
         this.logger?.warn?.(
-          `${method} ${url} failed, retrying (${attempt + 1}/${this.retry.maxAttempts})`,
+          `${method} ${url} failed, retrying (${String(attempt + 1)}/${String(this.retry.maxAttempts)})`,
           {
             error: axios.isAxiosError(error)
               ? (error.response?.status ?? "network")
               : String(error),
-          },
+          }
         );
         await sleep(this.retry.delayMs);
         return this.withRetry(method, url, fn, attempt + 1);
@@ -95,12 +96,18 @@ export class HttpClient {
     }
 
     const status = error.response?.status;
-    if (status === undefined) return true;
-    if (status >= 500 && status < 600) return true;
+    if (status === undefined) {
+      return true;
+    }
+    if (status >= 500 && status < 600) {
+      return true;
+    }
 
-    if (this.retry.retryableStatuses?.includes(status)) return true;
+    if (this.retry.retryableStatuses?.includes(status) === true) {
+      return true;
+    }
 
-    if (this.retry.isRetryable) {
+    if (this.retry.isRetryable !== undefined) {
       const body = (error.response?.data ?? {}) as Record<string, unknown>;
       return this.retry.isRetryable(status, body);
     }
@@ -112,68 +119,82 @@ export class HttpClient {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const data = (error.response?.data ?? {}) as Record<string, unknown>;
-      const code =
-        typeof data["code"] === "string" ? data["code"] : undefined;
+      const code = typeof data.code === "string" ? data.code : undefined;
       const message =
-        typeof data["message"] === "string" ? data["message"] : undefined;
-      const cause =
-        typeof data["cause"] === "string" ? data["cause"] : undefined;
+        typeof data.message === "string" ? data.message : undefined;
+      const cause = typeof data.cause === "string" ? data.cause : undefined;
       const context =
-        typeof data["context"] === "object" &&
-        data["context"] !== null &&
-        !Array.isArray(data["context"])
-          ? (data["context"] as Record<string, unknown>)
+        typeof data.context === "object" &&
+        data.context !== null &&
+        !Array.isArray(data.context)
+          ? (data.context as Record<string, unknown>)
           : undefined;
 
-      let msg = `HTTP ${status}`;
-      if (code) msg += `: ${code}`;
-      if (message) msg += ` - ${message}`;
-      if (cause) {
+      let msg = `HTTP ${String(status)}`;
+      if (code !== undefined) {
+        msg += `: ${code}`;
+      }
+      if (message !== undefined) {
+        msg += ` - ${message}`;
+      }
+      if (cause !== undefined) {
         const truncated =
           cause.length > CAUSE_TRUNCATE
             ? `${cause.substring(0, CAUSE_TRUNCATE)}...`
             : cause;
         msg += ` (cause: ${truncated})`;
       }
-      if (context) {
+      if (context !== undefined) {
         const summary = formatContextSummary(context);
-        if (summary) msg += ` [context: ${summary}]`;
+        if (summary !== undefined) {
+          msg += ` [context: ${summary}]`;
+        }
       }
 
       return new HttpError(msg, status, error.response?.statusText, data);
     }
 
     return new NetworkError(
-      `Request failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Request failed: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function formatContextSummary(
-  obj: Record<string, unknown>,
+  obj: Record<string, unknown>
 ): string | undefined {
   const keys = Object.keys(obj);
-  if (keys.length === 0) return undefined;
+  if (keys.length === 0) {
+    return undefined;
+  }
 
   return keys
     .slice(0, MAX_CONTEXT_KEYS)
     .map((k) => {
       const v = obj[k];
-      const str =
-        typeof v === "string"
-          ? v
-          : v === null
-            ? "null"
-            : v === undefined
-              ? "undefined"
-              : safeStringify(v);
+      const str = stringifyValue(v);
       return `${k}=${str.length > CONTEXT_VALUE_TRUNCATE ? `${str.substring(0, CONTEXT_VALUE_TRUNCATE)}...` : str}`;
     })
     .join(", ");
+}
+
+function stringifyValue(v: unknown): string {
+  if (typeof v === "string") {
+    return v;
+  }
+  if (v === null) {
+    return "null";
+  }
+  if (v === undefined) {
+    return "undefined";
+  }
+  return safeStringify(v);
 }
 
 function safeStringify(v: unknown): string {

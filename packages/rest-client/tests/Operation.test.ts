@@ -13,7 +13,7 @@ describe("defineOperation", () => {
 
     expect(config.method).toBe("GET");
     expect(config.url({ id: "123" }, "https://api.test")).toBe(
-      "https://api.test/users/123",
+      "https://api.test/users/123"
     );
   });
 
@@ -54,14 +54,14 @@ describe("validateParams", () => {
   it("strips extra fields", () => {
     const result = validateParams(
       { name: "Bob", age: 25, extra: true } as { name: string; age: number },
-      schema,
+      schema
     );
     expect(result).toEqual({ name: "Bob", age: 25 });
   });
 
   it("throws ValidationError on invalid params", () => {
     expect(() => validateParams({ name: "", age: -1 }, schema)).toThrow(
-      ValidationError,
+      ValidationError
     );
   });
 

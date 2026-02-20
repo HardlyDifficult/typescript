@@ -70,9 +70,7 @@ describe("RestClient", () => {
 
   describe("constructor", () => {
     it("throws ConfigurationError without baseUrl", () => {
-      expect(() => new RestClient({ baseUrl: "" })).toThrow(
-        ConfigurationError,
-      );
+      expect(() => new RestClient({ baseUrl: "" })).toThrow(ConfigurationError);
     });
 
     it("exposes baseUrl", () => {
@@ -86,9 +84,7 @@ describe("RestClient", () => {
 
       const user = await api.getUser({ id: "1" });
       expect(user).toEqual({ id: "1", name: "Alice" });
-      expect(mockInstance.get).toHaveBeenCalledWith(
-        "https://api.test/users/1",
-      );
+      expect(mockInstance.get).toHaveBeenCalledWith("https://api.test/users/1");
     });
 
     it("POST operation sends body", async () => {
@@ -98,15 +94,14 @@ describe("RestClient", () => {
 
       const user = await api.createUser({ name: "Bob" });
       expect(user).toEqual({ id: "2", name: "Bob" });
-      expect(mockInstance.post).toHaveBeenCalledWith(
-        "https://api.test/users",
-        { name: "Bob" },
-      );
+      expect(mockInstance.post).toHaveBeenCalledWith("https://api.test/users", {
+        name: "Bob",
+      });
     });
 
     it("validates params before request", async () => {
       await expect(api.createUser({ name: "" })).rejects.toThrow(
-        ValidationError,
+        ValidationError
       );
       expect(mockInstance.post).not.toHaveBeenCalled();
     });
@@ -133,7 +128,7 @@ describe("RestClient", () => {
       mockInstance.get.mockResolvedValue({ data: {} });
       await api.get("https://api.test/ping");
       expect(
-        mockInstance.defaults.headers.common["Authorization"],
+        mockInstance.defaults.headers.common["Authorization"]
       ).toBeUndefined();
     });
 
@@ -147,7 +142,7 @@ describe("RestClient", () => {
       mockInstance.get.mockResolvedValue({ data: {} });
       await authedApi.get("https://api.test/secure");
       expect(mockInstance.defaults.headers.common["Authorization"]).toBe(
-        "Bearer my-token",
+        "Bearer my-token"
       );
     });
 
@@ -162,7 +157,7 @@ describe("RestClient", () => {
       await authedApi.get("https://api.test/secure");
       authedApi.clearToken();
       expect(
-        mockInstance.defaults.headers.common["Authorization"],
+        mockInstance.defaults.headers.common["Authorization"]
       ).toBeUndefined();
     });
   });
@@ -175,9 +170,7 @@ describe("RestClient", () => {
 
     it("post", async () => {
       mockInstance.post.mockResolvedValue({ data: "created" });
-      expect(await api.post("https://api.test/raw", { x: 1 })).toBe(
-        "created",
-      );
+      expect(await api.post("https://api.test/raw", { x: 1 })).toBe("created");
     });
 
     it("delete", async () => {
@@ -188,14 +181,14 @@ describe("RestClient", () => {
     it("patch", async () => {
       mockInstance.patch.mockResolvedValue({ data: "patched" });
       expect(await api.patch("https://api.test/raw/1", { x: 2 })).toBe(
-        "patched",
+        "patched"
       );
     });
 
     it("put", async () => {
       mockInstance.put.mockResolvedValue({ data: "replaced" });
       expect(await api.put("https://api.test/raw/1", { x: 3 })).toBe(
-        "replaced",
+        "replaced"
       );
     });
   });
