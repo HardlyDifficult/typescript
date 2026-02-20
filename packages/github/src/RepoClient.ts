@@ -177,6 +177,15 @@ export class RepoClient {
     });
   }
 
+  /** Delete a branch ref. */
+  async deleteBranch(branch: string): Promise<void> {
+    await this.octokit.git.deleteRef({
+      owner: this.owner,
+      repo: this.name,
+      ref: `heads/${branch}`,
+    });
+  }
+
   /** Create a pull request. Throws on failure. */
   async createPR(options: CreatePROptions): Promise<CreatedPR> {
     const { data } = await this.octokit.pulls.create({
