@@ -96,8 +96,10 @@ export async function runContinuousLoop(
 
   const isShutdownRequested = (): boolean => shutdownRequested;
 
+  const shouldContinue = (): boolean => !shutdownRequested;
+
   try {
-    while (!shutdownRequested) {
+    while (shouldContinue()) {
       try {
         await runCycle(isShutdownRequested);
       } catch (error) {
@@ -106,7 +108,7 @@ export async function runContinuousLoop(
         console.error(`Cycle error: ${errorMessage}`);
       }
 
-      if (shutdownRequested) {
+      if (!shouldContinue()) {
         break;
       }
 
