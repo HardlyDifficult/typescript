@@ -246,7 +246,11 @@ describe("WorkerPool", () => {
 
     it("excludes non-Available workers", () => {
       pool.add(
-        createWorker({ id: "worker-1", status: WorkerStatus.Busy, activeRequests: 2 })
+        createWorker({
+          id: "worker-1",
+          status: WorkerStatus.Busy,
+          activeRequests: 2,
+        })
       );
       pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
       expect(pool.getAvailableSlotCount("test-model")).toBe(2);

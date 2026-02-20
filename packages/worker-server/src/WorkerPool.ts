@@ -243,8 +243,7 @@ export class WorkerPool {
         worker.capabilities.concurrencyLimits?.[category] !== undefined
       ) {
         const categoryLimit = worker.capabilities.concurrencyLimits[category];
-        const categoryCount =
-          worker.categoryActiveRequests.get(category) ?? 0;
+        const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
         count += Math.min(workerFreeSlots, categoryLimit - categoryCount);
       } else {
         count += workerFreeSlots;
