@@ -13,29 +13,36 @@ npm install @hardlydifficult/daemon
 
 ## Quick Start
 
+Create a daemon with signal-trapped teardown and a continuous loop:
+
 ```typescript
 import { createTeardown, runContinuousLoop } from "@hardlydifficult/daemon";
 
-// Graceful shutdown with LIFO cleanup
 const teardown = createTeardown();
-teardown.add(() => console.log("Cleaning up server"));
-teardown.add(() => console.log("Closing database connection"));
+
+// Register cleanup for resources
+teardown.add(() => console.log("Cleanup: closing server"));
+teardown.add(() => console.log("Cleanup: disconnecting database"));
+
+// Trap SIGINT/SIGTERM
 teardown.trapSignals();
 
-// Continuous background task with signal-aware sleep
+// Run a continuous loop
 await runContinuousLoop({
   intervalSeconds: 5,
-  runCycle: async (isShutdownRequested) => {
-    console.log("Running task...");
+  async runCycle(isShutdownRequested) {
+    console.log("Running cycle...");
     if (isShutdownRequested()) {
       return { stop: true };
     }
-    // Perform background work
-    return "immediate"; // Run next cycle immediately
+    // Perform background task
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return { stop: true }; // Stop after first cycle for demo
   },
   onShutdown: async () => {
+    console.log("Shutdown complete");
     await teardown.run();
-  },
+  }
 });
 ```
 
@@ -176,71 +183,114 @@ const logger = {
 
 ### `runContinuousLoop()` Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `intervalSeconds` | `number` | Base interval between cycles (converted to ms) |
-| `runCycle` | `(isShutdownRequested: () => boolean) => Promise<...>` | Cycle function with shutdown check |
-| `getNextDelayMs?` | `(...)` => `ContinuousLoopDelay \| undefined` | Derive delay from cycle result |
-| `onCycleError?` | `ContinuousLoopErrorHandler` | Handle cycle errors, return `"continue"` or `"stop"` |
-| `onShutdown?` | `() => void \| Promise<void>` | Cleanup called after shutdown completes |
-| `logger?` | `ContinuousLoopLogger` | Custom logger (defaults to `console`) |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `intervalSeconds` | `number` | — | Interval between cycles in seconds |
+| `runCycle` | `Function` | — | Callback for each cycle |
+| `getNextDelayMs?` | `Function` | — | Derive delay from cycle result |
+| `onCycleError?` | `Function` | — | Handle cycle errors |
+| `onShutdown?` | `Function` | — | Cleanup on shutdown |
+| `logger?` | `ContinuousLoopLogger` | `console` | Logger for warnings/errors |
 
-### Return Values
+### `ContinuousLoopRunCycleResult`
 
-The `runCycle` function can return:
-- A delay value (`number` ms or `"immediate"`)
-- `{ stop: true }` to gracefully terminate
-- `{ nextDelayMs: ... }` to override delay
+The return type supports:
+- Raw delay (`number` or `"immediate"`)
+- Control object: `{ stop?: boolean; nextDelayMs?: ContinuousLoopDelay }`
 
-```typescript
-await runContinuousLoop({
-  intervalSeconds: 5,
-  runCycle: async () => {
-    const data = await fetchData();
-    if (!data) {
-      return { nextDelayMs: "immediate" }; // Retry immediately
-    }
-    if (data.done) {
-      return { stop: true }; // End loop
-    }
-    return 2000; // Wait 2 seconds
-  },
-});
-```
-
-#### Delay Directives
-
-| Directive | Description |
-|----------|-------------|
-| `number` | Milliseconds to wait before next cycle |
-| `"immediate"` | Run next cycle without delay |
-| `{ stop: true }` | Stop the loop after current cycle |
-| `{ nextDelayMs: ... }` | Override default or derived delay |
-
-### Error Handling Example
-
-Cycles errors are caught and handled according to the error policy.
+**Example:**
 
 ```typescript
-await runContinuousLoop({
-  intervalSeconds: 1,
-  runCycle: async () => {
-    if (Math.random() > 0.8) {
-      throw new Error("Network failure");
-    }
-  },
-  onCycleError: async (error, context) => {
-    console.error(`Cycle ${context.cycleNumber} failed:`, error.message);
-    return "continue"; // Keep the loop running
-  },
-  logger: {
-    warn: (msg, ctx) => console.log(`[WARN] ${msg}`, ctx),
-    error: (msg, ctx) => console.error(`[ERROR] ${msg}`, ctx),
-  },
-});
+async runCycle() {
+  // Return raw delay
+  return 5000;
+  
+  // Or return control directives
+  return { nextDelayMs: "immediate", stop: false };
+}
 ```
 
-If no `onCycleError` is provided, errors are logged and the loop continues.
+### `ContinuousLoopDelay`
+
+```typescript
+type ContinuousLoopDelay = number | "immediate"
+```
+
+### `ContinuousLoopCycleControl`
+
+```typescript
+interface ContinuousLoopCycleControl {
+  stop?: boolean;
+  nextDelayMs?: ContinuousLoopDelay;
+}
+```
+
+### `ContinuousLoopCycleContext`
+
+Provides context to cycle and delay resolver functions.
+
+```typescript
+interface ContinuousLoopCycleContext {
+  cycleNumber: number;
+  isShutdownRequested: () => boolean;
+}
+```
+
+### `ContinuousLoopErrorContext`
+
+Same as `ContinuousLoopCycleContext`.
+
+### `ContinuousLoopErrorHandler`
+
+Handles errors and returns `"stop"` or `"continue"`.
+
+**Signature:**
+
+```typescript
+type ContinuousLoopErrorHandler = (
+  error: unknown,
+  context: ContinuousLoopErrorContext
+) => ContinuousLoopErrorAction | Promise<ContinuousLoopErrorAction>
+```
+
+**Example:**
+
+```typescript
+onCycleError: async (error, context) => {
+  console.error(`Cycle ${context.cycleNumber} failed: ${error.message}`);
+  return "stop"; // or "continue"
+}
+```
+
+### `ContinuousLoopErrorAction`
+
+```typescript
+type ContinuousLoopErrorAction = "continue" | "stop"
+```
+
+### `ContinuousLoopLogger`
+
+```typescript
+interface ContinuousLoopLogger {
+  warn(message: string, context?: Readonly<Record<string, unknown>>): void;
+  error(message: string, context?: Readonly<Record<string, unknown>>): void;
+}
+```
+
+**Example:**
+
+```typescript
+const logger = {
+  warn: (msg) => console.warn(`[WARN] ${msg}`),
+  error: (msg) => console.error(`[ERROR] ${msg}`)
+};
+
+await runContinuousLoop({
+  intervalSeconds: 10,
+  runCycle: () => Promise.resolve(),
+  logger
+});
+```
 
 ## Shutdown
 

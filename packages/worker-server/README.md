@@ -1,6 +1,6 @@
 # @hardlydifficult/worker-server
 
-A WebSocket-based worker server for managing remote worker connections with health monitoring, request routing, and load balancing.
+A WebSocket-based server for managing remote worker connections with health monitoring, message routing, and load balancing.
 
 ## Installation
 
@@ -13,62 +13,225 @@ npm install @hardlydifficult/worker-server
 ```typescript
 import { WorkerServer } from "@hardlydifficult/worker-server";
 
+// Create and start the server
 const server = new WorkerServer({ port: 3000 });
 
-server.onWorkerConnected((worker) => {
-  console.log("Worker connected:", worker.id);
-});
+server.start().then(() => {
+  console.log("Worker server running on port 3000");
+  
+  // Listen for worker connections
+  server.onWorkerConnected((worker) => {
+    console.log(`Worker ${worker.name} (${worker.id}) connected`);
+  });
 
-server.onWorkerMessage("work_request", async (worker, message) => {
-  console.log("Received request from", worker.id, message);
-  server.send(worker.id, { type: "work_complete", requestId: message.requestId });
-});
+  server.onWorkerDisconnected((worker) => {
+    console.log(`Worker ${worker.name} (${worker.id}) disconnected`);
+  });
 
-await server.start();
-console.log("Worker server running on port 3000");
+  // Route messages by type
+  server.onWorkerMessage("work_complete", (worker, message) => {
+    console.log(`Worker ${worker.id} completed request: ${message.requestId}`);
+  });
+});
 ```
 
 ## Core Concepts
 
-### Worker Registration
+### Worker Registration & Lifecycle
 
-Workers connect via WebSocket and register with identity and capabilities. The server supports optional authentication and tracks worker health via heartbeat protocol.
+Workers connect via WebSocket and register with authentication (optional). The server tracks their status, heartbeat, and request load.
 
 ```typescript
-server.onWorkerConnected((worker) => {
-  // Worker capabilities include supported models and concurrency limits
-  console.log(
-    `Worker ${worker.name} supports: ${worker.capabilities.models.map(m => m.modelId).join(", ")}`
-  );
+import { WorkerServer } from "@hardlydifficult/worker-server";
+
+const server = new WorkerServer({ 
+  port: 3000,
+  authToken: "secret-token" // Optional
 });
+
+server.start();
+server.onWorkerConnected((worker) => {
+  console.log("Worker connected:", worker.id, worker.name);
+});
+```
+
+Workers send a `worker_registration` message:
+
+```json
+{
+  "type": "worker_registration",
+  "workerId": "worker-1",
+  "workerName": "GPU Worker",
+  "capabilities": {
+    "models": [
+      {
+        "modelId": "gpt-4",
+        "displayName": "GPT-4",
+        "maxContextTokens": 32768,
+        "maxOutputTokens": 4096,
+        "supportsStreaming": true
+      }
+    ],
+    "maxConcurrentRequests": 2
+  },
+  "authToken": "secret-token"
+}
+```
+
+The server responds with a registration acknowledgment:
+
+```json
+{
+  "type": "worker_registration_ack",
+  "success": true,
+  "sessionId": "uuid-here",
+  "heartbeatIntervalMs": 15000
+}
 ```
 
 ### Message Routing
 
-Messages are dispatched by `type` field to registered handlers.
+Messages are routed by the `type` field. Handlers receive the worker info and message payload.
 
 ```typescript
-server.onWorkerMessage("work_complete", (worker, message) => {
-  console.log("Work completed for", message.requestId);
+server.onWorkerMessage("status_update", (worker, message) => {
+  console.log(`Worker ${worker.id} status: ${message.statusText}`);
 });
 
-server.send(workerId, { type: "work_request", requestId: "req-1" });
+// Send messages to workers
+server.send(workerId, {
+  type: "execute",
+  requestId: "req-1",
+  prompt: "Hello, world!"
+});
+
+// Broadcast to all workers
 server.broadcast({ type: "shutdown" });
 ```
 
-### Request Tracking & Load Balancing
+### Worker Selection & Load Balancing
 
-Track active requests and select the least-loaded available worker.
+Select workers by model support or use any available worker. Workers are automatically assigned least-loaded.
 
 ```typescript
-const worker = server.getAvailableWorker("sonnet", "inference");
+// Get the least-loaded worker that supports a specific model
+const worker = server.getAvailableWorker("gpt-4");
 if (worker) {
-  server.trackRequest(worker.id, requestId, "inference");
-  server.send(worker.id, { type: "start", requestId });
+  server.send(worker.id, { type: "execute", prompt: "..." });
 }
 
-// Later, release the request
+// Get any available worker (model-agnostic)
+const anyWorker = server.getAnyAvailableWorker();
+```
+
+Request tracking ensures accurate load reporting:
+
+```typescript
+// Track when a request is assigned
+server.trackRequest(worker.id, requestId);
+
+// Release when the response is received (optionally increment completed count)
 server.releaseRequest(requestId, { incrementCompleted: true });
+```
+
+### Health Monitoring
+
+Workers must send periodic heartbeats. Unresponsive workers are marked unhealthy and eventually removed.
+
+```typescript
+// Heartbeat message format (worker → server)
+{
+  "type": "heartbeat",
+  "workerId": "worker-1",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+
+// Server response
+{
+  "type": "heartbeat_ack",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "nextHeartbeatDeadline": "2024-01-01T00:01:00.000Z"
+}
+```
+
+Health checks run automatically at the configured interval (default: 10s). Workers missing heartbeats for >3× timeout are removed.
+
+```typescript
+const server = new WorkerServer({
+  port: 3000,
+  heartbeatTimeoutMs: 60_000,      // 60 seconds before unhealthy
+  healthCheckIntervalMs: 10_000,  // Check every 10 seconds
+});
+```
+
+### Category-Aware Concurrency
+
+Workers can specify per-category concurrency limits for fine-grained control.
+
+```typescript
+const server = new WorkerServer({ port: 3000 });
+
+// Worker registration includes concurrency limits
+{
+  "capabilities": {
+    "models": [.],
+    "maxConcurrentRequests": 4,
+    "concurrencyLimits": {
+      "chat": 2,
+      "embedding": 3,
+      "tool_use": 1
+    }
+  }
+}
+
+// Track with category
+server.trackRequest(worker.id, requestId, "chat");
+
+// Release without specifying category (looked up automatically)
+server.releaseRequest(requestId);
+```
+
+## HTTP & WebSocket Extensibility
+
+### Custom HTTP Endpoints
+
+Add HTTP handlers that return `true` when they handle the request.
+
+```typescript
+server.addHttpHandler(async (req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return true;
+  }
+  return false;
+});
+```
+
+### Additional WebSocket Endpoints
+
+Register additional WebSocket paths for non-worker connections.
+
+```typescript
+server.addWebSocketEndpoint("/ws/admin", (ws) => {
+  ws.on("message", (data) => {
+    // Handle admin messages
+  });
+});
+```
+
+### Worker Info
+
+Public worker info (without WebSocket reference):
+
+```typescript
+const worker = server.getAvailableWorker("gpt-4");
+if (worker) {
+  console.log("Active requests:", worker.activeRequests);
+  console.log("Completed requests:", worker.completedRequests);
+  console.log("Pending request IDs:", [...worker.pendingRequestIds]);
+  console.log("Per-category active requests:", worker.categoryActiveRequests);
+}
 ```
 
 ## Core Components
@@ -80,7 +243,7 @@ Main server class managing WebSocket connections, HTTP endpoints, and worker poo
 #### Constructor
 
 | Parameter | Type | Default | Description |
-|--|------|---------|-----|
+|-----------|------|---------|-------------|
 | `port` | `number` | — | HTTP + WebSocket server port |
 | `authToken` | `string` (optional) | — | Token required for worker registration |
 | `heartbeatTimeoutMs` | `number` | 60000 | Timeout before marking worker unhealthy |
@@ -163,14 +326,14 @@ server.releaseRequest("req-123", { incrementCompleted: true });
 #### Extensibility
 
 | Method | Description |
-|--|---|
+|--------|-------------|
 | `addHttpHandler(handler)` | Add an HTTP handler (called in order until one returns `true`) |
 | `addWebSocketEndpoint(path, handler)` | Add a WebSocket endpoint at a custom path |
 
 #### Event Handlers
 
 | Method | Return | Description |
-|--|--|---|
+|--------|--------|-------------|
 | `onWorkerConnected(handler)` | `() => void` | Called when worker registers |
 | `onWorkerDisconnected(handler)` | `() => void` | Called when worker disconnects (includes pending requests) |
 | `onWorkerMessage(type, handler)` | `() => void` | Register handler for a message type |
@@ -180,7 +343,7 @@ server.releaseRequest("req-123", { incrementCompleted: true });
 Internal class managing worker state and selection. Exposed via `WorkerServer`.
 
 | Method | Description |
-|--|---|
+|--------|-------------|
 | `getAvailableWorker(model, category?)` | Get least-loaded available worker supporting model |
 | `getAnyAvailableWorker()` | Get any available/busy worker |
 | `trackRequest(workerId, requestId, category?)` | Mark request as in-progress |
@@ -284,66 +447,63 @@ server.trackRequest("worker-1", "req-1", "inference");
 server.releaseRequest("req-1"); // category looked up automatically
 ```
 
-## Types and Interfaces
-
-### WorkerInfo
-
-| Field | Type | Description |
-|--|------|---|
-| `id` | `string` | Unique worker identifier |
-| `name` | `string` | Worker-assigned name |
-| `status` | `WorkerStatus` | Current status (`available`, `busy`, `draining`, `unhealthy`) |
-| `capabilities` | `WorkerCapabilities` | Supported models and limits |
-| `sessionId` | `string` | Unique session identifier |
-| `connectedAt` | `Date` | Connection timestamp |
-| `lastHeartbeat` | `Date` | Last heartbeat timestamp |
-| `activeRequests` | `number` | Currently active requests |
-| `completedRequests` | `number` | Completed request count |
-| `pendingRequestIds` | `ReadonlySet<string>` | Pending request IDs |
-| `categoryActiveRequests` | `ReadonlyMap<string, number>` | Active requests per category |
-
-### WorkerCapabilities
-
-| Field | Type | Description |
-|--|------|---|
-| `models` | `ModelInfo[]` | Supported models |
-| `maxConcurrentRequests` | `number` | Overall concurrency limit |
-| `metadata?` | `Record<string, unknown>` | Optional metadata |
-| `concurrencyLimits?` | `Record<string, number>` | Per-category concurrency limits |
-
-### ModelInfo
-
-| Field | Type | Description |
-|--|------|---|
-| `modelId` | `string` | Model identifier |
-| `displayName` | `string` | Human-readable name |
-| `maxContextTokens` | `number` | Maximum context window |
-| `maxOutputTokens` | `number` | Maximum output length |
-| `supportsStreaming` | `boolean` | Streaming support |
-| `supportsVision?` | `boolean` | Vision support (optional) |
-| `supportsTools?` | `boolean` | Tool use support (optional) |
+## Type Definitions
 
 ### WorkerStatus
 
-- `"available"` — Worker can accept new requests
-- `"busy"` — Worker at max concurrency
-- `"draining"` — Worker shutting down, no new requests
-- `"unhealthy"` — Missed heartbeats
+| Value | Description |
+|-------|-------------|
+| `available` | Worker can accept new requests |
+| `busy` | Worker is at max concurrent requests |
+| `draining` | Worker is shutting down |
+| `unhealthy` | Worker heartbeat has timed out |
 
-### Configuration Options
+### ModelInfo
 
 ```typescript
-interface WorkerServerOptions {
-  port: number;
-  authToken?: string;
-  heartbeatTimeoutMs?: number; // default: 60000
-  healthCheckIntervalMs?: number; // default: 10000
-  heartbeatIntervalMs?: number; // default: 15000
-  logger?: WorkerServerLogger;
+interface ModelInfo {
+  modelId: string;
+  displayName: string;
+  maxContextTokens: number;
+  maxOutputTokens: number;
+  supportsStreaming: boolean;
+  supportsVision?: boolean;
+  supportsTools?: boolean;
 }
 ```
 
-### Logger Interface
+### WorkerCapabilities
+
+```typescript
+interface WorkerCapabilities {
+  models: ModelInfo[];
+  maxConcurrentRequests: number;
+  metadata?: Record<string, unknown>;
+  concurrencyLimits?: Record<string, number>;
+}
+```
+
+### WorkerInfo
+
+```typescript
+interface WorkerInfo {
+  id: string;
+  name: string;
+  status: WorkerStatus;
+  capabilities: WorkerCapabilities;
+  sessionId: string;
+  connectedAt: Date;
+  lastHeartbeat: Date;
+  activeRequests: number;
+  completedRequests: number;
+  pendingRequestIds: ReadonlySet<string>;
+  categoryActiveRequests: ReadonlyMap<string, number>;
+}
+```
+
+## Logging
+
+The server accepts a logger implementing `WorkerServerLogger`:
 
 ```typescript
 interface WorkerServerLogger {
@@ -354,50 +514,64 @@ interface WorkerServerLogger {
 }
 ```
 
+Default is a no-op logger. To use a custom logger:
+
+```typescript
+const server = new WorkerServer({
+  port: 3000,
+  logger: {
+    debug: console.debug,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+  },
+});
+```
+
 ## Appendix
 
 ### Protocol Messages
 
 **Worker Registration (worker → server)**
 
-```typescript
+```json
 {
-  type: "worker_registration",
-  workerId: string,
-  workerName: string,
-  capabilities: WorkerCapabilities,
-  authToken?: string
+  "type": "worker_registration",
+  "workerId": "string",
+  "workerName": "string",
+  "capabilities": WorkerCapabilities,
+  "authToken?": "string"
 }
 ```
 
 **Registration Acknowledgment (server → worker)**
 
-```typescript
+```json
 {
-  type: "worker_registration_ack",
-  success: boolean,
-  error?: string,
-  sessionId?: string,
-  heartbeatIntervalMs?: number
+  "type": "worker_registration_ack",
+  "success": "boolean",
+  "error?": "string",
+  "sessionId?": "string",
+  "heartbeatIntervalMs?": "number"
 }
 ```
 
 **Heartbeat (worker → server)**
 
-```typescript
+```json
 {
-  type: "heartbeat",
-  workerId: string,
-  timestamp: string
+  "type": "heartbeat",
+  "workerId": "string",
+  "timestamp": "string"
 }
 ```
 
 **Heartbeat Acknowledgment (server → worker)**
 
-```typescript
+```json
 {
-  type: "heartbeat_ack",
-  timestamp: string,
-  nextHeartbeatDeadline: string
+  "type": "heartbeat_ack",
+  "timestamp": "string",
+  "nextHeartbeatDeadline": "string"
 }
 ```
