@@ -220,7 +220,11 @@ describe("StateTracker", () => {
       >({
         name: "sync-state-v0",
         isLegacy(input): input is LegacySyncState {
-          if (input === null || typeof input !== "object" || Array.isArray(input)) {
+          if (
+            input === null ||
+            typeof input !== "object" ||
+            Array.isArray(input)
+          ) {
             return false;
           }
           const record = input as Record<string, unknown>;
@@ -261,10 +265,17 @@ describe("StateTracker", () => {
         "utf-8"
       );
 
-      const migration = defineStateMigration<{ cursor: number }, LegacySyncState>({
+      const migration = defineStateMigration<
+        { cursor: number },
+        LegacySyncState
+      >({
         name: "sync-state-envelope-v0",
         isLegacy(input): input is LegacySyncState {
-          if (input === null || typeof input !== "object" || Array.isArray(input)) {
+          if (
+            input === null ||
+            typeof input !== "object" ||
+            Array.isArray(input)
+          ) {
             return false;
           }
           return typeof (input as Record<string, unknown>).offset === "number";
@@ -292,7 +303,9 @@ describe("StateTracker", () => {
         { source: "sync-script", reason: "manual-run" }
       );
 
-      const file = JSON.parse(fs.readFileSync(tracker.getFilePath(), "utf-8")) as {
+      const file = JSON.parse(
+        fs.readFileSync(tracker.getFilePath(), "utf-8")
+      ) as {
         value: { cursor: number };
         lastUpdated: string;
         meta: Record<string, unknown>;

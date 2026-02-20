@@ -26,11 +26,14 @@ export interface StateTrackerMigration<TCurrent, TLegacy = unknown> {
 }
 
 export interface StateTrackerLoadOrDefaultOptions<T> {
-  migrations?: readonly StateTrackerMigration<T, unknown>[];
+  migrations?: readonly StateTrackerMigration<T>[];
 }
 
 export type StateTrackerSaveMeta = Record<string, unknown>;
 
+/**
+ *
+ */
 export function defineStateMigration<TCurrent, TLegacy>(
   migration: StateTrackerMigration<TCurrent, TLegacy>
 ): StateTrackerMigration<TCurrent, TLegacy> {
@@ -160,7 +163,7 @@ export class StateTracker<T> {
 
   private tryApplyMigrations(
     parsed: unknown,
-    migrations?: readonly StateTrackerMigration<T, unknown>[]
+    migrations?: readonly StateTrackerMigration<T>[]
   ): T | undefined {
     if (migrations === undefined || migrations.length === 0) {
       return undefined;
@@ -198,7 +201,7 @@ export class StateTracker<T> {
    */
   private extractValue(
     parsed: unknown,
-    migrations?: readonly StateTrackerMigration<T, unknown>[]
+    migrations?: readonly StateTrackerMigration<T>[]
   ): T {
     const migrated = this.tryApplyMigrations(parsed, migrations);
     if (migrated !== undefined) {
@@ -248,7 +251,7 @@ export class StateTracker<T> {
     return this.loadSync(options?.migrations);
   }
 
-  private loadSync(migrations?: readonly StateTrackerMigration<T, unknown>[]): T {
+  private loadSync(migrations?: readonly StateTrackerMigration<T>[]): T {
     this._loaded = true;
     this._storageAvailable = true;
 
