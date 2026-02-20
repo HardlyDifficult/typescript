@@ -1,6 +1,6 @@
 # @hardlydifficult/collections
 
-Array chunking and path depth grouping utilities for batched parallel processing.
+A TypeScript utility library providing array chunking and path depth grouping utilities for batched parallel processing.
 
 ## Installation
 
@@ -14,17 +14,13 @@ npm install @hardlydifficult/collections
 import { chunk, groupByDepth } from "@hardlydifficult/collections";
 
 // Split an array into fixed-size chunks
-const items = [1, 2, 3, 4, 5];
-const chunks = chunk(items, 2);
-// => [[1, 2], [3, 4], [5]]
+const result = chunk([1, 2, 3, 4, 5], 2);
+// → [[1, 2], [3, 4], [5]]
 
-// Group filesystem paths by directory depth (deepest first)
-const paths = ["src/app", "src", "src/utils/helper"];
+// Group filesystem paths by directory depth (deepest-first)
+const paths = ["src/a/b", "src", "src/c"];
 const grouped = groupByDepth(paths);
-// => [
-//      { depth: 3, paths: ["src/app"] },
-//      { depth: 1, paths: ["src"] }
-//    ]
+// → [{ depth: 2, paths: ["src/a/b"] }, { depth: 1, paths: ["src", "src/c"] }]
 ```
 
 Process items in parallel batches using chunking:
@@ -41,22 +37,24 @@ for (const batch of batches) {
 }
 ```
 
-## Array Utilities
+## Array Chunking (`chunk`)
 
-### chunk
-
-Splits an array into sub-arrays of a specified maximum size.
+Splits an array into sub-arrays of a specified maximum size, preserving order.
 
 ```typescript
-chunk<T>(arr: readonly T[], size: number): T[][]
+import { chunk } from "@hardlydifficult/collections";
+
+const numbers = [1, 2, 3, 4, 5, 6, 7];
+console.log(chunk(numbers, 3));
+// → [[1, 2, 3], [4, 5, 6], [7]]
 ```
 
-| Parameter | Type              | Description                         |
-|-----------|-------------------|-------------------------------------|
-| `arr`     | `readonly T[]`    | The array to split                  |
-| `size`    | `number`          | Maximum size of each sub-array      |
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `arr` | `readonly T[]` | Input array to split (supports readonly arrays) |
+| `size` | `number` | Maximum chunk size (must be ≥1) |
 
-The final chunk may be smaller than the specified size. Useful for limiting concurrency in batched operations.
+Returns `T[][]`: An array of chunks, where the last chunk may be smaller if the input length is not evenly divisible by `size`.
 
 **Examples:**
 - **Full-sized chunks only**: `chunk([1,2,3,4,5,6], 2)` → `[[1,2], [3,4], [5,6]]`
@@ -64,28 +62,27 @@ The final chunk may be smaller than the specified size. Useful for limiting conc
 - **Single oversized chunk**: `chunk([1,2,3], 5)` → `[[1,2,3]]`
 - **Empty input**: `chunk([], 3)` → `[]`
 
-```typescript
-import { chunk } from "@hardlydifficult/collections";
+## Path Depth Grouping (`groupByDepth`)
 
-const result = chunk([1, 2, 3, 4, 5, 6, 7], 3);
-// => [[1, 2, 3], [4, 5, 6], [7]]
-```
-
-## Path Utilities
-
-### groupByDepth
-
-Groups path strings by their slash-separated depth, sorted deepest-first for bottom-up directory processing.
+Groups filesystem paths by slash-delimited depth, sorted deepest-first to support bottom-up directory processing.
 
 ```typescript
-groupByDepth(paths: readonly string[]): { depth: number; paths: string[] }[]
+import { groupByDepth } from "@hardlydifficult/collections";
+
+const paths = ["src/a/b", "src", "src/c", ""];
+const result = groupByDepth(paths);
+// → [
+//      { depth: 3, paths: ["src/a/b"] },
+//      { depth: 2, paths: ["src", "src/c"] },
+//      { depth: 0, paths: [""] }
+//    ]
 ```
 
-| Parameter | Type              | Description                        |
-|-----------|-------------------|------------------------------------|
-| `paths`   | `readonly string[]` | Filesystem paths to group         |
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `paths` | `readonly string[]` | Array of path strings (slashes `/` delimit depth) |
 
-The depth is determined by counting slash-separated segments (e.g., `"a/b/c"` has depth `3`). Empty string `""` is treated as depth `0`.
+Returns `{ depth: number; paths: string[] }[]`: An array of depth groups sorted in descending order by depth. Empty string `""` is treated as depth `0` (root). Order of paths within each group is preserved from the input.
 
 **Rules:**
 - An empty string (`""`) is treated as depth `0` (root)

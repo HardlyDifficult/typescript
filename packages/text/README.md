@@ -19,300 +19,382 @@ import {
   buildFileTree,
   convertFormat,
   createLinker,
+  healYaml,
+  escapeFence,
 } from "@hardlydifficult/text";
 
-// Template replacement
-const greeting = replaceTemplate("Hello {{name}}!", { name: "Alice" });
-// "Hello Alice!"
+// Replace template placeholders
+replaceTemplate("Hello {{name}}!", { name: "World" });
+// "Hello World!"
 
 // Split long text into chunks
-const chunks = chunkText("Line 1\nLine 2\nLine 3", 10);
-// ["Line 1\nLine 2", "Line 3"]
+chunkText("This is a long text", 10);
+// ["This is a", "long text"]
 
-// Convert to URL-safe slug
-const slug = slugify("My Feature Name!", 10);
-// "my-feature"
+// Convert to URL-safe slugs
+slugify("My Feature Name!");
+// "my-feature-name"
 
-// Format duration in ms
-const formatted = formatDuration(125_000);
+// Format durations
+formatDuration(125_000);
 // "2m 5s"
 
-// Build a file tree
-const tree = buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
-// src/
-//   index.ts
-//   utils.ts
-//
-// README.md
+// Build file trees
+buildFileTree(["src/index.ts", "README.md"]);
+// "src/\n  index.ts\n\nREADME.md"
 
-// Convert between JSON/YAML
-const yaml = convertFormat('{"name":"Alice"}', "yaml");
-// name: Alice
+// Convert between JSON and YAML
+convertFormat('{"name":"Alice"}', "yaml");
+// "name: Alice\n"
+convertFormat("name: Alice", "json");
+// "{\n  \"name\": \"Alice\"\n}"
+
+// Apply link rules to text
+const linker = createLinker().linear("my-org");
+linker.apply("Fix ENG-533", { platform: "markdown" });
+// "Fix [ENG-533](https://linear.app/my-org/issue/ENG-533)"
+
+// Heal malformed YAML
+healYaml("```yaml\nkey: value\n```");
+// "key: value"
 ```
 
-## Error Handling
+## Error Formatting
 
-Consistent error extraction and formatting utilities.
+Consistent error handling utilities for message extraction and formatting.
+
+### `getErrorMessage`
+
+Extract a message string from an unknown error.
 
 ```typescript
-import { getErrorMessage, formatError, formatErrorForLog } from "@hardlydifficult/text";
+import { getErrorMessage } from "@hardlydifficult/text";
 
-const err = new Error("disk full");
+getErrorMessage(new Error("something went wrong"));
+// "something went wrong"
 
-getErrorMessage(err); // "disk full"
-formatError(err, "Failed to save"); // "Failed to save: disk full"
-formatErrorForLog(err); // "disk full"
+getErrorMessage("plain string error");
+// "plain string error"
+
+getErrorMessage(42);
+// "42"
 ```
 
-### Functions
+### `formatError`
 
-| Function | Description |
-|----------|-------------|
-| `getErrorMessage(err)` | Extract message string from unknown error |
-| `formatError(err, context?)` | Format error with optional context prefix |
-| `formatErrorForLog(err)` | Format error for logging (non-Error → string) |
+Format an error for user-facing output with optional context.
+
+```typescript
+import { formatError } from "@hardlydifficult/text";
+
+formatError(new Error("disk full"));
+// "disk full"
+
+formatError(new Error("disk full"), "Failed to save");
+// "Failed to save: disk full"
+```
+
+### `formatErrorForLog`
+
+Format an error for logging (includes more detail for non-Error types).
+
+```typescript
+import { formatErrorForLog } from "@hardlydifficult/text";
+
+formatErrorForLog(new Error("timeout"));
+// "timeout"
+
+formatErrorForLog({ code: 500 });
+// "[object Object]"
+```
 
 ## Template Replacement
 
 Simple string interpolation using `{{variable}}` syntax.
 
+### `replaceTemplate`
+
+Replace template placeholders with values.
+
 ```typescript
-import { replaceTemplate, extractPlaceholders } from "@hardlydifficult/text";
+import { replaceTemplate } from "@hardlydifficult/text";
 
-const text = replaceTemplate("Hello {{name}}! You are {{age}}.", {
+replaceTemplate("Hello {{name}}!", { name: "World" });
+// "Hello World!"
+
+replaceTemplate("{{greeting}}, {{name}}!", {
+  greeting: "Hi",
   name: "Alice",
-  age: "30",
 });
-// "Hello Alice! You are 30."
+// "Hi, Alice!"
 
-const vars = extractPlaceholders("{{greeting}}, {{name}}!");
-// ["greeting", "name"]
+replaceTemplate("Hello {{name}}!", {});
+// "Hello {{name}}!"
 ```
 
-### Functions
+### `extractPlaceholders`
 
-| Function | Description |
-|----------|-------------|
-| `replaceTemplate(template, values)` | Replace all `{{variable}}` placeholders |
-| `extractPlaceholders(template)` | Return unique placeholder names |
+Extract all placeholder names from a template.
+
+```typescript
+import { extractPlaceholders } from "@hardlydifficult/text";
+
+extractPlaceholders("{{a}} and {{b}} and {{a}} again");
+// ["a", "b"]
+
+extractPlaceholders("no placeholders here");
+// []
+```
 
 ## Text Chunking
 
-Split long text into manageable chunks respecting natural breaks.
+Split long text into manageable chunks, preferring natural break points.
 
 ```typescript
 import { chunkText } from "@hardlydifficult/text";
 
-const text = "line one\nline two\nline three";
-chunkText(text, 18);
+chunkText("line one\nline two\nline three", 18);
 // ["line one\nline two", "line three"]
+
+chunkText("word1 word2 word3 word4 word5", 17);
+// ["word1 word2 word3", "word4 word5"]
+
+chunkText("abcdefghijklmnopqrstuvwxyz", 10);
+// ["abcdefghij", "klmnopqrst", "uvwxyz"]
 ```
-
-### Behavior
-
-- Breaks on newlines first, then spaces
-- Falls back to hard breaks when no natural break point exists
-- Trims leading whitespace from subsequent chunks
 
 ## Slugification
 
-Convert strings to URL/filename-safe slugs.
+Convert strings into URL/filename-safe slugs.
 
 ```typescript
 import { slugify } from "@hardlydifficult/text";
 
-slugify("My Feature Name!"); // "my-feature-name"
-slugify("My Feature Name!", 10); // "my-feature"
+slugify("My Feature Name!");
+// "my-feature-name"
+
+slugify("My Feature Name!", 10);
+// "my-feature"
+
+slugify("  Hello World  ");
+// "hello-world"
 ```
-
-### Features
-
-- Lowercases and replaces non-alphanumeric runs with single hyphens
-- Trims leading/trailing hyphens
-- Optional `maxLength` truncates at hyphen boundary when possible
 
 ## Duration Formatting
 
-Format milliseconds as human-readable duration strings.
+Format duration in milliseconds as a human-readable string.
 
 ```typescript
 import { formatDuration } from "@hardlydifficult/text";
 
-formatDuration(125_000); // "2m 5s"
-formatDuration(3_600_000); // "1h"
-formatDuration(500); // "<1s"
+formatDuration(125_000);
+// "2m 5s"
+
+formatDuration(3_600_000);
+// "1h"
+
+formatDuration(500);
+// "<1s"
 ```
-
-### Format Rules
-
-| Duration | Output |
-|----------|--------|
-| < 1000ms | `<1s` |
-| 1–59 seconds | `<seconds>s` |
-| 1–59 minutes | `<minutes>m` or `<minutes>m <seconds>s` |
-| 1–23 hours | `<hours>h` or `<hours>h <minutes>m` |
-| ≥ 1 day | `<days>d` or `<days>d <hours>h` |
 
 ## File Tree Rendering
 
-Build and render hierarchical file trees with depth-based truncation and annotations.
+Build and render hierarchical file trees with depth-based truncation, annotations, and collapsed directory summaries.
 
 ```typescript
 import { buildFileTree, FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
-import type { BuildTreeOptions } from "@hardlydifficult/text";
 
-const paths = [
-  "src/index.ts",
-  "test/unit/a.test.ts",
-  "test/unit/b.test.ts",
-];
-
-const options: BuildTreeOptions = {
-  maxLevel2: 2,
-  annotations: new Map([["src/index.ts", "Entry point"]]),
-  collapseDirs: ["test"],
-};
-
-buildFileTree(paths, options);
-// src/
-//   index.ts — Entry point
-//
-// test/
-//   (2 files across 1 dir)
+buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
+// "src/\n  index.ts\n  utils.ts\n\nREADME.md"
 ```
 
 ### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxLevel2` | `number` | 10 | Max children to show at depth 2 (top-level dirs) |
-| `maxLevel3` | `number` | 3 | Max children to show at depth 3 (files/dirs inside top dirs) |
-| `annotations` | `Map<string, string>` | `undefined` | File/dir descriptions |
-| `details` | `Map<string, string[]>` | `undefined` | Extra lines to show under file entries |
-| `collapseDirs` | `string[]` | `undefined` | Directory names to collapse and summarize |
+| Parameter      | Type                                      | Description                                                                 |
+|----------------|-------------------------------------------|-----------------------------------------------------------------------------|
+| `maxLevel2`    | `number`                                  | Maximum number of entries to show at level 2 (files in a directory)        |
+| `maxLevel3`    | `number`                                  | Maximum number of entries to show at level 3 (files in subdirectories)     |
+| `annotations`  | `ReadonlyMap<string, string>`             | Map of file/directory paths to annotation strings                           |
+| `details`      | `ReadonlyMap<string, readonly string[]>` | Map of file paths to extra detail lines to show under entries              |
+| `collapseDirs` | `readonly string[]`                       | Directory names to collapse with summary count                             |
 
-## Format Conversion
+### Examples
 
-Convert text between JSON and YAML with auto-detection.
+**Annotations**
+
+```typescript
+const annotations = new Map([
+  ["src/index.ts", "Main entry point"],
+  ["src", "Source code directory"],
+]);
+
+buildFileTree(["src/index.ts"], { annotations });
+// "src/ — Source code directory\n  index.ts — Main entry point"
+```
+
+**Details**
+
+```typescript
+const details = new Map([
+  ["src/index.ts", ["> main (5-20): App entry point."]],
+]);
+
+buildFileTree(["src/index.ts"], { details });
+// "src/\n  index.ts\n    > main (5-20): App entry point."
+```
+
+**Collapsed directories**
+
+```typescript
+buildFileTree(
+  ["src/index.ts", "test/unit/a.test.ts", "test/unit/b.test.ts"],
+  { collapseDirs: ["test"] }
+);
+// "src/\n  index.ts\n\ntest/\n  (2 files)"
+```
+
+## JSON/YAML Format Conversion
+
+Convert between JSON and YAML with automatic input detection and clean output formatting.
 
 ```typescript
 import { convertFormat } from "@hardlydifficult/text";
-import type { TextFormat } from "@hardlydifficult/text";
 
-// JSON to YAML
-convertFormat('{"name":"Alice"}', "yaml");
-// name: Alice
+convertFormat('{"name":"Alice","age":30}', "yaml");
+// "name: Alice\nage: 30\n"
 
-// YAML to JSON (pretty-printed with 2-space indent)
 convertFormat("name: Alice\nage: 30", "json");
-// {
-//   "name": "Alice",
-//   "age": 30
-// }
+// "{\n  \"name\": \"Alice\",\n  \"age\": 30\n}"
 ```
 
-### Functions
+### `TextFormat`
 
-| Function | Description |
-|----------|-------------|
-| `convertFormat(content, to)` | Parse input and re-serialize to `json` or `yaml` |
+Type alias for output format: `"json"` or `"yaml"`.
 
 ## YAML Formatting
 
-Serialize data to clean YAML, using block literals for long strings containing `: `.
+Serialize data to clean YAML with intelligent block literal selection for long strings.
 
 ```typescript
 import { formatYaml } from "@hardlydifficult/text";
 
 formatYaml({
   purpose:
-    "Core AI SDK: LLM integrations (Anthropic, Ollama) and streaming support.",
+    "Core AI SDK implementation: LLM integrations (Anthropic Claude, Ollama), agent orchestration with streaming.",
 });
+
+// Uses block literal (|) for long strings containing ": "
 // purpose: |
-//   Core AI SDK: LLM integrations (Anthropic, Ollama) and streaming support.
+//   Core AI SDK implementation: LLM integrations (Anthropic Claude, Ollama), agent orchestration with streaming.
 ```
-
-### Behavior
-
-- Long strings (`>60 chars`) containing `: ` render as block literals (`|`)
-- Short strings and safe scalars remain plain or quoted as needed
-- Preserves round-trip parseability
 
 ## YAML Healing
 
-Sanitize malformed YAML from LLMs by stripping code fences and quoting scalar values containing colons.
+Clean and repair YAML output from LLMs by stripping code fences and quoting problematic scalar values.
 
 ```typescript
 import { healYaml } from "@hardlydifficult/text";
-import { parse } from "yaml";
 
-const badYaml = `\`\`\`yaml
-purpose: |
-  Core AI: LLM integrations (Anthropic, Ollama)
-description: Main deps: Node, TypeScript, Vitest.
-\`\`\``;
+healYaml("```yaml\nkey: value\n```");
+// "key: value"
 
-const cleaned = healYaml(badYaml);
-// purpose: |
-//   Core AI: LLM integrations (Anthropic, Ollama)
-// description: "Main deps: Node, TypeScript, Vitest."
-
-parse(cleaned); // Parses successfully
+healYaml('description: Development dependencies: Node types.');
+// 'description: "Development dependencies: Node types."'
 ```
 
-### Fixes Applied
+## Link Generation
 
-- Strips markdown code fences (` ```yaml ` or ` ``` `)
-- Quotes plain scalar values containing `: ` to avoid parse errors
+Transform text with issue/PR references into formatted links across platforms like Slack, Discord, and Markdown.
 
-## Linkification
+### `createLinker`
 
-Transform text with issue/PR references into formatted links.
+Create a linker instance with optional initial rules.
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
 
 const linker = createLinker()
-  .linear("fairmint")
-  .githubPr("Fairmint/api");
+  .linear("my-org")
+  .githubPr("my-org/my-repo");
 
-const output = linker.apply("Fix ENG-533 and PR#42", { platform: "slack" });
-// Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> <https://github.com/Fairmint/api/pull/42|PR#42>
+linker.apply("Fix ENG-533 and PR#42", { platform: "slack" });
+// "Fix <https://linear.app/my-org/issue/ENG-533|ENG-533> <https://github.com/my-org/my-repo/pull/42|PR#42>"
 ```
 
-### Platforms
+### `Linker` Class
 
-| Platform | Output Format |
-|----------|---------------|
-| `slack` | `<href\|text>` |
-| `discord` | `[text](href)` |
-| `markdown` | `[text](href)` |
-| `plaintext` | `href` (raw URL) |
+Stateful linker that applies configured rules to text.
 
-### Linker Methods
+**Methods:**
 
-| Method | Description |
-|--------|-------------|
-| `custom(pattern, toHref, options)` | Register a new rule with regex pattern and href builder |
-| `linear(workspace, options)` | Match `PROJECT-123` and link to Linear |
-| `githubPr(repository, options)` | Match `PR#123` and link to GitHub Pull Request |
-| `apply(text, options)` | Transform text with configured rules |
+| Method         | Description                                                            |
+|----------------|------------------------------------------------------------------------|
+| `addRule(rule)`| Add a custom link rule                                                 |
+| `rule(...)`    | Add a rule (supports fluent and named forms)                           |
+| `custom(...)`  | Add a custom rule with regex pattern and href builder                  |
+| `linear(...)`  | Add Linear issue reference rule (e.g., `ENG-533`)                      |
+| `githubPr(...)`| Add GitHub PR reference rule (e.g., `PR#42`)                           |
+| `apply(...)`   | Apply linkification to text with options                               |
+| `linkText(...)`| Alias for `apply` (same behavior)                                      |
+
+### Rules
+
+| Parameter | Type                      | Description                                                                 |
+|-----------|---------------------------|-----------------------------------------------------------------------------|
+| `pattern` | `RegExp`                  | Match pattern (global flag is enforced automatically)                       |
+| `href`    | `string`                  | URL template (supports `$0`/`$&`, `$1..$N`)                                |
+| `toHref`  | `string \| LinkHrefBuilder`| Either href template or callback; takes precedence over `href`            |
+| `priority`| `number`                  | Higher priority wins for overlapping matches (default: `0`)               |
 
 ### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `format` / `platform` | `LinkerPlatform` | `"markdown"` | Output format |
-| `skipCode` | `boolean` | `true` | Skip linkification inside code blocks/inline code |
-| `skipExistingLinks` | `boolean` | `true` | Skip linkification inside existing links |
+| Parameter             | Type                        | Description                                                             |
+|-----------------------|-----------------------------|-------------------------------------------------------------------------|
+| `format` / `platform` | `LinkerPlatform`            | Output format: `"slack"`, `"discord"`, `"markdown"`, `"plaintext"`     |
+| `skipCode`            | `boolean`                   | Skip linkification inside code spans (default: `true`)                 |
+| `skipExistingLinks`   | `boolean`                   | Skip linkification inside existing links (default: `true`)             |
 
-### LinkRule Options
+### Platforms
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `pattern` | `RegExp` | Match pattern (global matching enforced) |
-| `href` / `toHref` | `string` or `LinkHrefBuilder` | URL template (supports `$0`/`$&`, `$1`..`$N`) or callback |
-| `priority` | `number` | `0` | Higher priority wins overlapping matches |
+| Platform     | Format                          |
+|--------------|---------------------------------|
+| `slack`      | `<href|text>`                   |
+| `discord`    | `[text](href)`                  |
+| `markdown`   | `[text](href)`                  |
+| `plaintext`  | `href` (raw URL)                |
+
+### Examples
+
+**Custom rules**
+
+```typescript
+const linker = createLinker().custom(
+  /\bINC-\d+\b/g,
+  ({ match }) => `https://incident.io/${match}`
+);
+linker.apply("Handle INC-99", { format: "slack" });
+// "Handle <https://incident.io/INC-99|INC-99>"
+```
+
+**Priority-based resolution**
+
+```typescript
+const linker = createLinker()
+  .custom(/\bENG-\d+\b/g, "https://low.example/$0", { priority: 0 })
+  .custom(/\bENG-533\b/g, "https://high.example/$0", { priority: 10 });
+
+linker.apply("ENG-533 and ENG-534", { format: "markdown" });
+// "[ENG-533](https://high.example/ENG-533) and [ENG-534](https://low.example/ENG-534)"
+```
+
+**Idempotent linkification**
+
+```typescript
+const linker = createLinker().linear("my-org");
+const first = linker.apply("Ship ENG-533", { format: "slack" });
+const second = linker.apply(first, { format: "slack" });
+// first === second (no double-linkification)
+```
 
 ## Text with Line Numbers
 
@@ -331,16 +413,13 @@ formatWithLineNumbers("hello\nworld", 10);
 // 11: world
 ```
 
-## Markdown Fence Escaping
+## Escaping Markdown Fences
 
-Escape content by wrapping with more backticks than contained in the content.
+Escape markdown code fences by dynamically selecting a fence delimiter longer than any backtick sequence in the content.
 
 ```typescript
 import { escapeFence } from "@hardlydifficult/text";
 
-const result = escapeFence("content with ``` triple backticks");
-// { fence: "````", content: "content with ``` triple backticks" }
-
-// Use as:
-// ${result.fence}${result.content}${result.fence}
+escapeFence("Content with `` backticks");
+// { fence: "````", content: "Content with `` backticks" }
 ```
