@@ -1,123 +1,98 @@
-# @hardlydifficult/teardown
+# @hardlydifficult/daemon
 
-Idempotent resource teardown with signal trapping. Register cleanup functions once at resource creation time — all exit paths call a single `run()`.
+Opinionated utilities for long-running scripts and services:
+
+- `createTeardown()` for idempotent cleanup
+- `runContinuousLoop()` for daemon-style cycle execution with graceful shutdown
 
 ## Installation
 
 ```bash
-npm install @hardlydifficult/teardown
+npm install @hardlydifficult/daemon
 ```
 
-## Quick Start
+## createTeardown
+
+Register teardown functions once and call `run()` from every exit path.
 
 ```typescript
-import { createTeardown } from "@hardlydifficult/teardown";
+import { createTeardown } from "@hardlydifficult/daemon";
 
 const teardown = createTeardown();
 teardown.add(() => server.stop());
 teardown.add(() => db.close());
 teardown.trapSignals();
 
-// Any manual exit path:
 await teardown.run();
 ```
 
-## Creating a Teardown Registry
+Behavior:
 
-Use `createTeardown()` to create a new teardown registry that manages cleanup functions.
+- LIFO execution (last added, first run)
+- Idempotent `run()` (safe to call multiple times)
+- Per-function error isolation (one failing teardown does not block others)
+- `add()` returns an unregister function
 
-```typescript
-import { createTeardown } from "@hardlydifficult/teardown";
+## runContinuousLoop
 
-const teardown = createTeardown();
-```
-
-## Registering Cleanup Functions
-
-Call `add()` to register a cleanup function. Functions run in LIFO order (last added runs first). The `add()` method returns an unregister function for selective cleanup.
+Run a cycle repeatedly with SIGINT/SIGTERM handling, optional per-cycle delay
+control, and hook-based error policy.
 
 ```typescript
-const teardown = createTeardown();
+import { runContinuousLoop } from "@hardlydifficult/daemon";
 
-// Register sync cleanup
-teardown.add(() => {
-  console.log("Closing server");
-  server.stop();
+await runContinuousLoop({
+  intervalSeconds: 30,
+  async runCycle(isShutdownRequested) {
+    if (isShutdownRequested()) {
+      return { stop: true };
+    }
+
+    const didWork = await syncQueue();
+
+    if (!didWork) {
+      return 60_000; // wait 60s before next cycle
+    }
+
+    return "immediate"; // run next cycle without sleeping
+  },
+  onCycleError(error, context) {
+    notifyOps(error, { cycleNumber: context.cycleNumber });
+    return "continue"; // or "stop"
+  },
 });
-
-// Register async cleanup
-teardown.add(async () => {
-  console.log("Closing database");
-  await db.close();
-});
-
-// Unregister a specific function
-const unregister = teardown.add(() => {
-  console.log("This won't run");
-});
-unregister();
-
-await teardown.run();
-// Output:
-// Closing database
-// Closing server
 ```
 
-## Running Teardown
+### Cycle return contract
 
-Call `run()` to execute all registered cleanup functions in LIFO order. The method is idempotent — subsequent calls are no-ops.
+`runCycle()` can return:
+
+- `void`/any value: use default `intervalSeconds`
+- `number`: use that delay in milliseconds
+- `"immediate"`: skip sleep and run next cycle immediately
+- `{ stop: true }`: finish loop gracefully
+- `{ nextDelayMs: number | "immediate", stop?: true }`: explicit control object
+
+### Optional delay resolver
+
+If your cycle returns domain data, keep it clean and derive delays with
+`getNextDelayMs(result, context)`.
+
+### Error handling
+
+Use `onCycleError(error, context)` to route errors to your own systems
+(Slack/Sentry/etc.) and decide whether to `"continue"` or `"stop"`.
+
+Without `onCycleError`, errors are logged and the loop continues.
+
+### Logger injection
+
+By default, warnings/errors use `console.warn`/`console.error`.
+Provide `logger` to plug in your own logging implementation:
 
 ```typescript
-const teardown = createTeardown();
-teardown.add(() => console.log("cleanup"));
-
-await teardown.run();
-// Output: cleanup
-
-await teardown.run();
-// No output (idempotent)
+const logger = {
+  warn: (message, context) => myLogger.warn(message, context),
+  error: (message, context) => myLogger.error(message, context),
+};
 ```
-
-## Signal Trapping
-
-Call `trapSignals()` to automatically run teardown when the process receives SIGTERM or SIGINT signals. Returns an untrap function to remove signal handlers.
-
-```typescript
-const teardown = createTeardown();
-teardown.add(() => server.stop());
-
-// Wire SIGTERM/SIGINT to run() then process.exit(0)
-const untrap = teardown.trapSignals();
-
-// Later, if needed:
-untrap();
-```
-
-## Error Resilience
-
-Each teardown function is wrapped in try/catch. Errors don't block remaining teardowns — all functions run regardless of failures.
-
-```typescript
-const teardown = createTeardown();
-
-teardown.add(() => {
-  throw new Error("First cleanup fails");
-});
-teardown.add(() => {
-  console.log("Second cleanup still runs");
-});
-
-await teardown.run();
-// Output: Second cleanup still runs
-```
-
-## Behavior Reference
-
-| Behavior | Details |
-|----------|---------|
-| **LIFO order** | Teardowns run in reverse registration order (last added runs first) |
-| **Idempotent** | `run()` executes once; subsequent calls are no-ops |
-| **Error resilient** | Each function is wrapped in try/catch; failures don't block remaining teardowns |
-| **Safe unregister** | `add()` returns an unregister function; safe to call multiple times |
-| **Post-run add** | `add()` after `run()` is a silent no-op |
-| **Duplicate safe** | Same function added twice runs twice; unregister only removes its own registration |

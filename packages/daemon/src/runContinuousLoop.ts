@@ -5,20 +5,101 @@
  * SIGINT/SIGTERM.
  */
 
+/** Delay directive returned by runCycle/getNextDelayMs. */
+export type ContinuousLoopDelay = number | "immediate";
+
+/** Context provided to each cycle and delay resolver. */
+export interface ContinuousLoopCycleContext {
+  /** 1-based cycle number for the current loop iteration */
+  cycleNumber: number;
+  /** Function to check if shutdown has been requested */
+  isShutdownRequested: () => boolean;
+}
+
+/** Context provided to cycle error handling callbacks. */
+export interface ContinuousLoopErrorContext extends ContinuousLoopCycleContext {}
+
+/** Action returned by onCycleError to control loop behavior. */
+export type ContinuousLoopErrorAction = "continue" | "stop";
+
+/** Callback used to process cycle errors and decide loop policy. */
+export type ContinuousLoopErrorHandler = (
+  error: unknown,
+  context: ContinuousLoopErrorContext
+) =>
+  | ContinuousLoopErrorAction
+  | void
+  | Promise<ContinuousLoopErrorAction | void>;
+
+/** Optional control directives that can be returned from runCycle. */
+export interface ContinuousLoopCycleControl {
+  /** Stop the loop after this cycle completes. */
+  stop?: boolean;
+  /** Override delay before the next cycle. */
+  nextDelayMs?: ContinuousLoopDelay;
+}
+
+/** Minimal logger interface compatible with @hardlydifficult/logger. */
+export interface ContinuousLoopLogger {
+  warn(message: string, context?: Readonly<Record<string, unknown>>): void;
+  error(message: string, context?: Readonly<Record<string, unknown>>): void;
+}
+
+/** Supported return shape from runCycle. */
+export type ContinuousLoopRunCycleResult<TResult = unknown> =
+  | TResult
+  | ContinuousLoopDelay
+  | ContinuousLoopCycleControl;
+
 /** Options for running a continuous loop */
-export interface ContinuousLoopOptions {
+export interface ContinuousLoopOptions<TResult = unknown> {
   /** Interval between cycles in seconds */
   intervalSeconds: number;
   /**
    * Callback to run on each cycle.
    *
    * @param isShutdownRequested - Function to check if shutdown has been requested during the cycle
-   * @returns Promise that resolves when the cycle is complete (return value is ignored)
+   * @returns Promise resolving to cycle result and optional control directives
    */
-  runCycle: (isShutdownRequested: () => boolean) => Promise<unknown>;
+  runCycle: (
+    isShutdownRequested: () => boolean
+  ) => Promise<ContinuousLoopRunCycleResult<TResult>>;
+  /**
+   * Optional hook to derive the next delay from a runCycle result.
+   * Used only when runCycle does not directly return a delay directive.
+   */
+  getNextDelayMs?: (
+    result: ContinuousLoopRunCycleResult<TResult>,
+    context: ContinuousLoopCycleContext
+  ) => ContinuousLoopDelay | undefined;
+  /**
+   * Optional error callback for cycle failures.
+   *
+   * Return "stop" to end the loop, otherwise it will continue.
+   */
+  onCycleError?: ContinuousLoopErrorHandler;
   /** Optional callback for cleanup on shutdown */
-  onShutdown?: () => Promise<void>;
+  onShutdown?: () => void | Promise<void>;
+  /** Optional logger (defaults to console warn/error) */
+  logger?: ContinuousLoopLogger;
 }
+
+const defaultLogger: ContinuousLoopLogger = {
+  warn(message, context) {
+    if (context === undefined) {
+      console.warn(message);
+      return;
+    }
+    console.warn(message, context);
+  },
+  error(message, context) {
+    if (context === undefined) {
+      console.error(message);
+      return;
+    }
+    console.error(message, context);
+  },
+};
 
 /**
  * Creates an interruptible sleep that can be woken early by calling the returned cancel function.
@@ -55,6 +136,80 @@ function createInterruptibleSleep(durationMs: number): {
   return { promise, cancel };
 }
 
+function normalizeDelayMs(
+  delayMs: ContinuousLoopDelay,
+  source: "intervalSeconds" | "runCycle" | "getNextDelayMs"
+): ContinuousLoopDelay {
+  if (delayMs === "immediate") {
+    return delayMs;
+  }
+  if (!Number.isFinite(delayMs) || delayMs < 0) {
+    if (source === "intervalSeconds") {
+      throw new Error(
+        "intervalSeconds must be a non-negative finite number"
+      );
+    }
+    throw new Error(
+      `${source} must return a non-negative finite number or "immediate"`
+    );
+  }
+  return delayMs;
+}
+
+function getControlFromCycleResult(
+  result: ContinuousLoopRunCycleResult<unknown>
+): ContinuousLoopCycleControl {
+  if (typeof result === "number" || result === "immediate") {
+    return { nextDelayMs: result };
+  }
+  if (typeof result !== "object" || result === null) {
+    return {};
+  }
+
+  const value = result as Record<string, unknown>;
+  const nextDelayMs = value.nextDelayMs;
+  return {
+    stop: value.stop === true,
+    nextDelayMs:
+      typeof nextDelayMs === "number" || nextDelayMs === "immediate"
+        ? nextDelayMs
+        : undefined,
+  };
+}
+
+async function handleCycleError(
+  error: unknown,
+  context: ContinuousLoopErrorContext,
+  onCycleError: ContinuousLoopErrorHandler | undefined,
+  logger: ContinuousLoopLogger
+): Promise<ContinuousLoopErrorAction> {
+  if (onCycleError !== undefined) {
+    try {
+      const action = await onCycleError(error, context);
+      return action === "stop" ? "stop" : "continue";
+    } catch (handlerError) {
+      logger.error("onCycleError handler failed", {
+        cycleNumber: context.cycleNumber,
+        cycleError:
+          error instanceof Error
+            ? error.message
+            : String(error),
+        handlerError:
+          handlerError instanceof Error
+            ? handlerError.message
+            : String(handlerError),
+      });
+      return "continue";
+    }
+  }
+
+  logger.error("Cycle error", {
+    cycleNumber: context.cycleNumber,
+    error: error instanceof Error ? error.message : String(error),
+  });
+  return "continue";
+}
+
 /**
  * Run a function in a continuous loop with graceful shutdown support.
  *
@@ -62,21 +217,36 @@ function createInterruptibleSleep(durationMs: number): {
  *
  * - Interruptible sleep that responds immediately to SIGINT/SIGTERM
  * - Proper signal handler cleanup to prevent listener accumulation
- * - Continues to next cycle even if current cycle fails
+ * - Per-cycle delay control via return value or getNextDelayMs
+ * - Graceful stop signaling from runCycle ({ stop: true })
+ * - Configurable error policy via onCycleError
  * - Passes shutdown check callback to runCycle for in-cycle interruption
  *
  * @param options - Configuration for the continuous loop
  */
-export async function runContinuousLoop(
-  options: ContinuousLoopOptions
+export async function runContinuousLoop<TResult = unknown>(
+  options: ContinuousLoopOptions<TResult>
 ): Promise<void> {
-  const { intervalSeconds, runCycle, onShutdown } = options;
+  const {
+    intervalSeconds,
+    runCycle,
+    getNextDelayMs,
+    onCycleError,
+    onShutdown,
+    logger = defaultLogger,
+  } = options;
+
+  const defaultDelayMs = normalizeDelayMs(
+    intervalSeconds * 1000,
+    "intervalSeconds"
+  );
 
   let shutdownRequested = false;
   let cancelCurrentSleep: (() => void) | null = null;
+  let cycleNumber = 0;
 
   const handleShutdown = (signal: string): void => {
-    console.warn(`Received ${signal}, shutting down gracefully...`);
+    logger.warn(`Received ${signal}, shutting down gracefully...`);
     shutdownRequested = true;
     if (cancelCurrentSleep !== null) {
       cancelCurrentSleep();
@@ -100,19 +270,55 @@ export async function runContinuousLoop(
 
   try {
     while (shouldContinue()) {
+      cycleNumber += 1;
+      const cycleContext: ContinuousLoopCycleContext = {
+        cycleNumber,
+        isShutdownRequested,
+      };
+      let nextDelayMs: ContinuousLoopDelay = defaultDelayMs;
+
       try {
-        await runCycle(isShutdownRequested);
+        const cycleResult = await runCycle(isShutdownRequested);
+        if (!shouldContinue()) {
+          continue;
+        }
+
+        const cycleControl = getControlFromCycleResult(cycleResult);
+        if (cycleControl.stop === true) {
+          shutdownRequested = true;
+          continue;
+        }
+
+        if (cycleControl.nextDelayMs !== undefined) {
+          nextDelayMs = normalizeDelayMs(cycleControl.nextDelayMs, "runCycle");
+        } else if (getNextDelayMs !== undefined) {
+          const derivedDelay = getNextDelayMs(cycleResult, cycleContext);
+          if (derivedDelay !== undefined) {
+            nextDelayMs = normalizeDelayMs(derivedDelay, "getNextDelayMs");
+          }
+        }
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error(`Cycle error: ${errorMessage}`);
+        const action = await handleCycleError(
+          error,
+          cycleContext,
+          onCycleError,
+          logger
+        );
+        if (action === "stop") {
+          shutdownRequested = true;
+          continue;
+        }
       }
 
       if (!shouldContinue()) {
         break;
       }
 
-      const sleep = createInterruptibleSleep(intervalSeconds * 1000);
+      if (nextDelayMs === "immediate") {
+        continue;
+      }
+
+      const sleep = createInterruptibleSleep(nextDelayMs);
       cancelCurrentSleep = sleep.cancel;
       await sleep.promise;
       cancelCurrentSleep = null;
