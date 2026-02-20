@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 
 import type {
+  AuthOptions,
   BackoffOptions,
   HeartbeatOptions,
   WebSocketEvents,
@@ -27,7 +28,7 @@ const HEARTBEAT_DEFAULTS: Required<HeartbeatOptions> = {
  */
 export function getBackoffDelay(
   attempt: number,
-  options: Required<BackoffOptions>
+  options: Required<BackoffOptions>,
 ): number {
   const delay = options.initialDelayMs * Math.pow(options.multiplier, attempt);
   return Math.min(delay, options.maxDelayMs);
@@ -37,6 +38,10 @@ export function getBackoffDelay(
  * A generic WebSocket client that automatically reconnects on disconnection,
  * sends protocol-level pings for heartbeats, and parses JSON messages.
  *
+ * Supports optional bearer-token auth via the `auth` option. The token is
+ * fetched on every connect (including reconnects), so reconnects automatically
+ * pick up fresh tokens.
+ *
  * @typeParam T - The shape of messages exchanged over the socket (JSON-serializable)
  */
 export class ReconnectingWebSocket<T> {
@@ -44,6 +49,9 @@ export class ReconnectingWebSocket<T> {
   private readonly url: string;
   private readonly backoff: Required<BackoffOptions>;
   private readonly heartbeat: Required<HeartbeatOptions>;
+  private readonly auth: AuthOptions | undefined;
+  private readonly protocols: string[] | undefined;
+  private readonly extraHeaders: Record<string, string> | undefined;
   private reconnectAttempt = 0;
   private shouldReconnect = true;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
@@ -59,6 +67,9 @@ export class ReconnectingWebSocket<T> {
     this.url = options.url;
     this.backoff = { ...BACKOFF_DEFAULTS, ...options.backoff };
     this.heartbeat = { ...HEARTBEAT_DEFAULTS, ...options.heartbeat };
+    this.auth = options.auth;
+    this.protocols = options.protocols;
+    this.extraHeaders = options.headers;
   }
 
   /**
@@ -68,7 +79,7 @@ export class ReconnectingWebSocket<T> {
    */
   on<K extends keyof WebSocketEvents<T>>(
     event: K,
-    listener: WebSocketEvents<T>[K]
+    listener: WebSocketEvents<T>[K],
   ): () => void {
     let set = this.eventListeners.get(event);
     if (!set) {
@@ -86,8 +97,11 @@ export class ReconnectingWebSocket<T> {
    * Idempotent — no-op if already connected.
    * If a reconnect timer is pending, cancels it and connects immediately,
    * resetting the attempt counter.
+   *
+   * When `auth` is configured, fetches a bearer token before connecting.
+   * The returned promise resolves once the socket is created (not necessarily open).
    */
-  connect(): void {
+  async connect(): Promise<void> {
     if (this.ws) {
       return;
     }
@@ -99,7 +113,33 @@ export class ReconnectingWebSocket<T> {
     }
 
     this.shouldReconnect = true;
-    this.ws = new WebSocket(this.url);
+
+    const headers: Record<string, string> = { ...this.extraHeaders };
+
+    if (this.auth) {
+      try {
+        const token = await this.auth.getToken();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+      } catch (err) {
+        this.emit(
+          "error",
+          err instanceof Error ? err : new Error(String(err)),
+        );
+        if (this.shouldReconnect) {
+          this.scheduleReconnect();
+        }
+        return;
+      }
+    }
+
+    const hasHeaders = Object.keys(headers).length > 0;
+    this.ws = new WebSocket(
+      this.url,
+      this.protocols,
+      hasHeaders ? { headers } : undefined,
+    );
 
     this.ws.on("open", () => {
       this.onOpen();
@@ -139,6 +179,31 @@ export class ReconnectingWebSocket<T> {
       this.ws.close(1000, "Client disconnecting");
       this.ws = null;
     }
+  }
+
+  /**
+   * Force close and reconnect. Useful for token refresh: close the current
+   * connection and reconnect with a fresh token (fetched via `auth.getToken`).
+   * Resets the backoff counter.
+   */
+  reconnect(): void {
+    this.stopHeartbeat();
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    this.reconnectAttempt = 0;
+
+    if (this.ws) {
+      this.ws.removeAllListeners();
+      this.ws.close(4000, "Token refresh");
+      this.ws = null;
+    }
+
+    this.shouldReconnect = true;
+    void this.connect();
   }
 
   /**
@@ -240,7 +305,7 @@ export class ReconnectingWebSocket<T> {
       this.reconnectAttempt++;
       this.reconnectTimeout = null;
       this.ws = null;
-      this.connect();
+      void this.connect();
     }, delay);
   }
 
