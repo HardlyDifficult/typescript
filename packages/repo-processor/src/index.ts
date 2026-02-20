@@ -1,6 +1,8 @@
 export { RepoProcessor } from "./RepoProcessor.js";
 export type { RepoProcessorConfig } from "./RepoProcessor.js";
 export { resolveStaleDirectories } from "./resolveDirectories.js";
+export { GitYamlStore } from "./GitYamlStore.js";
+export type { GitYamlStoreConfig } from "./GitYamlStore.js";
 export type {
   ProcessorStore,
   ProcessorCallbacks,
