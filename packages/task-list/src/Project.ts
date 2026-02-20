@@ -117,9 +117,10 @@ export class Project {
         }
       }
       if (filter.label !== undefined) {
+        const filterLabel = filter.label;
         if (
           !task.labels.some((l) =>
-            l.toLowerCase().includes(filter.label!.toLowerCase())
+            l.toLowerCase().includes(filterLabel.toLowerCase())
           )
         ) {
           return false;

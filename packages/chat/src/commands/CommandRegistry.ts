@@ -45,14 +45,14 @@ function buildParser(
     case "rest": {
       const { argName, optional } = args;
       const escaped = escapeRegex(prefix);
-      const prefixRegex = new RegExp(`^!?${escaped}\\s+(.+)$`);
+      const prefixRegex = new RegExp(`^!?${escaped}\\s+(.+)$`, "s");
       const bareRegex = new RegExp(`^!?${escaped}$`);
 
       return (normalizedInput, originalInput) => {
         const match = prefixRegex.exec(normalizedInput);
         if (match) {
           // Extract from originalInput to preserve case
-          const originalMatch = new RegExp(`^!?\\S+\\s+(.+)$`).exec(
+          const originalMatch = new RegExp(`^!?\\S+\\s+(.+)$`, "s").exec(
             originalInput
           );
           const value = originalMatch?.[1].trim() ?? match[1].trim();

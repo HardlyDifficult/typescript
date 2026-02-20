@@ -1,6 +1,6 @@
 # @hardlydifficult/state-tracker
 
-Atomic JSON state persistence with sync/async APIs, auto-save, and graceful degradation for TypeScript applications.
+Atomic JSON state persistence with sync/async APIs, auto-save debouncing, and graceful degradation to in-memory mode for TypeScript.
 
 ## Installation
 
@@ -13,137 +13,222 @@ npm install @hardlydifficult/state-tracker
 ```typescript
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
-interface AppState {
-  requestCount: number;
-  lastActiveAt: string;
-}
-
-const store = new StateTracker<AppState>({
-  key: "my-service",
-  default: { requestCount: 0, lastActiveAt: "" },
-  stateDirectory: "/var/data",
-  autoSaveMs: 5000,
-  onEvent: ({ level, message }) => console.log(`[${level}] ${message}`),
+const tracker = new StateTracker({
+  key: "user-settings",
+  default: { theme: "light", notifications: true },
+  autoSaveMs: 1000,
 });
 
-await store.loadAsync();
+// Load persisted state (sync or async)
+tracker.load(); // or await tracker.loadAsync();
 
-store.state.requestCount; // read current state
-store.update({ requestCount: store.state.requestCount + 1 }); // partial update
-store.set({ requestCount: 0, lastActiveAt: new Date().toISOString() }); // full replace
-await store.saveAsync(); // force immediate save
+// Update state and auto-save
+tracker.update({ theme: "dark" });
+// State is saved automatically after 1 second of inactivity
+
+// Read current state
+console.log(tracker.state); // { theme: "dark", notifications: true }
 ```
 
-## State Persistence
+## State Management
 
-The `StateTracker` class provides atomic JSON state persistence using file-based storage with graceful fallback to in-memory mode when disk access fails.
+The `StateTracker` class provides a robust interface for managing persistent application state.
 
-### Sync API
+### Constructor
 
-For tools and scripts, use the synchronous API:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `key` | `string` | — | Unique identifier for the state file (alphanumeric, hyphens, underscores only) |
+| `default` | `T` | — | Default state value used if no persisted state exists |
+| `stateDirectory` | `string` | `~/.app-state` or `$STATE_TRACKER_DIR` | Directory to store state files |
+| `autoSaveMs` | `number` | `0` | Debounce delay (ms) for auto-save after state changes |
+| `onEvent` | `(event: StateTrackerEvent) => void` | `undefined` | Callback for internal events (debug/info/warn/error) |
+
+### State Accessors
+
+- **`state: Readonly<T>`** — Read-only getter for the current in-memory state.
+- **`isPersistent: boolean`** — Indicates whether disk persistence is available (set after `loadAsync()`).
 
 ```typescript
-import { StateTracker } from "@hardlydifficult/state-tracker";
-
-const store = new StateTracker<number>({
+const tracker = new StateTracker({
   key: "counter",
   default: 0,
+  stateDirectory: "./data",
 });
 
-const count = store.load(); // returns current state
-store.save(count + 1); // writes entire state atomically
+console.log(tracker.state); // 0
+await tracker.loadAsync();
+console.log(tracker.isPersistent); // true if disk write succeeded
 ```
 
-### Async API
+### Persistence Operations
 
-For long-running servers, use the async API with auto-save:
+#### `load(): T`
+Synchronous state load from disk. Returns the current state (default if missing or corrupted).
 
 ```typescript
-const store = new StateTracker<AppState>({
-  key: "app",
+const tracker = new StateTracker({
+  key: "config",
   default: { version: 1 },
-  stateDirectory: "/var/state",
-  autoSaveMs: 5000,
+});
+const config = tracker.load(); // Loads from disk or uses default
+```
+
+#### `save(value: T): void`
+Synchronous atomic save using temp file + rename.
+
+```typescript
+tracker.save({ version: 2 });
+// File is updated atomically; previous state preserved if crash occurs mid-write
+```
+
+#### `loadAsync(): Promise<void>`
+Async state load with graceful degradation. Sets `isPersistent = false` on failure instead of throwing.
+
+```typescript
+const tracker = new StateTracker({
+  key: "preferences",
+  default: { darkMode: false },
 });
 
-await store.loadAsync();
-store.set({ version: 2 });
-await store.saveAsync(); // Force immediate save
+await tracker.loadAsync();
+if (!tracker.isPersistent) {
+  console.warn("Running in-memory mode (disk unavailable)");
+}
 ```
 
-## Options
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `key` | `string` | Unique identifier for the state file (required) |
-| `default` | `T` | Default value when no state file exists (required) |
-| `stateDirectory` | `string` | Directory for state files (default: `$STATE_TRACKER_DIR` or `~/.app-state`) |
-| `autoSaveMs` | `number` | Auto-save interval after `update()`/`set()`/`reset()` (default: 0 = disabled) |
-| `onEvent` | `(event: StateTrackerEvent) => void` | Event callback for logging (`{ level, message, context }`) |
-
-## Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `state` | `Readonly<T>` | Current in-memory state |
-| `isPersistent` | `boolean` | Whether disk storage is available |
-
-## Methods
-
-| Method | Description |
-|--------|-------------|
-| `loadAsync()` | Async load with graceful degradation (safe to call multiple times) |
-| `saveAsync()` | Async atomic save (temp file + rename) |
-| `load()` | Sync load (v1 compatible envelope format) |
-| `save(value)` | Sync save (overwrites entire state, v1 compatible) |
-| `update(changes)` | Shallow merge for object state, triggers auto-save |
-| `set(newState)` | Replace entire state, triggers auto-save |
-| `reset()` | Restore to defaults, triggers auto-save |
-| `getFilePath()` | Returns the full path to the state file |
-
-### `update()`
-
-For object state types, `update()` merges partial changes:
+#### `saveAsync(): Promise<void>`
+Async atomic save (temp file + rename). Cancels any pending auto-save before writing.
 
 ```typescript
-const store = new StateTracker<{ count: number; name: string }>({
-  key: "demo",
-  default: { count: 0, name: "initial" },
-});
-
-store.update({ count: 42 });
-console.log(store.state); // { count: 42, name: "initial" }
+tracker.set({ darkMode: true });
+await tracker.saveAsync(); // Immediate save, bypassing debounce
 ```
 
-Calling `update()` on a primitive state throws:
+### State Mutations
+
+#### `set(newState: T): void`
+Replace entire state and schedule auto-save.
 
 ```typescript
-const primitive = new StateTracker<number>({ key: "num", default: 0 });
-primitive.update(100 as never); // throws: "update() can only be used when state is a non-array object"
+tracker.set({ darkMode: true, theme: "midnight" });
+// Auto-saves after configured delay (if autoSaveMs > 0)
 ```
 
-## Event Handling
-
-Events are emitted for key lifecycle operations with configurable logging:
+#### `update(changes: Partial<T>): void`
+Shallow merge for object types and schedule auto-save.
 
 ```typescript
-const store = new StateTracker<AppState>({
+tracker.update({ theme: "dark" }); // Preserves darkMode: true
+```
+
+> **Note:** Throws at runtime if state is not an object (array/primitive).
+
+#### `reset(): void`
+Restore state to the default value and schedule auto-save.
+
+```typescript
+tracker.reset(); // Reverts to default state
+```
+
+### File Management
+
+#### `getFilePath(): string`
+Returns the full path to the state file.
+
+```typescript
+console.log(tracker.getFilePath()); // "/home/user/.app-state/counter.json"
+```
+
+## Event System
+
+Events are emitted for internal operations via the optional `onEvent` callback.
+
+| Level | Description |
+|-------|-------------|
+| `debug` | Low-level operations (e.g., save completion) |
+| `info` | Normal operations (e.g., file read/write) |
+| `warn` | Recoverable failures (e.g., disk I/O errors) |
+| `error` | Non-recoverable failures (e.g., permission issues) |
+
+```typescript
+const tracker = new StateTracker({
   key: "app",
-  default: { version: 1 },
-  onEvent: ({ level, message, context }) => {
-    console.log(`[${level}] ${message}`, context);
+  default: {},
+  onEvent: (event) => {
+    console[event.level](`[${event.level}] ${event.message}`, event.context);
   },
 });
 
-await store.loadAsync();
-// Example output: [info] No existing state file, using defaults { path: ".../app.json" }
-
-store.set({ version: 2 });
-await store.saveAsync();
-// Example output: [debug] Saved state to disk { path: ".../app.json" }
+await tracker.loadAsync();
+// Outputs: [info] Loaded state from disk { path: ".../app.json" }
 ```
 
-Event levels: `"debug"`, `"info"`, `"warn"`, `"error"`
+## Persistence Format
+
+### v2 (Envelope) Format
+```json
+{
+  "value": { "theme": "dark", "notifications": true },
+  "lastUpdated": "2024-05-01T12:00:00.000Z"
+}
+```
+
+### Legacy (PersistentStore) Migration
+The tracker automatically detects and merges legacy raw JSON objects with defaults on load.
+
+```typescript
+// If disk contains: { "count": 42 }
+// And default is: { "count": 0, "name": "default" }
+// Loaded state becomes: { "count": 42, "name": "default" }
+```
+
+After the first `saveAsync()`, files are rewritten in the v2 envelope format.
+
+## Auto-Save Behavior
+
+When `autoSaveMs > 0`, state changes are debounced:
+
+1. `set()` or `update()` triggers a timer.
+2. Subsequent changes within the window reset the timer.
+3. After `autoSaveMs` ms of inactivity, the state is saved.
+
+```typescript
+const tracker = new StateTracker({
+  key: "debounced",
+  default: { x: 0 },
+  autoSaveMs: 500,
+});
+
+tracker.set({ x: 1 });
+tracker.set({ x: 2 }); // Timer resets
+await new Promise(r => setTimeout(r, 100));
+tracker.set({ x: 3 }); // Timer resets again
+
+// Only saved once after 500ms of inactivity with final value { x: 3 }
+```
+
+Calling `save()` or `saveAsync()` cancels pending auto-saves and writes immediately.
+
+## Types
+
+```typescript
+export type StateTrackerEventLevel = "debug" | "info" | "warn" | "error";
+
+export interface StateTrackerEvent {
+  level: StateTrackerEventLevel;
+  message: string;
+  context?: Record<string, unknown>;
+}
+```
+
+## Environment Variable
+
+- `STATE_TRACKER_DIR`: Overrides default state directory (`~/.app-state`)
+
+```bash
+STATE_TRACKER_DIR=/custom/path npm start
+```
 
 ## Features
 
@@ -153,25 +238,3 @@ Event levels: `"debug"`, `"info"`, `"warn"`, `"error"`
 - **Graceful degradation** — runs in-memory when disk is unavailable
 - **Auto-save** — debounced saves after state mutations
 - **Legacy format support** — reads both v1 envelope format and legacy PersistentStore formats
-
-## Legacy Format Migration
-
-The library transparently handles migration from legacy formats:
-
-```typescript
-// If disk contains legacy format: { count: 42 }
-// Load merges with defaults: { count: 42, extra: true }
-await store.loadAsync();
-
-// Subsequent save writes new envelope format:
-// { value: { count: 42, extra: true }, lastUpdated: "2025-01-01T..." }
-await store.saveAsync();
-```
-
-## Exported Types
-
-The package also exports the following types for advanced usage:
-
-- `StateTrackerOptions<T>` — Constructor options interface
-- `StateTrackerEvent` — Event payload interface `{ level, message, context? }`
-- `StateTrackerEventLevel` — Event level union type `"debug" \| "info" \| "warn" \| "error"`

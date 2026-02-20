@@ -138,8 +138,11 @@ export function buildFileTree(
 
       // Render detail lines under files (e.g. key sections)
       if (!child.isDir && details?.has(child.fullPath) === true) {
-        for (const detail of details.get(child.fullPath)!) {
-          lines.push(`${prefix}  ${detail}`);
+        const childDetails = details.get(child.fullPath);
+        if (childDetails !== undefined) {
+          for (const detail of childDetails) {
+            lines.push(`${prefix}  ${detail}`);
+          }
         }
       }
 

@@ -7,6 +7,10 @@ export interface Usage {
   prompt: string;
   response: string;
   systemPrompt?: string;
+  /** Tokens written to the prompt cache (Anthropic: 1.25× input price). */
+  cacheCreationTokens?: number;
+  /** Tokens read from the prompt cache (Anthropic: 0.1× input price). */
+  cacheReadTokens?: number;
 }
 
 export interface AITracker {

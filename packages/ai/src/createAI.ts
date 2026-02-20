@@ -49,7 +49,15 @@ function createChatCall(
       model,
       messages,
       maxOutputTokens: maxTokens,
-      ...(systemPrompt !== undefined && { system: systemPrompt }),
+      ...(systemPrompt !== undefined && {
+        system: {
+          role: "system" as const,
+          content: systemPrompt,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+      }),
       ...(zodSchema !== undefined && {
         output: Output.object({ schema: zodSchema }),
       }),
@@ -65,6 +73,10 @@ function createChatCall(
       prompt: messages[messages.length - 1].content,
       response: result.text,
       systemPrompt,
+      cacheCreationTokens:
+        resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
+      cacheReadTokens:
+        resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,
     };
 
     tracker.record(usage);
@@ -74,6 +86,12 @@ function createChatCall(
       durationMs,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
+      ...(usage.cacheCreationTokens !== undefined && {
+        cacheCreationTokens: usage.cacheCreationTokens,
+      }),
+      ...(usage.cacheReadTokens !== undefined && {
+        cacheReadTokens: usage.cacheReadTokens,
+      }),
     });
 
     const responseMessages: CoreMessage[] = [

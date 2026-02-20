@@ -1,8 +1,16 @@
-import { mkdir, readFile, writeFile, rm, stat, readdir } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
-import type { z } from "zod";
-import { parse as parseYaml } from "yaml";
+
 import { formatYaml } from "@hardlydifficult/text";
+import { parse as parseYaml } from "yaml";
+import type { z } from "zod";
 
 import type { FileManifest, ProcessorStore } from "./types.js";
 
@@ -36,7 +44,7 @@ export class GitYamlStore implements ProcessorStore {
     this.cloneUrl = config.cloneUrl;
     this.localPath = config.localPath;
     this.resultDir = config.resultDir;
-    this.authToken = config.authToken ?? process.env["GITHUB_TOKEN"];
+    this.authToken = config.authToken ?? process.env.GITHUB_TOKEN;
   }
 
   // ---------------------------------------------------------------------------
@@ -44,7 +52,9 @@ export class GitYamlStore implements ProcessorStore {
   // ---------------------------------------------------------------------------
 
   async ensureReady(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized) {
+      return;
+    }
 
     const { simpleGit } = await import("simple-git");
     const exists = await stat(path.join(this.localPath, ".git")).catch(
@@ -158,7 +168,9 @@ export class GitYamlStore implements ProcessorStore {
     await git.addConfig("user.name", "AI Bot");
 
     const status = await git.status();
-    if (status.files.length === 0) return;
+    if (status.files.length === 0) {
+      return;
+    }
 
     await git.add("-A");
     const message = `Update results for ${owner}/${repo} (${String(filesChanged)} files)`;

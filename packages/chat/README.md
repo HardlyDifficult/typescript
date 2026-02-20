@@ -1,6 +1,6 @@
 # @hardlydifficult/chat
 
-Unified API for Discord and Slack messaging with rich document support.
+A TypeScript library for building chat bots with unified APIs for Discord and Slack, featuring threading, batching, streaming, commands, and cleanup.
 
 ## Installation
 
@@ -11,428 +11,376 @@ npm install @hardlydifficult/chat
 ## Quick Start
 
 ```typescript
+import { createChatClient } from '@hardlydifficult/chat';
+
+// Create a Discord or Slack client based on platform
+const client = createChatClient('discord', {
+  token: process.env.DISCORD_TOKEN!,
+  // or: 'slack', { token: process.env.SLACK_TOKEN! }
+});
+
+// Listen for messages and respond
+client.onMessage((event) => {
+  event.channel.send('Hello, world!');
+});
+
+// Start listening
+await client.start();
+```
+
+### Alternative Quick Start (with Message Operations)
+
+```typescript
 import { createChatClient } from "@hardlydifficult/chat";
 
+// Connect to Discord or Slack
 const client = createChatClient({ type: "discord" });
-const channel = await client.connect(channelId);
-console.log(client.me?.mention); // "<@123...>"
+// or { type: "slack" }
 
-// Post messages
-await channel.postMessage("Hello!");
-
-// Listen for incoming messages
-channel.onMessage((msg) => {
-  console.log(`${msg.author.username}: ${msg.content}`);
-});
+const channel = await client.connect("channel-id");
+await channel.postMessage("Hello world!").addReactions(["👍", "👎"]);
 ```
 
-## Configuration
+## Core Abstractions
+
+### Chat Clients
+
+The library provides platform-specific chat clients through a unified interface.
 
 ```typescript
-// Discord - env vars: DISCORD_TOKEN, DISCORD_GUILD_ID
-createChatClient({ type: "discord" });
-createChatClient({ type: "discord", token: "...", guildId: "..." });
+import { DiscordChatClient, SlackChatClient, createChatClient } from '@hardlydifficult/chat';
 
-// Slack - env vars: SLACK_BOT_TOKEN, SLACK_APP_TOKEN
-createChatClient({ type: "slack" });
-createChatClient({ type: "slack", token: "...", appToken: "..." });
+// Factory function for any supported platform
+const client = createChatClient('discord', { token: '...' });
+
+// Or instantiate directly
+const discordClient = new DiscordChatClient({ token: '...' });
+const slackClient = new SlackChatClient({ token: '...' });
 ```
 
-## Bot Identity
+Each client supports:
+- Message event handling via `onMessage()`
+- Reaction event handling via `onReaction()`
+- Platform-specific startup logic via `start()`
+- Graceful shutdown via `stop()`
 
-After `connect()`, `client.me` exposes the authenticated bot user:
+### Channel and Message
+
+The `Channel` class abstracts messaging operations across platforms.
 
 ```typescript
-const client = createChatClient({ type: "slack" });
-await client.connect(channelId);
-
-console.log(client.me?.id); // "U09B00R2R96"
-console.log(client.me?.username); // "sprint-bot"
-console.log(client.me?.mention); // "<@U09B00R2R96>"
+// Send a message and get a ReplyMessage reference
+const message = await channel.send('Hello');
+await message.react('👍');
+await message.reply('Thanks for the feedback!');
+await message.delete(); // Only the bot's message
+await channel.cleanup('all'); // Delete all bot messages in the channel
 ```
 
-## Incoming Messages
-
-Subscribe to new messages in a channel. The callback receives a full `Message` object — you can delete it, react to it, or reply in its thread.
+Messages are represented by the `Message` interface:
 
 ```typescript
-const unsubscribe = channel.onMessage((msg) => {
-  console.log(`${msg.author.username}: ${msg.content}`);
-
-  // Delete the user's command message
-  msg.delete();
-
-  // React to it
-  msg.addReactions(["white_check_mark"]);
-
-  // Reply in the message's thread
-  msg.reply("Got it!");
-});
-
-// Later: stop listening
-unsubscribe();
-```
-
-Messages from the bot itself are automatically filtered out.
-
-## Posting Messages
-
-Content can be a string or a `Document` from `@hardlydifficult/document-generator`.
-
-```typescript
-// Simple text
-channel.postMessage("Hello!");
-
-// Rich document (auto-converted to Discord Embed / Slack Block Kit)
-import { Document } from "@hardlydifficult/document-generator";
-
-const report = new Document()
-  .header("Daily Report")
-  .text("Here are today's **highlights**:")
-  .list(["Feature A completed", "Bug B fixed", "99.9% uptime"]);
-
-channel.postMessage(report);
-```
-
-### Oversized Message Handling
-
-Messages that exceed platform limits (Discord: 2000 chars, Slack: 4000 chars) are handled automatically:
-
-- **`postMessage`**: Sends the full content as a `message.txt` file attachment instead of failing
-- **`update`**: Truncates with `…` (edits cannot attach files on either platform)
-
-No caller changes needed — the library handles this transparently.
-
-### File Attachments
-
-Send files as message attachments.
-
-```typescript
-channel.postMessage("Here's the scan report", {
-  files: [
-    { content: Buffer.from(markdownContent), name: "report.md" },
-    { content: "plain text content", name: "notes.txt" },
-  ],
-});
-```
-
-## Message Operations
-
-```typescript
-const msg = await channel.postMessage("Hello");
-
-await msg.update("Updated content");
-msg.reply("Thread reply");
-await msg.delete();
-await msg.delete({ cascadeReplies: false }); // keep thread replies
-```
-
-### Reactions
-
-```typescript
-const msg = await channel
-  .postMessage("Pick one")
-  .addReactions(["👍", "👎"])
-  .onReaction((event) => {
-    console.log(`${event.user.username} reacted with ${event.emoji}`);
-  });
-
-msg.offReaction(); // stop listening
-
-// Remove the bot's own reactions
-msg.removeReactions(["👍", "👎"]);
-
-// Remove all reactions from the message (from all users)
-msg.removeAllReactions();
-```
-
-> **Slack note:** Slack only allows removing the bot's own reactions. `removeAllReactions()` removes the bot's reactions for every emoji on the message but cannot remove other users' reactions.
-
-### Declarative Reactions
-
-`setReactions` manages the full reaction state on a message. It diffs against the previous `setReactions` call, removing stale emojis and adding new ones, and replaces any existing reaction handler.
-
-```typescript
-const msg = await channel.postMessage("PR #42: open");
-
-// Set initial reactions
-msg.setReactions(["🟡"], (event) => handlePending(event));
-
-// Later: update to merged state — removes 🟡, adds 🟢, swaps handler
-msg.setReactions(["🟢"], (event) => handleMerged(event));
-```
-
-### Dismissable Messages
-
-Post a message that the specified user can dismiss by clicking the trash reaction.
-
-```typescript
-await channel.postDismissable("Build complete!", user.id);
-```
-
-### Message Tracker
-
-Track posted messages by key for later editing. Useful for status messages that should be updated in-place (e.g., "Worker disconnected" → "Worker reconnected").
-
-```typescript
-import { createMessageTracker } from "@hardlydifficult/chat";
-
-const tracker = createMessageTracker((content) => channel.postMessage(content));
-
-// Post and track by key
-tracker.post("worker-1", "🔴 Worker disconnected: Server A");
-
-// Later, edit the tracked message
-const postedAt = tracker.getPostedAt("worker-1");
-if (postedAt !== undefined) {
-  const downtime = Date.now() - postedAt.getTime();
-  tracker.edit("worker-1", `🟢 Worker reconnected: Server A (down for ${downtime}ms)`);
+interface Message {
+  id: string;
+  author: Member;
+  content: string;
+  timestamp: Date;
+  reactions: Reaction[];
+  thread?: Thread;
+  channel: Channel;
+  
+  reply(content: string): Promise<ReplyMessage>;
+  update(content: string): Promise<void>;
+  delete(): Promise<void>;
+  react(emoji: string): Promise<void>;
+  clearReactions(): Promise<void>;
 }
 ```
 
-`post()` is fire-and-forget. `edit()` handles the race where the edit arrives before the original post completes — it chains on the stored promise.
+### Thread
 
-### Message Batches
-
-Group related posted messages so they can be retrieved and cleaned up together.
+Threads provide an isolated messaging context with its own lifecycle.
 
 ```typescript
-const batch = await channel.beginBatch({ key: "sprint-update" });
-
-for (const member of members) {
-  const msg = await batch.post(summary(member));
-  await msg.reply(detail(member));
-}
-
-await batch.post(callouts);
-await batch.finish();
-
-const recent = await channel.getBatches({
-  key: "sprint-update",
-  author: "me",
-  limit: 5,
-});
-
-await recent[0].deleteAll({ cascadeReplies: true });
+// Create and use a thread
+const thread = await channel.createThread('Discussions');
+await thread.send('Let us discuss this here.');
+await thread.sendStream('Streaming responses...');
+await thread.cleanup('bot'); // Remove only bot messages
 ```
 
-For safer lifecycle handling, use `withBatch` (auto-finishes in `finally`):
+## Message Batching
+
+Batching allows grouping multiple messages and managing them collectively.
 
 ```typescript
-await channel.withBatch({ key: "sprint-update" }, async (batch) => {
-  await batch.post("Part 1");
-  await batch.post("Part 2");
-});
+import { MessageBatch } from '@hardlydifficult/chat';
+
+// Create a batch
+const batch = channel.batch();
+batch.add(channel.send('First'));
+batch.add(channel.send('Second'));
+
+// Finish and keep only the latest
+await batch.finish({ mode: 'keepLatest' });
+
+// Or delete everything
+await batch.delete();
 ```
 
-`MessageBatch` includes:
+The `MessageBatch` class supports:
+- `add(promise)`: Add a pending message to the batch
+- `finish(options)`: Finalize batch with modes: `'keepAll'`, `'keepLatest'`, `'deleteAll'`
+- `delete()`: Delete all batched messages
+- `query()`: Get list of posted messages
 
-- `id`, `key`, `author`, `createdAt`, `closedAt`, `isFinished`
-- `messages` (tracked message refs)
-- `post(content, options?)`
-- `deleteAll(options?)`
-- `keepLatest(n, options?)`
-- `finish()`
+## Streaming Replies
 
-### Threads
-
-Create a thread, post messages, and listen for replies. The `Thread` object is the primary interface — all threading internals are hidden.
+The library supports real-time streaming with automatic message updates.
 
 ```typescript
-// Create a thread (posts root message + starts thread)
-const thread = await channel.createThread("Starting a session!", "Session");
-
-// Post in the thread
-const msg = await thread.post("How can I help?");
-
-// Listen for replies
-thread.onReply(async (msg) => {
-  await thread.post(`Got: ${msg.content}`);
-  // msg.reply() also posts in the same thread
-  await msg.reply("Thanks!");
-});
-
-// Post with file attachments
-await thread.post("Here's the report", [
-  { content: "# Report\n...", name: "report.md" },
-]);
-
-// Stop listening and clean up
-thread.offReply();
-await thread.delete();
+// Use StreamingReply for automatic chunking
+const stream = channel.stream({ mode: 'thread' });
+stream.append('Hello, ');
+await stream.flush(); // Force immediate delivery
+stream.append('world!');
+await stream.finish(); // Finalize with message deletion or edit
 ```
 
-You can also create a thread from an existing message:
+The `EditableStreamReply` class allows in-place editing:
 
 ```typescript
-const msg = await channel.postMessage("Starting a discussion");
-const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive in minutes
-```
-
-Reconnect to an existing thread by ID (e.g., after a restart):
-
-```typescript
-const thread = channel.openThread(savedThreadId);
-await thread.post("I'm back!");
-thread.onReply(async (msg) => { /* ... */ });
-```
-
-`msg.reply()` supports file attachments:
-
-```typescript
-const msg = await channel.postMessage("Processing...");
-await msg.reply("Done!", [{ content: resultData, name: "result.json" }]);
-```
-
-> **Note:** `channel.onMessage()` only fires for top-level channel messages, not thread replies. Use `thread.onReply()` to listen for thread messages.
-
-> **Slack note:** Slack threads are implicit — `createThread()` posts a root message and uses its timestamp as the thread ID.
-
-### Streaming Replies
-
-Buffer text and flush it as thread replies at a regular interval. Useful for commands that produce output over time (e.g., streaming CLI output). Long text is automatically chunked to fit within platform message limits.
-
-```typescript
-const msg = await channel.postMessage("Running...");
-const stream = msg.streamReply(2000); // flush every 2s
-
-stream.append("output line 1\n");
-stream.append("output line 2\n");
-// ... text is batched and sent as replies every 2 seconds
-
-await stream.stop(); // flushes remaining text and stops the timer
-console.log(stream.content); // full accumulated text across all flushes
-```
-
-`flush()` sends buffered text immediately without waiting for the next interval:
-
-```typescript
-stream.append("important output");
+const stream = new EditableStreamReply(thread, { maxMessageLength: 2000 });
+stream.append('Initial ');
 await stream.flush();
+stream.append('content.');
+await stream.finish();
 ```
 
-Both `streamReply()`, `thread.stream()`, and `thread.editableStream()` accept an optional `AbortSignal` to automatically stop the stream on cancellation. After abort, `append()` becomes a no-op and `stop()` is called automatically.
+Both support:
+- `append(text)`: Add text to buffer
+- `flush()`: Send current buffer as message update
+- `finish()`: Finalize and cleanup
+- `abort()`: Cancel the stream mid-operation
+
+## Commands
+
+A regex-based command system with auto-parsing and context-aware routing.
 
 ```typescript
-const controller = new AbortController();
-const stream = thread.stream(2000, controller.signal);
+import { CommandDispatcher, CommandRegistry, Command } from '@hardlydifficult/chat';
 
-stream.append("working...\n");
-controller.abort(); // auto-stops, future appends are ignored
-console.log(stream.content); // "working...\n" — only pre-abort text
-```
+const registry = new CommandRegistry();
 
-## Mentions
-
-Resolve fuzzy member queries directly to mention strings.
-
-```typescript
-const mention = await channel.resolveMention("Nick Mancuso");
-await channel.postMessage(`Hey ${mention ?? "@nick"}, check this out!`);
-```
-
-You can still inspect members directly:
-
-```typescript
-const members = await channel.getMembers();
-const member = await channel.findMember("@alice");
-```
-
-Each `Member` has `id`, `username`, `displayName`, `mention`, and (when available) `email`.
-
-## Typing Indicator
-
-Show a "typing" indicator while processing. `withTyping` sends the indicator immediately, refreshes it every 8 seconds, and cleans up automatically when the function completes.
-
-```typescript
-const result = await channel.withTyping(async () => {
-  // typing indicator stays active during this work
-  return await doExpensiveWork();
+// Register a command with auto-parsed arguments
+registry.register({
+  name: 'ping',
+  pattern: /^ping(\s+help)?$/i,
+  handler: async ({ context, match }) => {
+    if (match[1]) {
+      return 'Usage: `ping` or `ping help`';
+    }
+    return 'Pong!';
+  }
 });
-await channel.postMessage(result);
+
+// Use dispatcher to route messages
+const dispatcher = new CommandDispatcher(registry);
+dispatcher.onMessage((event) => {
+  event.channel.typingIndicator.start();
+  return dispatcher.handle(event);
+});
 ```
 
-For one-shot use, `sendTyping()` sends a single indicator without automatic refresh:
+### Command Types
+
+Commands are defined using:
 
 ```typescript
-await channel.sendTyping();
-```
-
-> **Slack note:** Slack does not support bot typing indicators. Both methods are no-ops on Slack.
-
-## Bulk Operations
-
-Delete messages and manage threads in bulk.
-
-```typescript
-// Delete up to 100 recent messages
-const deletedCount = await channel.bulkDelete(50);
-
-// List and filter recent messages
-const botMessages = await channel.getMessages({ limit: 50, author: "me" });
-const sameMessages = await channel.getRecentBotMessages(50);
-
-// Keep latest 8 bot messages, delete older ones (opinionated cleanup helper)
-await channel.pruneMessages({ author: "me", limit: 50, keep: 8 });
-
-// Get all threads (active and archived) and delete them
-const threads = await channel.getThreads();
-for (const thread of threads) {
-  await thread.delete();
+interface Command {
+  name: string;
+  pattern: RegExp;
+  handler: (args: {
+    context: Context;
+    match: RegExpExecArray;
+    event: MessageEvent;
+  }) => Promise<string | void>;
 }
 ```
 
-> **Slack note:** Slack has no bulk delete API — messages are deleted one-by-one. Some may fail if the bot lacks permission to delete others' messages. `getThreads()` scans recent channel history for messages with replies.
-
-## Connection Resilience
-
-Both platforms auto-reconnect via their underlying libraries (discord.js and @slack/bolt). Register callbacks for observability.
+Contexts include channel, user, and optional state:
 
 ```typescript
-const client = createChatClient({ type: "discord" });
-
-client.onDisconnect((reason) => {
-  console.log("Disconnected:", reason);
-});
-
-client.onError((error) => {
-  console.error("Connection error:", error);
-});
-
-await client.disconnect(); // clean shutdown
+interface Context {
+  channel: Channel;
+  user: Member;
+  state?: Map<string, any>;
+}
 ```
 
-Both callbacks return an unsubscribe function.
+### Job Lifecycle
 
-## Platform Setup
+Long-running commands support cancel/dismiss UI flows:
+
+```typescript
+import { startJobLifecycle } from '@hardlydifficult/chat';
+
+await startJobLifecycle(thread, {
+  onCancel: async () => {
+    // Handle user-initiated cancellation
+  },
+  onDismiss: async () => {
+    // Add dismiss emoji for user to remove later
+  }
+});
+```
+
+## Member Matching
+
+Resolve users by mention, ID, or fuzzy match:
+
+```typescript
+import { matchMember } from '@hardlydifficult/chat';
+
+// Match a member by mention or name
+const member = await matchMember(
+  channel,
+  '@john', // or 'john', or '123456789'
+  { fuzzyThreshold: 0.7 }
+);
+
+// Use aliases for more lenient matching
+const aliases = { 'johnny': 'john' };
+const member = await matchMember(channel, 'johnny', { aliases });
+```
+
+## Output Formatting
+
+Convert abstract document blocks into platform-specific formats.
+
+```typescript
+import { formatDiscord, formatSlack } from '@hardlydifficult/chat';
+
+const document = {
+  type: 'doc',
+  content: [
+    { type: 'text', text: 'Hello ' },
+    { type: 'bold', content: 'world' }
+  ]
+};
+
+const discordPayload = formatDiscord(document);
+const slackBlocks = formatSlack(document);
+```
+
+Supported block types include:
+- `text`, `bold`, `italic`, `code`, `pre`
+- `header`, `divider`, `section`, `button`
+- `mention` (platform-specific user/channel reference)
+
+## Message Tracking
+
+Track and update messages by key for efficient dynamic updates.
+
+```typescript
+import { MessageTracker } from '@hardlydifficult/chat';
+
+const tracker = new MessageTracker(channel);
+tracker.track('status', async () => channel.send('Updating...'));
+tracker.edit('status', async (message) => {
+  await message.update('Updated!');
+});
+```
+
+## File Operations
+
+Post and update messages with file attachments.
+
+```typescript
+// Discord: attach files via buildMessagePayload
+import { buildMessagePayload } from '@hardlydifficult/chat/discord';
+
+const payload = buildMessagePayload({
+  content: 'Report',
+  files: [{ filename: 'report.pdf', data: buffer }]
+});
+
+await channel.send(payload);
+
+// Slack: use built-in file support
+await slackClient.postMessage({
+  channel: 'C123',
+  text: 'Report',
+  file: buffer,
+  filename: 'report.pdf'
+});
+```
+
+## Setup
 
 ### Discord
 
-1. Create bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Enable Gateway Intents: `GUILDS`, `GUILD_MEMBERS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `MESSAGE_CONTENT`
-3. Bot permissions: `Send Messages`, `Add Reactions`, `Read Message History`, `Manage Messages` (for bulk delete), `Create Public Threads`, `Send Messages in Threads`
-4. Set `DISCORD_TOKEN` and `DISCORD_GUILD_ID` env vars
+1. Create a bot at [Discord Developer Portal](https://discord.com/developers/applications)
+2. Enable **MESSAGE CONTENT INTENT** in bot settings
+3. Invite with `bot` and `applications.commands` scopes
+4. Set `DISCORD_TOKEN` environment variable
 
 ### Slack
 
-1. Create app at [Slack API](https://api.slack.com/apps)
-2. Enable Socket Mode, generate App Token
-3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `channels:read`, `files:write`, `users:read`
-4. Subscribe to events: `reaction_added`, `message.channels`
-5. Set `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` env vars
+1. Create a Slack app at [Slack API](https://api.slack.com/apps)
+2. Add **Incoming Webhooks** and **Bot User Token** scopes
+3. Install to workspace and copy token
+4. Set `SLACK_TOKEN` environment variable
 
 ## Platform Differences
 
-| Feature           | Discord                                       | Slack                                            |
-| ----------------- | --------------------------------------------- | ------------------------------------------------ |
-| Message limit     | 2000 chars (auto-attaches as file if over)    | 4000 chars (auto-uploads as file if over)        |
-| Incoming messages | Full support                                  | Full support                                     |
-| Typing indicator  | Full support                                  | No-op (unsupported by Slack bot API)             |
-| File attachments  | `AttachmentBuilder`                           | `filesUploadV2`                                  |
-| Thread creation   | Creates named thread channel on message       | Returns message timestamp (threads are implicit) |
-| Thread replies    | Messages arrive with `channelId = threadId`   | Messages arrive with `thread_ts` on parent channel |
-| Bulk delete       | Native `bulkDelete` API (fast)                | One-by-one deletion (slower, may partially fail) |
-| Get threads       | `fetchActive` + `fetchArchived`               | Scans channel history for threaded messages      |
-| Delete thread     | `ThreadChannel.delete()`                      | Deletes parent message and all replies           |
-| Get members       | Guild members filtered by channel permissions | `conversations.members` + `users.info`           |
-| Auto-reconnect    | Handled by discord.js                         | Handled by `@slack/bolt` Socket Mode             |
+| Feature                     | Discord                            | Slack                              |
+|----------------------------|------------------------------------|------------------------------------|
+| Message Length Limit       | 2000 characters                    | 4000 characters                    |
+| Thread Support             | Text channel threads               | Conversations with replies         |
+| File Uploads               | Via `buildMessagePayload`          | Via `chat.postMessage`             |
+| Typing Indicators          | Supported via `typingIndicator`    | Supported via `chat.scheduledMsg`  |
+| Message History            | Requires **MESSAGE CONTENT INTENT**| Requires `history` scope           |
+| Mention Resolution         | By ID or username#discriminator    | By `@username` or user ID          |
+| Emoji Reactions            | Unicode or custom emoji (with ID)  | Custom emoji only by name          |
+
+## Appendix
+
+### Error Handling
+
+Platform-specific error codes are mapped to user-friendly messages:
+
+```typescript
+import { isRecoverableError, getErrorFriendlyMessage } from '@hardlydifficult/chat';
+
+try {
+  await channel.send('Failed message');
+} catch (error) {
+  if (isRecoverableError(error)) {
+    // Retry with backoff
+  } else {
+    console.log(getErrorFriendlyMessage(error));
+  }
+}
+```
+
+Recoverable errors include:
+- Rate limits (`429 Too Many Requests`)
+- Network timeouts
+- Temporary unavailability
+
+### Cleanup Modes
+
+The `cleanup` method supports:
+
+| Mode      | Behavior                                     |
+|-----------|----------------------------------------------|
+| `all`     | Delete all messages (bot + users)            |
+| `bot`     | Delete only bot-authored messages            |
+| `user`    | Delete only user-authored messages           |
+| `since`   | Delete messages newer than timestamp         |
+
+Example:
+```typescript
+await channel.cleanup({ mode: 'since', timestamp: new Date(Date.now() - 86400000) });
+```

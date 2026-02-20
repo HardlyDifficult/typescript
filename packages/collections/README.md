@@ -1,6 +1,6 @@
 # @hardlydifficult/collections
 
-Array and path-manipulation utilities for batched parallel processing.
+A TypeScript utility library providing array chunking and path depth grouping utilities for batched parallel processing.
 
 ## Installation
 
@@ -9,6 +9,19 @@ npm install @hardlydifficult/collections
 ```
 
 ## Quick Start
+
+```typescript
+import { chunk, groupByDepth } from "@hardlydifficult/collections";
+
+// Split an array into fixed-size chunks
+const result = chunk([1, 2, 3, 4, 5], 2);
+// → [[1, 2], [3, 4], [5]]
+
+// Group filesystem paths by directory depth (deepest-first)
+const paths = ["src/a/b", "src", "src/c"];
+const grouped = groupByDepth(paths);
+// → [{ depth: 2, paths: ["src/a/b"] }, { depth: 1, paths: ["src", "src/c"] }]
+```
 
 Process items in parallel batches using chunking:
 
@@ -24,60 +37,59 @@ for (const batch of batches) {
 }
 ```
 
-## Chunking Arrays
+## Array Chunking (`chunk`)
 
-### `chunk<T>(arr: readonly T[], size: number): T[][]`
-
-Split an array into subarrays of a specified maximum size. The final chunk may be smaller than the specified size. Useful for limiting concurrency in batched operations.
+Splits an array into sub-arrays of a specified maximum size, preserving order.
 
 ```typescript
 import { chunk } from "@hardlydifficult/collections";
 
-const items = [1, 2, 3, 4, 5, 6, 7];
-const batches = chunk(items, 3);
-// [[1, 2, 3], [4, 5, 6], [7]]
-
-for (const batch of batches) {
-  await Promise.allSettled(batch.map(processItem));
-}
+const numbers = [1, 2, 3, 4, 5, 6, 7];
+console.log(chunk(numbers, 3));
+// → [[1, 2, 3], [4, 5, 6], [7]]
 ```
 
-#### Examples
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `arr` | `readonly T[]` | Input array to split (supports readonly arrays) |
+| `size` | `number` | Maximum chunk size (must be ≥1) |
 
+Returns `T[][]`: An array of chunks, where the last chunk may be smaller if the input length is not evenly divisible by `size`.
+
+**Examples:**
 - **Full-sized chunks only**: `chunk([1,2,3,4,5,6], 2)` → `[[1,2], [3,4], [5,6]]`
 - **Final smaller chunk**: `chunk([1,2,3,4,5], 3)` → `[[1,2,3], [4,5]]`
 - **Single oversized chunk**: `chunk([1,2,3], 5)` → `[[1,2,3]]`
 - **Empty input**: `chunk([], 3)` → `[]`
 
-## Grouping by Depth
+## Path Depth Grouping (`groupByDepth`)
 
-### `groupByDepth(paths: readonly string[]): { depth: number; paths: string[] }[]`
-
-Group `/`-separated path strings by their directory depth (number of `/`-separated segments), sorted deepest-first. Useful for bottom-up directory processing where child directories must be handled before parents.
+Groups filesystem paths by slash-delimited depth, sorted deepest-first to support bottom-up directory processing.
 
 ```typescript
 import { groupByDepth } from "@hardlydifficult/collections";
 
-const dirs = ["src/services/summarize", "src/services", "src", "src/utils"];
-const grouped = groupByDepth(dirs);
-// [
-//   { depth: 3, paths: ["src/services/summarize"] },
-//   { depth: 2, paths: ["src/services", "src/utils"] },
-//   { depth: 1, paths: ["src"] },
-// ]
-
-for (const { paths: dirsAtDepth } of grouped) {
-  await Promise.allSettled(dirsAtDepth.map(summarizeDir));
-}
+const paths = ["src/a/b", "src", "src/c", ""];
+const result = groupByDepth(paths);
+// → [
+//      { depth: 3, paths: ["src/a/b"] },
+//      { depth: 2, paths: ["src", "src/c"] },
+//      { depth: 0, paths: [""] }
+//    ]
 ```
 
-#### Depth Rules
+| Parameter | Type | Description |
+|---------|------|-------------|
+| `paths` | `readonly string[]` | Array of path strings (slashes `/` delimit depth) |
 
+Returns `{ depth: number; paths: string[] }[]`: An array of depth groups sorted in descending order by depth. Empty string `""` is treated as depth `0` (root). Order of paths within each group is preserved from the input.
+
+**Rules:**
 - An empty string (`""`) is treated as depth `0` (root)
 - Each `/` increases depth by 1
 - Paths are grouped by depth, and groups are sorted deepest-first
 
-#### Examples
+**Examples:**
 
 - **Mixed depths**:
   ```typescript
@@ -97,3 +109,19 @@ for (const { paths: dirsAtDepth } of grouped) {
   ```
 
 - **Empty input**: `groupByDepth([])` → `[]`
+
+```typescript
+import { groupByDepth } from "@hardlydifficult/collections";
+
+const dirs = ["src/services/summarize", "src/services", "src", "src/utils"];
+const grouped = groupByDepth(dirs);
+// [
+//   { depth: 3, paths: ["src/services/summarize"] },
+//   { depth: 2, paths: ["src/services", "src/utils"] },
+//   { depth: 1, paths: ["src"] },
+// ]
+
+for (const { paths: dirsAtDepth } of grouped) {
+  await Promise.allSettled(dirsAtDepth.map(summarizeDir));
+}
+```
