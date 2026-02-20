@@ -28,9 +28,7 @@ type ContinuousLoopErrorDecision = ContinuousLoopErrorAction | undefined;
 export type ContinuousLoopErrorHandler = (
   error: unknown,
   context: ContinuousLoopErrorContext
-) =>
-  | ContinuousLoopErrorDecision
-  | Promise<ContinuousLoopErrorDecision>;
+) => ContinuousLoopErrorDecision | Promise<ContinuousLoopErrorDecision>;
 
 /** Optional control directives that can be returned from runCycle. */
 export interface ContinuousLoopCycleControl {
@@ -146,9 +144,7 @@ function normalizeDelayMs(
   }
   if (!Number.isFinite(delayMs) || delayMs < 0) {
     if (source === "intervalSeconds") {
-      throw new Error(
-        "intervalSeconds must be a non-negative finite number"
-      );
+      throw new Error("intervalSeconds must be a non-negative finite number");
     }
     throw new Error(
       `${source} must return a non-negative finite number or "immediate"`
@@ -158,7 +154,7 @@ function normalizeDelayMs(
 }
 
 function getControlFromCycleResult(
-  result: ContinuousLoopRunCycleResult<unknown>
+  result: ContinuousLoopRunCycleResult
 ): ContinuousLoopCycleControl {
   if (typeof result === "number" || result === "immediate") {
     return { nextDelayMs: result };
@@ -168,7 +164,7 @@ function getControlFromCycleResult(
   }
 
   const value = result as Record<string, unknown>;
-  const nextDelayMs = value.nextDelayMs;
+  const { nextDelayMs } = value;
   return {
     stop: value.stop === true,
     nextDelayMs:
@@ -191,10 +187,7 @@ async function handleCycleError(
     } catch (handlerError) {
       logger.error("onCycleError handler failed", {
         cycleNumber: context.cycleNumber,
-        cycleError:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        cycleError: error instanceof Error ? error.message : String(error),
         handlerError:
           handlerError instanceof Error
             ? handlerError.message
