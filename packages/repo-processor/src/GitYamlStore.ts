@@ -4,8 +4,7 @@ import type { z } from "zod";
 import { parse as parseYaml } from "yaml";
 import { formatYaml } from "@hardlydifficult/text";
 
-import type { FileManifest } from "./types.js";
-import type { ProcessorStore } from "./types.js";
+import type { FileManifest, ProcessorStore } from "./types.js";
 
 export interface GitYamlStoreConfig {
   /** URL of the git repository to clone/pull. */
@@ -94,7 +93,7 @@ export class GitYamlStore implements ProcessorStore {
     try {
       const content = await readFile(filePath, "utf-8");
       const parsed = parseYaml(content) as Record<string, unknown>;
-      return typeof parsed?.sha === "string" ? parsed.sha : null;
+      return typeof parsed.sha === "string" ? parsed.sha : null;
     } catch {
       return null;
     }
@@ -176,7 +175,7 @@ export class GitYamlStore implements ProcessorStore {
           try {
             await git.pull("origin", "main", { "--rebase": null });
           } catch {
-            await git.rebase({ "--abort": null }).catch(() => {});
+            await git.rebase({ "--abort": null }).catch(() => undefined);
             await git.pull("origin", "main");
             await git.add("-A");
             await git.commit(message);
@@ -248,7 +247,7 @@ export class GitYamlStore implements ProcessorStore {
   }
 
   private getAuthenticatedUrl(): string {
-    if (this.authToken) {
+    if (this.authToken !== undefined && this.authToken !== "") {
       return this.cloneUrl.replace(
         "https://github.com/",
         `https://${this.authToken}@github.com/`
@@ -282,7 +281,7 @@ export class GitYamlStore implements ProcessorStore {
         try {
           const yamlContent = await readFile(fullPath, "utf-8");
           const parsed = parseYaml(yamlContent) as Record<string, unknown>;
-          if (typeof parsed?.sha === "string") {
+          if (typeof parsed.sha === "string") {
             const relativePath = path.relative(baseDir, fullPath);
             const repoPath = relativePath.slice(0, -4); // Remove .yml
             manifest[repoPath] = parsed.sha;
