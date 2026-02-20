@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "@hardlydifficult/collections": "file:../collections",
-    "@hardlydifficult/github": "file:../github",
     "@hardlydifficult/text": "file:../text",
     "simple-git": "3.31.1",
     "yaml": "2.8.2",
     "zod": "4.3.6"
+  },
+  "peerDependencies": {
+    "@hardlydifficult/github": "*"
   },
   "devDependencies": {
     "@types/node": "25.2.3",
