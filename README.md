@@ -68,11 +68,3 @@ To enable full automation in this monorepo, ensure the following secrets are con
 - `PAT_TOKEN` — Required for auto-fixing lint issues and tagging releases in CI (must be a GitHub Personal Access Token with `repo` scope)
 
 These enable CI scripts (in [`ci-scripts`](./packages/ci-scripts)) to auto-version, lint, and publish packages.
-
-## Manual Edits Detected
-
-The original README contains changes that were made by hand since the last AI generation.
-Pay special attention to preserving intentional human edits — these often include
-refined descriptions, corrected details, or preferred phrasing that should be carried forward.
-
-All intentional manual improvements—including refined descriptions, structural refinements, and added context—have been preserved and integrated where appropriate.
