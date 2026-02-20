@@ -150,6 +150,11 @@ export class WorkerServer {
     return this.pool.getAvailableCount();
   }
 
+  /** Count total free slots for the given model across all available workers. */
+  getAvailableSlotCount(model: string, category?: string): number {
+    return this.pool.getAvailableSlotCount(model, category);
+  }
+
   /** Get public info about all connected workers. */
   getWorkerInfo(): WorkerInfo[] {
     return this.pool.getWorkerInfoList();

@@ -228,6 +228,59 @@ describe("WorkerPool", () => {
     });
   });
 
+  describe("getAvailableSlotCount", () => {
+    it("returns 0 when no workers exist", () => {
+      expect(pool.getAvailableSlotCount("test-model")).toBe(0);
+    });
+
+    it("returns free slots for a single worker", () => {
+      pool.add(createWorker({ activeRequests: 1 })); // maxConcurrentRequests: 2
+      expect(pool.getAvailableSlotCount("test-model")).toBe(1);
+    });
+
+    it("sums free slots across multiple workers", () => {
+      pool.add(createWorker({ id: "worker-1", activeRequests: 1 }));
+      pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
+      expect(pool.getAvailableSlotCount("test-model")).toBe(3); // 1 + 2
+    });
+
+    it("excludes non-Available workers", () => {
+      pool.add(
+        createWorker({ id: "worker-1", status: WorkerStatus.Busy, activeRequests: 2 })
+      );
+      pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
+      expect(pool.getAvailableSlotCount("test-model")).toBe(2);
+    });
+
+    it("returns 0 for unsupported model", () => {
+      pool.add(createWorker());
+      expect(pool.getAvailableSlotCount("other-model")).toBe(0);
+    });
+
+    it("respects category limits when provided", () => {
+      pool.add(
+        createWorker({
+          capabilities: {
+            models: [
+              {
+                modelId: "test-model",
+                displayName: "Test",
+                maxContextTokens: 8192,
+                maxOutputTokens: 4096,
+                supportsStreaming: true,
+              },
+            ],
+            maxConcurrentRequests: 5,
+            concurrencyLimits: { local: 2 },
+          },
+          categoryActiveRequests: new Map([["local", 1]]),
+        })
+      );
+      // workerFreeSlots = 5, categoryFreeSlots = 2 - 1 = 1 → min(5, 1) = 1
+      expect(pool.getAvailableSlotCount("test-model", "local")).toBe(1);
+    });
+  });
+
   describe("getWorkerInfoList", () => {
     it("returns info without websocket", () => {
       pool.add(createWorker());
