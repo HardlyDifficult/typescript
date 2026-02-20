@@ -121,7 +121,9 @@ describe("runContinuousLoop", () => {
   it("supports dynamic delay returned from runCycle", async () => {
     let runCount = 0;
 
-    const runCycle = async (): Promise<number | "immediate" | { stop: true }> => {
+    const runCycle = async (): Promise<
+      number | "immediate" | { stop: true }
+    > => {
       runCount++;
       if (runCount === 1) {
         return 10;
@@ -161,14 +163,12 @@ describe("runContinuousLoop", () => {
       return { stop: true };
     };
 
-    const getNextDelayMs = vi.fn(
-      (result: CycleResult): number | undefined => {
-        if ("backoffMs" in result) {
-          return result.backoffMs;
-        }
-        return undefined;
+    const getNextDelayMs = vi.fn((result: CycleResult): number | undefined => {
+      if ("backoffMs" in result) {
+        return result.backoffMs;
       }
-    );
+      return undefined;
+    });
 
     const loopPromise = runContinuousLoop({
       intervalSeconds: 60,
