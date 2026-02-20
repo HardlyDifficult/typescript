@@ -11,8 +11,9 @@ npm install @hardlydifficult/ai
 ## Quick Start
 
 ```typescript
-import { createAI, claude, createPromptLoader } from "@hardlydifficult/ai";
+import { createAI, claude, ollama, createPromptLoader } from "@hardlydifficult/ai";
 import type { AITracker } from "@hardlydifficult/ai";
+import { z } from "zod";
 
 // Create an Anthropic model from a short variant name
 const model = claude("sonnet");
@@ -53,12 +54,12 @@ const result = await agent.run([{ role: "user", content: "Read src/index.ts" }])
 
 Creates an AI client with chat, streaming, and agent support, integrating usage tracking and logging.
 
-### createAI(model, tracker, logger, options?)
+### `createAI(model, tracker, logger, options?)`
 
 Creates an AI client bound to a specific language model.
 
 | Parameter | Type | Description |
-|----------|------|-------------|
+|-----------|------|-------------|
 | model | `LanguageModel` | AI SDK language model instance |
 | tracker | `AITracker` | Usage tracking implementation |
 | logger | `Logger` | Logging implementation |
@@ -68,19 +69,19 @@ Creates an AI client bound to a specific language model.
 ```typescript
 import { createAI, claude } from "@hardlydifficult/ai";
 import type { AITracker } from "@hardlydifficult/ai";
+import { createTracker, createLogger } from "@hardlydifficult/logger";
 
 const model = claude("sonnet");
+const tracker = createTracker();
+const logger = createLogger({ name: "ai" });
 
-const tracker: AITracker = {
-  record(usage) {
-    console.log(`Input: ${usage.inputTokens}, Output: ${usage.outputTokens}`);
-  },
-};
-
-const ai = createAI(model, tracker, console, { maxTokens: 8192 });
+const ai = createAI(model, tracker, logger, {
+  maxTokens: 8192,
+  temperature: 0.7,
+});
 ```
 
-### AI.chat(prompt, systemPrompt?)
+### `AI.chat(prompt, systemPrompt?)`
 
 Initiates a chat conversation with an optional system prompt.
 
@@ -99,12 +100,12 @@ const data = await ai.chat("Extract user data").zod(
 const reply = await msg.reply("Follow up question");
 ```
 
-### AI.stream(messages, onText)
+### `AI.stream(messages, onText)`
 
 Streams a response token-by-token.
 
 | Parameter | Type | Description |
-|----------|------|-------------|
+|-----------|------|-------------|
 | messages | `Message[]` | Message history |
 | onText | `(text: string) => void` | Callback for each text chunk |
 
@@ -115,9 +116,15 @@ await ai.stream(
 );
 ```
 
-### AI.agent(tools, options?)
+### `AI.agent(tools, options?)`
 
 Creates a tool-calling agent.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| maxSteps | `number` | 10 | Maximum tool-calling iterations |
+| temperature | `number` | 0.7 | Model temperature |
+| maxOutputTokens | `number` | 4096 | Max tokens to generate |
 
 ```typescript
 const agent = ai.agent(
@@ -127,6 +134,11 @@ const agent = ai.agent(
       inputSchema: z.object({ query: z.string() }),
       execute: async ({ query }) => `Results for ${query}`,
     },
+    calculate: {
+      description: "Perform a calculation",
+      inputSchema: z.object({ expr: z.string() }),
+      execute: async ({ expr }) => `Result: ${eval(expr)}`,
+    },
   },
   { maxSteps: 5 }
 );
@@ -134,9 +146,34 @@ const agent = ai.agent(
 const result = await agent.run([{ role: "user", content: "Search for AI news" }]);
 ```
 
+#### Agent Streaming
+
+```typescript
+await agent.stream(
+  [{ role: "user", content: "Calculate 123 * 456" }],
+  {
+    onText: (text) => process.stdout.write(text),
+    onToolCall: (name, args) => console.log(`Calling ${name} with`, args),
+    onToolResult: (name, result) => console.log(`${name} returned`, result)
+  }
+);
+```
+
+### `createPromptLoader(directory, filename)`
+
+Loads prompt files from disk with caching.
+
+```typescript
+import { createPromptLoader } from "@hardlydifficult/ai";
+
+const load = createPromptLoader("prompts", "system.md");
+
+const systemPrompt = load(); // Returns file contents
+```
+
 ## LLM Providers
 
-### claude(variant)
+### `claude(variant)`
 
 Creates an Anthropic language model from a short variant name.
 
@@ -148,7 +185,7 @@ const haiku = claude("haiku");   // claude-haiku-4-5
 const opus = claude("opus");     // claude-opus-4-6
 ```
 
-### ollama(model)
+### `ollama(model)`
 
 Creates an Ollama language model with extended HTTP timeouts and `keep_alive: -1` support.
 
@@ -156,11 +193,14 @@ Creates an Ollama language model with extended HTTP timeouts and `keep_alive: -1
 import { ollama } from "@hardlydifficult/ai";
 
 const model = ollama("llama3"); // Uses installed local model
+const qwen = ollama("qwen3-coder-next:15b");
 ```
+
+The `ollama` function uses a custom agent with 60-minute headersTimeout and 30-minute bodyTimeout to accommodate long model load times, and injects `keep_alive: -1` to prevent GPU memory eviction.
 
 ## Agents
 
-### AgentConversation
+### `AgentConversation`
 
 Maintains a multi-turn conversation with an AI model.
 
@@ -181,7 +221,7 @@ const response2 = await conversation.send("How are you?");
 const history = conversation.getHistory(); // Full conversation
 ```
 
-### createAgent(model, tools, tracker, logger, options?)
+### `createAgent(model, tools, tracker, logger, options?)`
 
 Creates an agent with tool-calling, streaming, and usage tracking.
 
@@ -215,7 +255,7 @@ await agent.stream(
 
 ## Streaming
 
-### runStream(model, tracker, logger, messages, onText, maxTokens, temperature?)
+### `runStream(model, tracker, logger, messages, onText, maxTokens, temperature?)`
 
 Streams a response token-by-token and records usage.
 
@@ -235,7 +275,7 @@ await runStream(
 
 ## Message Operations
 
-### extractJson(text, sentinel?)
+### `extractJson(text, sentinel?)`
 
 Extracts JSON values from text using progressive strategies: direct parse, code blocks, then balanced-brace scanning.
 
@@ -249,7 +289,7 @@ const results = extractJson(text); // [{ name: "Alice" }]
 const codeResult = extractJson("```json\n{\"a\":1}\n```"); // [{ a: 1 }]
 ```
 
-### extractTyped(text, schema, sentinel?)
+### `extractTyped(text, schema, sentinel?)`
 
 Extracts and validates typed JSON objects from text using a schema-like interface.
 
@@ -262,7 +302,7 @@ const results = extractTyped(text, z.object({ name: z.string(), age: z.number() 
 // [{ name: "Alice", age: 30 }]
 ```
 
-### extractCodeBlock(text, lang?)
+### `extractCodeBlock(text, lang?)`
 
 Extracts fenced code blocks from text, optionally filtered by language tag.
 
@@ -274,7 +314,7 @@ const tsCode = extractCodeBlock(text, "ts"); // ["const x = 1;"]
 const jsonCode = extractCodeBlock(text, "json"); // ['{"a":1}']
 ```
 
-### extractStructured(text, schema, sentinel?)
+### `extractStructured(text, schema, sentinel?)`
 
 Extracts and validates structured data using a schema-like interface.
 
@@ -289,7 +329,7 @@ const results = extractStructured(text, z.object({ name: z.string(), age: z.numb
 
 ## Response Utilities
 
-### Message
+### `Message`
 
 Represents a chat message with methods for extracting structured data.
 
@@ -303,7 +343,7 @@ const json = msg.json(); // Attempts to parse as JSON
 const zodData = msg.zod(z.object({ foo: z.string() })); // Validates with Zod
 ```
 
-### Message.reply(prompt)
+### `Message.reply(prompt)`
 
 Appends a follow-up message to the conversation history.
 
@@ -312,23 +352,78 @@ const msg = await ai.chat("What is TypeScript?");
 const reply = await msg.reply("Explain the benefits");
 ```
 
-## Utility Functions
+## Multimodal Support
 
-### createPromptLoader(directory, filename)
+### `toPlainTextMessages(messages)`
 
-Loads prompt files from disk with caching.
+Converts multimodal messages to plain text for compatibility.
 
 ```typescript
-import { createPromptLoader } from "@hardlydifficult/ai";
+import { toPlainTextMessages } from "@hardlydifficult/ai";
 
-const load = createPromptLoader("prompts", "system.md");
+const messages = [
+  {
+    role: "user",
+    content: [
+      { type: "text", text: "What's in this image?" },
+      { type: "image", image: dataUrl }
+    ]
+  }
+];
 
-const systemPrompt = load(); // Returns file contents
+const plain = toPlainTextMessages(messages);
+// [{ role: "user", content: "What's in this image?" }]
+```
+
+### `extractTextContent(content)`
+
+Extracts text from multimodal content arrays.
+
+```typescript
+import { extractTextContent } from "@hardlydifficult/ai";
+
+const content = [
+  { type: "text", text: "First" },
+  { type: "image" },
+  { type: "text", text: "Second" }
+];
+
+const text = extractTextContent(content);
+// "First\nSecond"
+```
+
+## Usage Tracking
+
+The package integrates with `@hardlydifficult/logger` to track AI usage.
+
+```typescript
+import { createTracker, type Usage } from "@hardlydifficult/logger";
+
+const tracker = createTracker();
+
+tracker.record({
+  inputTokens: 10,
+  outputTokens: 5,
+  prompt: "user message",
+  response: "assistant response",
+  durationMs: 120
+});
 ```
 
 ## Types
 
-### AITracker
+### `LanguageModel`
+
+```typescript
+interface LanguageModel {
+  readonly modelId: string;
+  readonly provider: "anthropic" | "ollama";
+  readonly supportsImages?: boolean;
+  readonly supportsParallelToolCalls?: boolean;
+}
+```
+
+### `AITracker`
 
 Records usage statistics from AI interactions.
 
@@ -342,7 +437,7 @@ const tracker: AITracker = {
 };
 ```
 
-### Usage
+### `Usage`
 
 Represents token usage from an AI call.
 
@@ -356,7 +451,7 @@ Represents token usage from an AI call.
 | systemPrompt? | `string` | System prompt text |
 | durationMs? | `number` | Duration in milliseconds |
 
-### ToolMap
+### `ToolMap`
 
 Mapping of tool names to tool definitions.
 

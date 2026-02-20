@@ -1,6 +1,6 @@
 # @hardlydifficult/poller
 
-A generic polling utility that periodically fetches data and invokes a callback only when the result changes, using JSON-based deep equality comparison.
+A generic polling utility that periodically fetches data, detects changes via deep equality comparison, and supports debounced manual triggers with overlap handling.
 
 ## Installation
 
@@ -13,24 +13,25 @@ npm install @hardlydifficult/poller
 ```typescript
 import { Poller } from "@hardlydifficult/poller";
 
-// Create a poller that fetches mock API data every 5 seconds
 const poller = new Poller(
   async () => {
-    const response = await fetch("https://api.example.com/status");
-    return await response.json();
+    const res = await fetch("https://api.example.com/status");
+    return res.json();
   },
   (current, previous) => {
     console.log("Status changed:", current);
   },
-  5000,
-  (error) => {
-    console.error("Polling error:", error);
-  }
+  5000 // poll every 5 seconds
 );
 
-await poller.start();  // Begins polling immediately
-// ... later
-poller.stop();         // Stops polling
+await poller.start();
+// Polls start immediately
+
+// Optionally, manually trigger a debounced poll
+poller.trigger(1000); // fires once after 1s of inactivity
+
+// Stop polling when done
+poller.stop();
 ```
 
 ### Basic Usage
@@ -53,27 +54,62 @@ poller.trigger(1000);
 poller.stop();
 ```
 
-## Polling
+## Polling Behavior
 
-The `Poller` class fetches data at a configurable interval and invokes a callback when the result changes. It fetches immediately on `start()`, then at the configured interval.
+The `Poller` executes a fetch function at a fixed interval and invokes a callback only when the returned value changes.
+
+- Starts polling immediately on `start()`
+- Fetches at the configured `intervalMs`
+- Skips overlapping fetches (if a previous fetch is still in progress)
 
 ```typescript
-import { Poller } from "@hardlydifficult/poller";
-
 const poller = new Poller(
-  async () => {
-    const response = await fetch("/api/status");
-    return response.json();
-  },
+  async () => fetchJson("/api/data"),
+  (current, previous) => console.log("Changed:", current),
+  10_000
+);
+await poller.start();
+```
+
+## Change Detection
+
+Changes are detected using deep equality via `JSON.stringify`. Structural equality means that objects with identical content—even different references—won’t trigger unnecessary callbacks.
+
+```typescript
+const poller = new Poller(
+  async () => ({ items: [1, 2, 3] }),
+  (current, previous) => console.log("Changed:", current),
+  1000
+);
+
+// Even if a new object instance is returned, same structure = no change
+await poller.start();
+// onChange fires only when structure changes
+```
+
+- On first poll, `onChange(current, undefined)` is invoked.
+- On subsequent polls, `onChange(current, previous)` is invoked only if the new value differs structurally.
+
+```typescript
+const poller = new Poller(
+  async () => ({ count: 5, items: [1, 2, 3] }),
   (current, previous) => {
-    console.log("Previous:", previous);
-    console.log("Current:", current);
+    // Only fires when the JSON representation changes
+    console.log("Changed from", previous, "to", current);
   },
-  10000 // poll every 10 seconds
+  5000
 );
 
 await poller.start();
-// Fetches immediately, then every 10 seconds
+```
+
+## Lifecycle Management
+
+Polling can be started and stopped at any time. The `stop()` method cancels both the periodic timer and any pending debounced triggers.
+
+```typescript
+await poller.start();  // begins polling
+poller.stop();         // cancels all timers, stops future polls
 ```
 
 ### `start()`
@@ -94,29 +130,28 @@ poller.stop();
 // No more polls will fire
 ```
 
-## Change Detection
-
-Changes are detected using JSON serialization for deep equality. Structurally identical objects are considered unchanged—even if they are different references.
-
-- On first poll, `onChange(current, undefined)` is invoked.
-- On subsequent polls, `onChange(current, previous)` is invoked only if the new value differs structurally.
-
-```typescript
-const poller = new Poller(
-  async () => ({ count: 5, items: [1, 2, 3] }),
-  (current, previous) => {
-    // Only fires when the JSON representation changes
-    console.log("Changed from", previous, "to", current);
-  },
-  5000
-);
-
-await poller.start();
-```
-
 ## Manual Triggers
 
-Call `trigger()` to manually poll immediately, with optional debouncing. Multiple rapid triggers are coalesced into a single poll.
+You can manually trigger a debounced poll to force an immediate check after a period of inactivity.
+
+| Parameter   | Type     | Default | Description                            |
+|-------------|----------|---------|----------------------------------------|
+| `debounceMs`| `number` | `1000`  | Milliseconds to wait before polling    |
+
+```typescript
+// Immediate trigger with default debounce
+poller.trigger();
+
+// Custom debounce
+poller.trigger(500);
+
+// If multiple triggers occur within debounceMs, only the last one fires
+poller.trigger();
+poller.trigger();
+poller.trigger(); // only this one will poll after 1s
+```
+
+### Behavior
 
 - Accepts a `debounceMs` parameter (default: `1000`).
 - Multiple rapid calls reset the debounce timer — only the last trigger fires.
@@ -144,6 +179,25 @@ poller.trigger(500); // Only one poll fires after 500ms
 ```
 
 ## Error Handling
+
+Fetch errors do not halt polling. An optional `onError` callback receives any errors, and polling continues at the next interval.
+
+```typescript
+const poller = new Poller(
+  async () => {
+    if (Math.random() < 0.5) throw new Error("Network fail");
+    return "ok";
+  },
+  (current) => console.log(current),
+  1000,
+  (error) => console.error("Fetch failed:", error)
+);
+
+await poller.start();
+// Continues polling even after errors
+```
+
+### Error Handling Details
 
 - Errors during fetch are caught and passed to the optional `onError` callback.
 - Polling continues after errors — no automatic retry logic is applied.
