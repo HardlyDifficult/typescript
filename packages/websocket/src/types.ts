@@ -21,6 +21,15 @@ export interface HeartbeatOptions {
 }
 
 /**
+ * Auth configuration. Token is fetched on each connection (initial and reconnects),
+ * so reconnects automatically pick up a fresh token.
+ */
+export interface AuthOptions {
+  /** Returns a bearer token. Called on every connect and reconnect. */
+  getToken: () => Promise<string> | string;
+}
+
+/**
  * Configuration options for ReconnectingWebSocket.
  */
 export interface WebSocketOptions {
@@ -30,6 +39,12 @@ export interface WebSocketOptions {
   backoff?: BackoffOptions;
   /** Heartbeat configuration */
   heartbeat?: HeartbeatOptions;
+  /** Auth configuration. Token is added as an Authorization header on each connect. */
+  auth?: AuthOptions;
+  /** WebSocket subprotocols. */
+  protocols?: string[];
+  /** Additional headers for the WebSocket handshake. */
+  headers?: Record<string, string>;
 }
 
 /**
