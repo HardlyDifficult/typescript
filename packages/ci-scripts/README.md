@@ -1,6 +1,6 @@
 # @hardlydifficult/ci-scripts
 
-CLI tools for CI automation: dependency pinning, monorepo publishing, auto-fix commits, and git tagging.
+CLI tools for CI automation: dependency pinning validation, monorepo publishing with inter-package dependency resolution, and auto-committing linting fixes.
 
 ## Installation
 
@@ -11,77 +11,105 @@ npm install @hardlydifficult/ci-scripts
 ## Quick Start
 
 ```typescript
-// Auto-fix linting issues, commit, and push to trigger CI
-exec('npx auto-commit-fixes');
+// Check for unpinned dependencies across the monorepo
+// npx check-pinned-deps
 
-// Check all dependencies are pinned (no ^ or ~ prefixes)
-exec('npx check-pinned-deps');
+// Auto-commit lint/format fixes
+// npx auto-commit-fixes
 
-// Publish monorepo packages with auto-versioning and tags
-exec('npx monorepo-publish --packages-dir packages');
+// Publish monorepo packages with versioning and git tags
+// npx monorepo-publish
 ```
-
-## Auto-fixes
-
-Auto-commits and pushes linting/formatting fixes to trigger CI re-runs using a personal access token (PAT) to ensure the commit triggers a new workflow.
-
-### Environment variables
-
-- `BRANCH` — Required. The branch to push to (e.g., `${{ github.head_ref || github.ref_name }}`)
-- `GH_PAT` — Optional. GitHub PAT used for push; default GITHUB_TOKEN does not trigger workflows
-
-### Example
-
-```bash
-# In a GitHub Actions workflow
-- name: Auto-fix and push
-  env:
-    BRANCH: ${{ github.head_ref || github.ref_name }}
-    GH_PAT: ${{ secrets.GH_PAT }}
-  run: npx auto-commit-fixes
-```
-
-If no changes are detected, the script exits 0 with a log message. Otherwise, it commits, pushes, and exits 1 to trigger a fresh CI run.
 
 ## Dependency Checking
 
-Validates that all `package.json` files in the repository use pinned versions (exact versions without `^` or `~` prefixes).
+Validates that all dependencies in `package.json` files use pinned versions (no `^` or `~` prefixes).
 
-### Example
+### Usage
 
 ```bash
 npx check-pinned-deps
 ```
 
-Example output on failure:
+### Environment
 
+Runs in the current working directory and recursively checks all `package.json` files except those in `node_modules`, `dist`, and `.tmp` directories.
+
+### Example
+
+```bash
+$ npx check-pinned-deps
+
+Checked 5 package.json file(s) - all dependencies are pinned.
 ```
+
+If unpinned dependencies are found:
+
+```bash
+$ npx check-pinned-deps
 Found unpinned dependencies:
 
-  ./packages/foo/package.json
+  packages/my-lib/package.json
     dependencies.lodash: "^4.17.21"
 
 All dependencies must use exact versions (no ^ or ~ prefixes).
 Fix by removing the ^ or ~ prefix from each version.
 ```
 
-### Supported dependency types
+## Auto-Commit Fixes
 
-- `dependencies`
-- `devDependencies`
-- `peerDependencies`
-- `optionalDependencies`
+Auto-commits and pushes lint/format fixes (e.g., from ESLint or Prettier) to trigger CI re-runs.
+
+### Usage
+
+```bash
+npx auto-commit-fixes
+```
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `BRANCH` | The branch to push to (e.g., `${{ github.head_ref || github.ref_name }}` in GitHub Actions) | Yes |
+| `GH_PAT` | GitHub personal access token (PAT) to trigger workflow on push | No |
+
+### Example
+
+```typescript
+// In a GitHub Actions workflow:
+// - name: Auto-fix linting issues
+//   run: npx auto-commit-fixes
+//   env:
+//     BRANCH: ${{ github.head_ref || github.ref_name }}
+//     GH_PAT: ${{ secrets.GH_PAT }}
+```
+
+If no changes are detected:
+
+```bash
+$ npx auto-commit-fixes
+No changes detected. Nothing to commit.
+```
+
+If changes are detected and pushed:
+
+```bash
+$ npx auto-commit-fixes
+Auto-fix commit pushed successfully.
+This build will fail so the next CI run validates the fixes.
+```
 
 ## Monorepo Publishing
 
-Publishes changed packages in a monorepo with auto-versioning and inter-package dependency resolution.
+Publishes packages that have changed since the last publish, with automatic versioning and git tagging.
 
 ### Features
 
-- Topological sort ensures dependencies are published before dependents
-- Auto-increments patch versions based on npm's latest published version for that major.minor
-- Transforms `file:` references to real versions for published packages
-- Creates and pushes git tags in `pkgName-vX.Y.Z` format
+- Detects inter-package dependencies and publishes them first (topological sort)
+- Auto-updates dependency versions before publishing dependent packages
+- Transforms `file:` references to real versions at publish time
+- Auto-increments patch versions based on the latest version published to npm
+- Creates and pushes git tags in format `<safe-package-name>-v<version>`
 
 ### Usage
 
@@ -91,51 +119,45 @@ npx monorepo-publish [--packages-dir <dir>]
 
 ### Options
 
-| Option         | Default   | Description                         |
-|----------------|-----------|-------------------------------------|
-| `--packages-dir` | `"packages"` | Directory containing packages |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--packages-dir` | Directory containing packages | `packages` |
 
 ### Example
 
 ```bash
-npx monorepo-publish --packages-dir packages
-```
+$ npx monorepo-publish
 
-Example output:
-
-```
 Found 3 package(s) (in publish order):
-  1. @myorg/utils
-  2. @myorg/components
-  3. @myorg/app
+  1. @acme/utils
+  2. @acme/core
+  3. @acme/react
 
---- Processing @myorg/utils ---
+--- Processing @acme/utils ---
 No previous tag found. Publishing initial version.
-No existing versions for 1.0.x on npm.
 New version: 1.0.0
 Publishing to npm...
-Successfully published @myorg/utils@1.0.0
-Created and pushed tag: myorg-utils-v1.0.0
+Successfully published @acme/utils@1.0.0
+Created and pushed tag: acme-utils-v1.0.0
 
---- Processing @myorg/components ---
-Changes detected since myorg-components-v0.1.0.
-  Transforming @myorg/utils: file:../utils → 1.0.0
-New version: 0.2.0
-...
+--- Processing @acme/core ---
+Changes detected since @acme/utils-v1.0.0.
+Updating @acme/utils: ^1.0.0 → 1.0.0
+New version: 1.0.1
+Successfully published @acme/core@1.0.1
+Created and pushed tag: acme-core-v1.0.1
+
+Done!
 ```
 
-### Dependency handling
+### Inter-Package Dependency Resolution
 
-- `dependencies`, `devDependencies` — `file:` references are transformed to exact versions
-- `peerDependencies` — `file:` references are skipped with a warning (use ranges for compatibility)
+When publishing multiple packages, the tool:
 
-### Versioning strategy
+1. Determines publish order using topological sort based on dependency graph
+2. Tracks newly published versions during the run
+3. Updates `dependencies` and `devDependencies` that reference internal packages:
+   - `file:../package` → exact version string (e.g., `"1.0.0"`)
+   - existing version numbers → updated if a newer version was published
 
-1. Extract major.minor from `package.json` (controlled by developers)
-2. Query npm for the latest patch version of that major.minor
-3. Increment patch: `major.minor.(latestPatch + 1)`
-4. If no versions exist on npm, start at `.0`
-
-### Git tagging
-
-Tags are created as `<normalized-name>-v<version>` where `@` and `/` in package names are replaced (e.g., `@myorg/foo@1.2.3` → `myorg-foo-v1.2.3`).
+Note: `peerDependencies` are excluded from `file:` transformations since they should use version ranges for compatibility.

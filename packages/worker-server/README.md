@@ -11,7 +11,7 @@ npm install @hardlydifficult/worker-server
 ## Quick Start
 
 ```typescript
-import { WorkerServer, WorkerStatus } from "@hardlydifficult/worker-server";
+import { WorkerServer } from "@hardlydifficult/worker-server";
 
 const server = new WorkerServer({
   port: 19100,
@@ -19,15 +19,21 @@ const server = new WorkerServer({
 });
 
 server.onWorkerConnected((worker) => {
-  console.log(`Worker ${worker.name} connected with status ${worker.status}`);
+  console.log(`Worker ${worker.name} connected`);
 });
 
-server.onWorkerMessage("work_result", (worker, message) => {
-  console.log(`Worker ${worker.id} completed request:`, message);
+server.onWorkerMessage("work_complete", (worker, message) => {
+  console.log(`Worker ${worker.id} completed:`, message);
 });
 
 await server.start();
-console.log("Worker server listening on port", server.port);
+console.log("Server listening on port", server.port);
+
+// Send a message to a worker
+const worker = server.getAvailableWorker("sonnet");
+if (worker) {
+  server.send(worker.id, { type: "work_request", requestId: "req-123" });
+}
 ```
 
 ## Core Concepts
@@ -37,19 +43,16 @@ console.log("Worker server listening on port", server.port);
 Main entry point for managing worker connections via WebSocket.
 
 ```typescript
-import { WorkerServer } from "@hardlydifficult/worker-server";
+import { WorkerServer, WorkerStatus } from "@hardlydifficult/worker-server";
 
 const server = new WorkerServer({
   port: 19100,
-  authToken: "secret", // optional
   heartbeatTimeoutMs: 60_000,
   healthCheckIntervalMs: 10_000,
   heartbeatIntervalMs: 15_000,
-  logger: myLogger,
 });
 
 await server.start();
-// Handle connections, messages, and shutdown
 await server.stop();
 ```
 
@@ -87,17 +90,26 @@ server.broadcast({ type: "shutdown" });
 
 #### Worker Selection & Pool Queries
 
+| Method | Description |
+|--------|-------------|
+| `getAvailableWorker(model, category?)` | Least-loaded worker supporting the model |
+| `getAnyAvailableWorker()` | Any available or busy worker (model-agnostic) |
+| `getAvailableSlotCount(model, category?)` | Total free slots across all available workers |
+| `getWorkerCount()` | Total connected workers |
+| `getAvailableWorkerCount()` | Available workers count |
+| `getWorkerInfo()` | Public info for all workers |
+
 ```typescript
 // Get least-loaded worker supporting a model
 const worker = server.getAvailableWorker("sonnet");
+if (worker) {
+  server.trackRequest(worker.id, "req-123", "local");
+}
 
-// Get any available worker (model-agnostic)
-const any = server.getAnyAvailableWorker();
-
-// Slot counts
+// Slot counts with category-aware limits
 console.log("Available slots:", server.getAvailableSlotCount("sonnet", "local"));
 
-// Worker info
+// View all workers
 for (const info of server.getWorkerInfo()) {
   console.log(`${info.name}: ${info.status} (${info.activeRequests}/${info.capabilities.maxConcurrentRequests})`);
 }
@@ -141,10 +153,11 @@ server.addWebSocketEndpoint("/ws/dashboard", (ws) => {
 Low-level pool manager for worker state and selection.
 
 ```typescript
-import { WorkerPool, WorkerStatus } from "@hardlydifficult/worker-server";
+import { WorkerPool, toWorkerInfo, WorkerStatus } from "@hardlydifficult/worker-server";
 
 const pool = new WorkerPool(logger);
 
+// Add/remove workers
 pool.add(worker);
 pool.remove(workerId);
 const worker = pool.get(workerId);
@@ -152,9 +165,14 @@ const worker = pool.get(workerId);
 
 #### Selection Logic
 
-- `getAvailableWorker(model, category?)`: Returns least-loaded worker supporting the model, respecting per-category concurrency limits
-- `getAnyAvailableWorker()`: Returns any worker regardless of model (both Available and Busy)
-- `getAvailableSlotCount(model, category?)`: Total free slots across all available workers for the model
+| Method | Description |
+|--------|-------------|
+| `getAvailableWorker(model, category?)` | Least-loaded worker supporting the model, respecting per-category concurrency limits |
+| `getAnyAvailableWorker()` | Any available or busy worker (model-agnostic) |
+| `getAvailableSlotCount(model, category?)` | Total free slots across all available workers for the model |
+| `getCount()` | Total connected workers |
+| `getAvailableCount()` | Available workers count |
+| `getWorkerInfoList()` | Public info for all workers |
 
 #### Request Management
 
@@ -172,6 +190,17 @@ const worker = pool.get(workerId);
 ### ConnectionHandler
 
 Handles WebSocket lifecycle, registration, heartbeats, and message routing. Most consumers use `WorkerServer`, which encapsulates this.
+
+### Message Protocol
+
+Workers send JSON messages with a `type` field:
+
+- `worker_registration` — Register with capabilities and optional `authToken`
+- `heartbeat` — Send periodically to confirm liveness
+
+The server responds with:
+- `worker_registration_ack` — Success/failure with `sessionId` and `heartbeatIntervalMs`
+- `heartbeat_ack` — Acknowledgment with `nextHeartbeatDeadline`
 
 ### Types & Interfaces
 
@@ -211,7 +240,7 @@ interface WorkerCapabilities {
   models: ModelInfo[];
   maxConcurrentRequests: number;
   metadata?: Record<string, unknown>;
-  concurrencyLimits?: Record<string, number>;
+  concurrencyLimits?: Record<string, number>; // per-category limits
 }
 ```
 
@@ -234,13 +263,12 @@ interface ModelInfo {
 Authentication tokens are compared using timing-safe comparison to prevent brute-force attacks:
 
 ```typescript
-const server = new WorkerServer({
-  port: 19100,
-  authToken: "secret-token",
-});
+import { safeCompare } from "@hardlydifficult/worker-server";
+// Internally used by ConnectionHandler; exposed for testing
+const valid = safeCompare("a", "b"); // false
 ```
 
-Workers must send:
+Workers must send the token in registration:
 
 ```json
 {
