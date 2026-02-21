@@ -23,3 +23,4 @@ export {
 
 // Helpers
 export { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from "./workerErrors";
+export { createPrefixParser } from "./createPrefixParser";
