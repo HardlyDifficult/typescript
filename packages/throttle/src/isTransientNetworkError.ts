@@ -6,8 +6,7 @@
  * detects "service unreachable" errors like ECONNREFUSED.
  */
 export function isTransientNetworkError(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
   return (
     lower.includes("recv failure") ||

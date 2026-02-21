@@ -14,12 +14,16 @@ describe("isTransientNetworkError", () => {
   });
 
   it("should detect ETIMEDOUT", () => {
-    expect(isTransientNetworkError(new Error("connect ETIMEDOUT 1.2.3.4:443"))).toBe(true);
+    expect(
+      isTransientNetworkError(new Error("connect ETIMEDOUT 1.2.3.4:443"))
+    ).toBe(true);
   });
 
   it("should detect 'unable to access'", () => {
     expect(
-      isTransientNetworkError(new Error("unable to access 'https://github.com/foo/bar.git/'"))
+      isTransientNetworkError(
+        new Error("unable to access 'https://github.com/foo/bar.git/'")
+      )
     ).toBe(true);
   });
 
@@ -31,7 +35,9 @@ describe("isTransientNetworkError", () => {
 
   it("should detect TLS termination errors", () => {
     expect(
-      isTransientNetworkError(new Error("TLS connection was non-properly terminated"))
+      isTransientNetworkError(
+        new Error("TLS connection was non-properly terminated")
+      )
     ).toBe(true);
   });
 
@@ -48,7 +54,9 @@ describe("isTransientNetworkError", () => {
   });
 
   it("should handle non-Error values", () => {
-    expect(isTransientNetworkError("Recv failure: Connection was reset")).toBe(true);
+    expect(isTransientNetworkError("Recv failure: Connection was reset")).toBe(
+      true
+    );
     expect(isTransientNetworkError(42)).toBe(false);
     expect(isTransientNetworkError(null)).toBe(false);
   });
