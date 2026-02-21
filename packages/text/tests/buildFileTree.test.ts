@@ -15,16 +15,21 @@ describe("buildFileTree", () => {
 
   describe("plain format", () => {
     it("renders a simple file tree", () => {
-      const result = buildFileTree(["src/index.ts", "src/utils.ts", "README.md"], {
-        format: "plain",
-      });
+      const result = buildFileTree(
+        ["src/index.ts", "src/utils.ts", "README.md"],
+        {
+          format: "plain",
+        }
+      );
       expect(result).toBe(
         ["src/", "  index.ts", "  utils.ts", "", "README.md"].join("\n")
       );
     });
 
     it("sorts directories before files", () => {
-      const result = buildFileTree(["file.ts", "dir/child.ts"], { format: "plain" });
+      const result = buildFileTree(["file.ts", "dir/child.ts"], {
+        format: "plain",
+      });
       expect(result).toBe(["dir/", "  child.ts", "", "file.ts"].join("\n"));
     });
 
@@ -47,13 +52,19 @@ describe("buildFileTree", () => {
     describe("annotations", () => {
       it("appends annotation to file entry", () => {
         const annotations = new Map([["src/index.ts", "Main entry point"]]);
-        const result = buildFileTree(["src/index.ts"], { annotations, format: "plain" });
+        const result = buildFileTree(["src/index.ts"], {
+          annotations,
+          format: "plain",
+        });
         expect(result).toContain("index.ts \u2014 Main entry point");
       });
 
       it("appends annotation to directory entry", () => {
         const annotations = new Map([["src", "Source code directory"]]);
-        const result = buildFileTree(["src/index.ts"], { annotations, format: "plain" });
+        const result = buildFileTree(["src/index.ts"], {
+          annotations,
+          format: "plain",
+        });
         expect(result).toContain("src/ \u2014 Source code directory");
       });
 
@@ -110,7 +121,10 @@ describe("buildFileTree", () => {
 
       it("does not render details for directories", () => {
         const details = new Map([["src", ["should not appear"]]]);
-        const result = buildFileTree(["src/index.ts"], { details, format: "plain" });
+        const result = buildFileTree(["src/index.ts"], {
+          details,
+          format: "plain",
+        });
         expect(result).toBe(["src/", "  index.ts"].join("\n"));
       });
 
@@ -119,7 +133,11 @@ describe("buildFileTree", () => {
         const details = new Map([
           ["index.ts", ["> main (1-10): Starts the app."]],
         ]);
-        const result = buildFileTree(["index.ts"], { annotations, details, format: "plain" });
+        const result = buildFileTree(["index.ts"], {
+          annotations,
+          details,
+          format: "plain",
+        });
         expect(result).toBe(
           [
             "index.ts — Main entry point",
@@ -142,7 +160,10 @@ describe("buildFileTree", () => {
 
       it("renders empty array as no details", () => {
         const details = new Map([["index.ts", []]]);
-        const result = buildFileTree(["index.ts"], { details, format: "plain" });
+        const result = buildFileTree(["index.ts"], {
+          details,
+          format: "plain",
+        });
         expect(result).toBe("index.ts");
       });
     });
@@ -166,10 +187,13 @@ describe("buildFileTree", () => {
       });
 
       it("collapses directory with files only (no subdirs)", () => {
-        const result = buildFileTree(["test/a.ts", "test/b.ts", "src/index.ts"], {
-          collapseDirs: ["test"],
-          format: "plain",
-        });
+        const result = buildFileTree(
+          ["test/a.ts", "test/b.ts", "src/index.ts"],
+          {
+            collapseDirs: ["test"],
+            format: "plain",
+          }
+        );
         expect(result).toBe(
           ["src/", "  index.ts", "", "test/", "  (2 files)"].join("\n")
         );
@@ -227,7 +251,9 @@ describe("buildFileTree", () => {
       });
 
       it("works without collapseDirs (default behavior)", () => {
-        const result = buildFileTree(["test/a.ts", "test/b.ts"], { format: "plain" });
+        const result = buildFileTree(["test/a.ts", "test/b.ts"], {
+          format: "plain",
+        });
         expect(result).toBe(["test/", "  a.ts", "  b.ts"].join("\n"));
       });
     });

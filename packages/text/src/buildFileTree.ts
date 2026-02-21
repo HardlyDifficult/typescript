@@ -172,6 +172,8 @@ export function buildFileTree(
 
   renderNode(root, 1, "");
   const content = lines.join("\n");
-  if (format === "plain" || content === "") return content;
+  if (format === "plain" || content === "") {
+    return content;
+  }
   return `\`\`\`\n${content}\n\`\`\``;
 }
