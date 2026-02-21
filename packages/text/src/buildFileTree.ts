@@ -13,6 +13,8 @@ export interface BuildTreeOptions {
   details?: ReadonlyMap<string, readonly string[]>;
   /** Directory names to collapse. Matched dirs show a content summary instead of expanding children. */
   collapseDirs?: readonly string[];
+  /** Line count per file path. Displayed as `(N lines)` after the filename. Only applies to files, not directories. */
+  lineCounts?: ReadonlyMap<string, number>;
   /**
    * Output format. Defaults to `'markdown'`, which wraps the tree in a code fence so it renders
    * correctly in markdown environments (preserving indentation and preventing `>` from being
@@ -75,6 +77,7 @@ export function buildFileTree(
     annotations,
     details,
     collapseDirs,
+    lineCounts,
     format = "markdown",
   } = options;
   const collapseSet = collapseDirs ? new Set(collapseDirs) : undefined;
@@ -141,8 +144,13 @@ export function buildFileTree(
       }
       const marker = child.isDir ? "/" : "";
       const annotation = annotations?.get(child.fullPath) ?? "";
+      const lineCount = !child.isDir
+        ? lineCounts?.get(child.fullPath)
+        : undefined;
+      const lineCountPart =
+        lineCount !== undefined ? ` (${String(lineCount)} lines)` : "";
       const suffix = annotation !== "" ? ` — ${annotation}` : "";
-      lines.push(`${prefix}${child.name}${marker}${suffix}`);
+      lines.push(`${prefix}${child.name}${marker}${lineCountPart}${suffix}`);
 
       // Render detail lines under files (e.g. key sections)
       if (!child.isDir && details?.has(child.fullPath) === true) {
