@@ -5,9 +5,5 @@ export { DiscordPlugin, type DiscordSender } from "./plugins/DiscordPlugin.js";
 export { FilePlugin } from "./plugins/FilePlugin.js";
 export { SessionTracker } from "./SessionTracker.js";
 export type { LogLevel, LogEntry, LoggerPlugin } from "./types.js";
-export type {
-  SessionEntry,
-  SessionEntryType,
-  SessionInfo,
-} from "./types.js";
+export type { SessionEntry, SessionEntryType, SessionInfo } from "./types.js";
 export type { SessionTrackerOptions } from "./SessionTracker.js";

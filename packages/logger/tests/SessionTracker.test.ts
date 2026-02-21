@@ -74,7 +74,7 @@ describe("SessionTracker", () => {
       });
 
       expect(existsSync(join(tempDir, "debug-logs", "sess-2.jsonl"))).toBe(
-        true,
+        true
       );
     });
 
@@ -83,7 +83,7 @@ describe("SessionTracker", () => {
         stateDirectory: "/nonexistent/path/that/will/fail",
       });
       expect(() =>
-        badTracker.append("x", { type: "error", data: {} }),
+        badTracker.append("x", { type: "error", data: {} })
       ).not.toThrow();
     });
   });

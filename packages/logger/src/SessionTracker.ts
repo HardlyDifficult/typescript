@@ -2,8 +2,8 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   statSync,
   unlinkSync,
 } from "node:fs";
@@ -38,7 +38,7 @@ export class SessionTracker {
   constructor(options: SessionTrackerOptions) {
     this.directory = join(
       options.stateDirectory,
-      options.subdirectory ?? DEFAULT_SUBDIRECTORY,
+      options.subdirectory ?? DEFAULT_SUBDIRECTORY
     );
     this.maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
 
@@ -52,7 +52,7 @@ export class SessionTracker {
   /** Append an entry to a session's JSONL file. Creates the file if needed. */
   append(
     sessionId: string,
-    entry: { type: SessionEntryType; data: Record<string, unknown> },
+    entry: { type: SessionEntryType; data: Record<string, unknown> }
   ): void {
     const fullEntry: SessionEntry = {
       type: entry.type,
@@ -91,7 +91,7 @@ export class SessionTracker {
     }
     try {
       const files = readdirSync(this.directory).filter((f) =>
-        f.endsWith(JSONL_EXTENSION),
+        f.endsWith(JSONL_EXTENSION)
       );
       const sessions: SessionInfo[] = [];
 
@@ -127,7 +127,7 @@ export class SessionTracker {
       sessions.sort(
         (a, b) =>
           new Date(b.lastModifiedAt).getTime() -
-          new Date(a.lastModifiedAt).getTime(),
+          new Date(a.lastModifiedAt).getTime()
       );
       return sessions;
     } catch {
@@ -163,7 +163,7 @@ export class SessionTracker {
     const cutoff = Date.now() - this.maxAgeMs;
     try {
       const files = readdirSync(this.directory).filter((f) =>
-        f.endsWith(JSONL_EXTENSION),
+        f.endsWith(JSONL_EXTENSION)
       );
       for (const file of files) {
         const fp = join(this.directory, file);
