@@ -145,7 +145,7 @@ export function buildFileTree(
       const marker = child.isDir ? "/" : "";
       const annotation = annotations?.get(child.fullPath) ?? "";
       const lineCount = !child.isDir ? lineCounts?.get(child.fullPath) : undefined;
-      const lineCountPart = lineCount !== undefined ? ` (${lineCount} lines)` : "";
+      const lineCountPart = lineCount !== undefined ? ` (${String(lineCount)} lines)` : "";
       const suffix = annotation !== "" ? ` — ${annotation}` : "";
       lines.push(`${prefix}${child.name}${marker}${lineCountPart}${suffix}`);
 
