@@ -1,6 +1,6 @@
 # @hardlydifficult/queue
 
-A high-performance priority queue with O(1) enqueue and dequeue operations, supporting FIFO ordering within priority levels.
+A high-performance priority queue implementation with O(1) enqueue and dequeue operations, supporting FIFO ordering within priority levels.
 
 ## Installation
 
@@ -15,180 +15,195 @@ import { createPriorityQueue } from "@hardlydifficult/queue";
 
 const queue = createPriorityQueue<string>();
 
-// Enqueue items with priorities
-queue.enqueue("urgent task", "high");
-queue.enqueue("normal task", "medium");
-queue.enqueue("background task", "low");
+queue.enqueue("low-priority", "low");
+queue.enqueue("urgent", "high");
+queue.enqueue("standard"); // defaults to 'medium'
 
-// Dequeue in priority order (high → medium → low)
-console.log(queue.dequeue()?.data); // "urgent task"
-console.log(queue.dequeue()?.data); // "normal task"
-console.log(queue.dequeue()?.data); // "background task"
+// Dequeues in priority order, then by insertion time
+console.log(queue.dequeue()?.data); // "urgent"
+console.log(queue.dequeue()?.data); // "standard"
+console.log(queue.dequeue()?.data); // "low-priority"
 ```
 
-## Core Operations
+## Core API
 
-### Enqueue and Dequeue
+### createPriorityQueue
 
-Add items to the queue with a priority level (defaults to `"medium"`). Items are dequeued in priority order, with FIFO ordering within the same priority level.
+Creates a new priority queue instance.
 
 ```typescript
-const queue = createPriorityQueue<string>();
+import { createPriorityQueue } from "@hardlydifficult/queue";
 
-// Enqueue with explicit priority
-const item1 = queue.enqueue("task A", "high");
-const item2 = queue.enqueue("task B", "high");
-const item3 = queue.enqueue("task C", "medium");
-
-// Dequeue returns highest priority first, FIFO within same priority
-queue.dequeue()?.data; // "task A" (high, enqueued first)
-queue.dequeue()?.data; // "task B" (high, enqueued second)
-queue.dequeue()?.data; // "task C" (medium)
+const queue = createPriorityQueue<number>();
 ```
 
-### Peek
+### PriorityQueue Interface
 
-Inspect the next item without removing it from the queue.
+All queue operations are provided via the `PriorityQueue<T>` interface returned by `createPriorityQueue()`.
 
-```typescript
-const queue = createPriorityQueue<string>();
-queue.enqueue("first", "high");
-queue.enqueue("second", "low");
+#### enqueue(data, priority?)
 
-queue.peek()?.data; // "first" (highest priority)
-queue.size; // Still 2
-```
+Adds an item to the queue.
 
-### Queue Status
+| Parameter | Type      | Default   | Description                  |
+|-----------|-----------|-----------|------------------------------|
+| data      | `T`       | —         | The item data to enqueue     |
+| priority  | `Priority`| `"medium"`| Priority level: `"high"`, `"medium"`, or `"low"` |
 
-Check the number of items and whether the queue is empty.
+Returns a `QueueItem<T>` with metadata including unique ID and enqueue timestamp.
 
 ```typescript
-const queue = createPriorityQueue<string>();
-
-queue.isEmpty; // true
-queue.size; // 0
-
-queue.enqueue("item");
-queue.isEmpty; // false
-queue.size; // 1
-```
-
-## Item Management
-
-### Remove Items
-
-Remove a specific item by its ID. Returns `true` if the item was found and removed.
-
-```typescript
-const queue = createPriorityQueue<string>();
 const item = queue.enqueue("task", "high");
-
-queue.remove(item.id); // true
-queue.size; // 0
+console.log(item.id); // "q_1"
+console.log(item.priority); // "high"
 ```
 
-### Update Priority
+#### dequeue()
 
-Change an item's priority level while keeping its data and enqueue timestamp intact.
+Removes and returns the highest-priority item (FIFO within same priority).
 
 ```typescript
-const queue = createPriorityQueue<string>();
-const item = queue.enqueue("task", "low");
-
-queue.updatePriority(item.id, "high"); // true
-queue.peek()?.data; // "task" (now highest priority)
+const item = queue.dequeue();
+if (item) {
+  console.log(item.data); // "urgent"
+}
 ```
 
-### Reorder Within Priority
+Returns `undefined` if the queue is empty.
 
-Move an item before another item in the same priority bucket, or move it to the end of its bucket.
+#### peek()
+
+Returns the next item to be dequeued without removing it.
 
 ```typescript
-const queue = createPriorityQueue<string>();
-const a = queue.enqueue("A", "high");
-const b = queue.enqueue("B", "high");
-const c = queue.enqueue("C", "high");
-
-// Move A before C
-queue.moveBefore(a.id, c.id); // true
-queue.toArray().map(i => i.data); // ["B", "A", "C"]
-
-// Move B to the end
-queue.moveToEnd(b.id); // true
-queue.toArray().map(i => i.data); // ["A", "C", "B"]
+const next = queue.peek();
+if (next) {
+  console.log(next.data); // First item to be dequeued
+}
 ```
 
-## Snapshots and Listeners
+#### remove(id)
 
-### Get All Items
-
-Retrieve all items in dequeue order without modifying the queue.
+Removes an item by its unique ID.
 
 ```typescript
-const queue = createPriorityQueue<string>();
-queue.enqueue("low", "low");
-queue.enqueue("high", "high");
-queue.enqueue("medium", "medium");
-
-const items = queue.toArray();
-items.map(i => i.data); // ["high", "medium", "low"]
-queue.size; // Still 3
+const item = queue.enqueue("remove-me");
+const removed = queue.remove(item.id); // true
+const absent = queue.remove("unknown"); // false
 ```
 
-### Listen for Enqueues
+#### size
 
-Register a callback that fires whenever an item is enqueued. Returns an unsubscribe function.
+Readonly property returning the total number of items in the queue.
 
 ```typescript
-const queue = createPriorityQueue<string>();
+console.log(queue.size); // 5
+```
 
+#### isEmpty
+
+Readonly property indicating whether the queue is empty.
+
+```typescript
+console.log(queue.isEmpty); // false
+```
+
+#### onEnqueue(callback)
+
+Registers a callback invoked whenever an item is enqueued.
+
+Returns an unsubscribe function.
+
+```typescript
 const unsubscribe = queue.onEnqueue((item) => {
-  console.log(`Enqueued: ${item.data} (priority: ${item.priority})`);
+  console.log("Enqueued:", item.data);
 });
 
-queue.enqueue("task", "high");
-// Logs: "Enqueued: task (priority: high)"
-
+queue.enqueue("test");
 unsubscribe();
-queue.enqueue("another"); // No log
+queue.enqueue("ignored"); // callback no longer invoked
 ```
 
-### Clear the Queue
+#### toArray()
 
-Remove all items from the queue.
+Returns a snapshot of all items in dequeue order (by priority, then FIFO). Does not modify the queue.
 
 ```typescript
-const queue = createPriorityQueue<string>();
+const items = queue.toArray();
+// Items sorted by priority: high → medium → low, then by insertion order
+```
+
+#### clear()
+
+Removes all items from the queue.
+
+```typescript
 queue.enqueue("a");
 queue.enqueue("b");
-
 queue.clear();
-queue.isEmpty; // true
+console.log(queue.size); // 0
 ```
 
-## Item Metadata
+### Priority Updates
 
-Each enqueued item includes metadata accessible via the returned `QueueItem` object:
+#### updatePriority(id, newPriority)
+
+Changes the priority of an existing item.
 
 ```typescript
-const queue = createPriorityQueue<string>();
-const item = queue.enqueue("my task", "high");
-
-item.data; // "my task"
-item.priority; // "high"
-item.id; // "q_1" (unique identifier)
-item.enqueuedAt; // 1699564800000 (epoch milliseconds)
+const item = queue.enqueue("task", "low");
+queue.updatePriority(item.id, "high"); // true
 ```
 
-## Priority Levels
+Returns `true` if the item was found and updated, `false` otherwise.
 
-The queue supports three priority levels, dequeued in this order:
+#### moveBefore(itemId, beforeItemId)
 
-| Priority | Dequeue Order |
-|----------|---------------|
-| `"high"` | 1st           |
-| `"medium"` | 2nd         |
-| `"low"`  | 3rd           |
+Moves an item before another item within the same priority bucket.
 
-When no priority is specified, `"medium"` is used as the default.
+```typescript
+const a = queue.enqueue("a", "medium");
+const b = queue.enqueue("b", "medium");
+const c = queue.enqueue("c", "medium");
+
+queue.moveBefore(c.id, a.id); // true
+console.log(queue.toArray().map(i => i.data)); // ["c", "a", "b"]
+```
+
+Both items must exist and share the same priority. Returns `true` on success.
+
+#### moveToEnd(itemId)
+
+Moves an item to the end of its priority bucket.
+
+```typescript
+const a = queue.enqueue("a", "medium");
+const b = queue.enqueue("b", "medium");
+queue.moveToEnd(a.id); // true
+console.log(queue.toArray().map(i => i.data)); // ["b", "a"]
+```
+
+Returns `true` if the item was found (even if already at end), `false` otherwise.
+
+## QueueItem Type
+
+Represents an item in the queue with metadata:
+
+```typescript
+interface QueueItem<T> {
+  data: T;
+  priority: Priority;
+  enqueuedAt: number; // epoch milliseconds
+  id: string;         // unique identifier
+}
+```
+
+## Priority Order
+
+Priority levels are ordered from highest to lowest:
+
+1. `"high"`
+2. `"medium"` (default)
+3. `"low"`
+
+Items with higher priority are dequeued before items with lower priority. Within the same priority, items are dequeued in FIFO order (first-in, first-out).

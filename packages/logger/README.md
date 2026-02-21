@@ -11,15 +11,15 @@ npm install @hardlydifficult/logger
 ## Quick Start
 
 ```typescript
-import { Logger, ConsolePlugin, FilePlugin, DiscordPlugin } from "@hardlydifficult/logger";
+import { Logger, ConsolePlugin, FilePlugin } from "@hardlydifficult/logger";
 
 const logger = new Logger("info")
   .use(new ConsolePlugin())
   .use(new FilePlugin("./app.log"));
 
 logger.info("Server started", { port: 3000 });
-logger.warn("High memory usage", { usage: "85%" });
-logger.error("Request failed", { url: "/api/data", status: 500 });
+// Output to console: [2025-01-15T10:30:00.000Z] INFO: Server started {"port":3000}
+// Output to file: {"level":"info","message":"Server started","timestamp":"2025-01-15T10:30:00.000Z","context":{"port":3000}}
 ```
 
 ## Core Logger
@@ -79,9 +79,8 @@ The `formatEntry` function is also exported for custom formatting:
 
 ```typescript
 import { formatEntry } from "@hardlydifficult/logger";
-import type { LogEntry } from "@hardlydifficult/logger";
 
-const entry: LogEntry = {
+const entry = {
   level: "warn",
   message: "High memory",
   timestamp: "2025-01-15T10:30:00.000Z",
@@ -132,11 +131,13 @@ logger.notify("Deployment complete");
 
 ### Behavior
 
-- Only `warn` and `error` log entries are sent (debug/info are filtered)
-- Warn entries use ⚠️ emoji; error entries use 🚨 emoji
-- Context is formatted as a JSON code block when present
-- `notify()` sends messages directly without level filtering
-- If `setSender` is not called, entries are silently dropped
+| Behavior | Description |
+|----------|-------------|
+| Only `warn` and `error` log entries are sent (debug/info are filtered) | |
+| Warn entries use ⚠️ emoji; error entries use 🚨 emoji | |
+| Context is formatted as a JSON code block when present | |
+| `notify()` sends messages directly without level filtering | |
+| If `setSender` is not called, entries are silently dropped | |
 
 ## Custom Plugins
 

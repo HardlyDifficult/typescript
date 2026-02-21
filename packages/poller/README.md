@@ -1,6 +1,6 @@
 # @hardlydifficult/poller
 
-A generic polling utility that periodically fetches data, detects changes via deep equality comparison, and supports debounced manual triggers with overlap handling.
+A lightweight, generic polling utility with debounced triggers, overlapping request handling, and deep equality change detection.
 
 ## Installation
 
@@ -13,246 +13,132 @@ npm install @hardlydifficult/poller
 ```typescript
 import { Poller } from "@hardlydifficult/poller";
 
+// Define a fetch function (e.g., API call)
+const fetchUser = async () => {
+  const res = await fetch("https://api.example.com/user");
+  return res.json();
+};
+
+// Create and start the poller
 const poller = new Poller(
-  async () => {
-    const res = await fetch("https://api.example.com/status");
-    return res.json();
-  },
+  fetchUser,
   (current, previous) => {
-    console.log("Status changed:", current);
+    console.log("User updated:", current);
   },
-  5000 // poll every 5 seconds
+  5000 // Poll every 5 seconds
 );
 
 await poller.start();
-// Polls start immediately
+// Polls every 5s, fires onChange only when JSON data changes
 
-// Optionally, manually trigger a debounced poll
-poller.trigger(1000); // fires once after 1s of inactivity
+// Manually trigger a debounced poll (e.g., after user action)
+poller.trigger(1000); // Waits 1s, then polls once
 
-// Stop polling when done
+// Stop polling when no longer needed
 poller.stop();
 ```
 
-### Basic Usage
+## Polling Lifecycle
+
+### Start and Stop
+
+- `start()`: Begins polling at the configured interval. Idempotent—safe to call multiple times.
+- `stop()`: Cancels timers and clears any pending debounced trigger. Safe to call multiple times.
 
 ```typescript
-import { Poller } from "@hardlydifficult/poller";
-
-const poller = new Poller(
-  async () => await fetchCurrentState(),
-  (current, previous) => console.log("State changed!", current),
-  5 * 60 * 1000 // poll every 5 minutes
-);
-
 await poller.start();
+await poller.start(); // No-op
 
-// Manual trigger with debounce (e.g. from a webhook)
-poller.trigger(1000);
-
-// Stop polling
 poller.stop();
-```
-
-## Polling Behavior
-
-The `Poller` executes a fetch function at a fixed interval and invokes a callback only when the returned value changes.
-
-- Starts polling immediately on `start()`
-- Fetches at the configured `intervalMs`
-- Skips overlapping fetches (if a previous fetch is still in progress)
-
-```typescript
-const poller = new Poller(
-  async () => fetchJson("/api/data"),
-  (current, previous) => console.log("Changed:", current),
-  10_000
-);
-await poller.start();
+poller.stop(); // No-op
 ```
 
 ## Change Detection
 
-Changes are detected using deep equality via `JSON.stringify`. Structural equality means that objects with identical content—even different references—won’t trigger unnecessary callbacks.
+### Deep Equality via JSON
+
+Change detection uses `JSON.stringify()` comparison, enabling structural equality checks for objects and arrays—even when references differ.
 
 ```typescript
-const poller = new Poller(
-  async () => ({ items: [1, 2, 3] }),
-  (current, previous) => console.log("Changed:", current),
-  1000
-);
+const fetchFn = async () => ({ items: [1, 2, 3] });
+const onChange = (current, previous) => {
+  // Fires only when structure changes
+};
 
-// Even if a new object instance is returned, same structure = no change
-await poller.start();
-// onChange fires only when structure changes
+const poller = new Poller(fetchFn, onChange, 1000);
+// Even if new object reference returned, onChange won’t fire unless JSON differs
 ```
 
-- On first poll, `onChange(current, undefined)` is invoked.
-- On subsequent polls, `onChange(current, previous)` is invoked only if the new value differs structurally.
+### On Change Callback
 
 ```typescript
-const poller = new Poller(
-  async () => ({ count: 5, items: [1, 2, 3] }),
-  (current, previous) => {
-    // Only fires when the JSON representation changes
-    console.log("Changed from", previous, "to", current);
-  },
-  5000
-);
-
-await poller.start();
+onChange(current: T, previous: T | undefined): void
 ```
 
-## Lifecycle Management
-
-Polling can be started and stopped at any time. The `stop()` method cancels both the periodic timer and any pending debounced triggers.
-
-```typescript
-await poller.start();  // begins polling
-poller.stop();         // cancels all timers, stops future polls
-```
-
-### `start()`
-
-Starts polling. Fetches immediately, then at the configured interval. Calling `start()` multiple times is safe (idempotent).
-
-```typescript
-await poller.start(); // Fetches immediately
-await poller.start(); // No-op, already running
-```
-
-### `stop()`
-
-Stops polling and cleans up all timers.
-
-```typescript
-poller.stop();
-// No more polls will fire
-```
-
-## Manual Triggers
-
-You can manually trigger a debounced poll to force an immediate check after a period of inactivity.
-
-| Parameter   | Type     | Default | Description                            |
-|-------------|----------|---------|----------------------------------------|
-| `debounceMs`| `number` | `1000`  | Milliseconds to wait before polling    |
-
-```typescript
-// Immediate trigger with default debounce
-poller.trigger();
-
-// Custom debounce
-poller.trigger(500);
-
-// If multiple triggers occur within debounceMs, only the last one fires
-poller.trigger();
-poller.trigger();
-poller.trigger(); // only this one will poll after 1s
-```
-
-### Behavior
-
-- Accepts a `debounceMs` parameter (default: `1000`).
-- Multiple rapid calls reset the debounce timer — only the last trigger fires.
-- No-op if the poller is not running.
-
-```typescript
-const poller = new Poller(
-  async () => await fetchData(),
-  (current, previous) => console.log("Updated:", current),
-  60000
-);
-
-await poller.start();
-
-// Trigger a poll with 1000ms debounce (default)
-poller.trigger();
-
-// Trigger with custom debounce
-poller.trigger(500);
-
-// Multiple rapid triggers coalesce into one poll
-poller.trigger(500);
-poller.trigger(500);
-poller.trigger(500); // Only one poll fires after 500ms
-```
+- `current`: Most recently fetched value
+- `previous`: Prior value, or `undefined` on first poll
 
 ## Error Handling
 
-Fetch errors do not halt polling. An optional `onError` callback receives any errors, and polling continues at the next interval.
+### Optional Error Callback
+
+Provide an `onError` handler to manage fetch failures; polling continues regardless.
 
 ```typescript
 const poller = new Poller(
-  async () => {
-    if (Math.random() < 0.5) throw new Error("Network fail");
-    return "ok";
-  },
-  (current) => console.log(current),
-  1000,
-  (error) => console.error("Fetch failed:", error)
-);
-
-await poller.start();
-// Continues polling even after errors
-```
-
-### Error Handling Details
-
-- Errors during fetch are caught and passed to the optional `onError` callback.
-- Polling continues after errors — no automatic retry logic is applied.
-
-```typescript
-const poller = new Poller(
-  async () => await fetchData(),
-  (current, previous) => console.log("Updated:", current),
+  fetchFn,
+  onChange,
   5000,
   (error) => {
-    console.error("Fetch failed:", error);
-    // Polling continues automatically
+    console.warn("Polling error:", error);
   }
 );
-
-await poller.start();
 ```
 
-## Core Features
+- Errors do not halt the polling interval.
+- If `onError` is omitted, errors are silently suppressed.
 
-### Polling Lifecycle
+## Manual Triggering
 
-The `Poller` manages its lifecycle with `start()` and `stop()` methods.
+### Debounced Triggers
 
-- `start()`: Begins polling immediately and then at the configured interval. Idempotent — calling it multiple times has no effect after the first call.
-- `stop()`: Clears the polling timer and any pending debounced triggers. No-op if already stopped.
+- `trigger(debounceMs?: number)`: Schedules a one-time poll after a debounce delay (default: 1000ms).
+- Multiple rapid calls cancel previous timeouts—only the last one fires.
 
-### Concurrent Fetch Handling
+```typescript
+poller.trigger(2000); // Polls in 2s
+poller.trigger(2000); // Cancelled, re-schedule to 2s from now
+poller.trigger(2000); // Cancelled again, final delay applies
+```
 
-Overlapping fetches (e.g., due to slow network) are automatically skipped:
-- If `poll()` is already running when the interval fires, the next poll is skipped until the current one completes.
+- No-op if `poller` is not running.
+
+## Overlap Handling
+
+- Concurrent fetches are skipped—only one in-flight request is allowed at a time.
+- Prevents resource waste and race conditions during slow network calls.
+
+```typescript
+// Interval fires every 5s; if fetch takes 6s:
+// - Second interval fire is skipped
+// - Third interval fire executes after first completes
+```
 
 ## API Reference
 
-### `Poller<T>` Constructor
+### `Poller<T>`
 
-| Parameter   | Type                                  | Description                              |
-|-------------|---------------------------------------|------------------------------------------|
-| `fetchFn`   | `() => Promise<T>`                    | Async function returning the current state |
-| `onChange`  | `(current: T, previous: T | undefined) => void` | Callback invoked on state changes        |
-| `intervalMs`| `number`                              | Polling interval in milliseconds         |
-| `onError?`  | `(error: unknown) => void`            | Optional callback for fetch errors       |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `fetchFn` | `() => Promise<T>` | Async function to fetch data |
+| `onChange` | `(current: T, previous: T \| undefined) => void` | Callback on value change |
+| `intervalMs` | `number` | Polling interval in milliseconds |
+| `onError?` | `(error: unknown) => void` | Optional error handler |
 
 ### Methods
 
-| Method       | Signature                              | Description                                  |
-|--------------|----------------------------------------|----------------------------------------------|
-| `start()`    | `(): Promise<void>`                    | Begins polling (immediate + interval-based) |
-| `stop()`     | `(): void`                             | Stops polling and clears timers              |
-| `trigger()`  | `(debounceMs?: number) => void`        | Triggers a debounced manual poll             |
-
-### Behavior
-
-- **Deep equality** — uses JSON serialization to detect structural changes
-- **Overlap prevention** — skips a poll if the previous fetch is still running
-- **Error resilience** — continues polling after fetch errors
-- **Idempotent start** — calling `start()` multiple times is safe
-- **Debounced triggers** — multiple `trigger()` calls coalesce into one poll
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `start` | `(): Promise<void>` | Begin polling immediately and then at `intervalMs` |
+| `stop` | `(): void` | Cancel all timers and pending triggers |
+| `trigger` | `(debounceMs?: number) => void` | Trigger a one-time poll after debounce delay |

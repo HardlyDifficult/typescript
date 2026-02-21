@@ -1,177 +1,141 @@
 # @hardlydifficult/ci-scripts
 
-CLI tools for CI automation: dependency pinning, monorepo publishing, auto-committing fixes, and skill syncing.
+CLI tools for CI automation: dependency pinning, monorepo publishing, auto-fix commits, and git tagging.
 
 ## Installation
 
 ```bash
-npm install -D @hardlydifficult/ci-scripts
+npm install @hardlydifficult/ci-scripts
 ```
 
 ## Quick Start
 
-```bash
-# Check for unpinned dependencies across the monorepo
-npx check-pinned-deps
+```typescript
+// Auto-fix linting issues, commit, and push to trigger CI
+exec('npx auto-commit-fixes');
 
-# Auto-commit lint/format fixes and push to trigger CI re-run
-npx auto-commit-fixes
+// Check all dependencies are pinned (no ^ or ~ prefixes)
+exec('npx check-pinned-deps');
 
-# Publish monorepo packages with versioning and git tagging
-npx monorepo-publish
+// Publish monorepo packages with auto-versioning and tags
+exec('npx monorepo-publish --packages-dir packages');
 ```
 
-## Commands
+## Auto-fixes
 
-### `auto-commit-fixes`
+Auto-commits and pushes linting/formatting fixes to trigger CI re-runs using a personal access token (PAT) to ensure the commit triggers a new workflow.
 
-Auto-commits and pushes lint/format fixes to trigger CI re-runs.
+### Environment variables
 
-#### Usage
+- `BRANCH` — Required. The branch to push to (e.g., `${{ github.head_ref || github.ref_name }}`)
+- `GH_PAT` — Optional. GitHub PAT used for push; default GITHUB_TOKEN does not trigger workflows
 
-Requires the `BRANCH` environment variable (e.g., `github.head_ref` or `github.ref_name`). Optionally accepts `GH_PAT` for workflow-triggering pushes.
+### Example
 
 ```bash
-# Set branch dynamically in GitHub Actions
-env:
-  BRANCH: ${{ github.head_ref || github.ref_name }}
-  GH_PAT: ${{ secrets.GH_PAT }}
-
-# Run auto-commit script
-run: npx auto-commit-fixes
+# In a GitHub Actions workflow
+- name: Auto-fix and push
+  env:
+    BRANCH: ${{ github.head_ref || github.ref_name }}
+    GH_PAT: ${{ secrets.GH_PAT }}
+  run: npx auto-commit-fixes
 ```
 
-#### Behavior
+If no changes are detected, the script exits 0 with a log message. Otherwise, it commits, pushes, and exits 1 to trigger a fresh CI run.
 
-- Exits with code `0` if no changes are detected.
-- Exits with code `1` after successfully committing and pushing (to trigger CI re-runs).
-- Uses `git pull --rebase` with retry logic to handle concurrent pushes.
-- Commits with `style: auto-fix linting issues` message.
+## Dependency Checking
 
-#### Environment Variables
+Validates that all `package.json` files in the repository use pinned versions (exact versions without `^` or `~` prefixes).
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BRANCH` | Yes | Branch to push to |
-| `GH_PAT` | No | GitHub PAT for workflow-triggering push (recommended) |
-
-### `check-pinned-deps`
-
-Validates that all dependencies in all `package.json` files use exact versions (no `^` or `~` prefixes). Exits with a non-zero code if any unpinned dependencies are found.
-
-#### Usage
-
-Run the command at the monorepo root:
+### Example
 
 ```bash
 npx check-pinned-deps
 ```
 
-#### Behavior
-
-- Recursively scans all `package.json` files in the current directory (excluding `node_modules`, `dist`, `.tmp`).
-- Fails if any dependency (dependencies, devDependencies, peerDependencies, optionalDependencies) uses an unpinned version.
-- Outputs all violations with file location, field, package name, and version.
-
-#### Example Output
+Example output on failure:
 
 ```
 Found unpinned dependencies:
 
-  path/to/package.json
+  ./packages/foo/package.json
     dependencies.lodash: "^4.17.21"
 
 All dependencies must use exact versions (no ^ or ~ prefixes).
+Fix by removing the ^ or ~ prefix from each version.
 ```
 
-### `monorepo-publish`
+### Supported dependency types
 
-Smart monorepo publisher. Auto-increments patch versions, publishes packages in dependency order, and transforms `file:` references to real versions before publishing.
+- `dependencies`
+- `devDependencies`
+- `peerDependencies`
+- `optionalDependencies`
 
-#### Usage
+## Monorepo Publishing
+
+Publishes changed packages in a monorepo with auto-versioning and inter-package dependency resolution.
+
+### Features
+
+- Topological sort ensures dependencies are published before dependents
+- Auto-increments patch versions based on npm's latest published version for that major.minor
+- Transforms `file:` references to real versions for published packages
+- Creates and pushes git tags in `pkgName-vX.Y.Z` format
+
+### Usage
 
 ```bash
 npx monorepo-publish [--packages-dir <dir>]
 ```
 
-#### Options
+### Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--packages-dir` | `packages` | Directory containing monorepo packages |
+| Option         | Default   | Description                         |
+|----------------|-----------|-------------------------------------|
+| `--packages-dir` | `"packages"` | Directory containing packages |
 
-#### Features
+### Example
 
-- Detects changed packages since last publish
-- Resolves dependency order using topological sort
-- Updates internal `file:` references to real versions
-- Auto-increments patch versions based on npm's latest published version
-- Creates and pushes git tags (format: `<normalized-name>-v<version>`)
+```bash
+npx monorepo-publish --packages-dir packages
+```
 
-#### Versioning Logic
-
-- Uses `major.minor` from `package.json` (controlled by developers)
-- Auto-determines patch version from npm's latest for that `major.minor`
-- If no versions exist on npm, starts at `.0`
-
-#### Inter-Package Dependency Handling
-
-- Publishes dependencies before dependents (topologically sorted)
-- Transforms `file:../pkg` references to real versions during publish
-- Excludes `peerDependencies` from `file:` transformations (use ranges for compatibility)
-
-#### Example Output
+Example output:
 
 ```
 Found 3 package(s) (in publish order):
-  1. @myorg/core
-  2. @myorg/utils
-  3. @myorg/cli
+  1. @myorg/utils
+  2. @myorg/components
+  3. @myorg/app
 
---- Processing @myorg/core ---
+--- Processing @myorg/utils ---
 No previous tag found. Publishing initial version.
+No existing versions for 1.0.x on npm.
 New version: 1.0.0
 Publishing to npm...
-Successfully published @myorg/core@1.0.0
-Created and pushed tag: myorg-core-v1.0.0
+Successfully published @myorg/utils@1.0.0
+Created and pushed tag: myorg-utils-v1.0.0
+
+--- Processing @myorg/components ---
+Changes detected since myorg-components-v0.1.0.
+  Transforming @myorg/utils: file:../utils → 1.0.0
+New version: 0.2.0
+...
 ```
 
-#### Environment Requirements
+### Dependency handling
 
-- `npm` authentication (e.g., `npm login` or token via environment)
-- Git remote configured with push permissions
+- `dependencies`, `devDependencies` — `file:` references are transformed to exact versions
+- `peerDependencies` — `file:` references are skipped with a warning (use ranges for compatibility)
 
-### `sync-skills`
+### Versioning strategy
 
-Pulls `.claude/` skills from GitHub repos listed in `packages/shared-config/skill-repos.json` using the GitHub REST API. Run from the monorepo root.
+1. Extract major.minor from `package.json` (controlled by developers)
+2. Query npm for the latest patch version of that major.minor
+3. Increment patch: `major.minor.(latestPatch + 1)`
+4. If no versions exist on npm, start at `.0`
 
-```bash
-npx sync-skills
-```
+### Git tagging
 
-Set the `GITHUB_TOKEN` environment variable for private repos.
-
-### `log-local-skills`
-
-Reports `.claude/` files that exist locally but are not in the shared-config package. Informational only, never fails.
-
-```bash
-npx log-local-skills
-```
-
-## CI Workflow Integration
-
-Typical GitHub Actions usage for auto-fix workflows:
-
-```yaml
-- name: Auto-fix lint and format
-  run: npm run fix
-
-- name: Log local .claude skills
-  run: npx log-local-skills
-
-- name: Commit and push fixes
-  env:
-    BRANCH: ${{ github.head_ref || github.ref_name }}
-  run: npx auto-commit-fixes
-```
+Tags are created as `<normalized-name>-v<version>` where `@` and `/` in package names are replaced (e.g., `@myorg/foo@1.2.3` → `myorg-foo-v1.2.3`).

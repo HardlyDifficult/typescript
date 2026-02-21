@@ -1,71 +1,149 @@
 # @hardlydifficult/shared-config
 
-Automatically syncs shared configuration files to consuming repositories via a `postinstall` hook.
+A shared configuration package that auto-syncs repository root files (`.gitignore` and `.github/dependabot.yml`) after installation via a `postinstall` script.
 
 ## Installation
 
 ```bash
-npm install -D @hardlydifficult/shared-config
+npm install @hardlydifficult/shared-config
 ```
 
 ## Quick Start
 
-After installation, the package automatically syncs shared configuration files to your repository root. No additional setup required—the `postinstall` hook runs automatically on `npm install`.
+Add `@hardlydifficult/shared-config` as a dev dependency to your project. After running `npm install`, it automatically copies the following shared config files into your repository root:
 
-```bash
-# Files are synced automatically
-npm install
+- `.gitignore`
+- `.github/dependabot.yml`
+
+No additional setup or code is required.
+
+## Postinstall Script
+
+Automatically runs after `npm install` and copies shared config files from the package’s `files/` directory to your repository root.
+
+### Behavior
+
+- Uses `INIT_CWD` environment variable (if available) to determine the project root.
+- Falls back to walking up the directory tree from `__dirname` to find `node_modules/`.
+- Silently skips copying if the root or files directory cannot be determined.
+
+```typescript
+// Postinstall runs automatically on install — no manual invocation needed
+// Copies these files:
+// - .gitignore
+// - .github/dependabot.yml
 ```
 
-## How It Works
+### File Copying
 
-The package includes a `postinstall` script that runs automatically after installation. It:
+- `files/.gitignore` → `.gitignore`
+- `files/.github/dependabot.yml` → `.github/dependabot.yml`
 
-1. Detects your repository root using the `INIT_CWD` environment variable (set by npm) or by walking up the directory tree
-2. Locates the bundled shared configuration files
-3. Copies them to your repository root, overwriting any existing versions
+Directories are created as needed; existing files are overwritten.
 
-The script runs silently if it cannot determine the repository root or find the configuration files, ensuring it never breaks the installation process.
+## Shared Config Files
 
-## Synced Files
+### `.gitignore`
 
-| File | Strategy | Purpose |
-|------|----------|---------|
-| `.gitignore` | Overwrite | Shared ignore rules for Node.js projects (node_modules, dist, coverage, .turbo, logs, .env files) |
-| `.github/dependabot.yml` | Overwrite | Automated dependency updates for npm packages, GitHub Actions, and git submodules on a weekly schedule |
+Excludes common build and environment files:
 
-## Re-syncing Configuration
-
-To re-sync files with the currently installed version:
-
-```bash
-npm install
+```gitignore
+node_modules/
+dist/
+coverage/
+.turbo/
+*.log
+package-lock.json
+.env
+.env.*
+!.env.example
 ```
 
-To update to the latest published version and re-sync:
+### `.github/dependabot.yml`
 
-```bash
-npm install @hardlydifficult/shared-config@latest
+Configures weekly automated updates for:
+
+- **npm dependencies** (versioning strategy: `increase`)
+- **GitHub Actions**
+- **git submodules**
+
+All updates are grouped together.
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    versioning-strategy: increase
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      all-updates:
+        patterns:
+          - "*"
 ```
 
-Both commands trigger the `postinstall` hook automatically.
+## TypeScript Configuration
 
-## Development
+The package includes `tsconfig.json` with strict settings suitable for shared TypeScript code:
 
-Build the package:
-
-```bash
-npm run build
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "strict": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
 ```
 
-Lint TypeScript without emitting:
+## Scripts
 
-```bash
-npm run lint
-```
+| Script | Description |
+|--------|-------------|
+| `build` | Compiles TypeScript to `dist/` |
+| `clean` | Removes `dist/` directory |
+| `lint` | Runs `tsc --noEmit` for type-checking |
+| `postinstall` | Runs the config file sync script |
 
-Clean build artifacts:
+## Appendix
 
-```bash
-npm run clean
-```
+### Platform/Environment Notes
+
+| Behavior | Notes |
+|----------|-------|
+| `INIT_CWD` availability | Set by npm; used to find repo root reliably |
+| Fallback logic | Walks up directory tree until `node_modules/` is detected |
+| Silent failure | If root or `files/` directory is missing, no errors are thrown |
+
+### Files Copied
+
+| Source (in package) | Destination (in repo root) |
+|---------------------|----------------------------|
+| `files/.gitignore` | `.gitignore` |
+| `files/.github/dependabot.yml` | `.github/dependabot.yml` |

@@ -1,9 +1,6 @@
 # @hardlydifficult/daemon
 
-Opinionated utilities for long-running Node.js services:
-
-- `createTeardown()` for idempotent cleanup with signal trapping
-- `runContinuousLoop()` for daemon-style cycle execution
+Graceful shutdown and continuous loop utilities for Node.js daemon processes.
 
 ## Installation
 
@@ -13,303 +10,180 @@ npm install @hardlydifficult/daemon
 
 ## Quick Start
 
-Create a daemon with signal-trapped teardown and a continuous loop:
-
 ```typescript
 import { createTeardown, runContinuousLoop } from "@hardlydifficult/daemon";
 
 const teardown = createTeardown();
 
-// Register cleanup for resources
-teardown.add(() => console.log("Cleanup: closing server"));
-teardown.add(() => console.log("Cleanup: disconnecting database"));
+// Register cleanup functions
+teardown.add(() => console.log("Stopping server"));
+teardown.add(() => console.log("Closing database connection"));
 
-// Trap SIGINT/SIGTERM
+// Handle SIGINT/SIGTERM
 teardown.trapSignals();
 
-// Run a continuous loop
+// Run a background task loop
 await runContinuousLoop({
   intervalSeconds: 5,
-  async runCycle(isShutdownRequested) {
-    console.log("Running cycle...");
-    if (isShutdownRequested()) {
-      return { stop: true };
-    }
-    // Perform background task
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { stop: true }; // Stop after first cycle for demo
+  runCycle: async (isShutdownRequested) => {
+    if (isShutdownRequested()) return;
+    console.log("Running periodic task...");
+    // Simulate work
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return { stop: false };
   },
   onShutdown: async () => {
-    console.log("Shutdown complete");
-    await teardown.run();
+    console.log("Shutting down loop");
   }
 });
+
+// Manual shutdown
+await teardown.run();
 ```
 
 ## Teardown Management
 
-Use `createTeardown()` to register cleanup functions once and execute them from
-every exit path.
+Idempotent resource teardown with signal trapping and LIFO cleanup order.
 
-```typescript
-import { createTeardown } from "@hardlydifficult/daemon";
+### createTeardown()
 
-const teardown = createTeardown();
-teardown.add(() => server.stop());
-teardown.add(async () => {
-  await db.close();
-});
-teardown.trapSignals();
+Creates a teardown registry for managing cleanup functions.
 
-await teardown.run();
-```
-
-### Behavior
-
-- **LIFO execution**: last added, first run
-- **Idempotent `run()`**: safe to call multiple times
-- **Per-function error isolation**: one failing teardown does not block others
-- **`add()` returns an unregister function**: allowing selective cleanup removal
-
-### `createTeardown()`
-
-Creates a teardown registry with idempotent resource cleanup.
+**Features:**
+- Registers cleanup functions in order; runs them in LIFO order
+- Swallows errors per-function so remaining cleanup still executes
+- Idempotent: calling `run()` multiple times has no additional effect
+- Signal trapping for SIGINT/SIGTERM that calls `run()` then exits
+- Returns an unregister function for individual registrations
 
 ```typescript
 const teardown = createTeardown();
 
-// Register cleanup functions
-const unregister = teardown.add(() => server.stop());
-teardown.add(async () => db.close());
+// Add cleanup functions
+const unregister = teardown.add(() => server.close());
+teardown.add(() => db.close());
 
-// Unregister a specific cleanup
+// Unregister a specific function if needed
 unregister();
 
-// Manually trigger shutdown
-await teardown.run();
+// Handle OS signals
+teardown.trapSignals();
 
-// Wire SIGTERM/SIGINT handlers
-const untrap = teardown.trapSignals();
-// Later...
-untrap(); // Remove handlers
+// Run all cleanup
+await teardown.run();
 ```
 
-#### Teardown API
+#### Teardown Interface
 
 | Method | Description |
-|--------|-----------|
-| `add(fn)` | Register a cleanup function; returns an unregister function |
-| `run()` | Run all teardown functions in LIFO order (idempotent) |
-| `trapSignals()` | Wire SIGINT/SIGTERM to `run()` then `process.exit(0)`; returns untrap function |
+|--------|-------------|
+| `add(fn)` | Registers a cleanup function (sync or async); returns unregister function |
+| `run()` | Runs all registered cleanup functions in LIFO order; idempotent |
+| `trapSignals()` | Attaches SIGINT/SIGTERM handlers; returns untrap function |
 
-### LIFO Execution
+### Signal Trapping
 
-Teardown functions run in reverse registration order:
+Signal handlers are attached via `trapSignals()` and call `run()` then `process.exit(0)`.
 
 ```typescript
-const teardown = createTeardown();
-teardown.add(() => console.log("First"));
-teardown.add(() => console.log("Second"));
-teardown.add(() => console.log("Third"));
-
-await teardown.run();
-// Output:
-// Third
-// Second
-// First
+const untrap = teardown.trapSignals();
+// Later, if needed:
+untrap(); // Remove signal handlers
 ```
 
 ## Continuous Loop Execution
 
-Use `runContinuousLoop()` to run work cycles with graceful shutdown, dynamic
-delay control, and configurable error policy.
+Interruptible loop with configurable cycle interval, error handling, and graceful shutdown.
+
+### runContinuousLoop()
+
+Runs a function repeatedly with signal-aware sleep that can be interrupted.
 
 ```typescript
-import { runContinuousLoop } from "@hardlydifficult/daemon";
-
 await runContinuousLoop({
-  intervalSeconds: 30,
-  async runCycle(isShutdownRequested) {
+  intervalSeconds: 10,
+  runCycle: async (isShutdownRequested) => {
     if (isShutdownRequested()) {
       return { stop: true };
     }
-
-    const didWork = await syncQueue();
-    if (!didWork) {
-      return 60_000; // ms
-    }
-
-    return "immediate";
+    await doWork();
+    // Return a delay override
+    return 5000; // milliseconds
   },
-  onCycleError(error, context) {
-    notifyOps(error, { cycleNumber: context.cycleNumber });
+  onCycleError: async (error, context) => {
+    console.error(`Cycle ${context.cycleNumber} failed:`, error);
     return "continue"; // or "stop"
   },
+  onShutdown: async () => {
+    await cleanup();
+  }
 });
 ```
 
-### Cycle Return Contract
+#### Loop Lifecycle
 
-`runCycle()` can return:
+- Runs cycles indefinitely until:
+  - `SIGINT` or `SIGTERM` is received
+  - `runCycle` returns `{ stop: true }`
+  - `onCycleError` returns `"stop"`
+- Each cycle may override the default delay or signal immediate continuation
 
-- any value/`undefined`: use default `intervalSeconds`
-- `number`: use that delay in milliseconds
-- `"immediate"`: run the next cycle without sleeping
-- `{ stop: true }`: stop gracefully after current cycle
-- `{ nextDelayMs: number | "immediate", stop?: true }`: explicit control object
+### Options
 
-### Optional Delay Resolver
+| Option | Type | Description |
+|--------|------|-------------|
+| `intervalSeconds` | `number` | Default delay between cycles (seconds) |
+| `runCycle` | `(isShutdownRequested: () => boolean) => Promise<...>` | Function to run each cycle |
+| `getNextDelayMs?` | `(result, context) => ContinuousLoopDelay` | Derive delay from cycle result |
+| `onCycleError?` | `(error, context) => "continue" \| "stop"` | Handle cycle errors |
+| `onShutdown?` | `() => void \| Promise<void>` | Cleanup after shutdown |
+| `logger?` | `ContinuousLoopLogger` | Optional custom logger |
 
-If your cycle returns domain data, derive schedule policy with
-`getNextDelayMs(result, context)`.
+### Cycle Return Values
+
+Cycles may return:
+- A delay in milliseconds (e.g., `5000`)
+- `"immediate"` to continue without delay
+- `{ stop: true }` to end the loop
+- `{ nextDelayMs: number \| "immediate" }` to override delay
+
+If the cycle returns a domain-specific result, use `getNextDelayMs` to derive the next delay.
 
 ### Error Handling
 
-Use `onCycleError(error, context)` to route to Slack/Sentry and decide whether
-to `"continue"` or `"stop"`. Without this hook, cycle errors are logged and the
-loop continues.
+By default:
+- Errors are logged to `console.error`
+- Loop continues to next cycle
 
-### Logger Injection
-
-By default, warnings and errors use `console.warn` and `console.error`. Pass
-`logger` to integrate your own logging implementation:
-
-```typescript
-const logger = {
-  warn: (message, context) => myLogger.warn(message, context),
-  error: (message, context) => myLogger.error(message, context),
-};
-```
-
-### `runContinuousLoop()` Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `intervalSeconds` | `number` | — | Interval between cycles in seconds |
-| `runCycle` | `Function` | — | Callback for each cycle |
-| `getNextDelayMs?` | `Function` | — | Derive delay from cycle result |
-| `onCycleError?` | `Function` | — | Handle cycle errors |
-| `onShutdown?` | `Function` | — | Cleanup on shutdown |
-| `logger?` | `ContinuousLoopLogger` | `console` | Logger for warnings/errors |
-
-### `ContinuousLoopRunCycleResult`
-
-The return type supports:
-- Raw delay (`number` or `"immediate"`)
-- Control object: `{ stop?: boolean; nextDelayMs?: ContinuousLoopDelay }`
-
-**Example:**
-
-```typescript
-async runCycle() {
-  // Return raw delay
-  return 5000;
-  
-  // Or return control directives
-  return { nextDelayMs: "immediate", stop: false };
-}
-```
-
-### `ContinuousLoopDelay`
-
-```typescript
-type ContinuousLoopDelay = number | "immediate"
-```
-
-### `ContinuousLoopCycleControl`
-
-```typescript
-interface ContinuousLoopCycleControl {
-  stop?: boolean;
-  nextDelayMs?: ContinuousLoopDelay;
-}
-```
-
-### `ContinuousLoopCycleContext`
-
-Provides context to cycle and delay resolver functions.
-
-```typescript
-interface ContinuousLoopCycleContext {
-  cycleNumber: number;
-  isShutdownRequested: () => boolean;
-}
-```
-
-### `ContinuousLoopErrorContext`
-
-Same as `ContinuousLoopCycleContext`.
-
-### `ContinuousLoopErrorHandler`
-
-Handles errors and returns `"stop"` or `"continue"`.
-
-**Signature:**
-
-```typescript
-type ContinuousLoopErrorHandler = (
-  error: unknown,
-  context: ContinuousLoopErrorContext
-) => ContinuousLoopErrorAction | Promise<ContinuousLoopErrorAction>
-```
-
-**Example:**
+Custom error handling via `onCycleError` can override behavior:
 
 ```typescript
 onCycleError: async (error, context) => {
-  console.error(`Cycle ${context.cycleNumber} failed: ${error.message}`);
-  return "stop"; // or "continue"
+  if (error instanceof FatalError) {
+    return "stop"; // Terminate loop
+  }
+  return "continue"; // Proceed
 }
 ```
 
-### `ContinuousLoopErrorAction`
+### Context Types
 
-```typescript
-type ContinuousLoopErrorAction = "continue" | "stop"
-```
+#### ContinuousLoopCycleContext
 
-### `ContinuousLoopLogger`
+| Field | Type | Description |
+|-------|------|-------------|
+| `cycleNumber` | `number` | 1-based cycle number |
+| `isShutdownRequested` | `() => boolean` | Check shutdown status |
 
-```typescript
-interface ContinuousLoopLogger {
-  warn(message: string, context?: Readonly<Record<string, unknown>>): void;
-  error(message: string, context?: Readonly<Record<string, unknown>>): void;
-}
-```
+#### ContinuousLoopErrorContext
 
-**Example:**
+Identical to `ContinuousLoopCycleContext`; passed to `onCycleError`.
 
-```typescript
-const logger = {
-  warn: (msg) => console.warn(`[WARN] ${msg}`),
-  error: (msg) => console.error(`[ERROR] ${msg}`)
-};
+#### ContinuousLoopLogger
 
-await runContinuousLoop({
-  intervalSeconds: 10,
-  runCycle: () => Promise.resolve(),
-  logger
-});
-```
+| Method | Parameters | Description |
+|--------|------------|-------------|
+| `warn(message, context?)` | `string`, `Record<string, unknown>` | Warning log |
+| `error(message, context?)` | `string`, `Record<string, unknown>` | Error log |
 
-## Shutdown
-
-Signal handlers are automatically registered for `SIGINT` and `SIGTERM`, and removed on completion.
-
-```typescript
-const loopPromise = runContinuousLoop({
-  intervalSeconds: 1,
-  runCycle: async (isShutdownRequested) => {
-    while (!isShutdownRequested()) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  },
-  onShutdown: async () => {
-    await db.close();
-  },
-});
-
-// Later...
-process.kill(process.pid, "SIGTERM"); // Triggers graceful shutdown
-await loopPromise; // Resolves after onShutdown completes
-```
+Default logger uses `console.warn`/`console.error`.
