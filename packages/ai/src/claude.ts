@@ -3,7 +3,7 @@ import type { LanguageModel } from "ai";
 
 /** Anthropic aliases — auto-resolve to the latest snapshot. */
 const MODELS = {
-  sonnet: "claude-sonnet-4-5",
+  sonnet: "claude-sonnet-4-6",
   haiku: "claude-haiku-4-5",
   opus: "claude-opus-4-6",
 } as const;
