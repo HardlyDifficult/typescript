@@ -119,7 +119,8 @@ const store = new GitYamlStore({
   cloneUrl: "https://github.com/owner/repo.git",
   localPath: "./results",
   resultDir: (owner, repo) => `${owner}/${repo}`,
-  authToken?: string; // optional; falls back to GITHUB_TOKEN
+  gitUser: { name: "your-bot-name", email: "your-bot@users.noreply.github.com" },
+  authToken: "optional; falls back to GITHUB_TOKEN",
 });
 ```
 
