@@ -160,7 +160,7 @@ export class RepoWatcher<TResult = void> {
         }
         this.config.onComplete?.(owner, name, result, sha);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         this.config.onError?.(owner, name, error);
       })
       .finally(() => {
