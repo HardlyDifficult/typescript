@@ -41,7 +41,7 @@ formatDuration(125_000);
 
 // Build file trees
 buildFileTree(["src/index.ts", "README.md"]);
-// "src/\n  index.ts\n\nREADME.md"
+// "```\nsrc/\n  index.ts\n\nREADME.md\n```"
 
 // Convert between JSON and YAML
 convertFormat('{"name":"Alice"}', "yaml");
@@ -217,6 +217,7 @@ buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
 | `annotations`  | `ReadonlyMap<string, string>`             | Map of file/directory paths to annotation strings                           |
 | `details`      | `ReadonlyMap<string, readonly string[]>` | Map of file paths to extra detail lines to show under entries              |
 | `collapseDirs` | `readonly string[]`                       | Directory names to collapse with summary count                             |
+| `format`       | `'plain' \| 'markdown'`                  | Output format. Defaults to `'markdown'`, which wraps the tree in a code fence for correct markdown rendering. Use `'plain'` when the caller already provides a fence (e.g. AI prompt templates). |
 
 ### Examples
 
@@ -229,7 +230,7 @@ const annotations = new Map([
 ]);
 
 buildFileTree(["src/index.ts"], { annotations });
-// "src/ — Source code directory\n  index.ts — Main entry point"
+// "```\nsrc/ — Source code directory\n  index.ts — Main entry point\n```"
 ```
 
 **Details**
@@ -240,7 +241,7 @@ const details = new Map([
 ]);
 
 buildFileTree(["src/index.ts"], { details });
-// "src/\n  index.ts\n    > main (5-20): App entry point."
+// "```\nsrc/\n  index.ts\n    > main (5-20): App entry point.\n```"
 ```
 
 **Collapsed directories**
@@ -250,7 +251,7 @@ buildFileTree(
   ["src/index.ts", "test/unit/a.test.ts", "test/unit/b.test.ts"],
   { collapseDirs: ["test"] }
 );
-// "src/\n  index.ts\n\ntest/\n  (2 files)"
+// "```\nsrc/\n  index.ts\n\ntest/\n  (2 files)\n```"
 ```
 
 ## JSON/YAML Format Conversion

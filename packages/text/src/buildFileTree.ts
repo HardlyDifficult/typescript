@@ -13,6 +13,13 @@ export interface BuildTreeOptions {
   details?: ReadonlyMap<string, readonly string[]>;
   /** Directory names to collapse. Matched dirs show a content summary instead of expanding children. */
   collapseDirs?: readonly string[];
+  /**
+   * Output format. Defaults to `'markdown'`, which wraps the tree in a code fence so it renders
+   * correctly in markdown environments (preserving indentation and preventing `>` from being
+   * interpreted as blockquotes). Use `'plain'` when the caller will embed the result inside
+   * its own code fence or needs raw text (e.g. AI prompt templates that already add fences).
+   */
+  format?: "plain" | "markdown";
 }
 
 /** Default truncation limits for file tree rendering. */
@@ -68,6 +75,7 @@ export function buildFileTree(
     annotations,
     details,
     collapseDirs,
+    format = "markdown",
   } = options;
   const collapseSet = collapseDirs ? new Set(collapseDirs) : undefined;
 
@@ -163,5 +171,7 @@ export function buildFileTree(
   }
 
   renderNode(root, 1, "");
-  return lines.join("\n");
+  const content = lines.join("\n");
+  if (format === "plain" || content === "") return content;
+  return `\`\`\`\n${content}\n\`\`\``;
 }
