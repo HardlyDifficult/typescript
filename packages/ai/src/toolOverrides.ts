@@ -24,18 +24,18 @@ export type ToolDescriptionOverrides = Record<
  */
 function overrideParameterDescriptions(
   schema: z.ZodType,
-  paramOverrides: Record<string, string>,
+  paramOverrides: Record<string, string>
 ): z.ZodType {
   if (!(schema instanceof z.ZodObject)) {
     return schema;
   }
 
-  const shape = schema.shape as Record<string, z.ZodTypeAny>;
-  const newShape: Record<string, z.ZodTypeAny> = {};
+  const shape = schema.shape as Record<string, z.ZodType>;
+  const newShape: Record<string, z.ZodType> = {};
 
   for (const [key, value] of Object.entries(shape)) {
-    const override = paramOverrides[key];
-    newShape[key] = override !== undefined ? value.describe(override) : value;
+    newShape[key] =
+      key in paramOverrides ? value.describe(paramOverrides[key]) : value;
   }
 
   return z.object(newShape);
@@ -47,23 +47,30 @@ function overrideParameterDescriptions(
  */
 export function applyToolDescriptionOverrides(
   tools: ToolMap,
-  overrides: ToolDescriptionOverrides,
+  overrides: ToolDescriptionOverrides
 ): ToolMap {
   const result: ToolMap = {};
 
   for (const [name, tool] of Object.entries(tools)) {
-    const override = overrides[name];
-    if (!override) {
+    if (!(name in overrides)) {
       result[name] = tool;
       continue;
     }
 
+    const override = overrides[name];
+    const inputSchema = (
+      override.parameters
+        ? overrideParameterDescriptions(
+            tool.inputSchema as z.ZodType,
+            override.parameters
+          )
+        : tool.inputSchema
+    ) as z.ZodType;
+
     result[name] = {
       ...tool,
       description: override.description ?? tool.description,
-      inputSchema: override.parameters
-        ? overrideParameterDescriptions(tool.inputSchema, override.parameters)
-        : tool.inputSchema,
+      inputSchema,
     };
   }
 

@@ -22,10 +22,10 @@ export interface ToolSchema {
  * Handles ZodObject shapes — each top-level key is a parameter.
  */
 function extractParameters(
-  schema: z.ZodType,
+  schema: z.ZodType
 ): { name: string; description: string }[] {
   if (schema instanceof z.ZodObject) {
-    const shape = schema.shape as Record<string, z.ZodTypeAny>;
+    const shape = schema.shape as Record<string, z.ZodType>;
     return Object.entries(shape).map(([name, value]) => ({
       name,
       description: value.description ?? "",
@@ -41,6 +41,6 @@ export function extractToolSchemas(tools: ToolMap): ToolSchema[] {
   return Object.entries(tools).map(([name, tool]) => ({
     name,
     description: tool.description,
-    parameters: extractParameters(tool.inputSchema),
+    parameters: extractParameters(tool.inputSchema as z.ZodType),
   }));
 }

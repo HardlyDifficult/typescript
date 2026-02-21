@@ -27,10 +27,7 @@ export {
 } from "./multimodal.js";
 export { AgentConversation, type SendFn } from "./AgentConversation.js";
 export { createPromptLoader } from "./promptLoader.js";
-export {
-  extractToolSchemas,
-  type ToolSchema,
-} from "./toolSchema.js";
+export { extractToolSchemas, type ToolSchema } from "./toolSchema.js";
 export {
   applyToolDescriptionOverrides,
   type ToolDescriptionOverrides,

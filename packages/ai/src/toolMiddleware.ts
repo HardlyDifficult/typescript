@@ -12,13 +12,13 @@ export interface ToolMiddleware {
     toolName: string,
     input: Record<string, unknown>,
     output: string,
-    durationMs: number,
+    durationMs: number
   ): void;
   onError?(
     toolName: string,
     input: Record<string, unknown>,
     error: Error,
-    durationMs: number,
+    durationMs: number
   ): void;
 }
 
@@ -28,7 +28,7 @@ export interface ToolMiddleware {
  */
 export function wrapToolsWithMiddleware(
   tools: ToolMap,
-  middleware: ToolMiddleware,
+  middleware: ToolMiddleware
 ): ToolMap {
   const wrapped: ToolMap = {};
 
@@ -49,12 +49,11 @@ export function wrapToolsWithMiddleware(
         try {
           const result = await originalExecute(input);
           const durationMs = Date.now() - startTime;
-          middleware.onSuccess?.(name, inputRecord, String(result), durationMs);
+          middleware.onSuccess?.(name, inputRecord, result, durationMs);
           return result;
         } catch (error) {
           const durationMs = Date.now() - startTime;
-          const err =
-            error instanceof Error ? error : new Error(String(error));
+          const err = error instanceof Error ? error : new Error(String(error));
           middleware.onError?.(name, inputRecord, err, durationMs);
           throw error;
         }

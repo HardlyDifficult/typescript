@@ -12,7 +12,7 @@ export function toArray<T>(input: T | T[]): T[] {
  */
 export async function executeWithErrorHandling<T>(
   operation: () => Promise<T>,
-  errorPrefix: string,
+  errorPrefix: string
 ): Promise<T | string> {
   try {
     return await operation();
@@ -27,7 +27,7 @@ export async function executeWithErrorHandling<T>(
  */
 export function formatArrayResult(
   items: string[],
-  emptyMessage: string,
+  emptyMessage: string
 ): string {
   if (items.length === 0) {
     return emptyMessage;
