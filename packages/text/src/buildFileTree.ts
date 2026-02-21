@@ -135,7 +135,8 @@ export function buildFileTree(
     } else {
       limit = maxLevel3;
     }
-    const truncated = sorted.length > limit;
+    const hiddenCount = sorted.length - limit;
+    const truncated = hiddenCount >= 3;
     const toShow = truncated ? sorted.slice(0, limit) : sorted;
 
     for (const child of toShow) {
@@ -173,7 +174,6 @@ export function buildFileTree(
     }
 
     if (truncated) {
-      const hiddenCount = sorted.length - limit;
       lines.push(`${prefix}.. (${String(hiddenCount)} more)`);
     }
   }
