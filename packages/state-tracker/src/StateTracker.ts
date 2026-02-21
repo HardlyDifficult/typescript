@@ -307,7 +307,7 @@ export class StateTracker<T> {
         const parsed: unknown = JSON.parse(data);
         this._state = this.extractValue(parsed);
         this._storageAvailable = true;
-        this.emit("info", "Loaded state from disk", { path: this.filePath });
+        this.emit("debug", "Loaded state from disk", { path: this.filePath });
       } else {
         this._storageAvailable = true;
         this.emit("info", "No existing state file, using defaults", {
