@@ -19,7 +19,9 @@ function makeMessage(
     id: opts.id ?? "msg-001",
     channelId: "ch-001",
     delete: vi.fn().mockResolvedValue(undefined),
-    startThread: vi.fn().mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
+    startThread: vi
+      .fn()
+      .mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
   };
 }
 
@@ -27,8 +29,12 @@ function makeChannel() {
   return {
     beginTyping: vi.fn(),
     endTyping: vi.fn(),
-    postMessage: vi.fn().mockResolvedValue({ id: "resp-001", channelId: "ch-001" }),
-    postDismissable: vi.fn().mockResolvedValue({ id: "resp-001", channelId: "ch-001" }),
+    postMessage: vi
+      .fn()
+      .mockResolvedValue({ id: "resp-001", channelId: "ch-001" }),
+    postDismissable: vi
+      .fn()
+      .mockResolvedValue({ id: "resp-001", channelId: "ch-001" }),
   };
 }
 
@@ -109,13 +115,19 @@ describe("CommandRegistry", () => {
     it("captures text after prefix", () => {
       const result = registry.match("task do this");
       expect(result).not.toBeNull();
-      expect(result?.parsed).toEqual({ valid: true, args: { prompt: "do this" } });
+      expect(result?.parsed).toEqual({
+        valid: true,
+        args: { prompt: "do this" },
+      });
     });
 
     it("preserves original case in the captured arg", () => {
       const result = registry.match("task Do This");
       expect(result).not.toBeNull();
-      expect(result?.parsed).toEqual({ valid: true, args: { prompt: "Do This" } });
+      expect(result?.parsed).toEqual({
+        valid: true,
+        args: { prompt: "Do This" },
+      });
     });
 
     it("returns parse error when prefix is bare and not optional", () => {
@@ -163,14 +175,16 @@ describe("CommandRegistry", () => {
 
     it("throws when one prefix is a space-separated sub-prefix of another", () => {
       registry.register("a", makeCommand("workflow"));
-      expect(() => registry.register("b", makeCommand("workflow start"))).toThrow(
-        /prefix conflict/i
-      );
+      expect(() =>
+        registry.register("b", makeCommand("workflow start"))
+      ).toThrow(/prefix conflict/i);
     });
 
     it("does not throw for prefixes that share a common substring without a space boundary", () => {
       registry.register("a", makeCommand("scan"));
-      expect(() => registry.register("b", makeCommand("scanner"))).not.toThrow();
+      expect(() =>
+        registry.register("b", makeCommand("scanner"))
+      ).not.toThrow();
     });
   });
 
@@ -182,7 +196,10 @@ describe("CommandRegistry", () => {
 
       const byAgent = registry.getCommandsByAgent();
       expect([...byAgent.keys()]).toEqual(["meta", "ai"]);
-      expect(byAgent.get("meta")?.map((c) => c.prefix)).toEqual(["help", "cancel"]);
+      expect(byAgent.get("meta")?.map((c) => c.prefix)).toEqual([
+        "help",
+        "cancel",
+      ]);
       expect(byAgent.get("ai")?.map((c) => c.prefix)).toEqual(["ask"]);
     });
   });
@@ -264,7 +281,10 @@ describe("CommandDispatcher", () => {
 
     await dispatcher.handleMessage(makeMessage("unknown command") as never);
 
-    expect(onUnrecognized).toHaveBeenCalledWith("unknown command", expect.any(Object));
+    expect(onUnrecognized).toHaveBeenCalledWith(
+      "unknown command",
+      expect.any(Object)
+    );
   });
 
   it("sends dismissable error when execute() throws (the help bug fix)", async () => {
@@ -353,7 +373,9 @@ describe("CommandDispatcher", () => {
       onOwnerIdCaptured,
     });
 
-    await dispatcher.handleMessage(makeMessage("hello", { userId: "uid-42" }) as never);
+    await dispatcher.handleMessage(
+      makeMessage("hello", { userId: "uid-42" }) as never
+    );
 
     expect(onOwnerIdCaptured).toHaveBeenCalledWith("uid-42");
   });
