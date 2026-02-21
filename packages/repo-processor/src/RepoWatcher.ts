@@ -1,4 +1,7 @@
-import { StateTracker, type StateTrackerEvent } from "@hardlydifficult/state-tracker";
+import {
+  StateTracker,
+  type StateTrackerEvent,
+} from "@hardlydifficult/state-tracker";
 
 export interface RepoWatcherConfig<TResult> {
   /** Key used for persisting state to disk. */
@@ -116,8 +119,7 @@ export class RepoWatcher<TResult = void> {
       return { success: true, result };
     } catch (error) {
       this.config.onError?.(owner, name, error);
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       return { success: false, reason: message };
     } finally {
       this.running.delete(key);
