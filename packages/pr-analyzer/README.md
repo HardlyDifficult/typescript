@@ -1,6 +1,6 @@
 # @hardlydifficult/pr-analyzer
 
-A GitHub PR analyzer that classifies pull requests by status and determines available actions (merge, mark ready, auto-merge).
+GitHub PR analyzer that classifies pull requests and determines available actions like merge, mark ready, and auto-merge.
 
 ## Installation
 
@@ -11,212 +11,177 @@ npm install @hardlydifficult/pr-analyzer
 ## Quick Start
 
 ```typescript
-import { GitHubClient } from "@hardlydifficult/github";
 import { scanSinglePR } from "@hardlydifficult/pr-analyzer";
+import { GitHubClient } from "@hardlydifficult/github";
 
-const client = new GitHubClient({ token: process.env.GITHUB_TOKEN! });
-
+const client = new GitHubClient(process.env.GITHUB_TOKEN!);
 const pr = await scanSinglePR(
   client,
-  "@cursor",
-  "HardlyDifficult",
-  "typescript",
-  123
+  "@cursor",                 // Bot mention command
+  "HardlyDifficult",         // Owner
+  "typescript",              // Repo
+  42,                        // PR number
 );
 
-console.log(pr.status); // e.g., "ready_to_merge"
-console.log(pr.ciSummary); // e.g., "CI passed: 2 checks"
-
-const actions = getAvailableActions(pr);
-console.log(actions.map(a => a.label)); // e.g., ["Merge"]
+console.log(pr.status);       // e.g. "ready_to_merge"
+console.log(pr.ciSummary);    // e.g. "CI passed: 1 checks"
 ```
 
-## Analysis
+## Core Features
 
-Analyzes a PR's status by fetching CI checks, comments, reviews, and merge conflicts, then determines its readiness.
+### Scanning and Analyzing PRs
 
-### `analyzePR`
-
-Analyzes a single PR and returns detailed status.
+Scan a single PR in real-time using GitHub client, repository owner, repo name, and PR number.
 
 ```typescript
-import { GitHubClient } from "@hardlydifficult/github";
-import { analyzePR } from "@hardlydifficult/pr-analyzer";
+import { scanSinglePR, analyzeAll } from "@hardlydifficult/pr-analyzer";
+import type { DiscoveredPR, AnalyzerHooks, Logger } from "@hardlydifficult/pr-analyzer";
 
-const client = new GitHubClient({ token: process.env.GITHUB_TOKEN! });
+// Scan a single PR
+const pr = await scanSinglePR(client, "@bot", "owner", "repo", 42);
 
-const pr = await client
-  .repo("owner", "repo")
-  .pr(42)
-  .get();
-
-const result = await analyzePR(client, "owner", "repo", pr, "@bot");
-console.log(result.status); // "ready_to_merge", "ci_failed", etc.
-console.log(result.ciSummary); // Human-readable CI summary
-console.log(result.hasConflicts); // true if merge conflicts exist
-console.log(result.waitingOnBot); // true if PR is waiting on bot response
-console.log(result.daysSinceUpdate); // Days since last update
-```
-
-### `analyzeAll`
-
-Analyzes multiple discovered PRs, skipping those that fail.
-
-```typescript
-import { analyzeAll } from "@hardlydifficult/pr-analyzer";
-
-interface DiscoveredPR {
-  pr: PullRequest;
-  repoOwner: string;
-  repoName: string;
-}
-
-const prs: DiscoveredPR[] = [
-  { pr: pr1, repoOwner: "owner", repoName: "repo" },
-  { pr: pr2, repoOwner: "owner", repoName: "other" },
+// Analyze a batch of discovered PRs
+const discovered: DiscoveredPR[] = [
+  { pr, repoOwner: "owner", repoName: "repo" },
 ];
-
-const results = await analyzeAll(prs, client, "@bot", logger);
+const results = await analyzeAll(discovered, client, "@bot", console as Logger);
 ```
 
-### `scanSinglePR`
+### PR Status Determination
 
-Real-time PR scan for event handling (e.g., webhook, cron).
+Core statuses are derived from GitHub data:
 
-```typescript
-import { scanSinglePR } from "@hardlydifficult/pr-analyzer";
+- `"draft"` — PR is in draft state
+- `"ci_running"` — CI checks are in progress
+- `"ci_failed"` — At least one CI check failed
+- `"needs_review"` — No reviewer approval yet
+- `"changes_requested"` — A reviewer requested changes
+- `"approved"` — At least one reviewer approved
+- `"has_conflicts"` — Merge conflicts detected
+- `"ready_to_merge"` — CI passed, no conflicts, approved
+- `"waiting_on_bot"` — Bot was mentioned and has not replied
 
-const pr = await scanSinglePR(
-  client,
-  "@cursor",
-  "owner",
-  "repo",
-  123
-);
-```
-
-### Hooks
-
-Customize status resolution with hooks:
+You can extend status determination via `AnalyzerHooks.resolveStatus`.
 
 ```typescript
-import { analyzePR, type AnalyzerHooks } from "@hardlydifficult/pr-analyzer";
-
 const hooks: AnalyzerHooks = {
-  resolveStatus(coreStatus, details) {
-    if (coreStatus === "ci_failed") {
+  resolveStatus: (coreStatus, details) => {
+    if (coreStatus === "ci_failed" && details.checks.some(c => c.name === "CI")) {
       return "ai_processing";
     }
-    return undefined;
+    return undefined; // keep core status
   },
 };
 
-const result = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+const pr = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
+console.log(pr.status); // e.g. "ai_processing"
 ```
 
-## Classification
+### Classification
 
-Classifies PRs into buckets based on status: `readyForHuman`, `needsBotBump`, `inProgress`, `blocked`.
+Classify PRs into action buckets.
 
 ```typescript
 import { classifyPRs } from "@hardlydifficult/pr-analyzer";
 
-const buckets = classifyPRs(results);
-console.log(buckets.readyForHuman.length); // PRs needing human action
-console.log(buckets.needsBotBump.length); // PRs waiting on bot
-console.log(buckets.inProgress.length); // PRs with CI running
-console.log(buckets.blocked.length); // PRs stuck (draft, failed, conflicts)
+const result = classifyPRs(results);
+console.log(result.readyForHuman); // PRs needing human review/merge
+console.log(result.inProgress);    // PRs with CI running
+console.log(result.blocked);       // PRs blocked (draft, failed CI, conflicts)
+console.log(result.needsBotBump);  // PRs waiting on bot response
 ```
 
-### Extending Classification
-
-Add custom statuses to buckets via `ClassificationConfig`:
+Extend classification buckets with custom statuses via `ClassificationConfig`.
 
 ```typescript
 const config: ClassificationConfig = {
-  readyForHuman: ["custom_ready"],
   inProgress: ["ai_processing"],
-  blocked: ["custom_blocked"],
-  needsBotBump: ["custom_waiting"],
+  blocked: ["security_review"],
 };
-
-const buckets = classifyPRs(results, config);
+const result = classifyPRs(results, config);
 ```
 
-## Actions
+### Available Actions
 
-Determines which actions are available for a PR based on its status.
-
-### Core Actions
-
-| Type | Available When | Description |
-|------|----------------|-------------|
-| `"merge"` | `ready_to_merge`, `approved` | Squash and merge |
-| `"mark_ready"` | `draft` with CI passed & no conflicts | Mark draft as ready |
-| `"enable_auto_merge"` | `ci_running`, `needs_review` | Enable auto-merge |
+Determine available actions for a PR.
 
 ```typescript
-import { getAvailableActions } from "@hardlydifficult/pr-analyzer";
+import { getAvailableActions, PR_ACTIONS } from "@hardlydifficult/pr-analyzer";
 
 const actions = getAvailableActions(pr);
-// e.g., [{ type: "merge", label: "Merge", description: "Squash and merge this PR" }]
+console.log(actions.map(a => a.label)); // e.g. ["Merge", "Enable Auto-Merge"]
 ```
 
-### Custom Actions
+Core actions:
 
-Define extra actions that trigger on conditions:
+| Type             | Label         | Description                              |
+|------------------|---------------|------------------------------------------|
+| `"merge"`        | `"Merge"`     | Squash and merge this PR                 |
+| `"mark_ready"`   | `"Mark Ready"`| Mark this draft PR as ready for review   |
+| `"enable_auto_merge"` | `"Enable Auto-Merge"` | Enable GitHub auto-merge when checks pass |
+
+Add custom actions with `ActionDefinition`.
 
 ```typescript
-import { getAvailableActions, type ActionDefinition } from "@hardlydifficult/pr-analyzer";
+const extraActions: ActionDefinition[] = [
+  {
+    type: "fix_ci",
+    label: "Fix CI",
+    description: "Post @cursor fix CI comment",
+    when: (pr, ctx) => pr.status === "ci_failed" && ctx["isWorkPR"] === true,
+  },
+];
 
-const fixCiAction: ActionDefinition = {
-  type: "fix_ci",
-  label: "Fix CI",
-  description: "Post @cursor fix CI comment",
-  when: (pr, ctx) => pr.status === "ci_failed" && ctx["isWorkPR"] === true,
-};
-
-const actions = getAvailableActions(pr, [fixCiAction], { isWorkPR: true });
+const actions = getAvailableActions(pr, extraActions, { isWorkPR: true });
 ```
 
-## Types
-
-### Core Statuses
-
-| Status | Meaning |
-|--------|---------|
-| `"draft"` | Draft PR |
-| `"ci_running"` | CI checks in progress |
-| `"ci_failed"` | CI checks failed |
-| `"needs_review"` | CI passed, no reviews yet |
-| `"changes_requested"` | Review requests changes |
-| `"approved"` | Review approved |
-| `"has_conflicts"` | Merge conflicts |
-| `"ready_to_merge"` | CI passed, approved, no conflicts |
-| `"waiting_on_bot"` | Bot mentioned but not replied |
-
-### ScannedPR
+## Types and Interfaces
 
 ```typescript
-interface ScannedPR {
-  pr: PullRequest;
-  repo: Repository;
-  status: string; // core or custom status
-  ciStatus: CIStatus;
-  ciSummary: string;
-  hasConflicts: boolean;
-  waitingOnBot: boolean;
-  daysSinceUpdate: number;
-}
+import type {
+  ScannedPR,
+  CIStatus,
+  ScanResult,
+  AnalyzerHooks,
+  ClassificationConfig,
+  ActionDefinition,
+  CorePRStatus,
+  Logger,
+} from "@hardlydifficult/pr-analyzer";
 ```
 
-### CIStatus
+| Interface/Type      | Purpose |
+|---------------------|---------|
+| `ScannedPR`         | Full PR data after analysis |
+| `CIStatus`          | CI check summary (running, failed, passed) |
+| `ScanResult`        | PRs grouped into buckets |
+| `AnalyzerHooks`     | Extend status determination |
+| `ClassificationConfig` | Extend classification buckets |
+| `ActionDefinition`  | Define custom PR actions |
+| `CorePRStatus`      | Built-in status types |
+| `Logger`            | Interface for logging info/errors |
 
-```typescript
-interface CIStatus {
-  isRunning: boolean;
-  hasFailed: boolean;
-  allPassed: boolean;
-  summary: string;
-}
-```
+## Appendix
+
+### Core Status Priority
+
+Status determination follows this priority:
+
+1. Draft PR → `"draft"`
+2. CI running → `"ci_running"`
+3. CI failed → `"ci_failed"`
+4. Merge conflicts → `"has_conflicts"`
+5. Waiting on bot → `"waiting_on_bot"`
+6. Changes requested → `"changes_requested"`
+7. CI passed and no conflicts → `"ready_to_merge"`
+8. At least one approval → `"approved"`
+9. Default → `"needs_review"`
+
+### CI Check Status Detection
+
+- **Running**: `status: "in_progress"` or `status: "queued"` or `conclusion: null`
+- **Failed**: `status: "completed"` and `conclusion` is `"failure"`, `"timed_out"`, `"cancelled"`, or `"action_required"`
+- **Passed**: `status: "completed"` and `conclusion` is `"success"`, `"skipped"`, or `"neutral"`
+- **Uncategorized checks**: Treated as running if no definitive state
+
+Bot detection includes common bots: `cursor`, `cursor-bot`, `github-actions`, `dependabot`, `renovate`, `codecov`, `vercel`, `claude`, plus any username ending in `[bot]` or containing `bot`.

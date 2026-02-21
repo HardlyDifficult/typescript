@@ -11,19 +11,19 @@ npm install @hardlydifficult/http
 ## Quick Start
 
 ```typescript
+import http from "http";
 import { readBody, sendJson, safeCompare } from "@hardlydifficult/http";
-import { createServer } from "http";
 
-const server = createServer(async (req, res) => {
-  // Read request body safely (max 1MB by default)
+const server = http.createServer(async (req, res) => {
   const body = await readBody(req);
-  if (!safeCompare(body, "secret")) {
+  
+  // Compare tokens safely
+  if (!safeCompare(body, "secret-token")) {
     sendJson(res, 401, { error: "Unauthorized" }, "*");
     return;
   }
-
-  // Send JSON response with CORS headers
-  sendJson(res, 200, { message: "Access granted" }, "https://example.com");
+  
+  sendJson(res, 200, { success: true }, "https://example.com");
 });
 
 server.listen(3000);
@@ -33,32 +33,35 @@ server.listen(3000);
 
 ### `readBody`
 
-Reads the full request body as a string, rejecting if it exceeds the size limit.
+Reads the full HTTP request body as a string, with an optional size limit.
+
+```typescript
+function readBody(req: IncomingMessage, maxBytes?: number): Promise<string>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `req` | `IncomingMessage` | Node.js HTTP incoming message |
+| `maxBytes` | `number` | Maximum body size in bytes (default: `MAX_BODY_BYTES`, 1 MB) |
+
+Throws `"Payload too large"` error if the body exceeds the limit.
 
 ```typescript
 import { readBody, MAX_BODY_BYTES } from "@hardlydifficult/http";
 
-// Default max: 1 MB
+// Default 1MB limit
 const body = await readBody(req);
 
-// Custom limit (e.g., 500 KB)
-const body = await readBody(req, 500 * 1024);
+// Custom limit (500 KB)
+const smallBody = await readBody(req, 500 * 1024);
 ```
-
-| Parameter | Type            | Default       | Description                          |
-|-----------|-----------------|---------------|--------------------------------------|
-| `req`     | `IncomingMessage` | —             | Node.js HTTP request object          |
-| `maxBytes`| `number`          | `MAX_BODY_BYTES` (1 MB) | Maximum body size in bytes |
-
-Throws `Error` with message `"Payload too large"` if body exceeds limit.
 
 ### `MAX_BODY_BYTES`
 
-Constant defining the default maximum body size (1 MB = 1024 * 1024 bytes).
+The default maximum body size (1 MB).
 
 ```typescript
 import { MAX_BODY_BYTES } from "@hardlydifficult/http";
-
 console.log(MAX_BODY_BYTES); // 1048576
 ```
 
@@ -69,23 +72,32 @@ console.log(MAX_BODY_BYTES); // 1048576
 Sends a JSON response with CORS headers.
 
 ```typescript
-import { sendJson } from "@hardlydifficult/http";
-
-sendJson(res, 200, { data: "value" }, "https://example.com");
+function sendJson(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  corsOrigin: string
+): void
 ```
 
-| Parameter      | Type       | Description                                      |
-|----------------|------------|--------------------------------------------------|
-| `res`          | `ServerResponse` | Node.js HTTP response object                   |
-| `status`       | `number`     | HTTP status code (e.g., `200`, `404`)           |
-| `body`         | `unknown`    | Data to serialize as JSON (e.g., object, array) |
-| `corsOrigin`   | `string`     | CORS `Access-Control-Allow-Origin` value (e.g., `"*"`, `"https://example.com"`) |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `res` | `ServerResponse` | Node.js HTTP server response |
+| `status` | `number` | HTTP status code |
+| `body` | `unknown` | JSON-serializable data |
+| `corsOrigin` | `string` | CORS `Access-Control-Allow-Origin` value |
 
-Includes these headers:
+Headers sent:
 - `Content-Type: application/json`
-- `Access-Control-Allow-Origin: <corsOrigin>`
+- `Access-Control-Allow-Origin`
 - `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`
 - `Access-Control-Allow-Headers: Content-Type, Authorization`
+
+```typescript
+import { sendJson } from "@hardlydifficult/http";
+
+sendJson(res, 200, { id: 1, name: "Alice" }, "https://trusted.com");
+```
 
 ## Security
 
@@ -94,16 +106,16 @@ Includes these headers:
 Constant-time string comparison to prevent timing attacks.
 
 ```typescript
-import { safeCompare } from "@hardharddifficult/http";
-
-if (safeCompare(userInput, "expected")) {
-  // Safe comparison (timing-independent)
-}
+function safeCompare(a: string, b: string): boolean
 ```
 
-Valid for:
-- Equal strings (including empty strings)
-- Different strings of same/different length
-- Unicode strings (e.g., `"héllo"`)
+Uses `crypto.timingSafeEqual` internally. Handles length differences safely.
 
-Returns `false` for unequal strings regardless of length difference.
+```typescript
+import { safeCompare } from "@hardlydifficult/http";
+
+// Safe comparison of auth tokens
+if (safeCompare(storedToken, requestToken)) {
+  // Grant access
+}
+```

@@ -39,7 +39,7 @@ ws.send({ type: "hello" }); // sends as JSON
 ### Constructor Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+|---|---|---|---|
 | `url` | `string` | — | WebSocket server URL |
 | `backoff` | `BackoffOptions` | `{ initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 }` | Reconnection backoff config |
 | `heartbeat` | `HeartbeatOptions` | `{ intervalMs: 30000, timeoutMs: 10000 }` | Ping/pong monitoring |
@@ -101,7 +101,7 @@ ws.reconnect(); // fetches fresh token from auth
 ### Token Refresh Strategy
 
 | Token lifetime | Refresh strategy | Example (60s token) | Example (5min token) |
-|----------------|----------------|---------------------|----------------------|
+|---|---|---|---|
 | Short (≤4min) | 50% lifetime | 30s after issue | N/A |
 | Long (>4min) | 2min before expiry | N/A | 3min after issue |
 
@@ -142,3 +142,21 @@ if (tracker.tryAccept()) {
 // On shutdown signal
 tracker.startDraining("Server shutdown");
 ```
+
+## Public API Reference
+
+### Exports
+
+- `ReconnectingWebSocket<T>`: Auto-reconnecting WebSocket client class
+- `RequestTracker`: Request tracking class for graceful shutdown
+- `calculateTokenRefreshTime(issuedAt: number, expiresAt: number): number`: Calculate refresh time
+- `getBackoffDelay(attempt: number, options: Required<BackoffOptions>): number`: Calculate exponential backoff delay
+- `AuthOptions`: Type for auth configuration
+- `BackoffOptions`: Type for backoff configuration
+- `HeartbeatOptions`: Type for heartbeat configuration
+- `WebSocketOptions<T>`: Type for WebSocket client options
+
+### Types
+
+- `WebSocketEvents<T>`: Event callback types for `ReconnectingWebSocket`
+- `RequestTrackerEvents`: Event callback types for `RequestTracker`

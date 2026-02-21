@@ -13,227 +13,169 @@ npm install @hardlydifficult/usage-tracker
 ```typescript
 import { UsageTracker } from "@hardlydifficult/usage-tracker";
 
+const defaults = {
+  api: { requests: 0, tokens: 0, costUsd: 0 },
+  audio: { requests: 0, durationSeconds: 0 },
+};
+
 const tracker = await UsageTracker.create({
   key: "my-app",
-  default: {
-    api: { requests: 0, tokens: 0, costUsd: 0 },
-    audio: { requests: 0, durationSeconds: 0 },
-  },
-  stateDirectory: "./.usage-state",
+  default: defaults,
+  stateDirectory: "./state",
 });
 
-// Record usage incrementally
+// Record usage for a session
 tracker.record({ api: { requests: 1, tokens: 500, costUsd: 0.01 } });
 
-// Access session and cumulative metrics
-console.log(tracker.session.api.requests);        // 1
-console.log(tracker.cumulative.api.tokens);       // 500
+// Access metrics
+console.log(tracker.session.api.requests); // 1
+console.log(tracker.cumulative.api.requests); // 1
+
+// Save state to disk
+await tracker.save();
 ```
 
 ## Core Concepts
 
-### Session vs. Cumulative Tracking
+### Usage Tracking
 
-The `UsageTracker` maintains two separate metric trees: **session** (since last restart) and **cumulative** (all-time). The session is reset on each `create()` call, while cumulative data persists.
+Tracks numeric metrics across two timeframes: **session** (since last `create()`) and **cumulative** (all-time). Both are updated atomically on every `record()` call.
 
 ```typescript
-const tracker = await UsageTracker.create({
-  key: "session-test",
-  default: { requests: 0, costUsd: 0 },
-  stateDirectory: "./.state",
-});
+// Record a partial delta — only specify the fields you're incrementing
+tracker.record({ api: { requests: 1, tokens: 100 } });
 
-// First session
-tracker.record({ requests: 3 });
-expect(tracker.session.requests).toBe(3);      // 3
-expect(tracker.cumulative.requests).toBe(3);   // 3
-
-// Second session (persists cumulative, resets session)
-const tracker2 = await UsageTracker.create({ /* same config */ });
-expect(tracker2.session.requests).toBe(0);     // reset
-expect(tracker2.cumulative.requests).toBe(3);  // preserved
+// Unspecified fields remain unchanged
+expect(tracker.session.api.costUsd).toBe(0); // unchanged
 ```
 
-### Cost Tracking with CostUsd Conventions
+### Cost Tracking
 
-Any leaf field ending with `CostUsd` (case-insensitive) is automatically added to an internal time-series for spend-rate monitoring and limits.
+Any leaf field ending in `CostUsd` (case-insensitive) is automatically detected and recorded in a time-series for spend monitoring.
 
 ```typescript
-const tracker = await UsageTracker.create({
-  key: "cost-test",
-  default: {
-    api: { requests: 0, tokens: 0, estimatedCostUsd: 0 },
-    audio: { durationSeconds: 0, costUsd: 0 },
-  },
-});
+const defaults = {
+  anthropic: { estimatedCostUsd: 0, requests: 0 },
+  openai: { costUsd: 0, tokens: 0 },
+};
 
-tracker.record({
-  api: { requests: 1, tokens: 500, estimatedCostUsd: 0.01 },
-  audio: { durationSeconds: 30, costUsd: 0.005 },
-});
+const tracker = await UsageTracker.create({ key: "cost-test", default: defaults });
+tracker.record({ anthropic: { estimatedCostUsd: 0.05 }, openai: { costUsd: 0.01 } });
 
-// Total spend in trailing 1 hour (60,000 ms)
-expect(tracker.costInWindow(60_000)).toBeCloseTo(0.015);
+expect(tracker.costInWindow(60_000)).toBeCloseTo(0.06);
 ```
 
-### Spend Limits and Throttling
+### Spend Limits
 
-Configure trailing-window spend limits to enforce budgets and halt usage when exceeded.
+Define trailing-window spend limits and optionally handle violations via a callback or exception.
 
 ```typescript
 const tracker = await UsageTracker.create({
-  key: "limited",
-  default: { api: { requests: 0, estimatedCostUsd: 0 } },
-  stateDirectory: "./.state",
-  spendLimits: [
-    { windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" },
-    { windowMs: 3600_000, maxSpendUsd: 10, label: "1 hour" },
-  ],
+  key: "limits-test",
+  default: { api: { estimatedCostUsd: 0 } },
+  spendLimits: [{ windowMs: 60_000, maxSpendUsd: 5, label: "1 minute" }],
   onSpendLimitExceeded: (status) => {
-    console.log(`Limit exceeded: ${status.limit.label}`);
+    console.warn(`Limit exceeded! Resumes at ${status.resumesAt}`);
   },
 });
 
-tracker.record({ api: { estimatedCostUsd: 1.5 } });
+tracker.record({ api: { estimatedCostUsd: 6 } });
 
 // Throws SpendLimitExceededError
 tracker.assertWithinSpendLimits();
 ```
 
-### Status and Resumption Time
+### State Persistence
 
-Get detailed status of all configured limits, including when usage will resume.
+State is persisted to disk and restored across restarts. Sessions reset automatically, but cumulative totals are preserved.
 
 ```typescript
-const tracker = await UsageTracker.create({
-  key: "status",
-  default: { api: { estimatedCostUsd: 0 } },
-  spendLimits: [{ windowMs: 60_000, maxSpendUsd: 2, label: "1 minute" }],
-});
+// First run
+const tracker1 = await UsageTracker.create({ key: "persist", default: { a: 0 } });
+tracker1.record({ a: 5 });
+await tracker1.save();
 
-tracker.record({ api: { estimatedCostUsd: 2.5 } });
-
-const [status] = tracker.spendStatus();
-expect(status.spentUsd).toBeCloseTo(2.5);
-expect(status.remainingUsd).toBeCloseTo(0);
-expect(status.exceeded).toBe(true);
-// Time when enough old entries drop out to get back under the limit
-expect(status.resumesAt).toBeInstanceOf(Date);
+// Second run (cumulative preserved, session reset)
+const tracker2 = await UsageTracker.create({ key: "persist", default: { a: 0 } });
+expect(tracker2.cumulative.a).toBe(5);
+expect(tracker2.session.a).toBe(0);
 ```
 
 ## API Reference
 
 ### UsageTracker
 
+Tracks usage metrics and cost (USD) with session/cumulative tracking, spend limits, and persistence.
+
 #### Static Methods
 
 | Method | Description |
 |--------|-------------|
-| `UsageTracker.create(options)` | Create tracker, load persisted state, and start a new session. Returns a `Promise<UsageTracker<T>>`. |
+| `UsageTracker.create(options)` | Initialize tracker, load persisted state, and start a new session |
 
-#### Instance Properties
+#### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `session` | `Readonly<T>` | Current session metrics |
 | `cumulative` | `Readonly<T>` | All-time cumulative metrics |
-| `sessionStartedAt` | `string` | ISO timestamp when the current session began |
-| `trackingSince` | `string` | ISO timestamp when tracking started |
+| `sessionStartedAt` | `string` | ISO timestamp for session start |
+| `trackingSince` | `string` | ISO timestamp for when tracking began |
 | `isPersistent` | `boolean` | Whether state is persisted to disk |
 
-#### Instance Methods
+#### Methods
 
 | Method | Description |
 |--------|-------------|
-| `record(values: DeepPartial<T>)` | Increment metrics by deeply merging values into session and cumulative trees |
-| `costInWindow(windowMs: number)` | Compute total spend (USD) in a trailing window (ms) |
-| `spendStatus()` | Return status for all configured spend limits |
-| `assertWithinSpendLimits()` | Throw `SpendLimitExceededError` if any limit is exceeded |
-| `save()` | Force-save state to disk immediately |
+| `record(values: DeepPartial<T>)` | Increment session and cumulative metrics |
+| `costInWindow(windowMs: number)` | Get total cost (USD) in a trailing window |
+| `spendStatus()` | Get status for all configured spend limits |
+| `assertWithinSpendLimits()` | Throw if any limit is exceeded |
+| `save()` | Force-save current state to disk |
 
-### Helper Utilities
+### SpendLimitExceededError
 
-#### findCostFieldPaths
-
-Extracts dot-separated paths for all leaf fields ending in `CostUsd` (case-insensitive).
+Custom error thrown when a spend limit is exceeded.
 
 ```typescript
-import { findCostFieldPaths } from "@hardlydifficult/usage-tracker";
-
-const paths = findCostFieldPaths({
-  api: { estimatedCostUsd: 0, requests: 0 },
-  audio: { costUsd: 0 },
-});
-// ["api.estimatedCostUsd", "audio.costUsd"]
-```
-
-#### extractCostFromDelta
-
-Sums cost from a partial usage delta using known cost paths.
-
-```typescript
-import { extractCostFromDelta } from "@hardlydifficult/usage-tracker";
-
-const cost = extractCostFromDelta(
-  { api: { estimatedCostUsd: 0.05 } },
-  ["api.estimatedCostUsd", "audio.costUsd"]
-);
-// 0.05
-```
-
-#### deepAdd
-
-Recursively accumulates numeric values from source into target, mutating the target in place.
-
-```typescript
-import { deepAdd } from "@hardlydifficult/usage-tracker";
-
-const target = { api: { requests: 1, costUsd: 0.01 } };
-deepAdd(target, { api: { requests: 2, costUsd: 0.005 } });
-// target is now { api: { requests: 3, costUsd: 0.015 } }
-```
-
-### Error Types
-
-#### SpendLimitExceededError
-
-```typescript
-import { SpendLimitExceededError } from "@hardlydifficult/usage-tracker";
-
 try {
   tracker.assertWithinSpendLimits();
 } catch (err) {
   if (err instanceof SpendLimitExceededError) {
-    console.log(err.status.spentUsd);   // spent amount
-    console.log(err.status.remainingUsd); // how much more allowed
-    console.log(err.status.limit.label);  // e.g. "1 minute"
-    console.log(err.status.resumesAt);   // when limit will clear
+    console.log(err.status.spentUsd, err.status.remainingUsd);
   }
 }
 ```
 
-## Types
+### Utility Functions
+
+| Function | Description |
+|----------|-------------|
+| `findCostFieldPaths(obj)` | Extract dot-separated paths for all `*CostUsd` fields |
+| `extractCostFromDelta(delta, paths)` | Sum cost values from a partial delta |
+| `deepAdd(target, source)` | Recursively add numeric values (mutates target) |
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `NumericRecord` | Nested object with only `number` leaves |
+| `DeepPartial<T>` | Recursive partial — omit unchanged nested fields |
+| `SpendLimit` | Trailing-window limit: `{ windowMs, maxSpendUsd, label }` |
+| `SpendStatus` | Current status: `{ limit, spentUsd, remainingUsd, exceeded, resumesAt }` |
+| `SpendEntry` | Timestamped spend entry: `{ timestamp, amountUsd }` |
+| `UsageTrackerOptions<T>` | Configuration passed to `create()` |
+
+### Options
 
 ```typescript
-type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends number
-    ? number
-    : T[K] extends NumericRecord
-      ? DeepPartial<T[K]>
-      : never;
-};
-
-interface SpendLimit {
-  windowMs: number;
-  maxSpendUsd: number;
-  label: string;
-}
-
-interface SpendStatus {
-  limit: SpendLimit;
-  spentUsd: number;
-  remainingUsd: number;
-  exceeded: boolean;
-  resumesAt: Date | null;
+interface UsageTrackerOptions<T extends NumericRecord> {
+  key: string; // Unique persistence key (alphanumeric, hyphens, underscores)
+  default: T; // Default metrics shape (all leaves must be 0)
+  stateDirectory?: string; // Directory for state persistence
+  autoSaveMs?: number; // Auto-save interval in ms (passed to StateTracker)
+  onEvent?: (event: StateTrackerEvent) => void; // Logging callback
+  spendLimits?: readonly SpendLimit[]; // Trailing-window spend limits
+  onSpendLimitExceeded?: (status: SpendStatus) => void; // Exceeded callback
 }
 ```

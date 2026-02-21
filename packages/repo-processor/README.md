@@ -1,6 +1,6 @@
 # @hardlydifficult/repo-processor
 
-Incremental GitHub repository processor with SHA-based stale detection, parallel file processing, and bottom-up directory updates.
+Incremental GitHub repo processor with SHA-based stale detection, parallel file/dir processing, and git-backed YAML persistence.
 
 ## Installation
 
@@ -10,220 +10,266 @@ npm install @hardlydifficult/repo-processor
 
 ## Quick Start
 
-Process all changed files and directories in a GitHub repository, persisting results to a git-backed YAML store:
-
 ```typescript
 import { RepoProcessor, GitYamlStore } from "@hardlydifficult/repo-processor";
 import { GitHubClient } from "@hardlydifficult/github";
 
-const githubClient = new GitHubClient("owner", "repo", "main", process.env.GITHUB_TOKEN!);
+// 1. Configure git-backed YAML store
 const store = new GitYamlStore({
-  cloneUrl: "https://github.com/your-org/results-repo.git",
-  localPath: "/tmp/results",
-  resultDir: (owner, repo) => `${owner}/${repo}`,
-  gitUser: { name: "CI Bot", email: "bot@example.com" }
+  cloneUrl: "https://github.com/owner/repo.git",
+  localPath: "/tmp/repo-store",
+  resultDir: (owner, repo) => `results/${owner}/${repo}`,
+  authToken: process.env.GITHUB_TOKEN,
+  gitUser: { name: "Processor Bot", email: "bot@example.com" },
 });
+
+// 2. Define processing callbacks
+const callbacks = {
+  shouldProcess: (entry) => entry.type === "blob" && entry.path.endsWith(".ts"),
+  processFile: async ({ entry, content }) => ({
+    path: entry.path,
+    lineCount: content.split("\n").length,
+  }),
+  processDirectory: async ({ path, subtreeFilePaths, children }) => ({
+    path,
+    files: subtreeFilePaths.length,
+    dirs: children.filter((c) => c.isDir).length,
+  }),
+};
+
+// 3. Create and run processor
+const github = new GitHubClient({ token: process.env.GITHUB_TOKEN });
+const processor = new RepoProcessor({
+  githubClient: github,
+  store,
+  callbacks,
+});
+
+const result = await processor.run("owner", "repo");
+// => { filesProcessed: 12, filesRemoved: 1, dirsProcessed: 4 }
+```
+
+## RepoProcessor: Incremental Processing
+
+`RepoProcessor` executes an incremental pipeline for processing GitHub file trees: fetch tree → diff → process changed files → remove deleted files → resolve stale directories → commit.
+
+```typescript
+import { RepoProcessor } from "@hardlydifficult/repo-processor";
 
 const processor = new RepoProcessor({
   githubClient,
   store,
-  callbacks: {
-    shouldProcess: (entry) => entry.type === "blob" && entry.path.endsWith(".ts"),
-    processFile: async ({ entry, content }) => ({
-      path: entry.path,
-      sha: entry.sha,
-      size: content.length,
-      lines: content.split("\n").length
-    }),
-    processDirectory: async ({ path, children, tree }) => ({
-      path,
-      childrenCount: children.length,
-      totalFiles: tree.filter(e => e.type === "blob").length
-    })
-  },
-  concurrency: 5
+  callbacks,
+  concurrency: 5,      // optional (default 5)
+  branch: "main",      // optional (default "main")
 });
 
 const result = await processor.run("owner", "repo", (progress) => {
-  console.log(`${progress.phase}: ${progress.filesCompleted}/${progress.filesTotal} files`);
+  console.log(
+    `Phase: ${progress.phase}, Files: ${progress.filesCompleted}/${progress.filesTotal}, Dirs: ${progress.dirsCompleted}/${progress.dirsTotal}`
+  );
 });
-
-console.log(result);
-// {
-//   filesProcessed: 12,
-//   filesRemoved: 1,
-//   dirsProcessed: 4
-// }
 ```
 
-## Core Concepts
+### RepoProcessorConfig
 
-### RepoProcessor
+| Field | Type | Required | Default |
+|-------|------|----------|---------|
+| `githubClient` | `GitHubClient` | Yes | — |
+| `store` | `ProcessorStore` | Yes | — |
+| `callbacks` | `ProcessorCallbacks` | Yes | — |
+| `concurrency` | `number` | No | `5` |
+| `branch` | `string` | No | `"main"` |
 
-The main pipeline orchestrates incremental repository processing by:
-- Fetching the file tree from GitHub
-- Comparing against a stored manifest of file SHAs to detect changes
-- Processing changed files in parallel batches
-- Removing files that no longer exist
-- Resolving and processing stale directories bottom-up
-- Committing results to the git-backed store
-
-#### Configuration
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `githubClient` | GitHub client for tree and file access | — |
-| `store` | Persistence layer for file/dir results and manifests | — |
-| `callbacks` | Domain logic for filtering and processing | — |
-| `concurrency` | Max parallel file/dir operations | `5` |
-| `branch` | Git branch to use | `"main"` |
-
-### GitYamlStore
-
-A `ProcessorStore` implementation that persists results as YAML files in a git repository.
-
-**File results** are stored at `<resultDir>/<filePath>.yml`.  
-**Directory results** are stored at `<resultDir>/<dirPath>/dir.yml`.  
-Each file includes a `sha` field for change detection.
+### ProcessingResult
 
 ```typescript
-const store = new GitYamlStore({
-  cloneUrl: "https://github.com/your-org/results-repo.git",
-  localPath: "/tmp/results",
-  resultDir: (owner, repo) => `${owner}/${repo}`,
-  gitUser: { name: "CI Bot", email: "bot@example.com" }
-});
-
-// Later, load results back
-const validated = await store.loadFileResult("owner", "repo", "src/index.ts", z.object({
-  path: z.string(),
-  sha: z.string(),
-  size: z.number(),
-  lines: z.number()
-}));
+{
+  filesProcessed: number; // Count of files processed
+  filesRemoved: number;   // Count of deleted files
+  dirsProcessed: number;  // Count of directories processed
+}
 ```
 
-### resolveStaleDirectories
+### File and Directory Contexts
 
-Determines which directories require reprocessing by combining:
-1. Directories identified as stale by `diffTree` (due to file changes/removals)
-2. Directories whose stored tree SHA doesn’t match the current tree SHA
+```typescript
+interface FileContext {
+  entry: TreeEntry;
+  content: string;
+}
+
+interface DirectoryContext {
+  path: string;
+  sha: string;
+  subtreeFilePaths: string[];
+  children: DirectoryChild[];
+  tree: TreeEntry[];
+}
+
+interface DirectoryChild {
+  name: string;
+  isDir: boolean;
+  fullPath: string;
+}
+```
+
+## RepoWatcher: SHA-based Triggering
+
+`RepoWatcher` monitors GitHub repos for SHA changes and triggers processing with automatic retries, concurrency control, and state persistence.
+
+```typescript
+import { RepoWatcher } from "@hardlydifficult/repo-processor";
+
+const watcher = new RepoWatcher({
+  stateKey: "repo-state",
+  stateDirectory: "/tmp/state",
+  run: async (owner, name) => {
+    const processor = new RepoProcessor({ /* config */ });
+    return processor.run(owner, name);
+  },
+  onComplete: (owner, name, result, sha) => {
+    console.log(`Completed ${owner}/${name}: ${result.filesProcessed} files`);
+  },
+  onError: (owner, name, error) => {
+    console.error(`Failed ${owner}/${name}:`, error);
+  },
+  maxAttempts: 3,  // optional retries
+});
+
+await watcher.init();
+
+// Handle push events (SHA comparison performed automatically)
+watcher.handlePush("hardlydifficult", "typescript", "abc123...");
+
+// Manual trigger (no SHA comparison)
+watcher.trigger("hardlydifficult", "typescript");
+
+// Synchronous trigger (blocks until complete)
+const response = await watcher.triggerManual("hardlydifficult", "typescript");
+// => { success: true, result: ProcessingResult } | { success: false, reason: string }
+```
+
+### RepoWatcherConfig
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `stateKey` | `string` | Yes | Key for state persistence |
+| `stateDirectory` | `string` | Yes | Directory for state files |
+| `run` | `(owner, name) => Promise<TResult>` | Yes | Processing logic |
+| `onComplete` | `(owner, name, result, sha) => void` | No | Success callback |
+| `onError` | `(owner, name, error) => void` | No | Failure callback |
+| `autoSaveMs` | `number` | No | `5000` (5s) |
+| `maxAttempts` | `number` | No | `1` (no retry) |
+
+## GitYamlStore: YAML Persistence
+
+`GitYamlStore` implements `ProcessorStore` by persisting results as YAML files in a git repository.
+
+```typescript
+import { GitYamlStore } from "@hardlydifficult/repo-processor";
+
+const store = new GitYamlStore({
+  cloneUrl: "https://github.com/owner/repo.git",
+  localPath: "/tmp/store",
+  resultDir: (owner, repo) => `results/${owner}/${repo}`,
+  authToken: process.env.GITHUB_TOKEN,  // optional, falls back to env
+  gitUser: { name: "Processor", email: "bot@example.com" },
+});
+```
+
+### Typed Result Loading
+
+```typescript
+import { z } from "zod";
+
+const fileSchema = z.object({
+  path: z.string(),
+  lineCount: z.number(),
+  sha: z.string(),
+});
+
+const dirSchema = z.object({
+  path: z.string(),
+  files: z.number(),
+  dirs: z.number(),
+  sha: z.string(),
+});
+
+const fileResult = await store.loadFileResult("owner", "repo", "src/index.ts", fileSchema);
+const dirResult = await store.loadDirResult("owner", "repo", "src", dirSchema);
+```
+
+## resolveStaleDirectories: Stale Directory Resolution
+
+`resolveStaleDirectories` determines which directories need reprocessing by combining SHA-based detection with diff-derived stale directories.
 
 ```typescript
 import { resolveStaleDirectories } from "@hardlydifficult/repo-processor";
 
 const staleDirs = await resolveStaleDirectories(
-  "owner",
-  "repo",
-  diff.staleDirs,             // dirs flagged by diffTree
-  allFilePaths,               // current file paths in tree
-  tree,                       // full tree array
-  store                       // store for SHA comparison
+  owner,
+  repo,
+  staleDirsFromDiff,
+  allFilePaths,
+  tree,
+  store
 );
 ```
 
-### Store Interface
+### Algorithm
 
-The `ProcessorStore` interface defines the contract for persistence implementations:
+- All directories derived from file paths (and root `""`) are checked
+- A directory is stale if:
+  - Its stored SHA is missing, or
+  - Its stored SHA differs from the current tree SHA
+- Stale directories from diff (e.g., due to file changes) are also included
 
-| Method | Purpose |
-|--------|---------|
-| `ensureReady?(owner, repo)` | Initialize store (e.g., clone/pull repo) |
-| `getFileManifest(owner, repo)` | Retrieve stored file SHAs |
-| `getDirSha(owner, repo, dirPath)` | Retrieve stored directory SHA |
-| `writeFileResult(owner, repo, path, sha, result)` | Persist file result |
-| `writeDirResult(owner, repo, path, sha, result)` | Persist directory result |
-| `deleteFileResult(owner, repo, path)` | Remove deleted file result |
-| `commitBatch(owner, repo, count)` | Commit batch of changes |
-
-### Contexts and Callbacks
-
-#### `FileContext`
-
-Passed to `processFile`:
-
-| Field | Description |
-|-------|-------------|
-| `entry` | Tree entry for the file |
-| `content` | File content as string |
-
-#### `DirectoryContext`
-
-Passed to `processDirectory`:
-
-| Field | Description |
-|-------|-------------|
-| `path` | Directory path (`""` for root) |
-| `sha` | Tree SHA for the directory |
-| `subtreeFilePaths` | All file paths under this directory |
-| `children` | Immediate children (files and directories) |
-| `tree` | Full tree slice for the directory |
-
-#### `ProcessorCallbacks`
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `shouldProcess` | `(entry: TreeEntry) => boolean` | Filter which entries to process |
-| `processFile` | `(ctx: FileContext) => Promise<unknown>` | Process a single file |
-| `processDirectory` | `(ctx: DirectoryContext) => Promise<unknown>` | Process directory after all children |
-
-### Progress Reporting
-
-The optional `onProgress` callback provides real-time updates:
+## ProcessorStore Interface
 
 ```typescript
-await processor.run("owner", "repo", (progress) => {
-  console.log(progress.phase);        // "loading" | "files" | "directories" | "committing"
-  console.log(progress.filesTotal);   // Total files to process
-  console.log(progress.filesCompleted);
-  console.log(progress.dirsTotal);    // Total directories to process
-  console.log(progress.dirsCompleted);
-});
-```
-
-## Processing Result
-
-The `run()` method returns:
-
-```typescript
-interface ProcessingResult {
-  filesProcessed: number;  // Files processed (including updates)
-  filesRemoved: number;    // Files deleted
-  dirsProcessed: number;   // Directories processed
+interface ProcessorStore {
+  ensureReady?(owner: string, repo: string): Promise<void>;
+  getFileManifest(owner: string, repo: string): Promise<FileManifest>;
+  getDirSha(owner: string, repo: string, dirPath: string): Promise<string | null>;
+  writeFileResult(owner: string, repo: string, path: string, sha: string, result: unknown): Promise<void>;
+  writeDirResult(owner: string, repo: string, path: string, sha: string, result: unknown): Promise<void>;
+  deleteFileResult(owner: string, repo: string, path: string): Promise<void>;
+  commitBatch(owner: string, repo: string, count: number): Promise<void>;
 }
 ```
 
-## Pipeline Stages
+## ProcessorCallbacks Interface
 
-1. **Init store** – Calls `ensureReady()` if implemented
-2. **Fetch tree** – Retrieves full file tree from GitHub
-3. **Filter** – Applies `shouldProcess` to file entries
-4. **Diff** – Compares current manifest with stored manifest
-5. **Process files** – Fetches content, calls `processFile`, persists results
-6. **Remove files** – Deletes results for removed files
-7. **Resolve stale directories** – Uses SHA mismatch detection
-8. **Process directories bottom-up** – Processes deepest directories first
-9. **Commit** – Finalizes all changes to the git store
+```typescript
+interface ProcessorCallbacks {
+  shouldProcess(entry: TreeEntry): boolean;
+  processFile(ctx: FileContext): Promise<unknown>;
+  processDirectory(ctx: DirectoryContext): Promise<unknown>;
+}
+```
 
-## Error Handling
+## Progress Reporting
 
-- File and directory errors are aggregated and reported with full path details
-- Failed file processing stops the pipeline immediately with a summary
-- Directory processing continues on individual failures but fails fast overall
+```typescript
+interface ProcessingProgress {
+  phase: "loading" | "files" | "directories" | "committing";
+  message: string;
+  filesTotal: number;
+  filesCompleted: number;
+  dirsTotal: number;
+  dirsCompleted: number;
+}
 
-## Appendices
+type ProgressCallback = (progress: ProcessingProgress) => void;
+```
 
-### SHA-Based Stale Detection
+## Setup
 
-Directories are marked stale when:
-- Their stored SHA differs from the current tree SHA, or
-- They have no stored SHA (first run)
+No external service setup beyond GitHub is required. The package uses `@hardlydifficult/github` for tree fetches and `simple-git` for git operations.
 
-This enables recovery after partial failures and catches directories whose tree SHA changed without file changes.
+### Environment Variables
 
-### Parallel Processing
-
-Files and directories are processed in batches controlled by `concurrency`:
-- Files are grouped into batches and processed in parallel
-- Directories are grouped by depth and processed bottom-up within each depth
-- Batches commit to the store individually for progress durability
+| Variable | Usage |
+|----------|-------|
+| `GITHUB_TOKEN` | Used by `GitYamlStore` for authenticated git operations if `authToken` not provided |
