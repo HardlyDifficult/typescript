@@ -37,14 +37,20 @@ export function createPrefixParser(
 
   // Pre-compile patterns
   const matchPattern = new RegExp(`^!?${escaped}\\s+(.+)$`, "s");
-  const originalPattern = new RegExp(`^!?${escapeRegExp(prefix)}\\s+(.+)$`, "is");
+  const originalPattern = new RegExp(
+    `^!?${escapeRegExp(prefix)}\\s+(.+)$`,
+    "is"
+  );
 
   return (
     normalizedInput: string,
     originalInput: string
   ): ParseResult | null => {
     // Exact prefix with no args → show usage
-    if (normalizedInput === lowerPrefix || normalizedInput === `!${lowerPrefix}`) {
+    if (
+      normalizedInput === lowerPrefix ||
+      normalizedInput === `!${lowerPrefix}`
+    ) {
       return {
         valid: false,
         error: usage ?? `Usage: ${prefix} <args>`,
