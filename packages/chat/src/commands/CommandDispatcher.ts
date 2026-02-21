@@ -103,6 +103,10 @@ export class CommandDispatcher<TState extends CoreBotState = CoreBotState> {
       } else {
         await match.command.execute(ctx, match.parsed.args);
       }
+    } catch (err) {
+      // Surface command execution errors rather than silently dropping them
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.sendDismissable(`Command failed: ${errorMsg}`);
     } finally {
       // Delete the user's command message unless a thread was created on it
       if (!this.messagesWithThreads.delete(message.id)) {
