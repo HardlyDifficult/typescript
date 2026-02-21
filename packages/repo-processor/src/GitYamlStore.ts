@@ -23,6 +23,8 @@ export interface GitYamlStoreConfig {
   resultDir: (owner: string, repo: string) => string;
   /** GitHub token for authenticated clone/push. Falls back to GITHUB_TOKEN env. */
   authToken?: string;
+  /** Git user identity used when committing results. */
+  gitUser: { name: string; email: string };
 }
 
 /**
@@ -38,6 +40,7 @@ export class GitYamlStore implements ProcessorStore {
   private readonly cloneUrl: string;
   private readonly authToken: string | undefined;
   private readonly resultDir: (owner: string, repo: string) => string;
+  private readonly gitUser: { name: string; email: string };
   private initialized = false;
 
   constructor(config: GitYamlStoreConfig) {
@@ -45,6 +48,7 @@ export class GitYamlStore implements ProcessorStore {
     this.localPath = config.localPath;
     this.resultDir = config.resultDir;
     this.authToken = config.authToken ?? process.env.GITHUB_TOKEN;
+    this.gitUser = config.gitUser;
   }
 
   // ---------------------------------------------------------------------------
@@ -164,11 +168,8 @@ export class GitYamlStore implements ProcessorStore {
     const { simpleGit } = await import("simple-git");
     const git = simpleGit(this.localPath);
 
-    await git.addConfig(
-      "user.email",
-      "HardlyDifficult@users.noreply.github.com"
-    );
-    await git.addConfig("user.name", "HardlyDifficult");
+    await git.addConfig("user.email", this.gitUser.email);
+    await git.addConfig("user.name", this.gitUser.name);
 
     const status = await git.status();
     if (status.files.length === 0) {
