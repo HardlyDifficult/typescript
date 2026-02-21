@@ -13,6 +13,8 @@ export {
 
 export { isConnectionError } from "./isConnectionError";
 
+export { isTransientNetworkError } from "./isTransientNetworkError";
+
 export {
   createThrottledUpdater,
   type ThrottledUpdater,

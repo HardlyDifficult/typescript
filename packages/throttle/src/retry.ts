@@ -1,8 +1,8 @@
 export interface RetryOptions {
   /** Maximum number of attempts (must be >= 1) */
   maxAttempts: number;
-  /** Called before each retry with the error and 1-based attempt number that failed */
-  onRetry?: (error: Error, attempt: number) => void;
+  /** Called before each retry with the error and 1-based attempt number that failed. Can be async for backoff delays. */
+  onRetry?: (error: Error, attempt: number) => void | Promise<void>;
 }
 
 /**
@@ -22,7 +22,7 @@ export async function retry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (attempt < options.maxAttempts) {
-        options.onRetry?.(lastError, attempt);
+        await options.onRetry?.(lastError, attempt);
       }
     }
   }
