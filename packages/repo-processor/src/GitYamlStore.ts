@@ -164,8 +164,8 @@ export class GitYamlStore implements ProcessorStore {
     const { simpleGit } = await import("simple-git");
     const git = simpleGit(this.localPath);
 
-    await git.addConfig("user.email", "ai-bot@users.noreply.github.com");
-    await git.addConfig("user.name", "AI Bot");
+    await git.addConfig("user.email", "HardlyDifficult@users.noreply.github.com");
+    await git.addConfig("user.name", "HardlyDifficult");
 
     const status = await git.status();
     if (status.files.length === 0) {
