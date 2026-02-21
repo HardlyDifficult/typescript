@@ -1,6 +1,6 @@
 # @hardlydifficult/websocket
 
-A resilient WebSocket client for Node.js with automatic reconnection, heartbeat-based dead connection detection, and graceful request draining.
+A resilient WebSocket client with automatic reconnection (exponential backoff), heartbeat monitoring, proactive token refresh, and request tracking — fully typed in TypeScript.
 
 ## Installation
 
@@ -8,309 +8,137 @@ A resilient WebSocket client for Node.js with automatic reconnection, heartbeat-
 npm install @hardlydifficult/websocket
 ```
 
-Requires Node.js 18+.
-
 ## Quick Start
 
 ```typescript
 import { ReconnectingWebSocket } from "@hardlydifficult/websocket";
 
-interface Message {
-  type: string;
-  data: unknown;
-}
-
-const client = new ReconnectingWebSocket<Message>({
-  url: "ws://localhost:8080",
+const ws = new ReconnectingWebSocket({
+  url: "wss://api.example.com/ws",
+  auth: {
+    getToken: () => "Bearer token",
+  },
+  heartbeat: {
+    intervalMs: 30000, // ping every 30s
+    timeoutMs: 10000,  // terminate if no pong in 10s
+  },
 });
 
-client.on("open", () => {
-  console.log("Connected");
-  client.send({ type: "hello", data: "world" });
-});
+ws.on("open", () => console.log("Connected"));
+ws.on("message", (data) => console.log("Received:", data));
+ws.on("close", (code, reason) => console.log("Closed:", code, reason));
 
-client.on("message", (msg) => {
-  console.log("Received:", msg);
-});
-
-client.on("error", (err) => {
-  console.error("Error:", err);
-});
-
-client.connect();
+ws.connect();
+ws.send({ type: "hello" }); // sends as JSON
 ```
 
-## ReconnectingWebSocket
+## Auto-Reconnecting WebSocket
 
-A generic WebSocket client that automatically reconnects on disconnection, sends protocol-level pings for heartbeats, and parses JSON messages.
+`ReconnectingWebSocket` maintains a persistent connection with exponential backoff on disconnect, JSON message parsing, and optional authentication.
 
-### Constructor
-
-```typescript
-const client = new ReconnectingWebSocket<T>(options: WebSocketOptions);
-```
+### Constructor Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `url` | `string` | — | WebSocket server URL (required) |
-| `backoff.initialDelayMs` | `number` | `1000` | Initial reconnection delay in milliseconds |
-| `backoff.maxDelayMs` | `number` | `30000` | Maximum reconnection delay in milliseconds |
-| `backoff.multiplier` | `number` | `2` | Multiplier applied per reconnection attempt |
-| `heartbeat.intervalMs` | `number` | `30000` | Interval between pings in milliseconds |
-| `heartbeat.timeoutMs` | `number` | `10000` | Time to wait for pong before terminating |
+| `url` | `string` | — | WebSocket server URL |
+| `backoff` | `BackoffOptions` | `{ initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 }` | Reconnection backoff config |
+| `heartbeat` | `HeartbeatOptions` | `{ intervalMs: 30000, timeoutMs: 10000 }` | Ping/pong monitoring |
+| `auth` | `AuthOptions` | — | Authentication (token fetched on each connect) |
+| `protocols` | `string[]` | — | WebSocket subprotocols |
+| `headers` | `Record<string, string>` | — | Additional handshake headers |
 
-### Methods
-
-#### `connect(): void`
-
-Connect to the WebSocket server. Idempotent — calling multiple times has no additional effect. If a reconnect timer is pending, cancels it and connects immediately, resetting the attempt counter.
+### Core Methods
 
 ```typescript
-client.connect();
+ws.connect(); // Connect or reconnect (idempotent)
+ws.disconnect(); // Stop and prevent future reconnects
+ws.reconnect(); // Force reconnect with fresh auth token
+ws.send(message); // Send JSON-serializable message
+ws.stopReconnecting(); // Allow in-flight work but prevent reconnection
+ws.connected; // Read-only: true if socket is open
+ws.on(event, listener); // Register event listener (returns unsubscribe function)
 ```
 
-#### `disconnect(): void`
-
-Disconnect from the server and stop all reconnection attempts. Closes the socket with code 1000.
+### Event Types
 
 ```typescript
-client.disconnect();
+ws.on("open", () => { /* connected */ });
+ws.on("close", (code, reason) => { /* disconnected */ });
+ws.on("error", (error) => { /* connection or parse error */ });
+ws.on("message", (data) => { /* message received & parsed */ });
 ```
 
-#### `send(message: T): void`
-
-Send a message as JSON. No-op if not currently connected.
-
-```typescript
-client.send({ type: "ping" });
-```
-
-#### `stopReconnecting(): void`
-
-Prevent reconnection without closing the current connection. Useful for graceful shutdown: deliver in-flight results but do not reconnect if the socket drops.
-
-```typescript
-client.stopReconnecting();
-```
-
-#### `on<K extends keyof WebSocketEvents<T>>(event: K, listener: WebSocketEvents<T>[K]): () => void`
-
-Subscribe to a WebSocket lifecycle event. Multiple listeners per event are supported. Returns an unsubscribe function.
-
-```typescript
-const unsubscribe = client.on("message", (msg) => {
-  console.log(msg);
-});
-
-unsubscribe(); // Stop listening
-```
-
-### Events
-
-#### `open`
-
-Fired when the connection is established.
-
-```typescript
-client.on("open", () => {
-  console.log("Connected");
-});
-```
-
-#### `close`
-
-Fired when the connection is closed.
-
-```typescript
-client.on("close", (code: number, reason: string) => {
-  console.log(`Closed with code ${code}: ${reason}`);
-});
-```
-
-#### `error`
-
-Fired on connection or parse errors.
-
-```typescript
-client.on("error", (error: Error) => {
-  console.error("Error:", error.message);
-});
-```
-
-#### `message`
-
-Fired when a message is received and parsed.
-
-```typescript
-client.on("message", (data: T) => {
-  console.log("Received:", data);
-});
-```
-
-### Properties
-
-#### `connected: boolean`
-
-Whether the socket is currently open.
-
-```typescript
-if (client.connected) {
-  client.send({ type: "ping" });
-}
-```
-
-### Exponential Backoff
-
-The client uses exponential backoff for reconnection delays. The delay for attempt `n` is calculated as:
-
-```
-delay = min(initialDelayMs × multiplier^n, maxDelayMs)
-```
-
-For example, with default settings (initial: 1000ms, max: 30000ms, multiplier: 2):
-- Attempt 0: 1000ms
-- Attempt 1: 2000ms
-- Attempt 2: 4000ms
-- Attempt 3: 8000ms
-- Attempt 4+: 30000ms (capped)
-
-You can access this calculation directly:
+### Backoff Behavior
 
 ```typescript
 import { getBackoffDelay } from "@hardlydifficult/websocket";
 
-const delay = getBackoffDelay(2, {
-  initialDelayMs: 1000,
-  maxDelayMs: 30000,
-  multiplier: 2,
-});
-// delay = 4000
+const opts = { initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 };
+
+getBackoffDelay(0, opts); // 1000 ms
+getBackoffDelay(1, opts); // 2000 ms
+getBackoffDelay(2, opts); // 4000 ms
+getBackoffDelay(10, opts); // capped at 30000 ms
 ```
 
-## RequestTracker
+## Proactive Token Refresh
 
-Tracks active requests and manages draining state. Centralizes the pattern of rejecting new work during shutdown and notifying listeners when the last request completes.
-
-### Constructor
+`calculateTokenRefreshTime` schedules token refresh before expiry, using either 50% lifetime (short tokens) or a 2-minute buffer (longer tokens):
 
 ```typescript
-const tracker = new RequestTracker();
+import { calculateTokenRefreshTime } from "@hardlydifficult/websocket";
+
+// 60s token → refresh at 30s (50% wins)
+calculateTokenRefreshTime(Date.now(), Date.now() + 60_000);
+
+// 5min token → refresh at 3min (2min buffer wins)
+calculateTokenRefreshTime(Date.now(), Date.now() + 5 * 60_000);
+
+// Reconnect to refresh token
+ws.reconnect(); // fetches fresh token from auth
 ```
+
+### Token Refresh Strategy
+
+| Token lifetime | Refresh strategy | Example (60s token) | Example (5min token) |
+|----------------|----------------|---------------------|----------------------|
+| Short (≤4min) | 50% lifetime | 30s after issue | N/A |
+| Long (>4min) | 2min before expiry | N/A | 3min after issue |
+
+## Request Tracker
+
+`RequestTracker` helps manage graceful shutdown by rejecting new requests during drain and notifying when all active requests complete.
 
 ### Methods
 
-#### `tryAccept(): boolean`
-
-Try to accept a new request. Returns `false` if draining — caller should send a rejection response.
-
 ```typescript
-if (tracker.tryAccept()) {
-  // Process request
-  tracker.complete();
-} else {
-  // Send rejection (service is shutting down)
-}
-```
-
-#### `complete(): void`
-
-Mark a request as complete. Decrements the active count and emits `drained` when the last request finishes during a drain.
-
-```typescript
-tracker.complete();
-```
-
-#### `startDraining(reason: string): void`
-
-Enter draining mode — no new requests will be accepted. Idempotent: subsequent calls are ignored. Emits `draining` immediately and `drained` when active reaches zero.
-
-```typescript
-tracker.startDraining("server shutting down");
-```
-
-#### `on<K extends keyof RequestTrackerEvents>(event: K, listener: RequestTrackerEvents[K]): () => void`
-
-Subscribe to a RequestTracker event. Returns an unsubscribe function.
-
-```typescript
-const unsubscribe = tracker.on("drained", () => {
-  console.log("All requests completed");
-});
-```
-
-### Events
-
-#### `draining`
-
-Fired when draining mode is entered.
-
-```typescript
-tracker.on("draining", (reason: string) => {
-  console.log(`Draining: ${reason}`);
-});
-```
-
-#### `drained`
-
-Fired when all active requests complete during drain.
-
-```typescript
-tracker.on("drained", () => {
-  console.log("Ready to shut down");
-});
-```
-
-### Properties
-
-#### `draining: boolean`
-
-Whether the tracker is in draining mode.
-
-```typescript
-if (tracker.draining) {
-  console.log("Not accepting new requests");
-}
-```
-
-#### `active: number`
-
-Number of currently active requests.
-
-```typescript
-console.log(`${tracker.active} requests in flight`);
-```
-
-### Example: Graceful Shutdown
-
-```typescript
-import { ReconnectingWebSocket, RequestTracker } from "@hardlydifficult/websocket";
-
-const client = new ReconnectingWebSocket({ url: "ws://localhost:8080" });
 const tracker = new RequestTracker();
 
-client.on("message", (msg) => {
-  if (!tracker.tryAccept()) {
-    // Reject new requests during shutdown
-    return;
-  }
+tracker.tryAccept(); // false if draining, otherwise increments active & returns true
+tracker.complete(); // decrements active; emits 'drained' when active reaches 0
+tracker.startDraining("reason"); // enter drain mode; rejects new requests
 
-  // Process message
-  processMessage(msg);
-  tracker.complete();
-});
+tracker.draining; // true if draining
+tracker.active; // number of in-flight requests
 
-// Initiate graceful shutdown
-async function shutdown() {
-  client.stopReconnecting();
-  tracker.startDraining("server shutting down");
+tracker.on("draining", (reason) => { /* draining started */ });
+tracker.on("drained", () => { /* all requests complete */ });
+```
 
-  // Wait for all in-flight requests to complete
-  await new Promise<void>((resolve) => {
-    tracker.on("drained", () => {
-      resolve();
-    });
-  });
+### Example Usage
 
-  client.disconnect();
+```typescript
+const tracker = new RequestTracker();
+let activeRequests = 0;
+
+tracker.on("draining", (reason) => console.log("Draining:", reason));
+tracker.on("drained", () => console.log("All requests complete"));
+
+// Accept a request
+if (tracker.tryAccept()) {
+  processRequest().finally(() => tracker.complete());
 }
+
+// On shutdown signal
+tracker.startDraining("Server shutdown");
 ```
