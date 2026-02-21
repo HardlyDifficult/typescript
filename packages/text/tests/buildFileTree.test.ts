@@ -257,5 +257,63 @@ describe("buildFileTree", () => {
         expect(result).toBe(["test/", "  a.ts", "  b.ts"].join("\n"));
       });
     });
+
+    describe("lineCounts", () => {
+      it("shows line count for a file", () => {
+        const lineCounts = new Map([["src/index.ts", 120]]);
+        const result = buildFileTree(["src/index.ts"], {
+          lineCounts,
+          format: "plain",
+        });
+        expect(result).toContain("index.ts (120 lines)");
+      });
+
+      it("places line count before annotation", () => {
+        const lineCounts = new Map([["index.ts", 50]]);
+        const annotations = new Map([["index.ts", "Main entry point"]]);
+        const result = buildFileTree(["index.ts"], {
+          lineCounts,
+          annotations,
+          format: "plain",
+        });
+        expect(result).toBe("index.ts (50 lines) — Main entry point");
+      });
+
+      it("does not show line count for directories", () => {
+        const lineCounts = new Map([["src", 999]]);
+        const result = buildFileTree(["src/index.ts"], {
+          lineCounts,
+          format: "plain",
+        });
+        expect(result).toContain("src/");
+        expect(result).not.toContain("src/ (");
+        expect(result).not.toContain("999");
+      });
+
+      it("shows no count for files missing from the map", () => {
+        const lineCounts = new Map([["src/index.ts", 100]]);
+        const result = buildFileTree(["src/index.ts", "src/utils.ts"], {
+          lineCounts,
+          format: "plain",
+        });
+        expect(result).toContain("index.ts (100 lines)");
+        expect(result).toContain("  utils.ts");
+        expect(result).not.toContain("utils.ts (");
+      });
+
+      it("works with nested paths", () => {
+        const lineCounts = new Map([["packages/bot/src/index.ts", 200]]);
+        const result = buildFileTree(["packages/bot/src/index.ts"], {
+          lineCounts,
+          format: "plain",
+        });
+        expect(result).toContain("index.ts (200 lines)");
+      });
+
+      it("works without lineCounts (no change to output)", () => {
+        const result = buildFileTree(["src/index.ts"], { format: "plain" });
+        expect(result).toBe("src/\n  index.ts");
+      });
+    });
   });
 });
