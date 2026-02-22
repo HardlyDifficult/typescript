@@ -5,7 +5,7 @@
  *
  * Prerequisites:
  *   - `storybook-static/` must exist (run `npm run build:storybook` first)
- *   - `agent-browser` must be installed (`npx agent-browser install`)
+ *   - agent-browser's browser must be installed (`npx agent-browser install`)
  *
  * Output:
  *   - PNG screenshots in `screenshots/<story-id>.png`
@@ -14,17 +14,11 @@
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
-import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
+import { BrowserManager } from "agent-browser/dist/browser.js";
+import { executeCommand } from "agent-browser/dist/actions.js";
 
 const STORYBOOK_DIR = new URL("../storybook-static", import.meta.url).pathname;
 const SCREENSHOTS_DIR = new URL("../screenshots", import.meta.url).pathname;
-const SESSION = "storybook-screenshots";
-
-// Resolve the agent-browser binary once to avoid npx overhead per call
-const require = createRequire(import.meta.url);
-const agentBrowserPkg = require.resolve("agent-browser/package.json");
-const BIN = join(agentBrowserPkg, "..", "bin", "agent-browser.js");
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -35,14 +29,6 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
 };
-
-function ab(args) {
-  return execFileSync("node", [BIN, "--session", SESSION, ...args], {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf-8",
-    timeout: 30_000,
-  });
-}
 
 /** Minimal static file server for storybook-static. */
 function startServer() {
@@ -83,26 +69,25 @@ async function main() {
   const stories = Object.values(entries).filter((entry) => entry.type === "story");
   console.log(`Found ${stories.length} stories`);
 
+  const browser = new BrowserManager();
+  await browser.launch({ id: "launch", action: "launch", headless: true });
+
   try {
     for (const story of stories) {
       const url = `http://127.0.0.1:${port}/iframe.html?id=${story.id}&viewMode=story`;
       const screenshotPath = join(SCREENSHOTS_DIR, `${story.id}.png`);
 
       try {
-        ab(["open", url]);
-        ab(["wait", "1000"]);
-        ab(["screenshot", screenshotPath]);
+        await executeCommand({ id: "nav", action: "navigate", url, waitUntil: "networkidle" }, browser);
+        await executeCommand({ id: "wait", action: "wait", timeout: 500 }, browser);
+        await executeCommand({ id: "ss", action: "screenshot", path: screenshotPath }, browser);
         console.log(`  captured: ${story.id}.png`);
       } catch (err) {
         console.error(`  FAILED: ${story.id} — ${err.message}`);
       }
     }
   } finally {
-    try {
-      ab(["close"]);
-    } catch {
-      // browser may already be closed
-    }
+    await browser.close();
     server.close();
   }
 
