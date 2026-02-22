@@ -122,11 +122,11 @@ const statusIcons: Record<ActivityEvent["status"], ReactNode> = {
 function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();
   const s = Math.floor(diff / 1000);
-  if (s < 60)  return "just now";
+  if (s < 60)  {return "just now";}
   const m = Math.floor(s / 60);
-  if (m < 60)  return `${String(m)}m ago`;
+  if (m < 60)  {return `${String(m)}m ago`;}
   const h = Math.floor(m / 60);
-  if (h < 24)  return `${String(h)}h ago`;
+  if (h < 24)  {return `${String(h)}h ago`;}
   return `${String(Math.floor(h / 24))}d ago`;
 }
 
