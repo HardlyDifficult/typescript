@@ -66,14 +66,14 @@ function Avatar({ name, avatar }: { name: string; avatar?: string }) {
       <img
         src={avatar}
         alt={name}
-        className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+        className="w-7 h-7 rounded-full object-cover flex-shrink-0 ring-2 ring-[color:var(--color-bg)]"
       />
     );
   }
   const idx = getAvatarIndex(name);
   return (
     <div
-      className="w-7 h-7 rounded-full flex items-center justify-center text-[length:var(--text-xs)] font-semibold font-[family-name:var(--font-sans)] flex-shrink-0 select-none"
+      className="w-7 h-7 rounded-full flex items-center justify-center text-[length:var(--text-xs)] font-semibold font-[family-name:var(--font-sans)] flex-shrink-0 select-none ring-2 ring-[color:var(--color-bg)]"
       style={{
         backgroundColor: `var(--color-avatar-${String(idx)}-bg)`,
         color: `var(--color-avatar-${String(idx)}-text)`,
@@ -96,11 +96,12 @@ function StatusDot({ status }: { status: ActivityEvent["status"] }) {
 
 function EventRow({ event, isLast }: { event: ActivityEvent; isLast: boolean }) {
   return (
-    <div className="relative flex items-start gap-[var(--space-3)] py-[var(--space-2)]">
-      {/* Connector line between rows */}
+    <div className="relative flex items-start gap-[var(--space-3)] py-[var(--space-2)] rounded-[var(--radius-sm)] -mx-[var(--space-2)] px-[var(--space-2)] transition-colors duration-100 hover:bg-[color:var(--color-bg-subtle)]">
+      {/* Connector line between rows — gradient fade for a polished look */}
       {!isLast && (
         <span
-          className="absolute left-3.5 top-9 bottom-0 w-px bg-[color:var(--color-border)]"
+          className="absolute left-3.5 top-9 bottom-0 w-px"
+          style={{ background: "linear-gradient(to bottom, var(--color-border-strong), var(--color-border), transparent)" }}
           aria-hidden="true"
         />
       )}
@@ -127,9 +128,13 @@ function EventRow({ event, isLast }: { event: ActivityEvent; isLast: boolean }) 
           <span className="text-[length:var(--text-sm)] font-medium text-[color:var(--color-text)] font-[family-name:var(--font-sans)] leading-[var(--leading-snug)] flex-1 min-w-0 truncate">
             {event.message}
           </span>
-          <span className="text-[length:var(--text-xs)] text-[color:var(--color-text-muted)] font-[family-name:var(--font-mono)] flex-shrink-0 tabular-nums">
+          <time
+            dateTime={event.timestamp.toISOString()}
+            title={event.timestamp.toLocaleString()}
+            className="text-[length:var(--text-xs)] text-[color:var(--color-text-muted)] font-[family-name:var(--font-mono)] flex-shrink-0 tabular-nums whitespace-nowrap"
+          >
             {formatRelativeTime(event.timestamp)}
-          </span>
+          </time>
         </div>
 
         {/* Actor · status · detail */}
