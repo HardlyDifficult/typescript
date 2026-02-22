@@ -43,7 +43,10 @@ export interface TaskWatcherOptions {
 export class TaskWatcher {
   private readonly client: TaskListClient;
   private readonly options: Required<
-    Pick<TaskWatcherOptions, "projectName" | "triggerStatus" | "pickupStatus" | "pollIntervalMs">
+    Pick<
+      TaskWatcherOptions,
+      "projectName" | "triggerStatus" | "pickupStatus" | "pollIntervalMs"
+    >
   > &
     Pick<TaskWatcherOptions, "onTask" | "onError">;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -63,10 +66,15 @@ export class TaskWatcher {
 
   /** Start polling. Does nothing if already started. */
   start(): void {
-    if (this.timer !== null) {return;}
+    if (this.timer !== null) {
+      return;
+    }
     // Run immediately on start, then on interval
     void this.poll();
-    this.timer = setInterval(() => void this.poll(), this.options.pollIntervalMs);
+    this.timer = setInterval(
+      () => void this.poll(),
+      this.options.pollIntervalMs
+    );
   }
 
   /** Stop polling and clean up. */
@@ -79,7 +87,9 @@ export class TaskWatcher {
 
   /** Single poll cycle. Exported for testing. */
   async poll(): Promise<void> {
-    if (this.polling) {return;}
+    if (this.polling) {
+      return;
+    }
     this.polling = true;
 
     try {
@@ -95,7 +105,10 @@ export class TaskWatcher {
           if (this.options.onError) {
             this.options.onError(error);
           } else {
-            console.error(`TaskWatcher: failed to pick up task "${task.name}":`, error.message);
+            console.error(
+              `TaskWatcher: failed to pick up task "${task.name}":`,
+              error.message
+            );
           }
         }
       }
