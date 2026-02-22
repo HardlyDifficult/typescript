@@ -162,7 +162,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
           const event: MessageEvent = {
             id: message.id,
-            content: message.content ?? "",
+            // Use cleanContent to resolve Discord mentions (e.g. <@170624100316741632>)
+            // to human-readable names (e.g. @hardlydifficult) before forwarding to
+            // command handlers and AI prompts.
+            content: message.cleanContent ?? message.content ?? "",
             author,
             channelId,
             timestamp: message.createdAt,
