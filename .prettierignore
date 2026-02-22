@@ -2,10 +2,12 @@
 dist/
 coverage/
 .turbo/
+storybook-static/
 
 # Generated/temporary files
 .tmp/
 **/files/.claude/
+**/screenshots/**
 
 # Dependencies
 node_modules/
