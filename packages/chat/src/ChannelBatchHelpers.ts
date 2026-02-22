@@ -23,9 +23,7 @@ export interface ChannelBatchAdapter {
   ): Promise<void>;
 }
 
-/**
- *
- */
+/** Creates a channel batch adapter from individual callback functions. */
 export function createChannelBatchAdapter(
   id: string,
   platform: Platform,
@@ -81,9 +79,7 @@ function buildBatch(
   });
 }
 
-/**
- *
- */
+/** Begins a new message batch for the given channel. */
 export function beginChannelBatch(
   adapter: ChannelBatchAdapter,
   options: BeginBatchOptions = {}
@@ -97,9 +93,7 @@ export function beginChannelBatch(
   return Promise.resolve(buildBatch(adapter, snapshot.id));
 }
 
-/**
- *
- */
+/** Retrieves a single message batch by ID, or null if not found. */
 export function getChannelBatch(
   adapter: ChannelBatchAdapter,
   id: string
@@ -111,9 +105,7 @@ export function getChannelBatch(
   return Promise.resolve(buildBatch(adapter, snapshot.id));
 }
 
-/**
- *
- */
+/** Retrieves all message batches for the given channel, optionally filtered. */
 export function getChannelBatches(
   adapter: ChannelBatchAdapter,
   options: BatchQueryOptions = {}
@@ -137,9 +129,7 @@ export function withChannelBatch<T>(
   options: BeginBatchOptions,
   callback: (batch: MessageBatch) => Promise<T>
 ): Promise<T>;
-/**
- *
- */
+/** Runs a callback within a new batch, automatically finishing it when done. */
 export async function withChannelBatch<T>(
   adapter: ChannelBatchAdapter,
   optionsOrCallback: BeginBatchOptions | ((batch: MessageBatch) => Promise<T>),
@@ -162,9 +152,7 @@ export async function withChannelBatch<T>(
   }
 }
 
-/**
- *
- */
+/** Dispatches to withChannelBatch after resolving the overloaded arguments. */
 export function withChannelBatchFromArgs<T>(
   adapter: ChannelBatchAdapter,
   optionsOrCallback: BeginBatchOptions | ((batch: MessageBatch) => Promise<T>),

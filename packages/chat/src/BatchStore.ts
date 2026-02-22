@@ -166,7 +166,7 @@ class InMemoryBatchStore {
 
 export const batchStore = new InMemoryBatchStore();
 
-/** @internal Testing helper to isolate batch-store state between tests. */
+/** Testing helper to isolate batch-store state between tests. @internal */
 export function resetBatchStore(): void {
   batchStore.reset();
 }
