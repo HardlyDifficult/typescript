@@ -50,7 +50,7 @@ jobs:
         if: steps.storybook-changes.outputs.changed == 'true'
         run: |
           cd packages/storybook-components
-          npx playwright install chromium --with-deps
+          npx agent-browser install --with-deps
           npm run build:storybook
           node scripts/capture-screenshots.js
 

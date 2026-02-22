@@ -14,6 +14,8 @@ export default [
       "**/files/.claude/**",
       "**/storybook-static/**",
       "**/*.stories.tsx",
+      "**/.storybook/**",
+      "**/vite.config.ts",
       "**/scripts/capture-screenshots.js",
     ],
   },

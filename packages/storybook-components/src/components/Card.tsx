@@ -14,6 +14,7 @@ const paddingStyles: Record<CardPadding, string> = {
   lg: "p-[var(--space-6)]",
 };
 
+/** Container with border, background, and configurable padding. */
 export function Card({ padding = "md", className = "", children }: CardProps) {
   return (
     <div

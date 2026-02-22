@@ -36,6 +36,7 @@ const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: strin
   },
 };
 
+/** Semantic status badge with colored dot indicator. */
 export function Badge({ variant = "default", className = "", children }: BadgeProps) {
   const styles = variantStyles[variant];
   return (

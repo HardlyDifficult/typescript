@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Captures a screenshot of each Storybook story's default view.
+ * Captures a screenshot of each Storybook story using agent-browser.
  *
  * Prerequisites:
  *   - `storybook-static/` must exist (run `npm run build:storybook` first)
- *   - Playwright chromium browser must be installed (`npx playwright install chromium`)
+ *   - `agent-browser` must be installed (`npx agent-browser install`)
  *
  * Output:
  *   - PNG screenshots in `screenshots/<story-id>.png`
@@ -14,11 +14,11 @@
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
-import { chromium } from "playwright";
+import { execFileSync } from "node:child_process";
 
 const STORYBOOK_DIR = new URL("../storybook-static", import.meta.url).pathname;
 const SCREENSHOTS_DIR = new URL("../screenshots", import.meta.url).pathname;
-const VIEWPORT = { width: 800, height: 600 };
+const SESSION = "storybook-screenshots";
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -29,6 +29,14 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
 };
+
+function ab(args) {
+  return execFileSync("npx", ["agent-browser", "--session", SESSION, ...args], {
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf-8",
+    timeout: 30_000,
+  });
+}
 
 /** Minimal static file server for storybook-static. */
 function startServer() {
@@ -56,16 +64,6 @@ function startServer() {
   });
 }
 
-/** Fetch the Storybook index and return story entries. */
-async function getStories(port) {
-  const res = await fetch(`http://127.0.0.1:${port}/index.json`);
-  if (!res.ok) throw new Error(`Failed to fetch index.json: ${res.status}`);
-  const data = await res.json();
-  // Storybook index.json has { v, entries } where entries is an object keyed by story id
-  const entries = data.entries || data.stories || {};
-  return Object.values(entries).filter((entry) => entry.type === "story");
-}
-
 async function main() {
   console.log("Starting static server...");
   const { server, port } = await startServer();
@@ -73,33 +71,32 @@ async function main() {
 
   await mkdir(SCREENSHOTS_DIR, { recursive: true });
 
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: VIEWPORT });
+  // Read story index directly from the built files
+  const indexData = JSON.parse(await readFile(join(STORYBOOK_DIR, "index.json"), "utf-8"));
+  const entries = indexData.entries || indexData.stories || {};
+  const stories = Object.values(entries).filter((entry) => entry.type === "story");
+  console.log(`Found ${stories.length} stories`);
 
   try {
-    const stories = await getStories(port);
-    console.log(`Found ${stories.length} stories`);
-
     for (const story of stories) {
-      const page = await context.newPage();
       const url = `http://127.0.0.1:${port}/iframe.html?id=${story.id}&viewMode=story`;
+      const screenshotPath = join(SCREENSHOTS_DIR, `${story.id}.png`);
 
       try {
-        await page.goto(url, { waitUntil: "networkidle" });
-        // Extra settle time for CSS transitions
-        await page.waitForTimeout(300);
-
-        const filename = `${story.id}.png`;
-        await page.screenshot({ path: join(SCREENSHOTS_DIR, filename) });
-        console.log(`  captured: ${filename}`);
+        ab(["open", url]);
+        ab(["wait", "1000"]);
+        ab(["screenshot", screenshotPath]);
+        console.log(`  captured: ${story.id}.png`);
       } catch (err) {
         console.error(`  FAILED: ${story.id} — ${err.message}`);
-      } finally {
-        await page.close();
       }
     }
   } finally {
-    await browser.close();
+    try {
+      ab(["close"]);
+    } catch {
+      // browser may already be closed
+    }
     server.close();
   }
 

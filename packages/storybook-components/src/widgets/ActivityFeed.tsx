@@ -1,7 +1,7 @@
-import { Card } from "../components/Card.js";
-import { Text } from "../components/Text.js";
 import { Badge } from "../components/Badge.js";
+import { Card } from "../components/Card.js";
 import { Stack } from "../components/Stack.js";
+import { Text } from "../components/Text.js";
 
 export interface ActivityEvent {
   id: string;
@@ -30,11 +30,11 @@ function formatRelativeTime(date: Date): string {
   const now = Date.now();
   const diff = now - date.getTime();
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) {return "just now";}
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
+  if (minutes < 60) {return `${String(minutes)}m ago`;}
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
+  if (hours < 24) {return `${String(hours)}h ago`;}
   const days = Math.floor(hours / 24);
   return `${String(days)}d ago`;
 }
@@ -49,7 +49,7 @@ function getInitials(name: string): string {
 }
 
 function Avatar({ name, avatar }: { name: string; avatar?: string }) {
-  if (avatar) {
+  if (avatar !== undefined) {
     return (
       <img
         src={avatar}
@@ -85,7 +85,7 @@ function EventRow({ event }: { event: ActivityEvent }) {
           )}
           <Text variant="caption">{formatRelativeTime(event.timestamp)}</Text>
         </Stack>
-        {event.detail && (
+        {event.detail !== undefined && (
           <Text variant="caption" className="mt-[var(--space-1)]">
             {event.detail}
           </Text>
@@ -95,6 +95,7 @@ function EventRow({ event }: { event: ActivityEvent }) {
   );
 }
 
+/** Chronological list of events with status badges and actor avatars. */
 export function ActivityFeed({
   events,
   title = "Recent Activity",

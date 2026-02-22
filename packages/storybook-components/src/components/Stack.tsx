@@ -25,6 +25,7 @@ const alignStyles: Record<StackAlign, string> = {
   stretch: "items-stretch",
 };
 
+/** Flex layout primitive for vertical and horizontal stacking. */
 export function Stack({
   direction = "vertical",
   gap = "md",

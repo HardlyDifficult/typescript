@@ -28,6 +28,7 @@ const defaultElements: Record<TextVariant, keyof HTMLElementTagNameMap> = {
   code: "code",
 };
 
+/** Typography primitive with heading, body, caption, and code variants. */
 export function Text({
   variant = "body",
   as,

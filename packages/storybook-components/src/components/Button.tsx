@@ -1,4 +1,4 @@
-import type { ReactNode, MouseEventHandler } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 type ButtonSize = "sm" | "md";
@@ -29,6 +29,7 @@ const sizeStyles: Record<ButtonSize, string> = {
   md: "text-[length:var(--text-sm)] px-[var(--space-4)] py-[var(--space-2)] gap-[var(--space-2)]",
 };
 
+/** Button with primary, secondary, and ghost variants. */
 export function Button({
   variant = "primary",
   size = "md",
