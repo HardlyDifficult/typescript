@@ -58,9 +58,13 @@ export function fireHook<
   if (!fn) {
     return;
   }
+
+  type HookFn = (
+    ...hookArgs: Parameters<NonNullable<PipelineHooks<TData>[K]>>
+  ) => void;
+
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic hook dispatch
-    (fn as (...a: any[]) => void)(...args);
+    (fn as HookFn)(...args);
   } catch {
     // Hooks must not break pipeline execution
   }
