@@ -34,7 +34,7 @@ export function ProgressBar({ value, label }: ProgressBarProps) {
       <div className="h-2 rounded-[var(--radius-full)] bg-[color:var(--color-bg-muted)] overflow-hidden">
         <div
           className={`h-full rounded-[var(--radius-full)] transition-all duration-500 ease-out ${fillColor}`}
-          style={{ width: `${clamped}%` }}
+          style={{ width: `${clamped.toString()}%` }}
         />
       </div>
     </div>
