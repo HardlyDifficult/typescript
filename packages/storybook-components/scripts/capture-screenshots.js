@@ -51,13 +51,6 @@ const COMPOSITES = {
     "components-badge--error",
     "components-badge--info",
   ],
-  "components/text-all": [
-    "components-text--heading",
-    "components-text--subheading",
-    "components-text--body",
-    "components-text--caption",
-    "components-text--code",
-  ],
 };
 
 const compositeStoryIds = new Set(Object.values(COMPOSITES).flat());
