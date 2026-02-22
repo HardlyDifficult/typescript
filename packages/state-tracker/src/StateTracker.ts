@@ -31,9 +31,7 @@ export interface StateTrackerLoadOrDefaultOptions<T> {
 
 export type StateTrackerSaveMeta = Record<string, unknown>;
 
-/**
- *
- */
+/** Defines a state migration with type-safe legacy-to-current conversion. */
 export function defineStateMigration<TCurrent, TLegacy>(
   migration: StateTrackerMigration<TCurrent, TLegacy>
 ): StateTrackerMigration<TCurrent, TLegacy> {

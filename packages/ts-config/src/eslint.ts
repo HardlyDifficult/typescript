@@ -198,6 +198,12 @@ export default function createConfig(projectRoot: string) {
             checkConstructors: false,
           },
         ],
+        "jsdoc/require-description": [
+          "error",
+          {
+            checkConstructors: false,
+          },
+        ],
       },
     }
   );
