@@ -289,10 +289,13 @@ describe("TaskWatcher", () => {
 
     it("does not call onTask when no tasks match the trigger status", async () => {
       const ctx = createMockContext();
-      const task = new Task({ ...baseTaskData, statusId: "status-in-progress" }, {
-        ...ctx,
-        resolveStatusName: vi.fn(() => "In Progress"),
-      });
+      const task = new Task(
+        { ...baseTaskData, statusId: "status-in-progress" },
+        {
+          ...ctx,
+          resolveStatusName: vi.fn(() => "In Progress"),
+        }
+      );
       const project = makeProject([task]);
       const client = makeClient(project);
       const onTask = vi.fn();
@@ -390,9 +393,7 @@ describe("TaskWatcher", () => {
   describe("poll() — error handling", () => {
     it("calls onError when findProject rejects", async () => {
       const client = {
-        findProject: vi
-          .fn()
-          .mockRejectedValue(new Error("Project not found")),
+        findProject: vi.fn().mockRejectedValue(new Error("Project not found")),
         getProjects: vi.fn(),
         getProject: vi.fn(),
         getTask: vi.fn(),
@@ -423,9 +424,7 @@ describe("TaskWatcher", () => {
         .mockImplementation(() => undefined);
 
       const client = {
-        findProject: vi
-          .fn()
-          .mockRejectedValue(new Error("Network failure")),
+        findProject: vi.fn().mockRejectedValue(new Error("Network failure")),
         getProjects: vi.fn(),
         getProject: vi.fn(),
         getTask: vi.fn(),
