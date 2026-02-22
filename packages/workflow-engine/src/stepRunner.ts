@@ -59,7 +59,9 @@ export function fireHook<
     return;
   }
 
-  type HookFn = (...hookArgs: Parameters<NonNullable<PipelineHooks<TData>[K]>>) => void;
+  type HookFn = (
+    ...hookArgs: Parameters<NonNullable<PipelineHooks<TData>[K]>>
+  ) => void;
 
   try {
     (fn as HookFn)(...args);
