@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card } from "../src/index.js";
 import { Text } from "../src/index.js";
+import { Badge } from "../src/index.js";
 
 const meta: Meta<typeof Card> = {
   title: "Components/Card",
@@ -12,7 +13,6 @@ type Story = StoryObj<typeof Card>;
 
 export const Default: Story = {
   args: {
-    padding: "md",
     children: (
       <>
         <Text variant="subheading">PR #142</Text>
@@ -23,16 +23,8 @@ export const Default: Story = {
   },
 };
 
-export const SmallPadding: Story = {
+export const WithHeading: Story = {
   args: {
-    padding: "sm",
-    children: <Text variant="body">Compact card content</Text>,
-  },
-};
-
-export const LargePadding: Story = {
-  args: {
-    padding: "lg",
     children: (
       <>
         <Text variant="heading">Welcome</Text>
@@ -42,4 +34,28 @@ export const LargePadding: Story = {
       </>
     ),
   },
+};
+
+export const WithTitle: Story = {
+  render: () => (
+    <Card title="Team Members">
+      <Text variant="body">Three engineers, one designer, and a product lead.</Text>
+    </Card>
+  ),
+};
+
+export const WithTitleAndFooter: Story = {
+  render: () => (
+    <Card
+      title="Deployment Status"
+      footer={
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Text variant="caption">Last deployed 2 minutes ago</Text>
+          <Badge variant="success">Live</Badge>
+        </div>
+      }
+    >
+      <Text variant="body">v2.4.1 is running on 4 instances across us-east-1.</Text>
+    </Card>
+  ),
 };
