@@ -7,6 +7,7 @@ interface ButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
+  icon?: ReactNode;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   children: ReactNode;
 }
@@ -33,6 +34,7 @@ export function Button({
   variant = "primary",
   size = "md",
   disabled = false,
+  icon,
   onClick,
   children,
 }: ButtonProps) {
@@ -42,7 +44,7 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
     >
-      {children}
+      {icon !== undefined && icon}{children}
     </button>
   );
 }

@@ -43,6 +43,8 @@ const COMPOSITES = {
     "components-button--ghost",
     "components-button--small",
     "components-button--disabled",
+    "components-button--with-icon",
+    "components-button--secondary-with-icon",
   ],
   "components/badge-all": [
     "components-badge--default",
@@ -50,6 +52,30 @@ const COMPOSITES = {
     "components-badge--warning",
     "components-badge--error",
     "components-badge--info",
+  ],
+  "widgets/notificationtoast-all": [
+    "widgets-notificationtoast--success",
+    "widgets-notificationtoast--error",
+    "widgets-notificationtoast--warning",
+    "widgets-notificationtoast--info",
+  ],
+  "widgets/usercard-all": [
+    "widgets-usercard--online",
+    "widgets-usercard--away",
+    "widgets-usercard--offline",
+    "widgets-usercard--no-status",
+  ],
+  "widgets/progressbar-all": [
+    "widgets-progressbar--in-progress",
+    "widgets-progressbar--complete",
+    "widgets-progressbar--starting",
+    "widgets-progressbar--no-label",
+  ],
+  "widgets/statcard-all": [
+    "widgets-statcard--revenue",
+    "widgets-statcard--active-users",
+    "widgets-statcard--error-rate",
+    "widgets-statcard--no-trend",
   ],
 };
 

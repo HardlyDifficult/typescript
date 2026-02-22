@@ -1,11 +1,23 @@
 import type { ReactNode } from "react";
 
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
+type BadgeSize = "sm" | "md";
 
 interface BadgeProps {
   variant?: BadgeVariant;
+  size?: BadgeSize;
   children: ReactNode;
 }
+
+const sizeStyles: Record<BadgeSize, string> = {
+  sm: "px-[var(--space-1)] py-0 text-[length:0.65rem]",
+  md: "px-[var(--space-2)] py-[var(--space-1)] text-[length:var(--text-xs)]",
+};
+
+const dotSizeStyles: Record<BadgeSize, string> = {
+  sm: "w-1 h-1",
+  md: "w-1.5 h-1.5",
+};
 
 const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string; border: string }> = {
   default: {
@@ -41,13 +53,13 @@ const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: strin
 };
 
 /** Semantic status badge with colored dot indicator. */
-export function Badge({ variant = "default", children }: BadgeProps) {
+export function Badge({ variant = "default", size = "md", children }: BadgeProps) {
   const styles = variantStyles[variant];
   return (
     <span
-      className={`inline-flex items-center gap-[var(--space-1)] px-[var(--space-2)] py-[var(--space-1)] rounded-[var(--radius-full)] text-[length:var(--text-xs)] font-medium font-[family-name:var(--font-sans)] border ${styles.bg} ${styles.text} ${styles.border}`}
+      className={`inline-flex items-center gap-[var(--space-1)] rounded-[var(--radius-full)] font-medium font-[family-name:var(--font-sans)] border ${sizeStyles[size]} ${styles.bg} ${styles.text} ${styles.border}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${styles.dot}`} />
+      <span className={`rounded-full flex-shrink-0 ${dotSizeStyles[size]} ${styles.dot}`} />
       {children}
     </span>
   );
