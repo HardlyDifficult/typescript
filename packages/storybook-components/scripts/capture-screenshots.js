@@ -8,19 +8,19 @@
  *   - agent-browser's browser must be installed (`npx agent-browser install`)
  *
  * Output:
- *   - PNG screenshots in `screenshots/<category>/<name>.png`
+ *   - PNG screenshots in `.screenshots/<category>/<name>.png`
  *   - Small components (Button, Badge, Text) are combined into composite shots
  *   - Screenshots are cropped tight to the component (no viewport whitespace)
  */
 
 import { createServer } from "node:http";
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, rm } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 
 const STORYBOOK_DIR = new URL("../storybook-static", import.meta.url).pathname;
-const SCREENSHOTS_DIR = new URL("../screenshots", import.meta.url).pathname;
+const SCREENSHOTS_DIR = new URL("../.screenshots", import.meta.url).pathname;
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -34,7 +34,7 @@ const MIME_TYPES = {
 
 /**
  * Small components are combined into a single composite screenshot.
- * Key = output filename (under screenshots/), value = story IDs to combine.
+ * Key = output filename (under .screenshots/), value = story IDs to combine.
  */
 const COMPOSITES = {
   "components/button-all": [
@@ -177,6 +177,10 @@ async function captureComposite(browser, port, name, storyIds) {
 }
 
 async function main() {
+  // Clean previous screenshots so removed/renamed stories show up as a diff
+  await rm(SCREENSHOTS_DIR, { recursive: true, force: true });
+  await mkdir(SCREENSHOTS_DIR, { recursive: true });
+
   console.log("Starting static server...");
   const { server, port } = await startServer();
   console.log(`Serving storybook-static on port ${port}`);

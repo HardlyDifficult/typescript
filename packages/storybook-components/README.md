@@ -17,7 +17,7 @@ npm run storybook
 
 ## Screenshots
 
-Screenshots are auto-captured in CI whenever `packages/storybook-components/` changes. They use `agent-browser` to visit each story and save PNGs to `screenshots/`.
+Screenshots are auto-captured in CI whenever `packages/storybook-components/` changes. They use `agent-browser` to visit each story and save PNGs to `.screenshots/`. That directory is fully regenerated on each run so removed or renamed stories show up as a clean diff.
 
 To capture locally:
 
