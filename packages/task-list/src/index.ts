@@ -22,6 +22,9 @@ export { Project } from "./Project.js";
 // Fluent builder
 export { TaskList, ProjectRef, TaskRef } from "./TaskList.js";
 
+// Watcher
+export { TaskWatcher, type TaskWatcherOptions } from "./TaskWatcher.js";
+
 // Platform implementations
 export { TrelloTaskListClient } from "./trello";
 export { LinearTaskListClient } from "./linear";
