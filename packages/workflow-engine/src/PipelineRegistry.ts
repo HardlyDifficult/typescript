@@ -10,12 +10,14 @@ import type { Pipeline } from "./Pipeline.js";
  * and re-emits a single "changed" event so consumers (e.g. dashboard broadcast)
  * can react to any pipeline state change.
  */
-export class PipelineRegistry<
-  TMeta = Record<string, unknown>,
-> {
+export class PipelineRegistry<TMeta = Record<string, unknown>> {
   private readonly entries = new Map<
     string,
-    { pipeline: Pipeline<Record<string, unknown>>; meta: TMeta; unsubscribe: () => void }
+    {
+      pipeline: Pipeline<Record<string, unknown>>;
+      meta: TMeta;
+      unsubscribe: () => void;
+    }
   >();
 
   private readonly listeners = new Set<() => void>();
@@ -27,7 +29,7 @@ export class PipelineRegistry<
   register(
     id: string,
     pipeline: Pipeline<Record<string, unknown>>,
-    meta: TMeta,
+    meta: TMeta
   ): void {
     // Unsubscribe from any previously registered pipeline with the same id
     const existing = this.entries.get(id);
@@ -55,15 +57,21 @@ export class PipelineRegistry<
 
   /** Get a single entry by id. */
   get(
-    id: string,
+    id: string
   ): { pipeline: Pipeline<Record<string, unknown>>; meta: TMeta } | undefined {
     const entry = this.entries.get(id);
-    if (!entry) return undefined;
+    if (!entry) {
+      return undefined;
+    }
     return { pipeline: entry.pipeline, meta: entry.meta };
   }
 
   /** Get all registered entries. */
-  getAll(): { id: string; pipeline: Pipeline<Record<string, unknown>>; meta: TMeta }[] {
+  getAll(): {
+    id: string;
+    pipeline: Pipeline<Record<string, unknown>>;
+    meta: TMeta;
+  }[] {
     return [...this.entries.entries()].map(([id, { pipeline, meta }]) => ({
       id,
       pipeline,
@@ -74,7 +82,9 @@ export class PipelineRegistry<
   /** Cancel a pipeline by id. Returns true if the pipeline was found and cancelled. */
   async cancel(id: string): Promise<boolean> {
     const entry = this.entries.get(id);
-    if (!entry) return false;
+    if (!entry) {
+      return false;
+    }
     await entry.pipeline.cancel();
     return true;
   }
