@@ -15,10 +15,16 @@ import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 
 const STORYBOOK_DIR = new URL("../storybook-static", import.meta.url).pathname;
 const SCREENSHOTS_DIR = new URL("../screenshots", import.meta.url).pathname;
 const SESSION = "storybook-screenshots";
+
+// Resolve the agent-browser binary once to avoid npx overhead per call
+const require = createRequire(import.meta.url);
+const agentBrowserPkg = require.resolve("agent-browser/package.json");
+const BIN = join(agentBrowserPkg, "..", "bin", "agent-browser.js");
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -31,7 +37,7 @@ const MIME_TYPES = {
 };
 
 function ab(args) {
-  return execFileSync("npx", ["agent-browser", "--session", SESSION, ...args], {
+  return execFileSync("node", [BIN, "--session", SESSION, ...args], {
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf-8",
     timeout: 30_000,
