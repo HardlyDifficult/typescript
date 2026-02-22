@@ -1,5 +1,7 @@
 export { DataCursor } from "./DataCursor.js";
 export { Pipeline } from "./Pipeline.js";
+export { PipelineRegistry } from "./PipelineRegistry.js";
+export { parsePipelineStatus } from "./parsePipelineStatus.js";
 export { WorkflowEngine } from "./WorkflowEngine.js";
 export type {
   ChangeListener,
@@ -19,3 +21,4 @@ export type {
   StepExecutor,
   StepState,
 } from "./pipelineTypes.js";
+export type { ParsedPipelineStatus } from "./parsePipelineStatus.js";
