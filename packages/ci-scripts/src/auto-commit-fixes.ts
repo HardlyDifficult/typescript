@@ -31,10 +31,15 @@ function exec(command: string, ignoreError = false): string {
 function hasChanges(): boolean {
   try {
     execSync("git diff --exit-code", { stdio: "pipe" });
-    return false;
   } catch {
     return true;
   }
+  // Also check for untracked files (git diff only sees tracked files)
+  const untracked = execSync("git ls-files --others --exclude-standard", {
+    encoding: "utf-8",
+    stdio: "pipe",
+  }).trim();
+  return untracked.length > 0;
 }
 
 function sleep(ms: number): Promise<void> {
