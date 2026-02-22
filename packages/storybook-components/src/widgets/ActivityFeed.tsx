@@ -69,8 +69,8 @@ function Avatar({ name, avatar }: { name: string; avatar?: string }) {
     <div
       className="w-8 h-8 rounded-full flex items-center justify-center text-[length:var(--text-xs)] font-semibold font-[family-name:var(--font-sans)] flex-shrink-0 select-none"
       style={{
-        backgroundColor: `var(--color-avatar-${idx}-bg)`,
-        color: `var(--color-avatar-${idx}-text)`,
+        backgroundColor: `var(--color-avatar-${String(idx)}-bg)`,
+        color: `var(--color-avatar-${String(idx)}-text)`,
       }}
     >
       {getInitials(name)}
