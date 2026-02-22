@@ -17,15 +17,19 @@
 
   /* Status */
   --color-success:        #16a34a;
+  --color-success-dark:   #14532d;
   --color-success-subtle: #f0fdf4;
   --color-success-border: #bbf7d0;
   --color-warning:        #d97706;
+  --color-warning-dark:   #78350f;
   --color-warning-subtle: #fffbeb;
   --color-warning-border: #fde68a;
   --color-error:          #dc2626;
+  --color-error-dark:     #7f1d1d;
   --color-error-subtle:   #fef2f2;
   --color-error-border:   #fecaca;
   --color-info:           #0284c7;
+  --color-info-dark:      #0c4a6e;
   --color-info-subtle:    #f0f9ff;
   --color-info-border:    #bae6fd;
 
