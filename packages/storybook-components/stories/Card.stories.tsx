@@ -12,7 +12,6 @@ type Story = StoryObj<typeof Card>;
 
 export const Default: Story = {
   args: {
-    padding: "md",
     children: (
       <>
         <Text variant="subheading">PR #142</Text>
@@ -23,16 +22,8 @@ export const Default: Story = {
   },
 };
 
-export const SmallPadding: Story = {
+export const WithHeading: Story = {
   args: {
-    padding: "sm",
-    children: <Text variant="body">Compact card content</Text>,
-  },
-};
-
-export const LargePadding: Story = {
-  args: {
-    padding: "lg",
     children: (
       <>
         <Text variant="heading">Welcome</Text>

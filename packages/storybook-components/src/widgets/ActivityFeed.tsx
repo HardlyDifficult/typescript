@@ -1,6 +1,5 @@
 import { Badge } from "../components/Badge.js";
 import { Card } from "../components/Card.js";
-import { Stack } from "../components/Stack.js";
 import { Text } from "../components/Text.js";
 
 export interface ActivityEvent {
@@ -15,14 +14,13 @@ export interface ActivityEvent {
 interface ActivityFeedProps {
   events: ActivityEvent[];
   title?: string;
-  className?: string;
 }
 
 const statusLabels: Record<ActivityEvent["status"], string> = {
   success: "Success",
-  error: "Error",
+  error:   "Error",
   warning: "Warning",
-  info: "Info",
+  info:    "Info",
   pending: "Pending",
 };
 
@@ -48,47 +46,68 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
+function getAvatarIndex(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 6;
+}
+
 function Avatar({ name, avatar }: { name: string; avatar?: string }) {
   if (avatar !== undefined) {
     return (
       <img
         src={avatar}
         alt={name}
-        className="w-8 h-8 rounded-full object-cover"
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
       />
     );
   }
+  const idx = getAvatarIndex(name);
   return (
-    <div className="w-8 h-8 rounded-full bg-[color:var(--color-accent-subtle)] text-[color:var(--color-accent)] flex items-center justify-center text-[length:var(--text-xs)] font-medium font-[family-name:var(--font-sans)]">
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center text-[length:var(--text-xs)] font-semibold font-[family-name:var(--font-sans)] flex-shrink-0 select-none"
+      style={{
+        backgroundColor: `var(--color-avatar-${idx}-bg)`,
+        color: `var(--color-avatar-${idx}-text)`,
+      }}
+    >
       {getInitials(name)}
     </div>
   );
 }
 
-function EventRow({ event }: { event: ActivityEvent }) {
+function EventRow({ event, isLast }: { event: ActivityEvent; isLast: boolean }) {
   const badgeVariant = event.status === "pending" ? "default" : event.status;
   return (
-    <div className="flex items-start gap-[var(--space-3)] py-[var(--space-3)]">
+    <div className="relative flex items-start gap-[var(--space-3)] py-[var(--space-3)]">
+      {event.actor && !isLast && (
+        <span
+          className="absolute left-4 top-11 bottom-0 w-px bg-[color:var(--color-border)]"
+          aria-hidden="true"
+        />
+      )}
       {event.actor && (
         <Avatar name={event.actor.name} avatar={event.actor.avatar} />
       )}
       <div className="flex-1 min-w-0">
-        <Stack direction="horizontal" gap="sm" align="center">
-          <Text variant="body" className="!text-[length:var(--text-sm)] !text-[color:var(--color-text)] truncate">
+        <div className="flex items-start gap-[var(--space-2)] flex-wrap">
+          <span className="text-[length:var(--text-sm)] font-medium text-[color:var(--color-text)] font-[family-name:var(--font-sans)] leading-[var(--leading-snug)] flex-1 min-w-0">
             {event.message}
-          </Text>
+          </span>
           <Badge variant={badgeVariant}>{statusLabels[event.status]}</Badge>
-        </Stack>
-        <Stack direction="horizontal" gap="sm" align="center">
+        </div>
+        <div className="flex items-center gap-[var(--space-2)] mt-[var(--space-1)]">
           {event.actor && (
             <Text variant="caption">{event.actor.name}</Text>
           )}
           <Text variant="caption">{formatRelativeTime(event.timestamp)}</Text>
-        </Stack>
+        </div>
         {event.detail !== undefined && (
-          <Text variant="caption" className="mt-[var(--space-1)]">
-            {event.detail}
-          </Text>
+          <div className="mt-[var(--space-1)]">
+            <Text variant="caption">{event.detail}</Text>
+          </div>
         )}
       </div>
     </div>
@@ -99,23 +118,23 @@ function EventRow({ event }: { event: ActivityEvent }) {
 export function ActivityFeed({
   events,
   title = "Recent Activity",
-  className = "",
 }: ActivityFeedProps) {
   return (
-    <Card padding="lg" className={`w-96 ${className}`.trim()}>
-      <Text variant="subheading" className="mb-[var(--space-4)]">
-        {title}
-      </Text>
-      <div className="divide-y divide-[color:var(--color-border)]">
-        {events.map((event) => (
-          <EventRow key={event.id} event={event} />
-        ))}
+    <Card>
+      <div className="w-80">
+        <Text variant="subheading">{title}</Text>
+        <div className="mt-[var(--space-4)]">
+          {events.map((event, index) => (
+            <EventRow key={event.id} event={event} isLast={index === events.length - 1} />
+          ))}
+        </div>
+        {events.length === 0 && (
+          <div className="flex flex-col items-center py-[var(--space-8)] gap-[var(--space-2)]">
+            <span className="text-2xl select-none" aria-hidden="true">–</span>
+            <Text variant="caption">No activity yet</Text>
+          </div>
+        )}
       </div>
-      {events.length === 0 && (
-        <Text variant="caption" className="text-center py-[var(--space-6)]">
-          No activity yet
-        </Text>
-      )}
     </Card>
   );
 }

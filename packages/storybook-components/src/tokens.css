@@ -1,54 +1,79 @@
 :root {
-  /* Colors — neutral slate palette */
-  --color-bg: #ffffff;
-  --color-bg-subtle: #f8fafc;
-  --color-bg-muted: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-border-strong: #cbd5e1;
-  --color-text: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
+  /* Colors — warm stone palette */
+  --color-bg:             #ffffff;
+  --color-bg-subtle:      #fafaf9;
+  --color-bg-muted:       #f5f5f4;
+  --color-border:         #e7e5e4;
+  --color-border-strong:  #d6d3d1;
+  --color-text:           #1c1917;
+  --color-text-secondary: #57534e;
+  --color-text-muted:     #a8a29e;
 
-  /* Accent */
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-subtle: #eff6ff;
+  /* Accent — violet */
+  --color-accent:        #7c3aed;
+  --color-accent-hover:  #6d28d9;
+  --color-accent-subtle: #f5f3ff;
+  --color-accent-border: #ddd6fe;
 
   /* Status */
-  --color-success: #16a34a;
+  --color-success:        #16a34a;
   --color-success-subtle: #f0fdf4;
-  --color-warning: #d97706;
+  --color-success-border: #bbf7d0;
+  --color-warning:        #d97706;
   --color-warning-subtle: #fffbeb;
-  --color-error: #dc2626;
-  --color-error-subtle: #fef2f2;
-  --color-info: #2563eb;
-  --color-info-subtle: #eff6ff;
+  --color-warning-border: #fde68a;
+  --color-error:          #dc2626;
+  --color-error-subtle:   #fef2f2;
+  --color-error-border:   #fecaca;
+  --color-info:           #0284c7;
+  --color-info-subtle:    #f0f9ff;
+  --color-info-border:    #bae6fd;
+
+  /* Avatar palette — 6 hashed color pairs */
+  --color-avatar-0-bg: #f5f3ff; --color-avatar-0-text: #6d28d9;
+  --color-avatar-1-bg: #fdf4ff; --color-avatar-1-text: #a21caf;
+  --color-avatar-2-bg: #fef3c7; --color-avatar-2-text: #b45309;
+  --color-avatar-3-bg: #ecfdf5; --color-avatar-3-text: #047857;
+  --color-avatar-4-bg: #eff6ff; --color-avatar-4-text: #1d4ed8;
+  --color-avatar-5-bg: #fff1f2; --color-avatar-5-text: #be123c;
 
   /* Spacing */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
 
   /* Typography */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
   --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.625rem;
+
+  --leading-tight:   1.25;
+  --leading-snug:    1.375;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.7;
+
+  --tracking-tighter: -0.04em;
+  --tracking-tight:   -0.02em;
 
   /* Radii */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-sm:   0.25rem;
+  --radius-md:   0.625rem;
+  --radius-lg:   1rem;
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm:     0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md:     0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg:     0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lift:   0 8px 25px -5px rgba(0, 0, 0, 0.10), 0 4px 10px -3px rgba(0, 0, 0, 0.05);
+  --shadow-accent: 0 0 0 1px rgba(124, 58, 237, 0.15), 0 2px 8px rgba(124, 58, 237, 0.25);
 }

@@ -29,7 +29,6 @@ export const Horizontal: Story = {
   args: {
     direction: "horizontal",
     gap: "sm",
-    align: "center",
     children: (
       <>
         <Button variant="primary" size="sm">
