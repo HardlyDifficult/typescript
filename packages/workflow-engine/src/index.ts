@@ -3,6 +3,17 @@ export { Pipeline } from "./Pipeline.js";
 export { PipelineRegistry } from "./PipelineRegistry.js";
 export { parsePipelineStatus } from "./parsePipelineStatus.js";
 export { WorkflowEngine } from "./WorkflowEngine.js";
+export {
+  WorkflowEngineError,
+  InvalidInitialStatusError,
+  TerminalTransitionError,
+  InvalidTransitionError,
+  PipelineHasNoStepsError,
+  DuplicatePipelineStepNameError,
+  PipelineResumeError,
+  CursorTargetNotFoundError,
+  StepExecutionMissingError,
+} from "./errors.js";
 export type {
   ChangeListener,
   WorkflowEngineOptions,
