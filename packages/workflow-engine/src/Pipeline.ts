@@ -1,6 +1,11 @@
 import type { Logger } from "@hardlydifficult/logger";
 
 import { buildTransitions, statusForStep } from "./buildTransitions.js";
+import {
+  DuplicatePipelineStepNameError,
+  PipelineHasNoStepsError,
+  PipelineResumeError,
+} from "./errors.js";
 import type {
   PipelineData,
   PipelineHooks,
@@ -41,13 +46,13 @@ export class Pipeline<TData extends Record<string, unknown>> {
     const { steps, initialData, logger, hooks } = options;
 
     if (steps.length === 0) {
-      throw new Error("Pipeline requires at least one step");
+      throw new PipelineHasNoStepsError();
     }
 
     const names = new Set<string>();
     for (const step of steps) {
       if (names.has(step.name)) {
-        throw new Error(`Duplicate step name: "${step.name}"`);
+        throw new DuplicatePipelineStepNameError(step.name);
       }
       names.add(step.name);
     }
@@ -174,9 +179,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
    */
   async resume(data?: Partial<TData>): Promise<void> {
     if (!this.isWaitingAtGate) {
-      throw new Error(
-        `Cannot resume: pipeline is not at a gate (status: "${this.status}")`
-      );
+      throw new PipelineResumeError(this.status);
     }
 
     const index = this.engine.data.currentStepIndex;

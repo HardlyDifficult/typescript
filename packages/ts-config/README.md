@@ -1,6 +1,6 @@
 # @hardlydifficult/ts-config
 
-Opinionated ESLint, Prettier, and TypeScript config package with Next.js support.
+Centralized TypeScript/ESLint/Prettier configuration package for consistent tooling across projects.
 
 ## Installation
 
@@ -10,22 +10,22 @@ npm install @hardlydifficult/ts-config
 
 ## Quick Start
 
+Configure your project with shared ESLint, Prettier, and TypeScript settings:
+
 ```typescript
-// .eslintrc.cjs
+// eslint.config.mjs
 import createConfig from "@hardlydifficult/ts-config/eslint";
 import createNextConfig from "@hardlydifficult/ts-config/eslint-next";
 import prettierConfig from "@hardlydifficult/ts-config/prettier";
 
 export default [
-  ...createConfig(__dirname),
+  createConfig(process.cwd()),
   // For Next.js projects:
-  // ...createNextConfig(__dirname, [
-  //   ...nextConfig,
-  // ]),
+  // createNextConfig(process.cwd(), nextConfig),
 ];
 ```
 
-```json
+```jsonc
 // .prettierrc.json
 {
   "semi": true,
@@ -47,92 +47,140 @@ export default [
 }
 ```
 
-## ESLint Configurations
+```jsonc
+// tsconfig.json
+{
+  "extends": "@hardlydifficult/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"]
+}
+```
 
-### Base ESLint Config
+## ESLint Configuration
 
-The shared ESLint flat config provides strict type-checking, import ordering, JSDoc, and code style rules for TypeScript projects.
+Shared ESLint flat config for TypeScript projects with strict type checking, import rules, and JSDoc enforcement.
+
+### `createConfig(projectRoot: string)`
+
+Creates the base ESLint configuration with:
+
+- Strict TypeScript rules (`tseslit`) with type checking
+- JSDoc validation requiring docs for exported declarations
+- Import ordering and cycle detection
+- Unused import removal
+- Auto-fixable rules (e.g., `prefer-const`, `prefer-template`)
+- Skips common build and config directories (e.g., `dist`, `node_modules`, `.next`, `.turbo`)
 
 ```typescript
 import createConfig from "@hardlydifficult/ts-config/eslint";
-import type { Linter } from "eslint";
 
-const config: Linter.Config[] = createConfig("path/to/project/root");
+export default createConfig(process.cwd());
 ```
 
-**Key Features:**
-- TypeScript strict type-checking via `typescript-eslint`
-- Import ordering with `eslint-plugin-import-x`
-- JSDoc enforcement on exported symbols via `eslint-plugin-jsdoc`
-- Unused import removal via `eslint-plugin-unused-imports`
-- Code style enforcement (e.g., `prefer-const`, `no-var`, `curly: "all"`)
+### Ignored Patterns
 
-**Ignores:**
-- `**/dist/**`
-- `**/node_modules/**`
-- `**/*.js`
-- `**/tests/**`
-- `**/vitest.config.ts`
-- `**/.next/**`
-- `**/.turbo/**`
-- `**/*.config.mjs`
+By default, ESLint ignores:
 
-### Next.js ESLint Config
+```
+**/dist/**, **/node_modules/**, **/*.js,
+**/tests/**, **/vitest.config.ts,
+**/.next/**, **/.turbo/**, **/*.config.mjs
+```
 
-For Next.js projects, combine the base config with Next-specific rules.
+## Next.js ESLint Configuration
+
+Extended ESLint setup for Next.js projects with React-specific rules.
+
+### `createNextConfig(projectRoot: string, nextConfig: Linter.Config[])`
+
+Combines the base ESLint config with Next.js and React rules.
 
 ```typescript
 import createNextConfig from "@hardlydifficult/ts-config/eslint-next";
-import type { Linter } from "eslint";
-import nextConfig from "./next.config.js";
+import nextPlugin from "@next/eslint-plugin-next";
 
-const config: Linter.Config[] = createNextConfig(__dirname, [
-  ...(nextConfig as Linter.Config[]),
-]);
+const nextConfig = [
+  {
+    plugins: {
+      next: nextPlugin,
+    },
+    rules: {
+      "next/no-img-element": "warn",
+    },
+  },
+];
+
+export default createNextConfig(process.cwd(), nextConfig);
 ```
 
-**Next-specific rules:**
-- Disables React scope rule (`react/react-in-jsx-scope: "off"`)
-- Disables prop-types (`react/prop-types: "off"`)
-- Enforces self-closing components for components and HTML
-- Enforces consistent JSX boolean value style (`never`)
-- Warns on array index keys
-- Enforces JSX curly brace presence (`props: "never", children: "never"`)
+#### React Rules
+
+| Rule | Level | Options |
+|------|-------|---------|
+| `react/react-in-jsx-scope` | off | — |
+| `react/prop-types` | off | — |
+| `react/self-closing-comp` | error | `{ component: true, html: true }` |
+| `react/jsx-boolean-value` | error | `"never"` |
+| `react/no-array-index-key` | warn | — |
+| `react/jsx-curly-brace-presence` | error | `{ props: "never", children: "never" }` |
 
 ## Prettier Configuration
 
-Prettier code formatting configuration for TypeScript/JavaScript projects.
+Standardized code formatting for TypeScript/JavaScript projects.
+
+### `prettierConfig: Config`
+
+Exports the predefined Prettier configuration with consistent formatting rules.
 
 ```typescript
-import prettierConfig from "@hardlydifficult/ts-config/prettier";
+import config from "@hardlydifficult/ts-config/prettier";
 
-export default prettierConfig;
+// Use in your .prettierrc.js
+export default config;
 ```
 
-| Option                      | Value                    |
-|-----------------------------|--------------------------|
-| `semi`                      | `true`                   |
-| `singleQuote`               | `false`                  |
-| `tabWidth`                  | `2`                      |
-| `useTabs`                   | `false`                  |
-| `trailingComma`             | `"es5"`                  |
-| `bracketSpacing`            | `true`                   |
-| `bracketSameLine`           | `false`                  |
-| `arrowParens`               | `"always"`               |
-| `endOfLine`                 | `"lf"`                   |
-| `printWidth`                | `80`                     |
-| `quoteProps`                | `"as-needed"`            |
-| `jsxSingleQuote`            | `false`                  |
-| `proseWrap`                 | `"preserve"`             |
-| `htmlWhitespaceSensitivity` | `"css"`                  |
-| `embeddedLanguageFormatting`| `"auto"`                 |
-| `singleAttributePerLine`    | `false`                  |
+#### Formatting Options
+
+| Option | Value |
+|--------|-------|
+| `semi` | `true` |
+| `singleQuote` | `false` |
+| `tabWidth` | `2` |
+| `useTabs` | `false` |
+| `trailingComma` | `"es5"` |
+| `bracketSpacing` | `true` |
+| `bracketSameLine` | `false` |
+| `arrowParens` | `"always"` |
+| `endOfLine` | `"lf"` |
+| `printWidth` | `80` |
+| `quoteProps` | `"as-needed"` |
+| `jsxSingleQuote` | `false` |
+| `proseWrap` | `"preserve"` |
+| `htmlWhitespaceSensitivity` | `"css"` |
+| `embeddedLanguageFormatting` | `"auto"` |
+| `singleAttributePerLine` | `false` |
+
+### Usage with Prettier API
+
+```typescript
+import prettierConfig from "@hardlydifficult/ts-config/prettier.js";
+import { format } from "prettier";
+
+const formatted = await format("console.log('Hello');", {
+  ...prettierConfig,
+  parser: "typescript",
+});
+```
 
 ## TypeScript Configuration
 
-### Base tsconfig
+Base compiler options for consistent builds across projects.
 
-Provides strict settings and modern ES2022 features for consistent builds across the project.
+### `tsconfig.base.json`
+
+The base configuration includes strict type checking, ES2022 targeting, and modern module resolution:
 
 ```json
 {
@@ -154,34 +202,40 @@ Provides strict settings and modern ES2022 features for consistent builds across
 }
 ```
 
-### Project tsconfig
+To extend in a project:
 
-Base TypeScript configuration for Node.js projects.
-
-```json
+```jsonc
 {
+  "extends": "@hardlydifficult/ts-config/tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "node16",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
+    "outDir": "./dist"
   },
   "include": ["src/**/*"]
 }
 ```
 
-## API Reference
+### Node Config (`tsconfig.json`)
 
-| Export                 | Type              | Description                                           |
-|------------------------|-------------------|-------------------------------------------------------|
-| `eslint`               | `function`        | Creates the shared ESLint config for TypeScript       |
-| `eslint-next`          | `function`        | Creates ESLint config for Next.js projects            |
-| `prettier`             | `object`          | Prettier configuration object                         |
-| `tsconfig.base.json`   | `string` (path)   | Base TypeScript configuration (copied to output dir) |
+Node-specific configuration extending the base config with:
+
+- `module: "Node16"` and `moduleResolution: "node16"`
+- `outDir: "./dist"` and `rootDir: "./src"`
+
+## Appendix
+
+### Rule Categories
+
+The ESLint config enforces auto-fixable and non-auto-fixable rules:
+
+| Auto-fixable | Non-auto-fixable |
+|--------------|------------------|
+| `curly`, `no-useless-computed-key`, `prefer-const`, `quote-props` | `no-console` (limited), `no-restricted-globals`, `no-loop-func` |
+
+### JSDoc Requirements
+
+JSDoc is required for:
+
+- `FunctionDeclaration`
+- `ClassDeclaration`
+- Public methods are excluded
+- Constructors are not checked

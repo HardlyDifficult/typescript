@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
+import { TaskListApiError } from "../src/errors.js";
 import { TrelloTaskListClient } from "../src/trello/TrelloTaskListClient.js";
 
 const mockFetch = vi.fn();
@@ -70,9 +71,9 @@ describe("TrelloTaskListClient", () => {
 
   it("throws on API error", async () => {
     mockFetch.mockResolvedValueOnce(errorResponse(401, "unauthorized"));
-    await expect(client.getTask("c1")).rejects.toThrow(
-      "Trello API error: 401 unauthorized"
-    );
+    const error = await client.getTask("c1").catch((e) => e);
+    expect(error).toBeInstanceOf(TaskListApiError);
+    expect((error as TaskListApiError).code).toBe("API_ERROR");
   });
 
   describe("getTask", () => {

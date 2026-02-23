@@ -1,3 +1,4 @@
+import { CursorTargetNotFoundError } from "./errors.js";
 import type { WorkflowEngine } from "./WorkflowEngine.js";
 
 /**
@@ -22,7 +23,7 @@ export class DataCursor<TStatus extends string, TData, TItem> {
   get(): TItem {
     const item = this.selector(this.engine.data as TData);
     if (item === undefined) {
-      throw new Error("Cursor target not found");
+      throw new CursorTargetNotFoundError();
     }
     return item;
   }
