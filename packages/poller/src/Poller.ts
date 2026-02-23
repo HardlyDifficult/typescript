@@ -149,8 +149,8 @@ function deepEqual(a: unknown, b: unknown): boolean {
     return false;
   }
 
-  const aEntries = Object.entries(a);
-  const bEntries = Object.entries(b);
+  const aEntries = Object.entries(a as Record<string, unknown>);
+  const bEntries = Object.entries(b as Record<string, unknown>);
 
   if (aEntries.length !== bEntries.length) {
     return false;
