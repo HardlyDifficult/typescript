@@ -7,64 +7,69 @@ Focused, opinionated, easy-to-use npm packages for building robust, scalable Typ
 ### AI & LLMs
 
 | Package | Description |
-|---------|-----------|
-| [`ai`](./packages/ai) | Unified AI/LLM client and agent orchestration (Anthropic/Ollama), tool-calling, streaming, caching, and multimodal message handling |
-| [`agent-tools`](./packages/agent-tools) | Core agent tooling: config-driven I/O limits, GitHub-style path parsing, and error/result helpers |
+|---------|-------------|
+| [ai](./packages/ai) | Unified AI/LLM client abstraction (Anthropic/Ollama) with tool-calling, streaming, caching, and multimodal message handling |
+| [agent-tools](./packages/agent-tools) | Core agent tooling: config-driven I/O limits, GitHub-style path parsing, and error/result helpers |
 
 ### GitHub & CI/CD
 
 | Package | Description |
-|---------|-----------|
-| [`ci-scripts`](./packages/ci-scripts) | CI/CD automation: auto-fix commits, pinned dep validation, and topologically resolved publishing with git tagging |
-| [`github`](./packages/github) | GitHub PR monitoring: polling-based change detection, state snapshots, timeline building, and event-driven watching |
-| [`pr-analyzer`](./packages/pr-analyzer) | PR analysis pipeline: CI/review/conflict detection, action classification (ready/blocked), and merge automation suggestions |
-| [`repo-processor`](./packages/repo-processor) | Incremental repo processor: SHA-based change detection, parallel traversal, and git-backed YAML state persistence |
+|---------|-------------|
+| [ci-scripts](./packages/ci-scripts) | Monorepo automation: auto-fix commits, pinned dep validation, topologically resolved publishing with git tagging |
+| [github](./packages/github) | GitHub polling, PR monitoring, branch/PR activity detection, and Octokit-based event watching |
+| [pr-analyzer](./packages/pr-analyzer) | PR analysis pipeline: status, reviews, conflicts, bot mentions → classification & action availability |
+| [repo-processor](./packages/repo-processor) | Incremental GitHub repo processor: SHA-based change detection, parallel file traversal, git-backed YAML state |
 
 ### Async & Control Flow
 
 | Package | Description |
-|---------|-----------|
-| [`poller`](./packages/poller) | Generic polling utility with debouncing, concurrent fetch skipping, and shallow/deep change detection |
-| [`queue`](./packages/queue) | High-performance priority queue (O(1) ops) with FIFO within priority and dynamic priority updates |
-| [`throttle`](./packages/throttle) | Rate limiting & retries: token-bucket throttling, exponential backoff, network error detection, and promise wrapping |
-| [`worker-server`](./packages/worker-server) | WebSocket-based server for managing live workers with heartbeat checks and category-specific concurrency controls |
-| [`daemon`](./packages/daemon) | Daemon utilities for Node |
+|---------|-------------|
+| [poller](./packages/poller) | Generic polling utility: debounced triggers, concurrent skip tracking, shallow/deep equality change detection |
+| [queue](./packages/queue) | High-performance priority queue: O(1) ops, FIFO within buckets, dynamic priority updates via observers |
+| [throttle](./packages/throttle) | Rate limiting: token-bucket with persistence, exponential backoff, transient error detection, retry wrapping |
+| [daemon](./packages/daemon) | Node daemon utilities for background process management |
+| [worker-server](./packages/worker-server) | WebSocket worker server with health checks, heartbeat monitoring, and category-specific concurrency |
 
-### Messaging & HTTP
+### Messaging & UI
 
 | Package | Description |
-|---------|-----------|
-| [`chat`](./packages/chat) | Cross-platform chat abstraction (Discord/Slack) for messaging, threads, commands, streaming, and batch operations |
-| [`http`](./packages/http) | Safe HTTP utilities: configurable body size limits, JSON/CORS responses, and safe cookie handling |
-| [`websocket`](./packages/websocket) | High-fidelity WebSocket client with exponential backoff reconnection, proactive token refresh, and heartbeat health checks |
-| [`rest-client`](./packages/rest-client) | Typed REST client with Zod validation, retry logic, OAuth2/bearer auth, and structured error handling (built atop Axios) |
+|---------|-------------|
+| [chat](./packages/chat) | Cross-platform chat abstraction (Discord/Slack): unified APIs for messaging, threads, commands, streaming |
+| [websocket](./packages/websocket) | WebSocket client with exponential backoff, token refresh, request tracking, and heartbeat health checks |
+| [storybook-components](./packages/storybook-components) | React UI components with Storybook 10 integration, Tailwind CSS, and ESM/Vite-first tooling |
 
 ### Data & State
 
 | Package | Description |
-|---------|-----------|
-| [`state-tracker`](./packages/state-tracker) | State persistence engine with atomic JSON writes, schema migrations, debounced auto-save, and fallback to in-memory |
-| [`usage-tracker`](./packages/usage-tracker) | Usage tracking with session/cumulative metrics, USD cost monitoring, and time-windowed spend limits |
-| [`collections`](./packages/collections) | Array chunking and filesystem path depth grouping optimized for bottom-up directory processing |
-| [`text`](./packages/text) | Text utilities: chunking, YAML/JSON conversion, markdown escaping, templating, slugification, and linkification |
-| [`date-time`](./packages/date-time) | Strongly-typed TimeSpan utility with unit-aware multipliers and configurable TimeUnit enum |
+|---------|-------------|
+| [state-tracker](./packages/state-tracker) | Robust state persistence: atomic JSON writes, schema migrations, debounced auto-save, fallback mode |
+| [collections](./packages/collections) | Array chunking and filesystem path depth grouping for bottom-up directory processing |
+| [usage-tracker](./packages/usage-tracker) | Usage & spend tracking: session/cumulative metrics, USD limits, cross-session persistence |
 
-### Utilities & Tooling
+### Utilities & Helpers
 
 | Package | Description |
-|---------|-----------|
-| [`document-generator`](./packages/document-generator) | Structured doc generation with fluent API for headers/lists/links, supporting Markdown, Slack mrkdwn, and plain text |
-| [`logger`](./packages/logger) | Pluggable structured logging with console/file/Discord plugins, per-plugin filtering, JSONL session tracking |
-| [`task-list`](./packages/task-list) | Unified task abstraction for Trello/Linear with abstract client, shared models, and polling TaskWatcher |
-| [`shared-config`](./packages/shared-config) | Centralized config: TypeScript, postinstall sync, and npm scripts for build/linting |
-| [`ts-config`](./packages/ts-config) | Shared TypeScript/ESLint/Prettier configs (flat configs for base + Next.js) |
-| [`storybook-components`](./packages/storybook-components) | React + Storybook component library with Tailwind, TypeScript, and headless visual regression testing |
+|---------|-------------|
+| [http](./packages/http) | Safe HTTP utilities: body size limits, CORS JSON responses, client error handling |
+| [text](./packages/text) | Text processing: chunking, markdown escaping, YAML/JSON conversion, templating, linkification |
+| [date-time](./packages/date-time) | Strongly-typed TimeSpan with unit-aware multipliers and configurable TimeUnit enum |
+| [document-generator](./packages/document-generator) | Fluent document builder for Markdown, Slack mrkdwn, and plain text with platform-aware formatting |
+| [logger](./packages/logger) | Structured logging with pluggable outputs (console/file/Discord), per-plugin filtering, JSONL session tracking |
+| [rest-client](./packages/rest-client) | Typed REST client: Zod validation, OAuth2/bearer auth, retry logic, Axios-based |
+
+### Tooling & Config
+
+| Package | Description |
+|---------|-------------|
+| [shared-config](./packages/shared-config) | Centralized config: TypeScript, npm scripts, and postinstall auto-sync of config files |
+| [ts-config](./packages/ts-config) | Shared TypeScript/ESLint/Prettier configs with flat ESLint configs (base + Next.js) |
+| [task-list](./packages/task-list) | Provider-agnostic task list abstraction (Trello/Linear) with polling TaskWatcher |
 
 ## GitHub Actions Setup
 
-Required repository secrets:
+This monorepo uses automated CI/CD via GitHub Actions. Required repository secrets:
 
-- `NPM_TOKEN`: For automated npm publishing (package versioning and tag creation)
-- `PAT_TOKEN`: For GitHub API access (PR monitoring, auto-fix commits, and CI integration)
+- `NPM_TOKEN`: For publishing packages to npm
+- `PAT_TOKEN`: For auto-fix commits, git tagging, and CI automation (requires `repo` scope)
 
 See individual package READMEs for usage details.
