@@ -109,7 +109,6 @@ describe("Poller", () => {
     poller.stop();
   });
 
-
   it("supports a custom comparator", async () => {
     const fetchFn = vi
       .fn<() => Promise<number>>()

@@ -160,8 +160,12 @@ function defaultIsEqual<T>(a: T, b: T | undefined): boolean {
   }
 }
 
-function isPrimitive(value: unknown): value is null | undefined | string | number | boolean | symbol | bigint {
-  return value === null || (typeof value !== "object" && typeof value !== "function");
+function isPrimitive(
+  value: unknown
+): value is null | undefined | string | number | boolean | symbol | bigint {
+  return (
+    value === null || (typeof value !== "object" && typeof value !== "function")
+  );
 }
 
 function isPlainObjectOrArray(value: unknown): value is object {
@@ -173,7 +177,9 @@ function isPlainObjectOrArray(value: unknown): value is object {
     return false;
   }
 
-  const prototype: object | null = Object.getPrototypeOf(value) as object | null;
+  const prototype: object | null = Object.getPrototypeOf(value) as
+    | object
+    | null;
   return prototype === Object.prototype || prototype === null;
 }
 
