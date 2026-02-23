@@ -50,7 +50,7 @@ export class TaskNotFoundError extends TaskListError {
 export class StatusNotFoundError extends TaskListError {
   constructor(name: string, projectName?: string) {
     super(
-      projectName
+      projectName !== undefined
         ? `Status "${name}" not found in project "${projectName}"`
         : `Status "${name}" not found`,
       "STATUS_NOT_FOUND",
@@ -68,7 +68,7 @@ export class StatusIdNotFoundError extends TaskListError {
 export class LabelNotFoundError extends TaskListError {
   constructor(name: string, projectName?: string) {
     super(
-      projectName
+      projectName !== undefined
         ? `Label "${name}" not found in project "${projectName}"`
         : `Label "${name}" not found`,
       "LABEL_NOT_FOUND",
