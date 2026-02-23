@@ -70,3 +70,23 @@ This monorepo uses automated CI/CD via GitHub Actions. Required repository secre
 - `PAT_TOKEN`: For auto-fix commits, git tagging, and CI automation (requires `repo` scope)
 
 See individual package READMEs for usage details.
+
+## Contributor: Runtime & Package Metadata Policy
+
+To keep package behavior and CI predictable across the monorepo:
+
+- **Node.js baseline:** all workspace packages under `packages/*` must declare `"engines": { "node": ">=20.19.0" }`.
+- **Required package metadata:** each package `package.json` must include `name`, `version`, `files`, `scripts`, and `engines`.
+- **Required scripts:** each package must define `build` and `clean` scripts.
+
+Validation is enforced by CI via:
+
+```bash
+node packages/ci-scripts/dist/check-package-metadata.js
+```
+
+You can run the same check locally with:
+
+```bash
+npm run validate:packages
+```
