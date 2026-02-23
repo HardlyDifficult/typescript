@@ -22,7 +22,7 @@ export function Card({ title, footer, children }: CardProps) {
         {children}
       </div>
       {footer !== undefined && (
-        <div className="px-[var(--space-6)] pb-[var(--space-6)] pt-[var(--space-4)] border-t border-[color:var(--color-border)]">
+        <div className="px-[var(--space-6)] py-[var(--space-3)] border-t border-[color:var(--color-border)]">
           {footer}
         </div>
       )}
