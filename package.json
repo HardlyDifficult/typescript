@@ -13,13 +13,13 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "lint": "eslint --config .config/eslint.config.js packages/",
+    "lint": "eslint --config .config/eslint.config.js packages/ && npm run validate:manifests",
     "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
     "format": "prettier --write \"packages/**/*.ts\"",
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
     "clean": "turbo run clean",
-    "validate:packages": "node packages/ci-scripts/dist/check-package-metadata.js"
+"validate:manifests": "node ./scripts/validate-package-manifests.mjs"
   },
   "devDependencies": {
     "@eslint/compat": "2.0.2",

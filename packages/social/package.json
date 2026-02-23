@@ -19,7 +19,15 @@
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   },
+  "type": "commonjs",
   "engines": {
     "node": ">=20.19.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
   }
 }
