@@ -18,7 +18,8 @@
     "format": "prettier --write \"packages/**/*.ts\"",
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "validate:packages": "node packages/ci-scripts/dist/check-package-metadata.js"
   },
   "devDependencies": {
     "@eslint/compat": "2.0.2",

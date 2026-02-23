@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
@@ -14,6 +16,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   }
 }

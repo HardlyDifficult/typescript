@@ -7,9 +7,15 @@
     "lint": "tsc --noEmit",
     "postinstall": "node -e \"try{require('./dist/postinstall.js')}catch{}\""
   },
-  "files": ["dist", "files"],
+  "files": [
+    "dist",
+    "files"
+  ],
   "devDependencies": {
     "@types/node": "25.2.3",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

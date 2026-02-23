@@ -5,7 +5,8 @@
   "bin": {
     "check-pinned-deps": "./dist/check-pinned-deps.js",
     "monorepo-publish": "./dist/publish.js",
-    "auto-commit-fixes": "./dist/auto-commit-fixes.js"
+    "auto-commit-fixes": "./dist/auto-commit-fixes.js",
+    "check-package-metadata": "./dist/check-package-metadata.js"
   },
   "files": [
     "dist"
@@ -18,5 +19,8 @@
   "devDependencies": {
     "@types/node": "25.2.3",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }
