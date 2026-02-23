@@ -173,7 +173,7 @@ function isPlainObjectOrArray(value: unknown): value is object {
     return false;
   }
 
-  const prototype = Object.getPrototypeOf(value);
+  const prototype: object | null = Object.getPrototypeOf(value) as object | null;
   return prototype === Object.prototype || prototype === null;
 }
 
