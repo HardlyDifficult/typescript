@@ -73,3 +73,9 @@ This monorepo uses automated CI/CD via GitHub Actions. Required repository secre
 - `PAT_TOKEN`: For auto-fix commits, git tagging, and CI automation (requires `repo` scope)
 
 See individual package READMEs for usage details.
+
+## Contributor Guidelines
+
+- **Public API = export map only.** Treat each package's `package.json#exports` as the canonical contract for consumers.
+- Keep `main`/`types` fields for compatibility, but do not document or rely on deep imports that are not present in `exports`.
+- For runtime libraries, `src/index.ts` should remain the single public barrel and map to the `"."` export.

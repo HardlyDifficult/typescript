@@ -304,7 +304,7 @@ createChatClient({
 ### Discord
 
 ```typescript
-import { DiscordChatClient } from '@hardlydifficult/chat/discord';
+import { DiscordChatClient } from '@hardlydifficult/chat';
 
 const client = new DiscordChatClient({
   token: 'your-bot-token',
@@ -317,7 +317,7 @@ await client.start();
 ### Slack
 
 ```typescript
-import { SlackChatClient } from '@hardlydifficult/chat/slack';
+import { SlackChatClient } from '@hardlydifficult/chat';
 
 const client = new SlackChatClient({
   token: process.env.SLACK_BOT_TOKEN!,
@@ -351,22 +351,22 @@ Platform-specific message formatting utilities transform abstract document block
 #### Discord Output
 
 ```typescript
-import { formatDiscord } from '@hardlydifficult/chat/outputters';
+import { toDiscordEmbed } from '@hardlydifficult/chat';
 
 const blocks = [
   { type: 'header', text: 'Welcome' },
   { type: 'code', language: 'ts', content: 'console.log("hi");' },
 ];
 
-const payload = formatDiscord(blocks); // Discord embed structure
+const payload = toDiscordEmbed(blocks); // Discord embed structure
 ```
 
 #### Slack Output
 
 ```typescript
-import { formatSlack } from '@hardlydifficult/chat/outputters';
+import { toSlackBlocks } from '@hardlydifficult/chat';
 
-const payload = formatSlack(blocks); // Slack Block Kit structure
+const payload = toSlackBlocks(blocks); // Slack Block Kit structure
 ```
 
 ## Typing
@@ -597,10 +597,10 @@ await slackChatClient.removeAllReactions(channelId, ts, botUserId);
 Match users by ID, mention, or fuzzy alias.
 
 ```typescript
-import { findMember } from '@hardlydifficult/chat/memberMatching';
+import { findBestMemberMatch } from '@hardlydifficult/chat';
 
-const member = findMember(guildMembers, '@alice'); // mentions
-const member = findMember(guildMembers, 'alice'); // fuzzy match
+const member = findBestMemberMatch(guildMembers, '@alice'); // mentions
+const member2 = findBestMemberMatch(guildMembers, 'alice'); // fuzzy match
 ```
 
 ### Job Lifecycle (Threaded Commands)
@@ -608,15 +608,17 @@ const member = findMember(guildMembers, 'alice'); // fuzzy match
 Long-running commands support cancel/dismiss flow.
 
 ```typescript
-import { withCancelListener } from '@hardlydifficult/chat/commands/jobLifecycle';
+import { setupJobLifecycle } from '@hardlydifficult/chat';
 
-await withCancelListener(
+const handle = setupJobLifecycle({
+  originalMessage: message,
   thread,
-  async () => {
-    // Long-running job
-  },
-  { userId: message.author.id },
-);
+  abortController: new AbortController(),
+  ownerUsername: message.author.username,
+});
+
+// Later, when work completes:
+handle.complete();
 ```
 
 ### Error Handling
@@ -624,13 +626,13 @@ await withCancelListener(
 Map worker error codes to user-friendly messages.
 
 ```typescript
-import { formatErrorMessage, isRecoverableError } from '@hardlydifficult/chat/commands';
+import { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from '@hardlydifficult/chat';
 
-if (isRecoverableError(error)) {
+if (RECOVERABLE_WORKER_ERRORS.has(error.code)) {
   // Retry logic
 }
 
-const message = formatErrorMessage(error.code);
+const message = formatWorkerError(error.code);
 ```
 
 ### Constants
@@ -638,10 +640,10 @@ const message = formatErrorMessage(error.code);
 Platform message length limits.
 
 ```typescript
-import { DISCORD_MAX_MESSAGE_LENGTH, SLACK_MAX_MESSAGE_LENGTH } from '@hardlydifficult/chat';
+import { MESSAGE_LIMITS } from '@hardlydifficult/chat';
 
-console.log(DISCORD_MAX_MESSAGE_LENGTH); // 2000
-console.log(SLACK_MAX_MESSAGE_LENGTH);   // 4000
+console.log(MESSAGE_LIMITS.DISCORD_MAX_MESSAGE_LENGTH); // 2000
+console.log(MESSAGE_LIMITS.SLACK_MAX_MESSAGE_LENGTH);   // 4000
 ```
 
 ## Platform Setup

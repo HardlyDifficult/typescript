@@ -18,5 +18,12 @@
     "@types/node": "25.2.3",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
-  }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false
 }
