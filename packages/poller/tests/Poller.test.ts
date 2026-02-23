@@ -109,14 +109,16 @@ describe("Poller", () => {
     poller.stop();
   });
 
-  it("supports custom comparator", async () => {
+  it("supports a custom comparator", async () => {
     const fetchFn = vi
-      .fn()
-      .mockResolvedValue({ id: "1", updatedAt: Date.now() });
+      .fn<() => Promise<number>>()
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2);
     const onChange = vi.fn();
     const comparator = vi.fn(
-      (current: { id: string }, previous: { id: string } | undefined) =>
-        current.id === previous?.id
+      (current: number, previous: number | undefined) =>
+        current <= (previous ?? -Infinity)
     );
     const poller = new Poller({
       fetch: fetchFn,
@@ -127,9 +129,69 @@ describe("Poller", () => {
 
     await poller.start();
     await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1000);
 
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(comparator).toHaveBeenCalled();
+    expect(comparator).toHaveBeenCalledTimes(3);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenNthCalledWith(1, 1, undefined);
+    expect(onChange).toHaveBeenNthCalledWith(2, 2, 1);
+
+    poller.stop();
+  });
+
+  it("does not fire onChange for unchanged plain-object values with new references", async () => {
+    const fetchFn = vi
+      .fn<() => Promise<{ user: { id: number; roles: string[] } }>>()
+      .mockResolvedValueOnce({ user: { id: 1, roles: ["admin"] } })
+      .mockResolvedValueOnce({ user: { id: 1, roles: ["admin"] } })
+      .mockResolvedValueOnce({ user: { id: 1, roles: ["editor"] } });
+    const onChange = vi.fn();
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000 });
+
+    await poller.start();
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenNthCalledWith(
+      1,
+      { user: { id: 1, roles: ["admin"] } },
+      undefined
+    );
+    expect(onChange).toHaveBeenNthCalledWith(
+      2,
+      { user: { id: 1, roles: ["editor"] } },
+      { user: { id: 1, roles: ["admin"] } }
+    );
+
+    poller.stop();
+  });
+
+  it("routes comparator errors to onError", async () => {
+    const fetchFn = vi
+      .fn<() => Promise<{ value: number }>>()
+      .mockResolvedValueOnce({ value: 1 })
+      .mockResolvedValueOnce({ value: 1 });
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const comparatorError = new Error("comparator failed");
+    const poller = new Poller({
+      fetch: fetchFn,
+      onChange,
+      intervalMs: 1000,
+      onError,
+      comparator: () => {
+        throw comparatorError;
+      },
+    });
+
+    await poller.start();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledWith(comparatorError);
+
     poller.stop();
   });
 
