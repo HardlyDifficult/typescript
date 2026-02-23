@@ -45,6 +45,7 @@ export class PRWatcher extends PRWatcherBase {
 
   /** @internal */
   constructor(octokit: Octokit, username: string, options: WatchOptions) {
+    super();
     this.octokit = octokit;
     this.username = username;
     this.repos = [...(options.repos ?? [])];
