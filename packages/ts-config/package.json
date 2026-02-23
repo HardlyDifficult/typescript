@@ -3,9 +3,22 @@
   "version": "0.0.5",
   "type": "module",
   "exports": {
-    "./eslint": "./dist/eslint.js",
-    "./eslint-next": "./dist/eslint-next.js",
-    "./prettier": "./dist/prettier.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./eslint": {
+      "types": "./dist/eslint.d.ts",
+      "import": "./dist/eslint.js"
+    },
+    "./eslint-next": {
+      "types": "./dist/eslint-next.d.ts",
+      "import": "./dist/eslint-next.js"
+    },
+    "./prettier": {
+      "types": "./dist/prettier.d.ts",
+      "import": "./dist/prettier.js"
+    },
     "./tsconfig.base.json": "./tsconfig.base.json"
   },
   "files": [
@@ -39,5 +52,10 @@
     "prettier": "3.8.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.56.0"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }
