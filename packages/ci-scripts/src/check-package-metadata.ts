@@ -17,7 +17,13 @@ import { join } from "path";
 
 const PACKAGES_DIR = "packages";
 const NODE_ENGINE_BASELINE = ">=20.19.0";
-const REQUIRED_FIELDS = ["name", "version", "files", "scripts", "engines"] as const;
+const REQUIRED_FIELDS = [
+  "name",
+  "version",
+  "files",
+  "scripts",
+  "engines",
+] as const;
 const REQUIRED_SCRIPTS = ["build", "clean"] as const;
 
 interface PackageJson {
@@ -49,17 +55,26 @@ function validatePackage(filePath: string): ValidationError[] {
 
   for (const field of REQUIRED_FIELDS) {
     if (pkg[field] === undefined) {
-      errors.push({ file: filePath, message: `missing required field: ${field}` });
+      errors.push({
+        file: filePath,
+        message: `missing required field: ${field}`,
+      });
     }
   }
 
-  if (pkg.files && pkg.files.length === 0) {
-    errors.push({ file: filePath, message: "files must include at least one entry" });
+  if (pkg.files?.length === 0) {
+    errors.push({
+      file: filePath,
+      message: "files must include at least one entry",
+    });
   }
 
   for (const scriptName of REQUIRED_SCRIPTS) {
     if (pkg.scripts?.[scriptName] === undefined) {
-      errors.push({ file: filePath, message: `missing required script: scripts.${scriptName}` });
+      errors.push({
+        file: filePath,
+        message: `missing required script: scripts.${scriptName}`,
+      });
     }
   }
 
@@ -75,7 +90,9 @@ function validatePackage(filePath: string): ValidationError[] {
 
 function main(): void {
   const packageFiles = getPackageJsonFiles();
-  const allErrors = packageFiles.flatMap((filePath) => validatePackage(filePath));
+  const allErrors = packageFiles.flatMap((filePath) =>
+    validatePackage(filePath)
+  );
 
   if (allErrors.length > 0) {
     console.error("Package metadata validation failed:\n");
