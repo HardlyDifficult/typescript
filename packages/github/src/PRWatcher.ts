@@ -22,6 +22,7 @@ import type {
   PRStatusEvent,
   PRUpdatedEvent,
   PullRequest,
+  PRWatcherEvent,
   PushEvent,
   ReviewEvent,
   StatusChangedEvent,
@@ -63,6 +64,9 @@ export class PRWatcher {
   private readonly errorCallbacks = new Set<(error: Error) => void>();
 
   private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
+  private readonly eventCallbacks = new Set<
+    (event: PRWatcherEvent) => void
+  >();
 
   private readonly snapshots = new Map<string, PRSnapshot>();
   private readonly branchTracker = new BranchHeadTracker();
@@ -132,6 +136,11 @@ export class PRWatcher {
   onPush(callback: (event: PushEvent) => void): () => void {
     this.pushCallbacks.add(callback);
     return () => this.pushCallbacks.delete(callback);
+  }
+
+  onEvent(callback: (event: PRWatcherEvent) => void): () => void {
+    this.eventCallbacks.add(callback);
+    return () => this.eventCallbacks.delete(callback);
   }
 
   onError(callback: (error: Error) => void): () => void {
@@ -218,7 +227,7 @@ export class PRWatcher {
               this.throttle
             );
           for (const event of pushEvents) {
-            this.emit(this.pushCallbacks, event);
+            this.emitWatcherEvent({ type: "push", payload: event });
           }
           for (const error of pushErrors) {
             this.emitError(error);
@@ -277,7 +286,7 @@ export class PRWatcher {
       pr: s.pr,
       repo: { owner: s.owner, name: s.name },
     }));
-    this.emit(this.pollCompleteCallbacks, { prs });
+    this.emitWatcherEvent({ type: "poll_complete", payload: { prs } });
   }
 
   private async handleNewPR(
@@ -307,7 +316,10 @@ export class PRWatcher {
       ));
     }
     this.snapshots.set(key, buildSnapshot(pr, owner, name, activity, status));
-    this.emit(this.newPRCallbacks, { pr, repo: { owner, name } });
+    this.emitWatcherEvent({
+      type: "new_pr",
+      payload: { pr, repo: { owner, name } },
+    });
   }
 
   private async handleExistingPR(
@@ -320,12 +332,12 @@ export class PRWatcher {
     const repo = { owner, name };
 
     if (pr.merged_at !== null && previous.pr.merged_at === null) {
-      this.emit(this.mergedCallbacks, { pr, repo });
+      this.emitWatcherEvent({ type: "merged", payload: { pr, repo } });
       this.snapshots.delete(key);
       return;
     }
     if (pr.state === "closed" && previous.pr.state !== "closed") {
-      this.emit(this.closedCallbacks, { pr, repo });
+      this.emitWatcherEvent({ type: "closed", payload: { pr, repo } });
       this.snapshots.delete(key);
       return;
     }
@@ -333,7 +345,7 @@ export class PRWatcher {
     if (this.initialized) {
       const updateEvent = detectPRChanges(pr, previous.pr, repo);
       if (updateEvent) {
-        this.emit(this.updatedCallbacks, updateEvent);
+        this.emitWatcherEvent({ type: "pr_updated", payload: updateEvent });
       }
     }
 
@@ -350,16 +362,25 @@ export class PRWatcher {
 
     if (this.initialized) {
       for (const comment of detectNewComments(activity.comments, previous)) {
-        this.emit(this.commentCallbacks, { comment, pr, repo });
+        this.emitWatcherEvent({
+          type: "comment",
+          payload: { comment, pr, repo },
+        });
       }
       for (const review of detectNewReviews(activity.reviews, previous)) {
-        this.emit(this.reviewCallbacks, { review, pr, repo });
+        this.emitWatcherEvent({
+          type: "review",
+          payload: { review, pr, repo },
+        });
       }
       for (const checkRun of detectCheckRunChanges(
         activity.checkRuns,
         previous
       )) {
-        this.emit(this.checkRunCallbacks, { checkRun, pr, repo });
+        this.emitWatcherEvent({
+          type: "check_run",
+          payload: { checkRun, pr, repo },
+        });
       }
     }
 
@@ -374,7 +395,7 @@ export class PRWatcher {
       );
       ({ status } = result);
       if (result.changed) {
-        this.emit(this.statusChangedCallbacks, result.changed);
+        this.emitWatcherEvent({ type: "status_changed", payload: result.changed });
       }
     }
 
@@ -398,15 +419,60 @@ export class PRWatcher {
         const repo = { owner: snapshot.owner, name: snapshot.name };
 
         if (freshPR.merged_at !== null) {
-          this.emit(this.mergedCallbacks, { pr: freshPR, repo });
+          this.emitWatcherEvent({
+            type: "merged",
+            payload: { pr: freshPR, repo },
+          });
         } else if (freshPR.state === "closed") {
-          this.emit(this.closedCallbacks, { pr: freshPR, repo });
+          this.emitWatcherEvent({
+            type: "closed",
+            payload: { pr: freshPR, repo },
+          });
         }
       } catch {
         // PR may have been deleted or become inaccessible
       }
 
       this.snapshots.delete(key);
+    }
+  }
+
+  private emitWatcherEvent(event: PRWatcherEvent): void {
+    this.emit(this.eventCallbacks, event);
+
+    switch (event.type) {
+      case "new_pr":
+        this.emit(this.newPRCallbacks, event.payload);
+        break;
+      case "comment":
+        this.emit(this.commentCallbacks, event.payload);
+        break;
+      case "review":
+        this.emit(this.reviewCallbacks, event.payload);
+        break;
+      case "check_run":
+        this.emit(this.checkRunCallbacks, event.payload);
+        break;
+      case "merged":
+        this.emit(this.mergedCallbacks, event.payload);
+        break;
+      case "closed":
+        this.emit(this.closedCallbacks, event.payload);
+        break;
+      case "pr_updated":
+        this.emit(this.updatedCallbacks, event.payload);
+        break;
+      case "poll_complete":
+        this.emit(this.pollCompleteCallbacks, event.payload);
+        break;
+      case "status_changed":
+        this.emit(this.statusChangedCallbacks, event.payload);
+        break;
+      case "push":
+        this.emit(this.pushCallbacks, event.payload);
+        break;
+      default:
+        event satisfies never;
     }
   }
 

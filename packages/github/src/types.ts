@@ -243,6 +243,18 @@ export interface PushEvent {
   readonly previousSha: string;
 }
 
+export type PRWatcherEvent =
+  | { readonly type: "new_pr"; readonly payload: PREvent }
+  | { readonly type: "comment"; readonly payload: CommentEvent }
+  | { readonly type: "review"; readonly payload: ReviewEvent }
+  | { readonly type: "check_run"; readonly payload: CheckRunEvent }
+  | { readonly type: "merged"; readonly payload: PREvent }
+  | { readonly type: "closed"; readonly payload: PREvent }
+  | { readonly type: "pr_updated"; readonly payload: PRUpdatedEvent }
+  | { readonly type: "poll_complete"; readonly payload: PollCompleteEvent }
+  | { readonly type: "status_changed"; readonly payload: StatusChangedEvent }
+  | { readonly type: "push"; readonly payload: PushEvent };
+
 // --- Git Data API types ---
 
 export interface CommitAuthor {
