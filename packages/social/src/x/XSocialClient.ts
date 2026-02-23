@@ -26,6 +26,9 @@ interface XResponse {
   };
 }
 
+/**
+ *
+ */
 export class XSocialClient implements SocialProviderClient {
   private readonly bearerToken: string;
   private readonly maxResults: number;
@@ -40,7 +43,9 @@ export class XSocialClient implements SocialProviderClient {
   }
 
   async getPost(postId: string): Promise<SocialPost | null> {
-    const response = await this.request(`/tweets/${postId}${this.buildQuery()}`);
+    const response = await this.request(
+      `/tweets/${postId}${this.buildQuery()}`
+    );
     const tweet = this.readSingleTweet(response.data);
     if (!tweet) {
       return null;
@@ -49,7 +54,9 @@ export class XSocialClient implements SocialProviderClient {
     return this.normalizeTweet(tweet, response.includes?.users ?? []);
   }
 
-  async getTimeline(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
+  async getTimeline(options?: {
+    maxResults?: number;
+  }): Promise<readonly SocialPost[]> {
     const response = await this.request(
       `/users/me/timelines/reverse_chronological${this.buildQuery(options?.maxResults)}`
     );
@@ -59,7 +66,9 @@ export class XSocialClient implements SocialProviderClient {
     );
   }
 
-  async getLikedPosts(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
+  async getLikedPosts(options?: {
+    maxResults?: number;
+  }): Promise<readonly SocialPost[]> {
     const response = await this.request(
       `/users/me/liked_tweets${this.buildQuery(options?.maxResults)}`
     );
@@ -118,7 +127,9 @@ export class XSocialClient implements SocialProviderClient {
     }
 
     const candidate = value as Record<string, unknown>;
-    return typeof candidate.id === "string" && typeof candidate.text === "string";
+    return (
+      typeof candidate.id === "string" && typeof candidate.text === "string"
+    );
   }
 
   private normalizeTweet(tweet: XTweet, users: readonly XUser[]): SocialPost {

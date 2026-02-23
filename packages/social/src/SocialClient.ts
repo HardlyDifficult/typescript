@@ -1,7 +1,13 @@
-import { SocialLikeWatcher, type SocialLikeWatcherOptions } from "./SocialLikeWatcher.js";
+import {
+  SocialLikeWatcher,
+  type SocialLikeWatcherOptions,
+} from "./SocialLikeWatcher.js";
 import type { SocialProviderClient } from "./SocialProviderClient.js";
 import type { SocialPost } from "./types.js";
 
+/**
+ *
+ */
 export class SocialClient {
   constructor(private readonly provider: SocialProviderClient) {}
 
@@ -13,7 +19,9 @@ export class SocialClient {
     return this.provider.getTimeline(options);
   }
 
-  likedPosts(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
+  likedPosts(options?: {
+    maxResults?: number;
+  }): Promise<readonly SocialPost[]> {
     return this.provider.getLikedPosts(options);
   }
 

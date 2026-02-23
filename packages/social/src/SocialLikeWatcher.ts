@@ -3,6 +3,9 @@ import type { LikeNotification, LikeWatcherOptions } from "./types.js";
 
 export type SocialLikeWatcherOptions = LikeWatcherOptions;
 
+/**
+ *
+ */
 export class SocialLikeWatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
   private polling = false;
@@ -11,11 +14,16 @@ export class SocialLikeWatcher {
 
   constructor(
     private readonly provider: SocialProviderClient,
-    private readonly options: Required<Pick<LikeWatcherOptions, "pollIntervalMs">> &
+    private readonly options: Required<
+      Pick<LikeWatcherOptions, "pollIntervalMs">
+    > &
       Pick<LikeWatcherOptions, "onLike" | "onError">
   ) {}
 
-  static create(provider: SocialProviderClient, options: LikeWatcherOptions): SocialLikeWatcher {
+  static create(
+    provider: SocialProviderClient,
+    options: LikeWatcherOptions
+  ): SocialLikeWatcher {
     return new SocialLikeWatcher(provider, {
       ...options,
       pollIntervalMs: options.pollIntervalMs ?? 60_000,
@@ -28,7 +36,10 @@ export class SocialLikeWatcher {
     }
 
     void this.poll();
-    this.timer = setInterval(() => void this.poll(), this.options.pollIntervalMs);
+    this.timer = setInterval(
+      () => void this.poll(),
+      this.options.pollIntervalMs
+    );
   }
 
   stop(): void {
@@ -74,7 +85,10 @@ export class SocialLikeWatcher {
       if (this.options.onError) {
         this.options.onError(normalizedError);
       } else {
-        console.error("SocialLikeWatcher: poll failed:", normalizedError.message);
+        console.error(
+          "SocialLikeWatcher: poll failed:",
+          normalizedError.message
+        );
       }
     } finally {
       this.polling = false;

@@ -12,14 +12,17 @@ export type {
 export type { SocialProviderClient } from "./SocialProviderClient.js";
 
 export { SocialClient } from "./SocialClient.js";
-export { SocialLikeWatcher, type SocialLikeWatcherOptions } from "./SocialLikeWatcher.js";
+export {
+  SocialLikeWatcher,
+  type SocialLikeWatcherOptions,
+} from "./SocialLikeWatcher.js";
 
-export { XSocialClient } from "./x/index.js";
+export { XSocialClient } from "./x";
 export { MastodonSocialClient } from "./mastodon/MastodonSocialClient.js";
 
 import { SocialClient } from "./SocialClient.js";
-import { XSocialClient } from "./x/index.js";
 import type { SocialConfig } from "./types.js";
+import { XSocialClient } from "./x";
 
 /**
  * Create a social client from explicit provider configuration.
