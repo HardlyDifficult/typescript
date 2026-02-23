@@ -304,7 +304,10 @@ export class PRWatcher extends PRWatcherBase {
       );
       ({ status } = result);
       if (result.changed) {
-        this.emitWatcherEvent({ type: "status_changed", payload: result.changed });
+        this.emitWatcherEvent({
+          type: "status_changed",
+          payload: result.changed,
+        });
       }
     }
 
@@ -345,7 +348,6 @@ export class PRWatcher extends PRWatcherBase {
       this.snapshots.delete(key);
     }
   }
-
 }
 
 function prKey(owner: string, name: string, prNumber: number): string {

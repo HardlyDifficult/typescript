@@ -1935,7 +1935,6 @@ describe("PRWatcher", () => {
     });
   });
 
-
   describe("onEvent", () => {
     it("emits discriminated union events in sync with onX listeners", async () => {
       const pr = makePR();
@@ -1999,5 +1998,4 @@ describe("PRWatcher", () => {
       expect(events).toHaveLength(0);
     });
   });
-
 });
