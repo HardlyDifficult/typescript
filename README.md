@@ -1,70 +1,71 @@
 # TypeScript Monorepo
 
-A collection of focused, opinionated, easy-to-use npm packages for building robust TypeScript applications.
+Focused, opinionated, easy-to-use npm packages for building robust, scalable TypeScript applications — from AI integrations to CI automation, messaging, and state management.
 
 ## Packages
 
-### AI & Agent Tools
-
+### AI
 | Package | Description |
-|---------|-----|
-| [ai](./packages/ai) | Core AI/LLM integration: unified client abstraction (Anthropic/Ollama), agent orchestration, streaming, and multimodal messages. |
-| [agent-tools](./packages/agent-tools) | Agent utilities: config-driven I/O limits, path parsing with line ranges, error/result helpers. |
+|---------|-------------|
+| [ai](./packages/ai) | Unified AI/LLM integration with client abstraction, agent orchestration, streaming, and structured output. Supports Anthropic, Ollama, tool-calling, caching, and multimodal messaging. |
+| [agent-tools](./packages/agent-tools) | Core tooling for safe, config-driven agent execution with GitHub-style path parsing, I/O limits, and error formatting. Includes result helpers and utility functions. |
 
 ### GitHub / CI
-
 | Package | Description |
-|---------|-----|
-| [github](./packages/github) | GitHub PR monitoring: polling, state snapshots, timeline building, and event-driven watching. |
-| [ci-scripts](./packages/ci-scripts) | CI/CD automation: auto-fix commits, pinned dependency validation, topological publishing. |
-| [pr-analyzer](./packages/pr-analyzer) | PR analysis: CI status, reviews, conflicts, bot mentions → action buckets & available actions. |
-| [repo-processor](./packages/repo-processor) | Incremental repo processing: SHA-based change detection, parallel traversal, git-backed state. |
+|---------|-------------|
+| [ci-scripts](./packages/ci-scripts) | CI/CD automation: auto-fix commits, pinned deps, topological publishing with npm versioning |
+| [github](./packages/github) | PR monitoring, branch polling, timeline building, and event-driven change detection |
+| [pr-analyzer](./packages/pr-analyzer) | PR analysis pipeline for status, reviews, conflicts, and actionable classification into ready/blocked/needs-bump buckets |
+| [repo-processor](./packages/repo-processor) | Incremental GitHub repo processor with SHA-based change detection and git-backed YAML state persistence |
 
-### Async & Control Flow
-
+### Async / Control Flow
 | Package | Description |
-|---------|-----|
-| [poller](./packages/poller) | Generic polling utility with debouncing, pending-state dedup, and equality-based change detection. |
-| [queue](./packages/queue) | High-performance priority queue with O(1) ops, FIFO within buckets, and dynamic priority updates. |
-| [throttle](./packages/throttle) | Rate limiting + retries: token bucket, exponential backoff, transient error detection, event wrapping. |
-| [worker-server](./packages/worker-server) | WebSocket worker server: connection management, health checks, dynamic routing, per-category concurrency. |
-| [workflow-engine](./packages/workflow-engine) | Typed workflow engine: state machines with validated transitions, persistence, gates, retry, lifecycle hooks. |
+|---------|-------------|
+| [daemon](./packages/daemon) | Node.js daemon utilities for long-running background processes |
+| [poller](./packages/poller) | Generic polling utility with debouncing, skip tracking, and change detection (shallow/deep) |
+| [queue](./packages/queue) | High-performance priority queue with O(1) ops, FIFO within levels, and dynamic updates via observer pattern |
+| [throttle](./packages/throttle) | Token-bucket throttling with persistence, exponential backoff, and retry logic |
+| [websocket](./packages/websocket) | Robust WebSocket client with reconnection, token refresh, and health checks |
+| [worker-server](./packages/worker-server) | WebSocket-based worker manager with health monitoring and category-specific concurrency controls |
 
-### Messaging & UI
-
+### Messaging
 | Package | Description |
-|---------|-----|
-| [chat](./packages/chat) | Cross-platform chat abstraction: Discord/Slack, unified APIs for messaging, threads, commands, streaming. |
-| [websocket](./packages/websocket) | High-fidelity WebSocket client: exponential reconnection, proactive token refresh, heartbeat health checks. |
-| [storybook-components](./packages/storybook-components) | React components for Storybook: primitives (Button, Text, etc.) + composites (ActivityFeed, StatCard, etc.). |
+|---------|-------------|
+| [chat](./packages/chat) | Cross-platform chat abstraction (Discord/Slack) with unified APIs for messaging, threads, commands, and streaming |
+| [http](./packages/http) | Safe HTTP utilities: body size limits, CORS, and structured response handling |
+| [rest-client](./packages/rest-client) | Typed REST client with OAuth2, Zod validation, retry, and structured errors |
 
-### Data & State
-
+### Data / State
 | Package | Description |
-|---------|-----|
-| [state-tracker](./packages/state-tracker) | Robust state persistence: atomic writes, schema migrations, debounced save, fallback to in-memory. |
-| [usage-tracker](./packages/usage-tracker) | Usage & cost tracking: session metrics, cumulative spend, time-windowed limits, session-aware persistence. |
-| [collections](./packages/collections) | Array chunking & filesystem path depth grouping for bottom-up directory processing. |
-| [task-list](./packages/task-list) | Provider-agnostic task list management: Trello/Linear abstraction, polling watcher, shared models. |
+|---------|-------------|
+| [collections](./packages/collections) | Array chunking and filesystem path depth grouping for bottom-up processing |
+| [date-time](./packages/date-time) | Strongly-typed `TimeSpan` with unit-aware multipliers and configurable enum |
+| [state-tracker](./packages/state-tracker) | Atomic state persistence with schema migrations, debounced save, and fallback modes |
+| [usage-tracker](./packages/usage-tracker) | Session & cumulative usage tracking with spend limits and cost monitoring |
 
-### Utilities
-
+### Text & Document
 | Package | Description |
-|---------|-----|
-| [text](./packages/text) | Text utilities: chunking, formatting, YAML/JSON conversion, markdown escaping, templating, slugification. |
-| [date-time](./packages/date-time) | Strongly-typed TimeSpan utility with millisecond conversion and configurable TimeUnit enum. |
-| [http](./packages/http) | Safe HTTP handling: configurable body size limits, JSON with CORS, safe cookie parsing. |
-| [logger](./packages/logger) | Structured logging: pluggable output (console/file/Discord), per-plugin filtering, JSONL session tracking. |
-| [daemon](./packages/daemon) | Node.js daemon process utilities. |
-| [rest-client](./packages/rest-client) | Typed REST client: declarative ops, OAuth2/Zod validation, retry, structured errors (built on Axios). |
-| [document-generator](./packages/document-generator) | Fluent document generation: headers/lists/links → Markdown/Slack mrkdwn/plain text with platform-aware formatting. |
+|---------|-------------|
+| [document-generator](./packages/document-generator) | Fluent API for composing rich content with Markdown/Slate/Slack mrkdwn output |
+| [text](./packages/text) | Text utilities for chunking, formatting, YAML/JSON conversion, templating, and linkification |
+| [task-list](./packages/task-list) | Provider-agnostic task list abstraction (Trello/Linear) with polling-based watching |
+
+### Storybook
+| Package | Description |
+|---------|-------------|
+| [storybook-components](./packages/storybook-components) | React component library for Storybook with atomic and composite widgets |
 
 ### Tooling
-
 | Package | Description |
-|---------|-----|
-| [shared-config](./packages/shared-config) | Centralized config: TypeScript, postinstall sync, npm scripts for build/lint. |
-| [ts-config](./packages/ts-config) | Unified TypeScript/ESLint/Prettier config for consistent tooling across projects (incl. Next). |
+|---------|-------------|
+| [shared-config](./packages/shared-config) | Centralized config: TS, ESLint, Prettier, with auto-sync scripts |
+| [ts-config](./packages/ts-config) | Shared ESLint (flat), Prettier, and TS config (base + Next.js) |
+| [workflow-engine](./packages/workflow-engine) | Typed workflow engine with state machines, persistence, gates, and retry hooks |
+
+### Utilities
+| Package | Description |
+|---------|-------------|
+| [logger](./packages/logger) | Pluggable structured logging with console/file/Discord output, per-plugin filtering, and JSONL session tracking |
 
 ## GitHub Actions Setup
 
