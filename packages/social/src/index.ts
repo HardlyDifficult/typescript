@@ -18,28 +18,19 @@ export { XSocialClient } from "./x/index.js";
 export { MastodonSocialClient } from "./mastodon/MastodonSocialClient.js";
 
 import { SocialClient } from "./SocialClient.js";
-import type { SocialProviderClient } from "./SocialProviderClient.js";
 import { XSocialClient } from "./x/index.js";
 import type { SocialConfig } from "./types.js";
 
+/**
+ * Create a social client from explicit provider configuration.
+ */
 export function createSocialClient(config: SocialConfig): SocialClient {
-  let provider: SocialProviderClient;
-
-  switch (config.type) {
-    case "x":
-      provider = new XSocialClient(config);
-      break;
-    default:
-      throw new Error(`Unknown social provider: ${(config as { type: string }).type}`);
-  }
-
-  return new SocialClient(provider);
+  return new SocialClient(new XSocialClient(config));
 }
 
-export function createSocial(type: "x" = "x"): SocialClient {
-  if (type !== "x") {
-    throw new Error(`Unknown social provider: ${type}`);
-  }
-
+/**
+ * Create a social client using default provider configuration.
+ */
+export function createSocial(): SocialClient {
   return createSocialClient({ type: "x" });
 }

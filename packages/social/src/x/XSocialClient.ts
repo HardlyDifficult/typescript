@@ -20,7 +20,7 @@ interface XUser {
 }
 
 interface XResponse {
-  readonly data?: readonly XTweet[] | XTweet;
+  readonly data?: unknown;
   readonly includes?: {
     readonly users?: readonly XUser[];
   };
@@ -40,37 +40,31 @@ export class XSocialClient implements SocialProviderClient {
   }
 
   async getPost(postId: string): Promise<SocialPost | null> {
-    const response = await this.request<XResponse>(
-      `/tweets/${postId}${this.buildQuery()}`
-    );
-
-    const tweetData = response.data;
-    if (!tweetData || Array.isArray(tweetData)) {
+    const response = await this.request(`/tweets/${postId}${this.buildQuery()}`);
+    const tweet = this.readSingleTweet(response.data);
+    if (!tweet) {
       return null;
     }
 
-    const tweet = tweetData as XTweet;
     return this.normalizeTweet(tweet, response.includes?.users ?? []);
   }
 
   async getTimeline(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
-    const response = await this.request<XResponse>(
+    const response = await this.request(
       `/users/me/timelines/reverse_chronological${this.buildQuery(options?.maxResults)}`
     );
 
-    const tweets = Array.isArray(response.data) ? response.data : [];
-    return tweets.map((tweet) =>
+    return this.readTweetList(response.data).map((tweet) =>
       this.normalizeTweet(tweet, response.includes?.users ?? [])
     );
   }
 
   async getLikedPosts(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
-    const response = await this.request<XResponse>(
+    const response = await this.request(
       `/users/me/liked_tweets${this.buildQuery(options?.maxResults)}`
     );
 
-    const tweets = Array.isArray(response.data) ? response.data : [];
-    return tweets.map((tweet) =>
+    return this.readTweetList(response.data).map((tweet) =>
       this.normalizeTweet(tweet, response.includes?.users ?? [])
     );
   }
@@ -86,7 +80,7 @@ export class XSocialClient implements SocialProviderClient {
     return `?${params.toString()}`;
   }
 
-  private async request<T>(path: string): Promise<T> {
+  private async request(path: string): Promise<XResponse> {
     const response = await fetch(`https://api.x.com/2${path}`, {
       headers: {
         Authorization: `Bearer ${this.bearerToken}`,
@@ -95,10 +89,36 @@ export class XSocialClient implements SocialProviderClient {
     });
 
     if (!response.ok) {
-      throw new Error(`X API request failed: ${response.status} ${response.statusText}`);
+      const status = String(response.status);
+      throw new Error(`X API request failed: ${status} ${response.statusText}`);
     }
 
-    return (await response.json()) as T;
+    return (await response.json()) as XResponse;
+  }
+
+  private readSingleTweet(data: unknown): XTweet | null {
+    if (!this.isTweet(data)) {
+      return null;
+    }
+
+    return data;
+  }
+
+  private readTweetList(data: unknown): readonly XTweet[] {
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
+    return data.filter((item): item is XTweet => this.isTweet(item));
+  }
+
+  private isTweet(value: unknown): value is XTweet {
+    if (typeof value !== "object" || value === null) {
+      return false;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    return typeof candidate.id === "string" && typeof candidate.text === "string";
   }
 
   private normalizeTweet(tweet: XTweet, users: readonly XUser[]): SocialPost {
