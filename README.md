@@ -2,67 +2,70 @@
 
 Focused, opinionated, easy-to-use npm packages for building robust, scalable TypeScript applications — from AI integrations to CI automation, messaging, and state management.
 
-## AI
+## Packages
 
+### AI
 | Package | Description |
-|---------|-----|
-| [ai](./packages/ai) | Unified AI/LLM integration with Anthropic, Ollama, tool-calling, streaming, caching, and multimodal messaging |
-| [agent-tools](./packages/agent-tools) | Core utilities for safe, config-driven agent execution with path parsing, I/O limits, and error formatting |
+|---------|-------------|
+| [ai](./packages/ai) | Unified AI/LLM integration with client abstraction, agent orchestration, streaming, and structured output. Supports Anthropic, Ollama, tool-calling, caching, and multimodal messaging. |
+| [agent-tools](./packages/agent-tools) | Core tooling for safe, config-driven agent execution with GitHub-style path parsing, I/O limits, and error formatting. Includes result helpers and utility functions. |
 
-## GitHub / CI
-
+### GitHub / CI
 | Package | Description |
-|---------|-----|
-| [ci-scripts](./packages/ci-scripts) | CI/CD automation: auto-fix commits, dependency validation, topological publishing with npm versioning |
-| [github](./packages/github) | GitHub PR monitoring with polling, branch/PR state snapshots, timeline building, and event-driven watching |
-| [pr-analyzer](./packages/pr-analyzer) | PR analysis pipeline for status, reviews, conflicts, and classification into action buckets (ready/blocked/needs-bump) |
+|---------|-------------|
+| [ci-scripts](./packages/ci-scripts) | CI/CD automation: auto-fix commits, pinned deps, topological publishing with npm versioning |
+| [github](./packages/github) | PR monitoring, branch polling, timeline building, and event-driven change detection |
+| [pr-analyzer](./packages/pr-analyzer) | PR analysis pipeline for status, reviews, conflicts, and actionable classification into ready/blocked/needs-bump buckets |
 | [repo-processor](./packages/repo-processor) | Incremental GitHub repo processor with SHA-based change detection and git-backed YAML state persistence |
 
-## Async / Control Flow
-
+### Async / Control Flow
 | Package | Description |
-|---------|-----|
-| [poller](./packages/poller) | Generic polling utility with debouncing, pending-state deduplication, and shallow/deep change detection |
-| [queue](./packages/queue) | High-performance priority queue with O(1) ops, FIFO within priority, and dynamic updates via observer pattern |
-| [throttle](./packages/throttle) | Token-bucket rate limiting with persistence, exponential backoff, and transient error detection |
-| [worker-server](./packages/worker-server) | WebSocket-based worker server with heartbeat monitoring and category-specific concurrency controls |
+|---------|-------------|
+| [daemon](./packages/daemon) | Node.js daemon utilities for long-running background processes |
+| [poller](./packages/poller) | Generic polling utility with debouncing, skip tracking, and change detection (shallow/deep) |
+| [queue](./packages/queue) | High-performance priority queue with O(1) ops, FIFO within levels, and dynamic updates via observer pattern |
+| [throttle](./packages/throttle) | Token-bucket throttling with persistence, exponential backoff, and retry logic |
+| [websocket](./packages/websocket) | Robust WebSocket client with reconnection, token refresh, and health checks |
+| [worker-server](./packages/worker-server) | WebSocket-based worker manager with health monitoring and category-specific concurrency controls |
 
-## Messaging
-
+### Messaging
 | Package | Description |
-|---------|-----|
-| [chat](./packages/chat) | Cross-platform chat abstraction for Discord/Slack with unified messaging, threads, commands, and streaming |
-| [websocket](./packages/websocket) | High-fidelity WebSocket client with exponential reconnection, token refresh, and heartbeat health checks |
+|---------|-------------|
+| [chat](./packages/chat) | Cross-platform chat abstraction (Discord/Slack) with unified APIs for messaging, threads, commands, and streaming |
+| [http](./packages/http) | Safe HTTP utilities: body size limits, CORS, and structured response handling |
+| [rest-client](./packages/rest-client) | Typed REST client with OAuth2, Zod validation, retry, and structured errors |
 
-## Data / State
-
+### Data / State
 | Package | Description |
-|---------|-----|
-| [state-tracker](./packages/state-tracker) | Robust state persistence with atomic writes, schema migrations, and in-memory fallback |
-| [usage-tracker](./packages/usage-tracker) | Session/cumulative usage tracking with USD cost monitoring and time-windowed spend limits |
-| [collections](./packages/collections) | Array chunking and filesystem path depth grouping for bottom-up directory processing |
+|---------|-------------|
+| [collections](./packages/collections) | Array chunking and filesystem path depth grouping for bottom-up processing |
+| [date-time](./packages/date-time) | Strongly-typed `TimeSpan` with unit-aware multipliers and configurable enum |
+| [state-tracker](./packages/state-tracker) | Atomic state persistence with schema migrations, debounced save, and fallback modes |
+| [usage-tracker](./packages/usage-tracker) | Session & cumulative usage tracking with spend limits and cost monitoring |
 
-## Utilities
-
+### Text & Document
 | Package | Description |
-|---------|-----|
-| [date-time](./packages/date-time) | Strongly-typed TimeSpan utility with unit-aware multipliers and configurable TimeUnit enum |
-| [daemon](./packages/daemon) | Daemon process utilities for Node |
-| [document-generator](./packages/document-generator) | Fluent document generator for Markdown, Slack mrkdwn, and plain text with platform-aware formatting |
-| [http](./packages/http) | Safe HTTP utilities with body size limits, JSON/CORS helpers, and header parsing |
+|---------|-------------|
+| [document-generator](./packages/document-generator) | Fluent API for composing rich content with Markdown/Slate/Slack mrkdwn output |
+| [text](./packages/text) | Text utilities for chunking, formatting, YAML/JSON conversion, templating, and linkification |
+| [task-list](./packages/task-list) | Provider-agnostic task list abstraction (Trello/Linear) with polling-based watching |
+
+### Storybook
+| Package | Description |
+|---------|-------------|
+| [storybook-components](./packages/storybook-components) | React component library for Storybook with atomic and composite widgets |
+
+### Tooling
+| Package | Description |
+|---------|-------------|
+| [shared-config](./packages/shared-config) | Centralized config: TS, ESLint, Prettier, with auto-sync scripts |
+| [ts-config](./packages/ts-config) | Shared ESLint (flat), Prettier, and TS config (base + Next.js) |
+| [workflow-engine](./packages/workflow-engine) | Typed workflow engine with state machines, persistence, gates, and retry hooks |
+
+### Utilities
+| Package | Description |
+|---------|-------------|
 | [logger](./packages/logger) | Pluggable structured logging with console/file/Discord output, per-plugin filtering, and JSONL session tracking |
-| [rest-client](./packages/rest-client) | Typed REST client with Zod validation, retry logic, and OAuth2/bearer/custom auth support |
-| [text](./packages/text) | Text utilities for chunking, YAML/JSON conversion, escaping, templating, slugification, and linkification |
-| [workflow-engine](./packages/workflow-engine) | Typed workflow engine with validated state transitions, persistence, gate pausing, and retry logic |
-
-## Tooling
-
-| Package | Description |
-|---------|-----|
-| [shared-config](./packages/shared-config) | Centralized config for the repo with auto-synced postinstall and npm scripts |
-| [task-list](./packages/task-list) | Provider-agnostic task list abstraction for Trello/Linear with polling `TaskWatcher` |
-| [storybook-components](./packages/storybook-components) | Tailwind + React UI library with tokenized primitives and composite widgets |
-| [ts-config](./packages/ts-config) | Shared TypeScript/ESLint/Prettier config for consistent tooling (including Next.js support) |
 
 ## GitHub Actions Setup
 
