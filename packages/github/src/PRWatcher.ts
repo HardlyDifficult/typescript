@@ -12,20 +12,13 @@ import {
   type PRSnapshot,
 } from "./polling/processSnapshot.js";
 import { classifyAndDetectChange } from "./polling/statusTracker.js";
+import { PRWatcherBase } from "./PRWatcherBase.js";
 import type {
-  CheckRunEvent,
   ClassifyPR,
-  CommentEvent,
   DiscoverRepos,
-  PollCompleteEvent,
   PREvent,
   PRStatusEvent,
-  PRUpdatedEvent,
   PullRequest,
-  PRWatcherEvent,
-  PushEvent,
-  ReviewEvent,
-  StatusChangedEvent,
   WatchOptions,
   WatchThrottle,
 } from "./types.js";
@@ -33,7 +26,7 @@ import type {
 const DEFAULT_INTERVAL_MS = 30_000;
 
 /** Polls GitHub for open pull requests and emits events for new PRs, comments, reviews, check runs, merges, and status changes. */
-export class PRWatcher {
+export class PRWatcher extends PRWatcherBase {
   private readonly octokit: Octokit;
   private readonly username: string;
   private repos: string[];
@@ -43,30 +36,6 @@ export class PRWatcher {
   private readonly discoverRepos: DiscoverRepos | undefined;
   private readonly stalePRThresholdMs: number | undefined;
   private readonly throttle: WatchThrottle | undefined;
-
-  private readonly newPRCallbacks = new Set<(event: PREvent) => void>();
-  private readonly commentCallbacks = new Set<(event: CommentEvent) => void>();
-  private readonly reviewCallbacks = new Set<(event: ReviewEvent) => void>();
-  private readonly checkRunCallbacks = new Set<
-    (event: CheckRunEvent) => void
-  >();
-  private readonly mergedCallbacks = new Set<(event: PREvent) => void>();
-  private readonly closedCallbacks = new Set<(event: PREvent) => void>();
-  private readonly updatedCallbacks = new Set<
-    (event: PRUpdatedEvent) => void
-  >();
-  private readonly pollCompleteCallbacks = new Set<
-    (event: PollCompleteEvent) => void
-  >();
-  private readonly statusChangedCallbacks = new Set<
-    (event: StatusChangedEvent) => void
-  >();
-  private readonly errorCallbacks = new Set<(error: Error) => void>();
-
-  private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
-  private readonly eventCallbacks = new Set<
-    (event: PRWatcherEvent) => void
-  >();
 
   private readonly snapshots = new Map<string, PRSnapshot>();
   private readonly branchTracker = new BranchHeadTracker();
@@ -85,67 +54,6 @@ export class PRWatcher {
     this.discoverRepos = options.discoverRepos;
     this.stalePRThresholdMs = options.stalePRThresholdMs;
     this.throttle = options.throttle;
-  }
-
-  onNewPR(callback: (event: PREvent) => void): () => void {
-    this.newPRCallbacks.add(callback);
-    return () => this.newPRCallbacks.delete(callback);
-  }
-
-  onComment(callback: (event: CommentEvent) => void): () => void {
-    this.commentCallbacks.add(callback);
-    return () => this.commentCallbacks.delete(callback);
-  }
-
-  onReview(callback: (event: ReviewEvent) => void): () => void {
-    this.reviewCallbacks.add(callback);
-    return () => this.reviewCallbacks.delete(callback);
-  }
-
-  onCheckRun(callback: (event: CheckRunEvent) => void): () => void {
-    this.checkRunCallbacks.add(callback);
-    return () => this.checkRunCallbacks.delete(callback);
-  }
-
-  onMerged(callback: (event: PREvent) => void): () => void {
-    this.mergedCallbacks.add(callback);
-    return () => this.mergedCallbacks.delete(callback);
-  }
-
-  onClosed(callback: (event: PREvent) => void): () => void {
-    this.closedCallbacks.add(callback);
-    return () => this.closedCallbacks.delete(callback);
-  }
-
-  onPRUpdated(callback: (event: PRUpdatedEvent) => void): () => void {
-    this.updatedCallbacks.add(callback);
-    return () => this.updatedCallbacks.delete(callback);
-  }
-
-  onPollComplete(callback: (event: PollCompleteEvent) => void): () => void {
-    this.pollCompleteCallbacks.add(callback);
-    return () => this.pollCompleteCallbacks.delete(callback);
-  }
-
-  onStatusChanged(callback: (event: StatusChangedEvent) => void): () => void {
-    this.statusChangedCallbacks.add(callback);
-    return () => this.statusChangedCallbacks.delete(callback);
-  }
-
-  /** Fires when the HEAD SHA of a watched repository's default branch changes. */
-  onPush(callback: (event: PushEvent) => void): () => void {
-    this.pushCallbacks.add(callback);
-    return () => this.pushCallbacks.delete(callback);
-  }
-
-  onEvent(callback: (event: PRWatcherEvent) => void): () => void {
-    this.eventCallbacks.add(callback);
-    return () => this.eventCallbacks.delete(callback);
-  }
-
-  onError(callback: (error: Error) => void): () => void {
-    this.errorCallbacks.add(callback);
-    return () => this.errorCallbacks.delete(callback);
   }
 
   async start(): Promise<readonly PRStatusEvent[]> {
@@ -437,62 +345,6 @@ export class PRWatcher {
     }
   }
 
-  private emitWatcherEvent(event: PRWatcherEvent): void {
-    this.emit(this.eventCallbacks, event);
-
-    switch (event.type) {
-      case "new_pr":
-        this.emit(this.newPRCallbacks, event.payload);
-        break;
-      case "comment":
-        this.emit(this.commentCallbacks, event.payload);
-        break;
-      case "review":
-        this.emit(this.reviewCallbacks, event.payload);
-        break;
-      case "check_run":
-        this.emit(this.checkRunCallbacks, event.payload);
-        break;
-      case "merged":
-        this.emit(this.mergedCallbacks, event.payload);
-        break;
-      case "closed":
-        this.emit(this.closedCallbacks, event.payload);
-        break;
-      case "pr_updated":
-        this.emit(this.updatedCallbacks, event.payload);
-        break;
-      case "poll_complete":
-        this.emit(this.pollCompleteCallbacks, event.payload);
-        break;
-      case "status_changed":
-        this.emit(this.statusChangedCallbacks, event.payload);
-        break;
-      case "push":
-        this.emit(this.pushCallbacks, event.payload);
-        break;
-      default:
-        event satisfies never;
-    }
-  }
-
-  private emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
-    for (const callback of callbacks) {
-      try {
-        callback(event);
-      } catch (error: unknown) {
-        this.emitError(
-          error instanceof Error ? error : new Error(String(error))
-        );
-      }
-    }
-  }
-
-  private emitError(error: Error): void {
-    for (const callback of this.errorCallbacks) {
-      callback(error);
-    }
-  }
 }
 
 function prKey(owner: string, name: string, prNumber: number): string {
