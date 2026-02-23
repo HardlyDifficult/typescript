@@ -153,7 +153,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   async connect(channelId: string): Promise<Channel> {
     await this.app.start();
     await this.hydrateIdentity();
-    return new Channel(channelId, "slack", this);
+    return new Channel({ id: channelId, platform: "slack", operations: this });
   }
 
   private async hydrateIdentity(): Promise<void> {
