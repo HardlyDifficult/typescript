@@ -58,7 +58,7 @@ function validatePackage(filePath: string): ValidationError[] {
   }
 
   for (const scriptName of REQUIRED_SCRIPTS) {
-    if (!pkg.scripts?.[scriptName]) {
+    if (pkg.scripts?.[scriptName] === undefined) {
       errors.push({ file: filePath, message: `missing required script: scripts.${scriptName}` });
     }
   }
@@ -66,7 +66,7 @@ function validatePackage(filePath: string): ValidationError[] {
   if (pkg.engines?.node !== NODE_ENGINE_BASELINE) {
     errors.push({
       file: filePath,
-      message: `engines.node must be \"${NODE_ENGINE_BASELINE}\" (found ${JSON.stringify(pkg.engines?.node ?? null)})`,
+      message: `engines.node must be "${NODE_ENGINE_BASELINE}" (found ${JSON.stringify(pkg.engines?.node ?? null)})`,
     });
   }
 
@@ -88,7 +88,7 @@ function main(): void {
     process.exit(1);
   }
 
-  console.log(
+  console.warn(
     `Validated ${String(packageFiles.length)} package.json file(s): metadata and Node baseline are consistent.`
   );
 }
