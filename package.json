@@ -19,7 +19,7 @@
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
     "clean": "turbo run clean",
-    "validate:manifests": "node ./scripts/validate-package-manifests.mjs"
+"validate:manifests": "node ./scripts/validate-package-manifests.mjs"
   },
   "devDependencies": {
     "@eslint/compat": "2.0.2",
