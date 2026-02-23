@@ -13,45 +13,54 @@ npm install @hardlydifficult/date-time
 ```typescript
 import { toMilliseconds, type TimeSpan } from "@hardlydifficult/date-time";
 
-const duration: TimeSpan = { value: 2.5, unit: "minutes" };
-const ms = toMilliseconds(duration); // 150_000
+const duration: TimeSpan = { value: 2, unit: "minutes" };
+const milliseconds = toMilliseconds(duration); // 120_000
 ```
 
 ## TimeSpan Conversion
 
-Converts a time duration to its equivalent in milliseconds using predefined unit multipliers.
+Converts a time duration (represented as a `TimeSpan`) to its equivalent value in milliseconds.
 
-### `TimeSpan` Interface
+### Interface
 
-Represents a time duration with a numeric `value` and a `unit`.
+| Property | Type     | Description                |
+|----------|----------|----------------------------|
+| `value`  | `number` | The numeric value of time  |
+| `unit`   | `TimeUnit` | The time unit (see below) |
 
-| Field | Type     | Description          |
-|-------|----------|----------------------|
-| value | `number` | The numeric duration |
-| unit  | `TimeUnit` | The time unit      |
+### TimeUnit Options
 
-### `TimeUnit` Type
-
-Supported time units:
 - `"milliseconds"`
 - `"seconds"`
 - `"minutes"`
 - `"hours"`
 - `"days"`
 
-### `toMilliseconds(timeSpan)`
+### Function
 
-Converts a `TimeSpan` to milliseconds.
+```typescript
+toMilliseconds(timeSpan: TimeSpan): number
+```
+
+Converts the given time span to milliseconds using predefined unit multipliers.
+
+### Examples
 
 ```typescript
 import { toMilliseconds } from "@hardlydifficult/date-time";
 
-// Convert 2 hours
-toMilliseconds({ value: 2, unit: "hours" }); // 7_200_000
+// Seconds to milliseconds
+toMilliseconds({ value: 2, unit: "seconds" }); // 2_000
 
-// Convert 0.5 days
-toMilliseconds({ value: 0.5, unit: "days" }); // 43_200_000
-
-// Handle fractional values
+// Minutes to milliseconds
 toMilliseconds({ value: 1.5, unit: "minutes" }); // 90_000
+
+// Days to milliseconds
+toMilliseconds({ value: 1, unit: "days" }); // 86_400_000
+
+// Fractional value
+toMilliseconds({ value: 0.5, unit: "seconds" }); // 500
+
+// Zero duration
+toMilliseconds({ value: 0, unit: "hours" }); // 0
 ```
