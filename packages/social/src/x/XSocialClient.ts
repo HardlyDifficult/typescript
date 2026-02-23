@@ -28,12 +28,10 @@ interface XResponse {
 
 export class XSocialClient implements SocialProviderClient {
   private readonly bearerToken: string;
-  private readonly userId: string;
   private readonly maxResults: number;
 
   constructor(config: XConfig) {
     this.bearerToken = config.bearerToken ?? process.env.X_BEARER_TOKEN ?? "";
-    this.userId = config.userId ?? process.env.X_USER_ID ?? "me";
     this.maxResults = config.maxResults ?? 25;
 
     if (this.bearerToken.length === 0) {
@@ -57,7 +55,7 @@ export class XSocialClient implements SocialProviderClient {
 
   async getTimeline(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
     const response = await this.request<XResponse>(
-      `/users/${this.userId}/timelines/reverse_chronological${this.buildQuery(options?.maxResults)}`
+      `/users/me/timelines/reverse_chronological${this.buildQuery(options?.maxResults)}`
     );
 
     const tweets = Array.isArray(response.data) ? response.data : [];
@@ -68,7 +66,7 @@ export class XSocialClient implements SocialProviderClient {
 
   async getLikedPosts(options?: { maxResults?: number }): Promise<readonly SocialPost[]> {
     const response = await this.request<XResponse>(
-      `/users/${this.userId}/liked_tweets${this.buildQuery(options?.maxResults)}`
+      `/users/me/liked_tweets${this.buildQuery(options?.maxResults)}`
     );
 
     const tweets = Array.isArray(response.data) ? response.data : [];

@@ -43,7 +43,6 @@ watcher.start();
 Set environment variables, or pass explicit config through `createSocialClient`.
 
 - `X_BEARER_TOKEN` (required)
-- `X_USER_ID` (optional, defaults to `me`)
 
 ```typescript
 import { createSocialClient } from "@hardlydifficult/social";
@@ -51,6 +50,5 @@ import { createSocialClient } from "@hardlydifficult/social";
 const social = createSocialClient({
   type: "x",
   bearerToken: process.env.X_BEARER_TOKEN,
-  userId: process.env.X_USER_ID,
 });
 ```

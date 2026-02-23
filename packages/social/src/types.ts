@@ -3,7 +3,6 @@ export type Provider = "x";
 export interface XConfig {
   readonly type: "x";
   readonly bearerToken?: string;
-  readonly userId?: string;
   readonly maxResults?: number;
 }
 

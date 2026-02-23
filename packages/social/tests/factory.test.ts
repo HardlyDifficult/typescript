@@ -8,7 +8,6 @@ describe("social factories", () => {
     const client = createSocialClient({
       type: "x",
       bearerToken: "token",
-      userId: "me",
     });
 
     expect(client).toBeDefined();
