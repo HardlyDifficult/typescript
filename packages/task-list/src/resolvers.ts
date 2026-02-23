@@ -1,3 +1,8 @@
+import {
+  LabelNotFoundError,
+  StatusIdNotFoundError,
+  StatusNotFoundError,
+} from "./errors.js";
 import type { TaskContext } from "./types.js";
 
 type ContextResolvers = Pick<
@@ -26,7 +31,7 @@ export function buildContextResolvers(
       const lower = name.toLowerCase();
       const status = statuses.find((s) => s.name.toLowerCase().includes(lower));
       if (!status) {
-        throw new Error(`Status "${name}" not found`);
+        throw new StatusNotFoundError(name);
       }
       return status.id;
     },
@@ -34,7 +39,7 @@ export function buildContextResolvers(
     resolveStatusName(id: string): string {
       const status = statuses.find((s) => s.id === id);
       if (!status) {
-        throw new Error(`Status with ID "${id}" not found`);
+        throw new StatusIdNotFoundError(id);
       }
       return status.name;
     },
@@ -43,7 +48,7 @@ export function buildContextResolvers(
       const lower = name.toLowerCase();
       const label = labels.find((l) => l.name.toLowerCase().includes(lower));
       if (!label) {
-        throw new Error(`Label "${name}" not found`);
+        throw new LabelNotFoundError(name);
       }
       return label.id;
     },
