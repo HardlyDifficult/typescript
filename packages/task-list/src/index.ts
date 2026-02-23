@@ -29,11 +29,33 @@ export { TaskWatcher, type TaskWatcherOptions } from "./TaskWatcher.js";
 export { TrelloTaskListClient } from "./trello";
 export { LinearTaskListClient } from "./linear";
 
+export {
+  TaskListError,
+  UnknownTaskListProviderError,
+  TaskListProviderNotConfiguredError,
+  ProjectNotFoundError,
+  TaskNotFoundError,
+  StatusNotFoundError,
+  StatusIdNotFoundError,
+  LabelNotFoundError,
+  TeamNotFoundError,
+  NoTeamsFoundError,
+  MultipleTeamsFoundError,
+  TeamNotResolvedError,
+  TaskListApiError,
+  LinearGraphQLError,
+  InvalidPriorityError,
+} from "./errors.js";
+
 // Factory + fluent entry point
 import { LinearTaskListClient } from "./linear";
 import { TaskList } from "./TaskList.js";
 import type { TaskListClient } from "./TaskListClient.js";
 import { TrelloTaskListClient } from "./trello";
+import {
+  TaskListProviderNotConfiguredError,
+  UnknownTaskListProviderError,
+} from "./errors.js";
 import type { TaskListConfig } from "./types.js";
 
 /**
@@ -52,9 +74,7 @@ export async function createTaskListClient(
       return client;
     }
     default:
-      throw new Error(
-        `Unknown task list provider: ${(config as { type: string }).type}`
-      );
+      throw new UnknownTaskListProviderError((config as { type: string }).type);
   }
 }
 
@@ -88,9 +108,7 @@ export function createTaskList(
   } else if (process.env.TRELLO_API_KEY !== undefined) {
     config = { type: "trello" };
   } else {
-    throw new Error(
-      "No task list provider configured. Set LINEAR_API_KEY or TRELLO_API_KEY."
-    );
+    throw new TaskListProviderNotConfiguredError();
   }
   return new TaskList(createTaskListClient(config));
 }

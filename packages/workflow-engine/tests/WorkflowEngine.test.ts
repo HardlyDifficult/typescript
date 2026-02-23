@@ -2,6 +2,12 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  CursorTargetNotFoundError,
+  InvalidInitialStatusError,
+  InvalidTransitionError,
+  TerminalTransitionError,
+} from "../src/errors.js";
 import { WorkflowEngine } from "../src/WorkflowEngine.js";
 import type {
   TransitionEvent,
@@ -70,9 +76,7 @@ describe("WorkflowEngine", () => {
             transitions,
             stateDirectory: testDir,
           })
-      ).toThrow(
-        'initialStatus "nonexistent" is not a key in the transitions map'
-      );
+      ).toThrow(InvalidInitialStatusError);
     });
 
     it("accepts a valid initialStatus", () => {
@@ -162,9 +166,9 @@ describe("WorkflowEngine", () => {
     it("throws for disallowed transition with helpful message", async () => {
       const engine = createEngine();
       await engine.load();
-      await expect(engine.transition("completed")).rejects.toThrow(
-        'Cannot transition from "idle" to "completed". Allowed: [running, failed]'
-      );
+      const error = await engine.transition("completed").catch((e) => e);
+      expect(error).toBeInstanceOf(InvalidTransitionError);
+      expect((error as InvalidTransitionError).code).toBe("INVALID_TRANSITION");
     });
 
     it("throws when transitioning from terminal status", async () => {
@@ -172,9 +176,9 @@ describe("WorkflowEngine", () => {
       await engine.load();
       await engine.transition("running");
       await engine.transition("completed");
-      await expect(engine.transition("idle" as Status)).rejects.toThrow(
-        'Cannot transition from terminal status "completed"'
-      );
+      const error = await engine.transition("idle" as Status).catch((e) => e);
+      expect(error).toBeInstanceOf(TerminalTransitionError);
+      expect((error as TerminalTransitionError).code).toBe("TERMINAL_TRANSITION");
     });
 
     it("does not persist if updater throws", async () => {
@@ -525,7 +529,14 @@ describe("WorkflowEngine", () => {
 
       const cursor = engine.cursor((d) => d.items[d.currentIndex ?? -1]);
 
-      expect(() => cursor.get()).toThrow("Cursor target not found");
+      expect(() => cursor.get()).toThrow(CursorTargetNotFoundError);
+      try {
+        cursor.get();
+      } catch (error) {
+        expect((error as CursorTargetNotFoundError).code).toBe(
+          "CURSOR_TARGET_NOT_FOUND"
+        );
+      }
     });
 
     it("find() returns the selected item or undefined", async () => {

@@ -1,3 +1,4 @@
+import { LabelNotFoundError, StatusNotFoundError, TaskNotFoundError } from "./errors.js";
 import { Task } from "./Task.js";
 import type {
   CreateLabelOptions,
@@ -95,7 +96,7 @@ export class Project {
   findTask(taskId: string): Task {
     const task = this.tasks.find((t) => t.id === taskId);
     if (!task) {
-      throw new Error(`Task "${taskId}" not found in project "${this.name}"`);
+      throw new TaskNotFoundError(taskId, this.name);
     }
     return task;
   }
@@ -192,7 +193,7 @@ export class Project {
       s.name.toLowerCase().includes(lower)
     );
     if (!status) {
-      throw new Error(`Status "${name}" not found in project "${this.name}"`);
+      throw new StatusNotFoundError(name, this.name);
     }
     return status;
   }
@@ -205,7 +206,7 @@ export class Project {
     const lower = name.toLowerCase();
     const label = this.labels.find((l) => l.name.toLowerCase().includes(lower));
     if (!label) {
-      throw new Error(`Label "${name}" not found in project "${this.name}"`);
+      throw new LabelNotFoundError(name, this.name);
     }
     return label;
   }

@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
+import {
+  LinearGraphQLError,
+  MultipleTeamsFoundError,
+  NoTeamsFoundError,
+  TaskListApiError,
+  TeamNotFoundError,
+} from "../src/errors.js";
 import { LinearTaskListClient } from "../src/linear/index.js";
 
 const mockFetch = vi.fn();
@@ -109,16 +116,16 @@ describe("LinearTaskListClient", () => {
 
   it("throws on HTTP error", async () => {
     mockFetch.mockResolvedValueOnce(httpErrorResponse(401, "Unauthorized"));
-    await expect(client.getTask("ISS-1")).rejects.toThrow(
-      "Linear API error: 401 Unauthorized"
-    );
+    const error = await client.getTask("ISS-1").catch((e) => e);
+    expect(error).toBeInstanceOf(TaskListApiError);
+    expect((error as TaskListApiError).code).toBe("API_ERROR");
   });
 
   it("throws on GraphQL error", async () => {
     mockFetch.mockResolvedValueOnce(graphqlErrorResponse("Issue not found"));
-    await expect(client.getTask("ISS-1")).rejects.toThrow(
-      "Linear API error: Issue not found"
-    );
+    const error = await client.getTask("ISS-1").catch((e) => e);
+    expect(error).toBeInstanceOf(LinearGraphQLError);
+    expect((error as LinearGraphQLError).code).toBe("LINEAR_GRAPHQL_ERROR");
   });
 
   describe("team resolution", () => {
@@ -196,8 +203,10 @@ describe("LinearTaskListClient", () => {
           },
         })
       );
-      await expect(ambiguousClient.resolveTeam()).rejects.toThrow(
-        "Multiple teams found"
+      const error = await ambiguousClient.resolveTeam().catch((e) => e);
+      expect(error).toBeInstanceOf(MultipleTeamsFoundError);
+      expect((error as MultipleTeamsFoundError).code).toBe(
+        "MULTIPLE_TEAMS_FOUND"
       );
     });
 
@@ -212,9 +221,9 @@ describe("LinearTaskListClient", () => {
           teams: { nodes: [{ id: "team-1", name: "MyTeam" }] },
         })
       );
-      await expect(badNameClient.resolveTeam()).rejects.toThrow(
-        'Team "NonExistent" not found'
-      );
+      const error = await badNameClient.resolveTeam().catch((e) => e);
+      expect(error).toBeInstanceOf(TeamNotFoundError);
+      expect((error as TeamNotFoundError).code).toBe("TEAM_NOT_FOUND");
     });
 
     it("throws when no teams exist", async () => {
@@ -225,7 +234,9 @@ describe("LinearTaskListClient", () => {
       mockFetch.mockResolvedValueOnce(
         graphqlResponse({ teams: { nodes: [] } })
       );
-      await expect(emptyClient.resolveTeam()).rejects.toThrow("No teams found");
+      const error = await emptyClient.resolveTeam().catch((e) => e);
+      expect(error).toBeInstanceOf(NoTeamsFoundError);
+      expect((error as NoTeamsFoundError).code).toBe("NO_TEAMS_FOUND");
     });
   });
 

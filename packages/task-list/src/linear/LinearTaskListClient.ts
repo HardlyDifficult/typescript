@@ -1,5 +1,14 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
+import {
+  LinearGraphQLError,
+  MultipleTeamsFoundError,
+  NoTeamsFoundError,
+  TaskListApiError,
+  TeamNotFoundError,
+  TeamNotResolvedError,
+  InvalidPriorityError,
+} from "../errors.js";
 import { Project } from "../Project.js";
 import { buildContextResolvers } from "../resolvers.js";
 import { Task } from "../Task.js";
@@ -95,21 +104,15 @@ export class LinearTaskListClient extends TaskListClient {
       const lower = this.teamName.toLowerCase();
       const match = teams.find((t) => t.name.toLowerCase().includes(lower));
       if (!match) {
-        const available = teams.map((t) => t.name).join(", ");
-        throw new Error(
-          `Team "${this.teamName}" not found. Available teams: ${available}`
-        );
+        throw new TeamNotFoundError(this.teamName, teams.map((t) => t.name));
       }
       this.teamId = match.id;
     } else if (teams.length === 1) {
       this.teamId = teams[0].id;
     } else if (teams.length === 0) {
-      throw new Error("No teams found in Linear workspace");
+      throw new NoTeamsFoundError();
     } else {
-      const available = teams.map((t) => t.name).join(", ");
-      throw new Error(
-        `Multiple teams found. Specify team name or ID. Available teams: ${available}`
-      );
+      throw new MultipleTeamsFoundError(teams.map((t) => t.name));
     }
 
     this.teamResolved = true;
@@ -117,7 +120,7 @@ export class LinearTaskListClient extends TaskListClient {
 
   private getTeamId(): string {
     if (this.teamId === undefined) {
-      throw new Error("Team not resolved. Call resolveTeam() first.");
+      throw new TeamNotResolvedError();
     }
     return this.teamId;
   }
@@ -138,12 +141,12 @@ export class LinearTaskListClient extends TaskListClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Linear API error: ${String(response.status)} ${text}`);
+      throw new TaskListApiError("linear", response.status, text);
     }
 
     const json = (await response.json()) as GraphQLResponse<T>;
     if (json.errors && json.errors.length > 0) {
-      throw new Error(`Linear API error: ${json.errors[0].message}`);
+      throw new LinearGraphQLError(json.errors[0].message);
     }
 
     return json.data;
@@ -291,9 +294,7 @@ export class LinearTaskListClient extends TaskListClient {
       resolvePriority: (name: string): number => {
         const value = PRIORITY_NAME_TO_NUMBER[name.toLowerCase()];
         if (value === undefined) {
-          throw new Error(
-            `Priority "${name}" not recognized. Use: None, Urgent, High, Medium, Low`
-          );
+          throw new InvalidPriorityError(name);
         }
         return value;
       },

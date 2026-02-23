@@ -1,6 +1,11 @@
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
 import { DataCursor } from "./DataCursor.js";
+import {
+  InvalidInitialStatusError,
+  InvalidTransitionError,
+  TerminalTransitionError,
+} from "./errors.js";
 import type {
   ChangeListener,
   DataUpdater,
@@ -28,9 +33,7 @@ export class WorkflowEngine<TStatus extends string, TData> {
     const { transitions, initialStatus } = options;
 
     if (!(initialStatus in transitions)) {
-      throw new Error(
-        `initialStatus "${initialStatus}" is not a key in the transitions map`
-      );
+      throw new InvalidInitialStatusError(initialStatus, Object.keys(transitions));
     }
 
     this.transitions = transitions;
@@ -99,15 +102,12 @@ export class WorkflowEngine<TStatus extends string, TData> {
     const from = this.status;
 
     if (this.isTerminal) {
-      throw new Error(`Cannot transition from terminal status "${from}"`);
+      throw new TerminalTransitionError(from);
     }
 
     const allowed = this.transitions[from];
     if (!allowed.includes(to)) {
-      throw new Error(
-        `Cannot transition from "${from}" to "${to}". ` +
-          `Allowed: [${allowed.join(", ")}]`
-      );
+      throw new InvalidTransitionError(from, to, allowed);
     }
 
     const data = structuredClone(this.tracker.state.data);
