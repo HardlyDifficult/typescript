@@ -1,13 +1,13 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
 import {
+  InvalidPriorityError,
   LinearGraphQLError,
   MultipleTeamsFoundError,
   NoTeamsFoundError,
   TaskListApiError,
   TeamNotFoundError,
   TeamNotResolvedError,
-  InvalidPriorityError,
 } from "../errors.js";
 import { Project } from "../Project.js";
 import { buildContextResolvers } from "../resolvers.js";
@@ -104,7 +104,10 @@ export class LinearTaskListClient extends TaskListClient {
       const lower = this.teamName.toLowerCase();
       const match = teams.find((t) => t.name.toLowerCase().includes(lower));
       if (!match) {
-        throw new TeamNotFoundError(this.teamName, teams.map((t) => t.name));
+        throw new TeamNotFoundError(
+          this.teamName,
+          teams.map((t) => t.name)
+        );
       }
       this.teamId = match.id;
     } else if (teams.length === 1) {

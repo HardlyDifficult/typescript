@@ -33,7 +33,10 @@ export class WorkflowEngine<TStatus extends string, TData> {
     const { transitions, initialStatus } = options;
 
     if (!(initialStatus in transitions)) {
-      throw new InvalidInitialStatusError(initialStatus, Object.keys(transitions));
+      throw new InvalidInitialStatusError(
+        initialStatus,
+        Object.keys(transitions)
+      );
     }
 
     this.transitions = transitions;

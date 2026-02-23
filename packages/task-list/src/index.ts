@@ -48,14 +48,14 @@ export {
 } from "./errors.js";
 
 // Factory + fluent entry point
-import { LinearTaskListClient } from "./linear";
-import { TaskList } from "./TaskList.js";
-import type { TaskListClient } from "./TaskListClient.js";
-import { TrelloTaskListClient } from "./trello";
 import {
   TaskListProviderNotConfiguredError,
   UnknownTaskListProviderError,
 } from "./errors.js";
+import { LinearTaskListClient } from "./linear";
+import { TaskList } from "./TaskList.js";
+import type { TaskListClient } from "./TaskListClient.js";
+import { TrelloTaskListClient } from "./trello";
 import type { TaskListConfig } from "./types.js";
 
 /**

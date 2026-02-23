@@ -178,7 +178,9 @@ describe("WorkflowEngine", () => {
       await engine.transition("completed");
       const error = await engine.transition("idle" as Status).catch((e) => e);
       expect(error).toBeInstanceOf(TerminalTransitionError);
-      expect((error as TerminalTransitionError).code).toBe("TERMINAL_TRANSITION");
+      expect((error as TerminalTransitionError).code).toBe(
+        "TERMINAL_TRANSITION"
+      );
     });
 
     it("does not persist if updater throws", async () => {

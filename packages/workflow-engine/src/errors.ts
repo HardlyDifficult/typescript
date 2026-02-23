@@ -1,3 +1,6 @@
+/**
+ *
+ */
 export class WorkflowEngineError extends Error {
   readonly code: string;
   readonly details?: Record<string, unknown>;
@@ -14,6 +17,9 @@ export class WorkflowEngineError extends Error {
   }
 }
 
+/**
+ *
+ */
 export class InvalidInitialStatusError extends WorkflowEngineError {
   constructor(initialStatus: string, transitionKeys: readonly string[]) {
     super(
@@ -24,6 +30,9 @@ export class InvalidInitialStatusError extends WorkflowEngineError {
   }
 }
 
+/**
+ *
+ */
 export class TerminalTransitionError extends WorkflowEngineError {
   constructor(from: string) {
     super(
@@ -34,6 +43,9 @@ export class TerminalTransitionError extends WorkflowEngineError {
   }
 }
 
+/**
+ *
+ */
 export class InvalidTransitionError extends WorkflowEngineError {
   constructor(from: string, to: string, allowed: readonly string[]) {
     super(
@@ -44,12 +56,18 @@ export class InvalidTransitionError extends WorkflowEngineError {
   }
 }
 
+/**
+ *
+ */
 export class PipelineHasNoStepsError extends WorkflowEngineError {
   constructor() {
     super("Pipeline requires at least one step", "PIPELINE_NO_STEPS");
   }
 }
 
+/**
+ *
+ */
 export class DuplicatePipelineStepNameError extends WorkflowEngineError {
   constructor(stepName: string) {
     super(`Duplicate step name: "${stepName}"`, "DUPLICATE_STEP_NAME", {
@@ -58,6 +76,9 @@ export class DuplicatePipelineStepNameError extends WorkflowEngineError {
   }
 }
 
+/**
+ *
+ */
 export class PipelineResumeError extends WorkflowEngineError {
   constructor(status: string) {
     super(
@@ -68,12 +89,18 @@ export class PipelineResumeError extends WorkflowEngineError {
   }
 }
 
+/**
+ *
+ */
 export class CursorTargetNotFoundError extends WorkflowEngineError {
   constructor() {
     super("Cursor target not found", "CURSOR_TARGET_NOT_FOUND");
   }
 }
 
+/**
+ *
+ */
 export class StepExecutionMissingError extends WorkflowEngineError {
   constructor(stepName: string) {
     super(
