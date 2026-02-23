@@ -108,7 +108,8 @@ export default function createConfig(projectRoot: string) {
               "Use object-style constructor options for Poller (new Poller({ ... }) or Poller.create({ ... })).",
           },
           {
-            selector: "NewExpression[callee.name='Channel'][arguments.length>1]",
+            selector:
+              "NewExpression[callee.name='Channel'][arguments.length>1]",
             message:
               "Use object-style constructor options for Channel (new Channel({ id, platform, operations })).",
           },

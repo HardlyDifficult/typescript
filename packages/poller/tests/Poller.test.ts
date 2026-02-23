@@ -24,7 +24,11 @@ describe("Poller", () => {
   it("fires onChange on first fetch", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = Poller.create({ fetch: fetchFn, onChange, intervalMs: 5000 });
+    const poller = Poller.create({
+      fetch: fetchFn,
+      onChange,
+      intervalMs: 5000,
+    });
 
     await poller.start();
 
@@ -106,9 +110,14 @@ describe("Poller", () => {
   });
 
   it("supports custom comparator", async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ id: "1", updatedAt: Date.now() });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ id: "1", updatedAt: Date.now() });
     const onChange = vi.fn();
-    const comparator = vi.fn((current: { id: string }, previous: { id: string } | undefined) => current.id === previous?.id);
+    const comparator = vi.fn(
+      (current: { id: string }, previous: { id: string } | undefined) =>
+        current.id === previous?.id
+    );
     const poller = new Poller({
       fetch: fetchFn,
       onChange,
@@ -173,7 +182,12 @@ describe("Poller", () => {
     });
     const onChange = vi.fn();
     const onError = vi.fn();
-    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000, onError });
+    const poller = new Poller({
+      fetch: fetchFn,
+      onChange,
+      intervalMs: 1000,
+      onError,
+    });
 
     await poller.start();
     await vi.advanceTimersByTimeAsync(1000);

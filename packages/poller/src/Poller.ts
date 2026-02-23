@@ -8,6 +8,9 @@ export interface PollerOptions<T> {
   comparator?: (current: T, previous: T | undefined) => boolean;
 }
 
+/**
+ *
+ */
 export class Poller<T> {
   private readonly fetchFn: () => Promise<T>;
   private readonly onChange: (current: T, previous: T | undefined) => void;
@@ -50,7 +53,8 @@ export class Poller<T> {
     this.debounceMs = options.debounceMs ?? 1_000;
     this.comparator =
       options.comparator ??
-      ((current, previous) => JSON.stringify(current) === JSON.stringify(previous));
+      ((current, previous) =>
+        JSON.stringify(current) === JSON.stringify(previous));
   }
 
   static create<T>(options: PollerOptions<T>): Poller<T> {

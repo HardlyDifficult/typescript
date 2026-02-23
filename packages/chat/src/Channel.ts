@@ -21,13 +21,10 @@ import type {
   ChannelOperations,
   ChannelOptions,
   DeleteMessageOptions,
-  DisconnectCallback,
-  ErrorCallback,
   FileAttachment,
   Member,
   MessageCallback,
   MessageContent,
-  MessageData,
   MessageEvent,
   MessageQueryOptions,
   Platform,
@@ -518,5 +515,4 @@ export class Channel {
 
     return { id: optionsOrId, platform, operations };
   }
-
 }
