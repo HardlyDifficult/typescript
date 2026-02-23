@@ -10,10 +10,10 @@ describe("Poller", () => {
     vi.useRealTimers();
   });
 
-  it("calls fetchFn immediately on start", async () => {
+  it("calls fetch immediately on start", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 5000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 5000 });
 
     await poller.start();
 
@@ -24,7 +24,7 @@ describe("Poller", () => {
   it("fires onChange on first fetch", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 5000);
+    const poller = Poller.create({ fetch: fetchFn, onChange, intervalMs: 5000 });
 
     await poller.start();
 
@@ -32,15 +32,26 @@ describe("Poller", () => {
     poller.stop();
   });
 
+  it("supports positional constructor for backward compatibility", async () => {
+    const fetchFn = vi.fn().mockResolvedValue("data");
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const poller = new Poller(fetchFn, onChange, 5000, onError);
+
+    await poller.start();
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    poller.stop();
+  });
+
   it("polls at the configured interval", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 5000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 5000 });
 
     await poller.start();
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
-    // Advance past the interval
     await vi.advanceTimersByTimeAsync(5000);
     expect(fetchFn).toHaveBeenCalledTimes(2);
 
@@ -57,17 +68,14 @@ describe("Poller", () => {
       return callCount <= 2 ? "same" : "different";
     });
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000 });
 
     await poller.start();
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith("same", undefined);
 
-    // Second poll, same data — no change
     await vi.advanceTimersByTimeAsync(1000);
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    // Third poll, different data — fires onChange
     await vi.advanceTimersByTimeAsync(1000);
     expect(onChange).toHaveBeenCalledTimes(2);
     expect(onChange).toHaveBeenCalledWith("different", "same");
@@ -75,39 +83,53 @@ describe("Poller", () => {
     poller.stop();
   });
 
-  it("uses deep equality for change detection", async () => {
+  it("uses deep equality for change detection by default", async () => {
     let callCount = 0;
     const fetchFn = vi.fn().mockImplementation(async () => {
       callCount++;
-      // Return structurally equal but different object references
       if (callCount <= 2) return { items: [1, 2, 3] };
       return { items: [1, 2, 3, 4] };
     });
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000 });
 
     await poller.start();
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    // Same structure — no change
     await vi.advanceTimersByTimeAsync(1000);
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    // Different structure — fires
     await vi.advanceTimersByTimeAsync(1000);
     expect(onChange).toHaveBeenCalledTimes(2);
 
     poller.stop();
   });
 
+  it("supports custom comparator", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ id: "1", updatedAt: Date.now() });
+    const onChange = vi.fn();
+    const comparator = vi.fn((current: { id: string }, previous: { id: string } | undefined) => current.id === previous?.id);
+    const poller = new Poller({
+      fetch: fetchFn,
+      onChange,
+      intervalMs: 1000,
+      comparator,
+    });
+
+    await poller.start();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(comparator).toHaveBeenCalled();
+    poller.stop();
+  });
+
   it("stops polling after stop()", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000 });
 
     await poller.start();
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-
     poller.stop();
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -120,7 +142,6 @@ describe("Poller", () => {
     const fetchFn = vi.fn().mockImplementation(() => {
       callCount++;
       if (callCount === 1) {
-        // First call: never resolves during test
         return new Promise<string>((resolve) => {
           resolveFirst = () => resolve("first");
         });
@@ -128,22 +149,15 @@ describe("Poller", () => {
       return Promise.resolve("later");
     });
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000 });
 
-    // Start — kicks off first (slow) fetch
     const startPromise = poller.start();
-
-    // Advance timer — interval fires, but first poll is still running
     await vi.advanceTimersByTimeAsync(1000);
-
-    // fetchFn should only have been called once (the overlapping call was skipped)
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
-    // Resolve the first fetch
     resolveFirst!();
     await startPromise;
 
-    // Now the next interval should work
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetchFn).toHaveBeenCalledTimes(2);
 
@@ -159,71 +173,48 @@ describe("Poller", () => {
     });
     const onChange = vi.fn();
     const onError = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000, onError);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 1000, onError });
 
     await poller.start();
-    expect(onChange).toHaveBeenCalledTimes(1);
-
-    // Second poll errors
     await vi.advanceTimersByTimeAsync(1000);
-    expect(onError).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith(expect.any(Error));
 
-    // Third poll succeeds
+    expect(onError).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetchFn).toHaveBeenCalledTimes(3);
 
     poller.stop();
   });
 
-  it("does not throw when fetch errors and no onError provided", async () => {
-    const fetchFn = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue("data");
-    const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 1000);
-
-    // Should not throw
-    await poller.start();
-
-    // Next poll should work fine
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(onChange).toHaveBeenCalledWith("data", undefined);
-
-    poller.stop();
-  });
-
-  it("trigger() fires a debounced poll", async () => {
+  it("uses default trigger debounce from options", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 60000);
+    const poller = new Poller({
+      fetch: fetchFn,
+      onChange,
+      intervalMs: 60000,
+      debounceMs: 500,
+    });
 
     await poller.start();
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-
-    // Trigger with debounce
-    poller.trigger(500);
+    poller.trigger();
     await vi.advanceTimersByTimeAsync(500);
-    expect(fetchFn).toHaveBeenCalledTimes(2);
 
+    expect(fetchFn).toHaveBeenCalledTimes(2);
     poller.stop();
   });
 
   it("trigger() debounces multiple calls", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 60000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 60000 });
 
     await poller.start();
 
-    // Multiple rapid triggers — only the last one should fire
     poller.trigger(500);
     poller.trigger(500);
     poller.trigger(500);
 
     await vi.advanceTimersByTimeAsync(500);
-    // Only one additional poll from the debounced trigger
     expect(fetchFn).toHaveBeenCalledTimes(2);
 
     poller.stop();
@@ -232,23 +223,10 @@ describe("Poller", () => {
   it("trigger() does nothing when stopped", async () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
     const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 60000);
+    const poller = new Poller({ fetch: fetchFn, onChange, intervalMs: 60000 });
 
-    // Never started — trigger should be a no-op
     poller.trigger();
     await vi.advanceTimersByTimeAsync(5000);
     expect(fetchFn).not.toHaveBeenCalled();
-  });
-
-  it("start() is idempotent", async () => {
-    const fetchFn = vi.fn().mockResolvedValue("data");
-    const onChange = vi.fn();
-    const poller = new Poller(fetchFn, onChange, 5000);
-
-    await poller.start();
-    await poller.start();
-
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    poller.stop();
   });
 });

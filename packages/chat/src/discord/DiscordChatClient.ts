@@ -239,7 +239,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       displayName: me.globalName ?? me.username,
       mention: `<@${me.id}>`,
     };
-    return new Channel(channelId, "discord", this);
+    return new Channel({ id: channelId, platform: "discord", operations: this });
   }
 
   /**

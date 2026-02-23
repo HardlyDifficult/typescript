@@ -102,6 +102,13 @@ export interface ChannelOperations {
   ): Promise<MessageData>;
 }
 
+
+export interface ChannelOptions {
+  id: string;
+  platform: Platform;
+  operations: ChannelOperations;
+}
+
 /** A platform-agnostic channel that provides messaging, reactions, typing indicators, and thread management. */
 export class Channel {
   public readonly id: string;
@@ -113,10 +120,19 @@ export class Channel {
   private readonly batchAdapter: ChannelBatchAdapter;
   private readonly typingController: TypingController;
 
-  constructor(id: string, platform: Platform, operations: ChannelOperations) {
-    this.id = id;
-    this.platform = platform;
-    this.operations = operations;
+  constructor(options: ChannelOptions);
+  /** @deprecated Use `new Channel({ id, platform, operations })` instead. */
+  constructor(id: string, platform: Platform, operations: ChannelOperations);
+  constructor(
+    optionsOrId: ChannelOptions | string,
+    platform?: Platform,
+    operations?: ChannelOperations
+  ) {
+    const options = Channel.resolveOptions(optionsOrId, platform, operations);
+
+    this.id = options.id;
+    this.platform = options.platform;
+    this.operations = options.operations;
     this.batchAdapter = createChannelBatchAdapter(
       this.id,
       this.platform,
@@ -130,7 +146,7 @@ export class Channel {
 
     // Subscribe to platform reactions and forward to message-specific callbacks
     this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
-      id,
+      this.id,
       (event) => this.emitReaction(event)
     );
   }
@@ -557,4 +573,22 @@ export class Channel {
     this.messageReactionCallbacks.clear();
     this.typingController.clear();
   }
+  private static resolveOptions(
+    optionsOrId: ChannelOptions | string,
+    platform?: Platform,
+    operations?: ChannelOperations
+  ): ChannelOptions {
+    if (typeof optionsOrId !== "string") {
+      return optionsOrId;
+    }
+
+    if (!platform || !operations) {
+      throw new Error(
+        "Channel positional constructor requires id, platform, and operations."
+      );
+    }
+
+    return { id: optionsOrId, platform, operations };
+  }
+
 }
