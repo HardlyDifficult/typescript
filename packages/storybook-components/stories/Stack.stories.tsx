@@ -4,7 +4,7 @@ import { Button } from "../src/index.js";
 import { Badge } from "../src/index.js";
 
 const meta: Meta<typeof Stack> = {
-  title: "Components/Stack",
+  title: "Layout/Stack",
   component: Stack,
 };
 export default meta;
@@ -40,6 +40,21 @@ export const Horizontal: Story = {
         <Button variant="ghost" size="sm">
           Dismiss
         </Button>
+      </>
+    ),
+  },
+};
+
+export const GridColumns: Story = {
+  args: {
+    columns: 4,
+    gap: "md",
+    children: (
+      <>
+        <Badge variant="success">Cell 1</Badge>
+        <Badge variant="info">Cell 2</Badge>
+        <Badge variant="warning">Cell 3</Badge>
+        <Badge variant="error">Cell 4</Badge>
       </>
     ),
   },

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StatCard } from "../src/index.js";
 
 const meta: Meta<typeof StatCard> = {
-  title: "Widgets/StatCard",
+  title: "Data/StatCard",
   component: StatCard,
 };
 export default meta;

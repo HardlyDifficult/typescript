@@ -4,7 +4,7 @@ import { Text } from "../src/index.js";
 import { Badge } from "../src/index.js";
 
 const meta: Meta<typeof Card> = {
-  title: "Components/Card",
+  title: "Layout/Card",
   component: Card,
 };
 export default meta;

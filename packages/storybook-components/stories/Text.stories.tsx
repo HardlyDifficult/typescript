@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Text } from "../src/index.js";
 
 const meta: Meta<typeof Text> = {
-  title: "Components/Text",
+  title: "Content/Text",
   component: Text,
 };
 export default meta;
@@ -21,6 +21,23 @@ export const Document: Story = {
       </Text>
       <Text variant="caption">Updated 2 minutes ago</Text>
       <Text variant="code">npm install @hardlydifficult/storybook-components</Text>
+    </div>
+  ),
+};
+
+export const AsLink: Story = {
+  render: () => (
+    <Text href="https://example.com" external>Visit Example</Text>
+  ),
+};
+
+export const WithColor: Story = {
+  render: () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <Text color="success">Success text</Text>
+      <Text color="error">Error text</Text>
+      <Text color="muted">Muted text</Text>
+      <Text color="accent">Accent text</Text>
     </div>
   ),
 };
