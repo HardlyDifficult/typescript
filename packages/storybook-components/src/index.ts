@@ -8,7 +8,6 @@ export type {
   GlobalNavProps,
   GlobalNavCategory,
   GlobalNavLink,
-  GlobalNavWorkerStatus,
 } from "./components/GlobalNav.js";
 export { ActivityFeed } from "./widgets/ActivityFeed.js";
 export type { ActivityEvent } from "./widgets/ActivityFeed.js";

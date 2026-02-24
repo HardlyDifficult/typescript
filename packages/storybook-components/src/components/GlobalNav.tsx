@@ -14,19 +14,6 @@ export interface GlobalNavCategory {
   items: GlobalNavLink[];
 }
 
-export interface GlobalNavWorkerStatus {
-  /** Number of actively running jobs */
-  activeJobs: number;
-  /** Maximum concurrent job capacity */
-  totalCapacity: number;
-  /** Number of jobs waiting in queue */
-  queuedJobs: number;
-  /** Whether the WebSocket connection is live */
-  wsConnected: boolean;
-  /** Whether any workers are registered */
-  hasWorkers: boolean;
-}
-
 export interface GlobalNavProps {
   /** Application title shown on the left side */
   title?: string;
@@ -34,10 +21,8 @@ export interface GlobalNavProps {
   currentPath?: string;
   /** Navigation categories and their links */
   categories: GlobalNavCategory[];
-  /** Live worker and job status */
-  workerStatus?: GlobalNavWorkerStatus;
-  /** Total AI cost in USD — null hides the indicator */
-  totalCost?: number | null;
+  /** Custom content rendered between the title and the menu button (status badges, etc.) */
+  indicators?: ReactNode;
   /** Called when the user clicks Sign out */
   onSignOut?: () => void;
   /**
@@ -82,16 +67,15 @@ function MenuIcon() {
 }
 
 /**
- * Global navigation bar for the dashboard.
- * Renders a top bar with title, worker status, cost indicator, and a nav dropdown.
+ * Global navigation bar.
+ * Renders a top bar with a title on the left, optional custom indicators, and a nav dropdown.
  * All styling comes from the design system tokens; consumers provide business logic via props.
  */
 export function GlobalNav({
   title,
   currentPath,
   categories,
-  workerStatus,
-  totalCost,
+  indicators,
   onSignOut,
   renderLink,
 }: GlobalNavProps) {
@@ -120,11 +104,6 @@ export function GlobalNav({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
-
-  const wsLive = workerStatus !== undefined && workerStatus.wsConnected && workerStatus.hasWorkers;
-  const activeJobs = workerStatus?.activeJobs ?? 0;
-  const totalCapacity = workerStatus?.totalCapacity ?? 0;
-  const queuedJobs = workerStatus?.queuedJobs ?? 0;
 
   return (
     <nav
@@ -172,21 +151,7 @@ export function GlobalNav({
             gap: "var(--space-3)",
           }}
         >
-          {/* Cost indicator */}
-          {totalCost !== null && totalCost !== undefined && (
-            <CostLink render={render} totalCost={totalCost} />
-          )}
-
-          {/* Worker status badge */}
-          {workerStatus !== undefined && (
-            <WorkerBadge
-              render={render}
-              wsLive={wsLive}
-              activeJobs={activeJobs}
-              totalCapacity={totalCapacity}
-              queuedJobs={queuedJobs}
-            />
-          )}
+          {indicators}
 
           {/* Nav dropdown */}
           <div ref={containerRef} style={{ position: "relative" }}>
@@ -209,114 +174,6 @@ export function GlobalNav({
 }
 
 /* ── Sub-components ── */
-
-function CostLink({
-  render,
-  totalCost,
-}: {
-  render: NonNullable<GlobalNavProps["renderLink"]>;
-  totalCost: number;
-}) {
-  return render({
-    href: "/usage",
-    className: undefined,
-    children: (
-      <span
-        style={{
-          fontSize: "var(--text-sm)",
-          fontWeight: 500,
-          color: "var(--color-accent)",
-          textDecoration: "none",
-          letterSpacing: "var(--tracking-tight)",
-          opacity: 0.85,
-          transition: "opacity 120ms ease",
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
-      >
-        ${totalCost.toFixed(2)}
-      </span>
-    ),
-  });
-}
-
-function WorkerBadge({
-  render,
-  wsLive,
-  activeJobs,
-  totalCapacity,
-  queuedJobs,
-}: {
-  render: NonNullable<GlobalNavProps["renderLink"]>;
-  wsLive: boolean;
-  activeJobs: number;
-  totalCapacity: number;
-  queuedJobs: number;
-}) {
-  return render({
-    href: "/queue",
-    children: (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          padding: "3px 10px",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--color-border)",
-          background: "var(--color-bg-subtle)",
-          fontSize: "var(--text-xs)",
-          color: "var(--color-text-secondary)",
-          textDecoration: "none",
-          whiteSpace: "nowrap",
-          transition: "background 120ms ease, border-color 120ms ease",
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.background = "var(--color-bg-muted)";
-          el.style.borderColor = "var(--color-border-strong)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.background = "var(--color-bg-subtle)";
-          el.style.borderColor = "var(--color-border)";
-        }}
-      >
-        {/* Status dot */}
-        <span
-          style={{
-            width: "6px",
-            height: "6px",
-            borderRadius: "50%",
-            flexShrink: 0,
-            background: wsLive
-              ? "var(--color-success)"
-              : "var(--color-text-muted)",
-            transition: "background 200ms ease",
-          }}
-        />
-        {/* Active/capacity */}
-        <span>
-          <span
-            style={{
-              color: activeJobs > 0 ? "var(--color-success)" : undefined,
-              fontWeight: activeJobs > 0 ? 500 : undefined,
-            }}
-          >
-            {String(activeJobs)}/{String(totalCapacity)}
-          </span>
-          {" working"}
-          {queuedJobs > 0 && (
-            <span style={{ color: "var(--color-warning)", fontWeight: 500 }}>
-              {" · "}{queuedJobs.toLocaleString()}{" queued"}
-            </span>
-          )}
-        </span>
-      </span>
-    ),
-  });
-}
 
 function MenuButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (

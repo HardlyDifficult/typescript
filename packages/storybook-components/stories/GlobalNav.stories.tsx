@@ -5,26 +5,57 @@ const NAV_CATEGORIES = [
   {
     label: "Core",
     items: [
-      { href: "/", label: "PR Dashboard" },
-      { href: "/sessions", label: "Claude Sessions" },
-      { href: "/queue", label: "Queue Viewer" },
+      { href: "/", label: "Home" },
+      { href: "/sessions", label: "Sessions" },
+      { href: "/jobs", label: "Jobs" },
     ],
   },
   {
     label: "Insights",
     items: [
-      { href: "/activity", label: "Activity Log" },
-      { href: "/usage", label: "Usage Dashboard" },
+      { href: "/activity", label: "Activity" },
+      { href: "/analytics", label: "Analytics" },
     ],
   },
   {
     label: "Tools",
     items: [
       { href: "/prompt-tester", label: "Prompt Tester" },
-      { href: "/config", label: "Config" },
+      { href: "/settings", label: "Settings" },
     ],
   },
 ];
+
+/** A simple status badge for demo purposes — consumers supply their own via `indicators`. */
+function StatusBadge({ connected, label }: { connected: boolean; label: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "3px 10px",
+        borderRadius: "var(--radius-md)",
+        border: "1px solid var(--color-border)",
+        background: "var(--color-bg-subtle)",
+        fontSize: "var(--text-xs)",
+        color: "var(--color-text-secondary)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: "6px",
+          height: "6px",
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: connected ? "var(--color-success)" : "var(--color-text-muted)",
+        }}
+      />
+      {label}
+    </span>
+  );
+}
 
 const meta: Meta<typeof GlobalNav> = {
   title: "Components/GlobalNav",
@@ -33,7 +64,7 @@ const meta: Meta<typeof GlobalNav> = {
     layout: "fullscreen",
   },
   args: {
-    title: "PR Dashboard",
+    title: "My App",
     categories: NAV_CATEGORIES,
     onSignOut: () => { alert("Sign out clicked"); },
   },
@@ -42,56 +73,47 @@ export default meta;
 
 type Story = StoryObj<typeof GlobalNav>;
 
-/** Default state: connected with active jobs. */
+/** Default state: custom indicators showing active status. */
 export const Default: Story = {
   args: {
     currentPath: "/",
-    totalCost: 12.34,
-    workerStatus: {
-      activeJobs: 2,
-      totalCapacity: 4,
-      queuedJobs: 0,
-      wsConnected: true,
-      hasWorkers: true,
-    },
+    indicators: <StatusBadge connected={true} label="2 / 4 active" />,
   },
 };
 
-/** Disconnected — no workers registered. */
+/** Disconnected — status indicator reflects an offline state. */
 export const Disconnected: Story = {
   args: {
     currentPath: "/",
-    totalCost: null,
-    workerStatus: {
-      activeJobs: 0,
-      totalCapacity: 0,
-      queuedJobs: 0,
-      wsConnected: false,
-      hasWorkers: false,
-    },
+    indicators: <StatusBadge connected={false} label="offline" />,
   },
 };
 
-/** Backlogged — jobs queued up. */
-export const WithQueue: Story = {
+/** Multiple indicators — compose as many as needed. */
+export const MultipleIndicators: Story = {
   args: {
     currentPath: "/sessions",
-    totalCost: 89.50,
-    workerStatus: {
-      activeJobs: 4,
-      totalCapacity: 4,
-      queuedJobs: 12,
-      wsConnected: true,
-      hasWorkers: true,
-    },
+    indicators: (
+      <>
+        <StatusBadge connected={true} label="4 / 4 active · 12 queued" />
+        <span
+          style={{
+            fontSize: "var(--text-sm)",
+            fontWeight: 500,
+            color: "var(--color-accent)",
+            opacity: 0.85,
+          }}
+        >
+          $89.50
+        </span>
+      </>
+    ),
   },
 };
 
 /** Minimal — no status indicators. */
 export const Minimal: Story = {
   args: {
-    currentPath: "/config",
-    totalCost: null,
-    workerStatus: undefined,
+    currentPath: "/settings",
   },
 };
