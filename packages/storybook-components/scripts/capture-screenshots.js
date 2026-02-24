@@ -37,45 +37,27 @@ const MIME_TYPES = {
  * Key = output filename (under .screenshots/), value = story IDs to combine.
  */
 const COMPOSITES = {
-  "components/button-all": [
-    "components-button--primary",
-    "components-button--secondary",
-    "components-button--ghost",
-    "components-button--small",
-    "components-button--disabled",
-    "components-button--with-icon",
-    "components-button--secondary-with-icon",
+  "inputs/button-all": [
+    "inputs-button--primary",
+    "inputs-button--secondary",
+    "inputs-button--ghost",
+    "inputs-button--danger",
+    "inputs-button--small",
+    "inputs-button--loading",
+    "inputs-button--with-icon",
   ],
-  "components/badge-all": [
-    "components-badge--default",
-    "components-badge--success",
-    "components-badge--warning",
-    "components-badge--error",
-    "components-badge--info",
+  "content/badge-all": [
+    "content-badge--default",
+    "content-badge--success",
+    "content-badge--warning",
+    "content-badge--error",
+    "content-badge--info",
   ],
-  "widgets/notificationtoast-all": [
-    "widgets-notificationtoast--success",
-    "widgets-notificationtoast--error",
-    "widgets-notificationtoast--warning",
-    "widgets-notificationtoast--info",
-  ],
-  "widgets/usercard-all": [
-    "widgets-usercard--online",
-    "widgets-usercard--away",
-    "widgets-usercard--offline",
-    "widgets-usercard--no-status",
-  ],
-  "widgets/progressbar-all": [
-    "widgets-progressbar--in-progress",
-    "widgets-progressbar--complete",
-    "widgets-progressbar--starting",
-    "widgets-progressbar--no-label",
-  ],
-  "widgets/statcard-all": [
-    "widgets-statcard--revenue",
-    "widgets-statcard--active-users",
-    "widgets-statcard--error-rate",
-    "widgets-statcard--no-trend",
+  "data/statcard-all": [
+    "data-statcard--revenue",
+    "data-statcard--active-users",
+    "data-statcard--error-rate",
+    "data-statcard--no-trend",
   ],
 };
 
@@ -119,6 +101,17 @@ function storyUrl(port, storyId) {
   return `http://127.0.0.1:${port}/iframe.html?id=${storyId}&viewMode=story`;
 }
 
+/** Inject a stylesheet that disables all animations and transitions instantly. */
+async function freezeAnimations(browser) {
+  const page = browser.getPage();
+  await page.evaluate(() => {
+    const style = document.createElement("style");
+    style.textContent =
+      "*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }";
+    document.head.appendChild(style);
+  });
+}
+
 /** Capture a single story, cropped to #storybook-root. */
 async function captureStory(browser, port, story) {
   const url = storyUrl(port, story.id);
@@ -127,6 +120,7 @@ async function captureStory(browser, port, story) {
 
   await executeCommand({ id: "nav", action: "navigate", url, waitUntil: "networkidle" }, browser);
   await executeCommand({ id: "wait", action: "wait", timeout: 300 }, browser);
+  await freezeAnimations(browser);
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
     browser
@@ -188,6 +182,7 @@ async function captureComposite(browser, port, name, storyIds) {
   }, fragments);
 
   await page.waitForTimeout(200);
+  await freezeAnimations(browser);
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
     browser
