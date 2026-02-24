@@ -1,6 +1,6 @@
 # @hardlydifficult/http
 
-HTTP utilities for safe request/response handling: body reading with size limits, constant-time comparison, and JSON responses with CORS.
+HTTP utilities for safe request/response handling: body reading with size limits, constant-time comparison, and JSON responses with CORS support.
 
 ## Installation
 
@@ -39,10 +39,10 @@ Reads the full HTTP request body as a string, with an optional size limit.
 function readBody(req: IncomingMessage, maxBytes?: number): Promise<string>
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `req` | `IncomingMessage` | Node.js HTTP incoming message |
-| `maxBytes` | `number` | Maximum body size in bytes (default: `MAX_BODY_BYTES`, 1 MB) |
+| Parameter | Type | Default | Description |
+|------|---|---|---------|
+| `req` | `IncomingMessage` | — | Node.js HTTP incoming message |
+| `maxBytes` | `number` | `MAX_BODY_BYTES` (1 MB) | Maximum body size in bytes |
 
 Throws `"Payload too large"` error if the body exceeds the limit.
 
@@ -81,7 +81,7 @@ function sendJson(
 ```
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+|------|---|---------|
 | `res` | `ServerResponse` | Node.js HTTP server response |
 | `status` | `number` | HTTP status code |
 | `body` | `unknown` | JSON-serializable data |

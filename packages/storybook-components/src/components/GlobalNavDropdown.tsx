@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 type RenderLink = (props: {
   href: string;
@@ -42,14 +42,16 @@ export function NavDropdown({
             <div className="px-[var(--space-3)] pt-[var(--space-1)] pb-[var(--space-2)] text-[11px] font-semibold tracking-[0.08em] uppercase text-[color:var(--color-text-muted)]">
               {category.label}
             </div>
-            {visible.map((item) =>
-              render({
-                href: item.href,
-                onClick: onClose,
-                className: "block",
-                children: <NavItem label={item.label} />,
-              }),
-            )}
+            {visible.map((item) => (
+              <React.Fragment key={item.href}>
+                {render({
+                  href: item.href,
+                  onClick: onClose,
+                  className: undefined,
+                  children: <NavItem label={item.label} />,
+                })}
+              </React.Fragment>
+            ))}
           </div>
         );
       })}

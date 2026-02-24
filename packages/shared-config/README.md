@@ -1,6 +1,6 @@
 # @hardlydifficult/shared-config
 
-A shared configuration package that auto-syncs repository root files (`.gitignore` and `.github/dependabot.yml`) after installation via a `postinstall` script.
+A shared configuration package that provides consistent TypeScript settings and automated file synchronization for the monorepo.
 
 ## Installation
 
@@ -10,43 +10,45 @@ npm install @hardlydifficult/shared-config
 
 ## Quick Start
 
-Add `@hardlydifficult/shared-config` as a dev dependency to your project. After running `npm install`, it automatically copies the following shared config files into your repository root:
-
-- `.gitignore`
-- `.github/dependabot.yml`
-
-No additional setup or code is required.
-
-## Postinstall Script
-
-Automatically runs after `npm install` and copies shared config files from the package’s `files/` directory to your repository root.
-
-### Behavior
-
-- Uses `INIT_CWD` environment variable (if available) to determine the project root.
-- Falls back to walking up the directory tree from `__dirname` to find `node_modules/`.
-- Silently skips copying if the root or files directory cannot be determined.
+Add this package as a dev dependency to your project. After running `npm install`, it automatically copies shared configuration files (`.gitignore` and `.github/dependabot.yml`) into your repository root.
 
 ```typescript
-// Postinstall runs automatically on install — no manual invocation needed
-// Copies these files:
-// - .gitignore
-// - .github/dependabot.yml
+import { packageName } from "@hardlydifficult/shared-config";
+
+console.log(packageName); // "@hardlydifficult/shared-config"
 ```
 
-### File Copying
+## API Reference
 
-- `files/.gitignore` → `.gitignore`
-- `files/.github/dependabot.yml` → `.github/dependabot.yml`
+### `packageName`
 
-Directories are created as needed; existing files are overwritten.
+A string constant identifying the package name.
 
-## Shared Config Files
+| Value | Type | Description |
+|-------|------|-------------|
+| `"@hardlydifficult/shared-config"` | `string` | The canonical package name for import and identification |
+
+### Postinstall Behavior
+
+This package runs a postinstall script that:
+
+- Copies `.gitignore` from `files/` to the repository root (overwrites existing)
+- Copies `.github/dependabot.yml` from `files/.github/` to `.github/dependabot.yml` (overwrites existing)
+- Gracefully skips execution if the repository root cannot be determined
+
+#### Platform/Environment Notes
+
+| Behavior | Notes |
+|----------|-------|
+| `INIT_CWD` availability | Set by npm; used to find repo root reliably |
+| Fallback logic | Walks up directory tree until `node_modules/` is detected |
+| Silent failure | If root or `files/` directory is missing, no errors are thrown |
+
+## Configuration Files
 
 ### `.gitignore`
 
-Excludes common build and environment files:
-
+Contains standard ignores for TypeScript projects:
 ```gitignore
 node_modules/
 dist/
@@ -62,12 +64,11 @@ package-lock.json
 ### `.github/dependabot.yml`
 
 Configures weekly automated updates for:
+- **npm packages** — with `versioning-strategy: increase`
+- **GitHub Actions** — all actions updated weekly
+- **Git submodules** — all updated weekly
 
-- **npm dependencies** (versioning strategy: `increase`)
-- **GitHub Actions**
-- **git submodules**
-
-All updates are grouped together.
+All updates are grouped under `all-updates`.
 
 ```yaml
 version: 2
@@ -131,19 +132,15 @@ The package includes `tsconfig.json` with strict settings suitable for shared Ty
 | `lint` | Runs `tsc --noEmit` for type-checking |
 | `postinstall` | Runs the config file sync script |
 
+## Setup
+
+No additional setup is required. This package is intended for internal use within the monorepo and automatically syncs configuration on install.
+
 ## Appendix
 
-### Platform/Environment Notes
+| File | Source Path | Destination Path | Behavior |
+|------|-------------|------------------|----------|
+| `.gitignore` | `files/.gitignore` | `<repo-root>/.gitignore` | Overwrites if exists |
+| `dependabot.yml` | `files/.github/dependabot.yml` | `<repo-root>/.github/dependabot.yml` | Overwrites if exists, creates `.github/` if needed |
 
-| Behavior | Notes |
-|----------|-------|
-| `INIT_CWD` availability | Set by npm; used to find repo root reliably |
-| Fallback logic | Walks up directory tree until `node_modules/` is detected |
-| Silent failure | If root or `files/` directory is missing, no errors are thrown |
-
-### Files Copied
-
-| Source (in package) | Destination (in repo root) |
-|---------------------|----------------------------|
-| `files/.gitignore` | `.gitignore` |
-| `files/.github/dependabot.yml` | `.github/dependabot.yml` |
+**Note:** The package expects the `files/` directory to be present at build time. If not (e.g., during development), the postinstall script exits silently.

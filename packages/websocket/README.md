@@ -13,23 +13,18 @@ npm install @hardlydifficult/websocket
 ```typescript
 import { ReconnectingWebSocket } from "@hardlydifficult/websocket";
 
-const ws = new ReconnectingWebSocket({
+const client = new ReconnectingWebSocket({
   url: "wss://api.example.com/ws",
   auth: {
     getToken: () => "Bearer token",
   },
-  heartbeat: {
-    intervalMs: 30000, // ping every 30s
-    timeoutMs: 10000,  // terminate if no pong in 10s
-  },
 });
 
-ws.on("open", () => console.log("Connected"));
-ws.on("message", (data) => console.log("Received:", data));
-ws.on("close", (code, reason) => console.log("Closed:", code, reason));
+client.on("open", () => console.log("Connected!"));
+client.on("message", (data) => console.log("Received:", data));
 
-ws.connect();
-ws.send({ type: "hello" }); // sends as JSON
+client.connect();
+client.send({ type: "ping" });
 ```
 
 ## Auto-Reconnecting WebSocket
@@ -38,48 +33,59 @@ ws.send({ type: "hello" }); // sends as JSON
 
 ### Constructor Options
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `url` | `string` | — | WebSocket server URL |
-| `backoff` | `BackoffOptions` | `{ initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 }` | Reconnection backoff config |
-| `heartbeat` | `HeartbeatOptions` | `{ intervalMs: 30000, timeoutMs: 10000 }` | Ping/pong monitoring |
-| `auth` | `AuthOptions` | — | Authentication (token fetched on each connect) |
-| `protocols` | `string[]` | — | WebSocket subprotocols |
-| `headers` | `Record<string, string>` | — | Additional handshake headers |
+| Option | Type | Description |
+|--------|------|-------------|
+| `url` | `string` | WebSocket server URL |
+| `backoff`? | `BackoffOptions` | Exponential backoff configuration (defaults: `initialDelayMs=1000`, `maxDelayMs=30000`, `multiplier=2`) |
+| `heartbeat`? | `HeartbeatOptions` | Heartbeat ping configuration (defaults: `intervalMs=30000`, `timeoutMs=10000`) |
+| `auth`? | `AuthOptions` | Auth configuration with a `getToken` function |
+| `protocols`? | `string[]` | WebSocket subprotocols |
+| `headers`? | `Record<string, string>` | Additional headers for the WebSocket handshake |
 
 ### Core Methods
 
 ```typescript
-ws.connect(); // Connect or reconnect (idempotent)
-ws.disconnect(); // Stop and prevent future reconnects
-ws.reconnect(); // Force reconnect with fresh auth token
-ws.send(message); // Send JSON-serializable message
-ws.stopReconnecting(); // Allow in-flight work but prevent reconnection
-ws.connected; // Read-only: true if socket is open
-ws.on(event, listener); // Register event listener (returns unsubscribe function)
+client.connect(); // Connect or reconnect (idempotent)
+client.disconnect(); // Stop and prevent future reconnects
+client.reconnect(); // Force reconnect with fresh auth token
+client.send(message); // Send JSON-serializable message
+client.stopReconnecting(); // Allow in-flight work but prevent reconnection
+client.connected; // Read-only: true if socket is open
+client.on(event, listener); // Register event listener (returns unsubscribe function)
 ```
+
+Each `on()` call returns an unsubscribe function.
 
 ### Event Types
 
 ```typescript
-ws.on("open", () => { /* connected */ });
-ws.on("close", (code, reason) => { /* disconnected */ });
-ws.on("error", (error) => { /* connection or parse error */ });
-ws.on("message", (data) => { /* message received & parsed */ });
+client.on("open", () => { /* connected */ });
+client.on("close", (code, reason) => { /* disconnected */ });
+client.on("error", (error) => { /* connection or parse error */ });
+client.on("message", (data) => { /* message received & parsed */ });
 ```
 
 ### Backoff Behavior
 
+Use `getBackoffDelay` to compute delays for custom reconnection strategies:
+
 ```typescript
 import { getBackoffDelay } from "@hardlydifficult/websocket";
 
-const opts = { initialDelayMs: 1000, maxDelayMs: 30000, multiplier: 2 };
-
-getBackoffDelay(0, opts); // 1000 ms
-getBackoffDelay(1, opts); // 2000 ms
-getBackoffDelay(2, opts); // 4000 ms
-getBackoffDelay(10, opts); // capped at 30000 ms
+const delay = getBackoffDelay(3, {
+  initialDelayMs: 1000,
+  maxDelayMs: 30000,
+  multiplier: 2,
+});
+// delay = 8000 (1000 * 2^3)
 ```
+
+| Attempt | Delay |
+|---------|-------|
+| 0 | 1000 ms |
+| 1 | 2000 ms |
+| 2 | 4000 ms |
+| 10 | capped at 30000 ms |
 
 ## Proactive Token Refresh
 
@@ -88,20 +94,17 @@ getBackoffDelay(10, opts); // capped at 30000 ms
 ```typescript
 import { calculateTokenRefreshTime } from "@hardlydifficult/websocket";
 
-// 60s token → refresh at 30s (50% wins)
-calculateTokenRefreshTime(Date.now(), Date.now() + 60_000);
+const issuedAt = Date.now();
+const expiresAt = issuedAt + 10 * 60_000; // 10-minute token
 
-// 5min token → refresh at 3min (2min buffer wins)
-calculateTokenRefreshTime(Date.now(), Date.now() + 5 * 60_000);
-
-// Reconnect to refresh token
-ws.reconnect(); // fetches fresh token from auth
+const refreshAt = calculateTokenRefreshTime(issuedAt, expiresAt);
+// refreshAt = expiresAt - 2 * 60_000 (2-min buffer)
 ```
 
 ### Token Refresh Strategy
 
 | Token lifetime | Refresh strategy | Example (60s token) | Example (5min token) |
-|---|---|---|---|
+|----------------|------------------|---------------------|----------------------|
 | Short (≤4min) | 50% lifetime | 30s after issue | N/A |
 | Long (>4min) | 2min before expiry | N/A | 3min after issue |
 
@@ -111,36 +114,36 @@ ws.reconnect(); // fetches fresh token from auth
 
 ### Methods
 
+- `tryAccept(): boolean` — Accept a new request; returns `false` if draining
+- `complete(): void` — Mark request as complete
+- `startDraining(reason: string): void` — Enter draining mode; idempotent
+- `draining: boolean` — Read-only draining state
+- `active: number` — Active request count
+
+### Events
+
 ```typescript
-const tracker = new RequestTracker();
-
-tracker.tryAccept(); // false if draining, otherwise increments active & returns true
-tracker.complete(); // decrements active; emits 'drained' when active reaches 0
-tracker.startDraining("reason"); // enter drain mode; rejects new requests
-
-tracker.draining; // true if draining
-tracker.active; // number of in-flight requests
-
-tracker.on("draining", (reason) => { /* draining started */ });
-tracker.on("drained", () => { /* all requests complete */ });
+tracker.on("draining", (reason) => console.log("Draining:", reason));
+tracker.on("drained", () => console.log("All requests complete"));
 ```
 
 ### Example Usage
 
 ```typescript
-const tracker = new RequestTracker();
-let activeRequests = 0;
+import { RequestTracker } from "@hardlydifficult/websocket";
 
+const tracker = new RequestTracker();
 tracker.on("draining", (reason) => console.log("Draining:", reason));
 tracker.on("drained", () => console.log("All requests complete"));
 
-// Accept a request
-if (tracker.tryAccept()) {
-  processRequest().finally(() => tracker.complete());
+// In an HTTP request handler:
+if (!tracker.tryAccept()) {
+  return res.status(503).send("Server shutting down");
 }
 
-// On shutdown signal
-tracker.startDraining("Server shutdown");
+// Do work...
+
+tracker.complete();
 ```
 
 ## Public API Reference

@@ -1,6 +1,6 @@
 # @hardlydifficult/text
 
-Text utilities for error formatting, template replacement, text chunking, slugification, duration formatting, YAML/JSON conversion, link generation, and file tree rendering.
+Collection of text utility functions for error formatting, template replacement, chunking, slugification, duration formatting, YAML/JSON conversion, link generation, and file tree rendering.
 
 ## Installation
 
@@ -12,77 +12,89 @@ npm install @hardlydifficult/text
 
 ```typescript
 import {
+  formatError,
   replaceTemplate,
   chunkText,
   slugify,
   formatDuration,
+  formatWithLineNumbers,
   buildFileTree,
   convertFormat,
-  createLinker,
   healYaml,
+  createLinker,
   escapeFence,
+  stripAnsi
 } from "@hardlydifficult/text";
+
+// Format an error with context
+formatError(new Error("File not found"), "Failed to load");
+// "Failed to load: File not found"
 
 // Replace template placeholders
 replaceTemplate("Hello {{name}}!", { name: "World" });
 // "Hello World!"
 
-// Split long text into chunks
-chunkText("This is a long text", 10);
-// ["This is a", "long text"]
+// Split text into chunks
+chunkText("line1\nline2\nline3", 10);
+// ["line1\nline2", "line3"]
 
-// Convert to URL-safe slugs
-slugify("My Feature Name!");
-// "my-feature-name"
+// Create URL-safe slugs
+slugify("My Feature Name!", 10);
+// "my-feature"
 
-// Format durations
+// Format duration as human-readable string
 formatDuration(125_000);
 // "2m 5s"
 
-// Build file trees
-buildFileTree(["src/index.ts", "README.md"]);
-// "```\nsrc/\n  index.ts\n\nREADME.md\n```"
+// Add line numbers to text
+formatWithLineNumbers("foo\nbar", 10);
+// "10: foo\n11: bar"
+
+// Build a file tree from paths
+buildFileTree(["src/index.ts", "src/utils.ts"], { format: "plain" });
+// "src/\n  index.ts\n  utils.ts"
 
 // Convert between JSON and YAML
-convertFormat('{"name":"Alice"}', "yaml");
-// "name: Alice\n"
-convertFormat("name: Alice", "json");
-// "{\n  \"name\": \"Alice\"\n}"
-
-// Apply link rules to text
-const linker = createLinker().linear("my-org");
-linker.apply("Fix ENG-533", { platform: "markdown" });
-// "Fix [ENG-533](https://linear.app/my-org/issue/ENG-533)"
+convertFormat('{"key": "value"}', "yaml");
+// "key: value\n"
 
 // Heal malformed YAML
-healYaml("```yaml\nkey: value\n```");
-// "key: value"
+healYaml('description: "Text with: colon"');
+// 'description: "Text with: colon"'
+
+// Linkify issue references
+const linker = createLinker().linear("fairmint");
+linker.apply("Fix ENG-533", { format: "slack" });
+// "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533>"
+
+// Escape markdown fences
+escapeFence("code with ``` backticks").fence;
+// "````"
+
+// Strip ANSI codes
+stripAnsi("\x1b[31mRed text\x1b[0m");
+// "Red text"
 ```
 
-## Error Formatting
+## Error Handling
 
-Consistent error handling utilities for message extraction and formatting.
+Consistent error message extraction and formatting utilities for user-facing and logging contexts.
 
-### `getErrorMessage`
+### getErrorMessage
 
-Extract a message string from an unknown error.
+Extracts a string message from any error-like value.
 
 ```typescript
 import { getErrorMessage } from "@hardlydifficult/text";
 
-getErrorMessage(new Error("something went wrong"));
-// "something went wrong"
-
-getErrorMessage("plain string error");
-// "plain string error"
-
-getErrorMessage(42);
-// "42"
+getErrorMessage(new Error("Oops")); // "Oops"
+getErrorMessage("plain string");    // "plain string"
+getErrorMessage(42);                // "42"
 ```
 
-### `formatError`
+### formatError
 
-Format an error for user-facing output with optional context.
+Formats an error with optional context prefix.
 
 ```typescript
 import { formatError } from "@hardlydifficult/text";
@@ -94,27 +106,24 @@ formatError(new Error("disk full"), "Failed to save");
 // "Failed to save: disk full"
 ```
 
-### `formatErrorForLog`
+### formatErrorForLog
 
-Format an error for logging (includes more detail for non-Error types).
+Formats an error for logging (returns message for Error instances, stringifies others).
 
 ```typescript
 import { formatErrorForLog } from "@hardlydifficult/text";
 
-formatErrorForLog(new Error("timeout"));
-// "timeout"
-
-formatErrorForLog({ code: 500 });
-// "[object Object]"
+formatErrorForLog(new Error("timeout")); // "timeout"
+formatErrorForLog({ code: 500 });         // "[object Object]"
 ```
 
 ## Template Replacement
 
-Simple string interpolation using `{{variable}}` syntax.
+Simple template utility for placeholder replacement using `{{variable}}` syntax.
 
-### `replaceTemplate`
+### replaceTemplate
 
-Replace template placeholders with values.
+Replaces `{{variable}}` placeholders with provided values.
 
 ```typescript
 import { replaceTemplate } from "@hardlydifficult/text";
@@ -122,176 +131,173 @@ import { replaceTemplate } from "@hardlydifficult/text";
 replaceTemplate("Hello {{name}}!", { name: "World" });
 // "Hello World!"
 
-replaceTemplate("{{greeting}}, {{name}}!", {
-  greeting: "Hi",
-  name: "Alice",
-});
-// "Hi, Alice!"
-
-replaceTemplate("Hello {{name}}!", {});
-// "Hello {{name}}!"
+replaceTemplate("{{greeting}}, {{name}}!", { greeting: "Hi" });
+// "Hi, {{name}}!" // missing key leaves placeholder unchanged
 ```
 
-### `extractPlaceholders`
+### extractPlaceholders
 
-Extract all placeholder names from a template.
+Extracts unique placeholder names from a template.
 
 ```typescript
 import { extractPlaceholders } from "@hardlydifficult/text";
 
 extractPlaceholders("{{a}} and {{b}} and {{a}} again");
 // ["a", "b"]
-
-extractPlaceholders("no placeholders here");
-// []
 ```
 
 ## Text Chunking
 
-Split long text into manageable chunks, preferring natural break points.
+Splits long text into manageable chunks, preferring natural breaks.
+
+### chunkText
+
+Splits text at line breaks or spaces, falling back to hard breaks when necessary.
 
 ```typescript
 import { chunkText } from "@hardlydifficult/text";
 
-chunkText("line one\nline two\nline three", 18);
-// ["line one\nline two", "line three"]
+chunkText("word1 word2 word3", 12);
+// ["word1 word2", "word3"]
 
-chunkText("word1 word2 word3 word4 word5", 17);
-// ["word1 word2 word3", "word4 word5"]
-
-chunkText("abcdefghijklmnopqrstuvwxyz", 10);
-// ["abcdefghij", "klmnopqrst", "uvwxyz"]
+chunkText("line1\nline2\nline3", 10);
+// ["line1\nline2", "line3"]
 ```
 
 ## Slugification
 
-Convert strings into URL/filename-safe slugs.
+Converts strings into URL/filename-safe slugs.
+
+### slugify
+
+Lowercases, replaces non-alphanumeric characters with hyphens, and optionally truncates at hyphen boundaries.
 
 ```typescript
 import { slugify } from "@hardlydifficult/text";
 
-slugify("My Feature Name!");
-// "my-feature-name"
-
-slugify("My Feature Name!", 10);
-// "my-feature"
-
-slugify("  Hello World  ");
-// "hello-world"
+slugify("My Feature Name!"); // "my-feature-name"
+slugify("My Feature Name!", 10); // "my-feature"
+slugify("  Hello World  "); // "hello-world"
 ```
 
 ## Duration Formatting
 
-Format duration in milliseconds as a human-readable string.
+Formats milliseconds as human-readable strings.
+
+### formatDuration
+
+Renders durations with up to two units, skipping trailing zeros.
 
 ```typescript
 import { formatDuration } from "@hardlydifficult/text";
 
-formatDuration(125_000);
-// "2m 5s"
-
-formatDuration(3_600_000);
-// "1h"
-
-formatDuration(500);
-// "<1s"
+formatDuration(500);       // "<1s"
+formatDuration(125_000);   // "2m 5s"
+formatDuration(3_600_000); // "1h"
+formatDuration(86_400_000); // "1d"
 ```
 
-## File Tree Rendering
+## Line Number Formatting
 
-Build and render hierarchical file trees with depth-based truncation, annotations, and collapsed directory summaries.
+Adds right-aligned line numbers to text.
+
+### formatWithLineNumbers
+
+Adds line numbers with configurable starting value.
+
+```typescript
+import { formatWithLineNumbers } from "@hardlydifficult/text";
+
+formatWithLineNumbers("foo\nbar\nbaz");
+// "1: foo\n2: bar\n3: baz"
+
+formatWithLineNumbers("hello\nworld", 10);
+// "10: hello\n11: world"
+```
+
+## File Tree Building
+
+Builds a hierarchical file tree from flat paths with depth-based truncation.
+
+### buildFileTree
+
+Renders markdown-formatted (default) or plain file trees with annotations, details, and collapsed directory summaries.
 
 ```typescript
 import { buildFileTree, FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
+import type { BuildTreeOptions } from "@hardlydifficult/text";
 
-buildFileTree(["src/index.ts", "src/utils.ts", "README.md"]);
-// "src/\n  index.ts\n  utils.ts\n\nREADME.md"
+// Basic usage
+buildFileTree(["src/index.ts", "README.md"]);
+// "```\nsrc/\n  index.ts\n\nREADME.md\n```"
+
+// Options interface
+interface BuildTreeOptions {
+  maxLevel2?: number;       // Max children at depth 2 (default: 10)
+  maxLevel3?: number;       // Max children at depth 3+ (default: 3)
+  annotations?: Map<string, string>;
+  details?: Map<string, readonly string[]>;
+  collapseDirs?: readonly string[];
+  lineCounts?: Map<string, number>;
+  format?: "plain" | "markdown"; // default: "markdown"
+}
+
+const paths = ["src/index.ts", "src/utils.ts"];
+buildFileTree(paths, { format: "plain" });
+// "src/\n  index.ts\n  utils.ts"
+
+// With annotations
+const annotations = new Map([["src/index.ts", "Main entry point"]]);
+buildFileTree(paths, { annotations, format: "plain" });
+// "src/\n  index.ts — Main entry point\n  utils.ts"
 ```
 
-### Options
+### FILE_TREE_DEFAULTS
 
-| Parameter      | Type                                      | Description                                                                 |
-|----------------|-------------------------------------------|-----------------------------------------------------------------------------|
-| `maxLevel2`    | `number`                                  | Maximum number of entries to show at level 2 (files in a directory)        |
-| `maxLevel3`    | `number`                                  | Maximum number of entries to show at level 3 (files in subdirectories)     |
-| `annotations`  | `ReadonlyMap<string, string>`             | Map of file/directory paths to annotation strings                           |
-| `details`      | `ReadonlyMap<string, readonly string[]>` | Map of file paths to extra detail lines to show under entries              |
-| `collapseDirs` | `readonly string[]`                       | Directory names to collapse with summary count                             |
-| `format`       | `'plain' \| 'markdown'`                  | Output format. Defaults to `'markdown'`, which wraps the tree in a code fence for correct markdown rendering. Use `'plain'` when the caller already provides a fence (e.g. AI prompt templates). |
-
-### Examples
-
-**Annotations**
+Default truncation limits for file tree rendering.
 
 ```typescript
-const annotations = new Map([
-  ["src/index.ts", "Main entry point"],
-  ["src", "Source code directory"],
-]);
+import { FILE_TREE_DEFAULTS } from "@hardlydifficult/text";
 
-buildFileTree(["src/index.ts"], { annotations });
-// "```\nsrc/ — Source code directory\n  index.ts — Main entry point\n```"
+FILE_TREE_DEFAULTS; // { maxLevel2: 10, maxLevel3: 3 }
 ```
 
-**Details**
+## Format Conversion
+
+Bidirectional conversion between JSON and YAML.
+
+### convertFormat
+
+Auto-detects input format and converts to the requested format.
 
 ```typescript
-const details = new Map([
-  ["src/index.ts", ["> main (5-20): App entry point."]],
-]);
+import { convertFormat, type TextFormat } from "@hardlydifficult/text";
 
-buildFileTree(["src/index.ts"], { details });
-// "```\nsrc/\n  index.ts\n    > main (5-20): App entry point.\n```"
-```
-
-**Collapsed directories**
-
-```typescript
-buildFileTree(
-  ["src/index.ts", "test/unit/a.test.ts", "test/unit/b.test.ts"],
-  { collapseDirs: ["test"] }
-);
-// "```\nsrc/\n  index.ts\n\ntest/\n  (2 files)\n```"
-```
-
-## JSON/YAML Format Conversion
-
-Convert between JSON and YAML with automatic input detection and clean output formatting.
-
-```typescript
-import { convertFormat } from "@hardlydifficult/text";
-
-convertFormat('{"name":"Alice","age":30}', "yaml");
-// "name: Alice\nage: 30\n"
+convertFormat('{"name": "Alice"}', "yaml");
+// "name: Alice\n"
 
 convertFormat("name: Alice\nage: 30", "json");
 // "{\n  \"name\": \"Alice\",\n  \"age\": 30\n}"
 ```
 
-### `TextFormat`
+## YAML Utilities
 
-Type alias for output format: `"json"` or `"yaml"`.
+Serialization and repair utilities for YAML.
 
-## YAML Formatting
+### formatYaml
 
-Serialize data to clean YAML with intelligent block literal selection for long strings.
+Serializes data to clean YAML with block literals for long strings containing `": "`.
 
 ```typescript
 import { formatYaml } from "@hardlydifficult/text";
 
-formatYaml({
-  purpose:
-    "Core AI SDK implementation: LLM integrations (Anthropic Claude, Ollama), agent orchestration with streaming.",
-});
-
-// Uses block literal (|) for long strings containing ": "
-// purpose: |
-//   Core AI SDK implementation: LLM integrations (Anthropic Claude, Ollama), agent orchestration with streaming.
+formatYaml({ purpose: "Core AI SDK: LLM integrations." });
+// "purpose: |\n  Core AI SDK: LLM integrations.\n"
 ```
 
-## YAML Healing
+### healYaml
 
-Clean and repair YAML output from LLMs by stripping code fences and quoting problematic scalar values.
+Strips markdown fences and quotes scalar values containing colons.
 
 ```typescript
 import { healYaml } from "@hardlydifficult/text";
@@ -299,128 +305,100 @@ import { healYaml } from "@hardlydifficult/text";
 healYaml("```yaml\nkey: value\n```");
 // "key: value"
 
-healYaml('description: Development dependencies: Node types.');
-// 'description: "Development dependencies: Node types."'
+healYaml("description: Text: with colons");
+// 'description: "Text: with colons"'
 ```
 
-## Link Generation
+## Linker (Text Linkification)
 
-Transform text with issue/PR references into formatted links across platforms like Slack, Discord, and Markdown.
+Transforms text by replacing issue/PR references with formatted links.
 
-### `createLinker`
+### Linker
 
-Create a linker instance with optional initial rules.
+Stateful linker with configurable rules, idempotent linkification, and multi-platform support.
+
+```typescript
+import { createLinker, LinkerPlatform, LinkerApplyOptions } from "@hardlydifficult/text";
+
+interface LinkerApplyOptions {
+  format?: LinkerPlatform; // "slack" | "discord" | "markdown" | "plaintext"
+  platform?: LinkerPlatform;
+  skipCode?: boolean; // default: true
+  skipExistingLinks?: boolean; // default: true
+  linkifyPlainHref?: boolean; // default: false
+}
+```
+
+### createLinker
+
+Creates a linker with optional initial rules.
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
 
-const linker = createLinker()
-  .linear("my-org")
-  .githubPr("my-org/my-repo");
+const linker = createLinker();
 
-linker.apply("Fix ENG-533 and PR#42", { platform: "slack" });
-// "Fix <https://linear.app/my-org/issue/ENG-533|ENG-533> <https://github.com/my-org/my-repo/pull/42|PR#42>"
+// Fluent API
+linker
+  .linear("fairmint")
+  .githubPr("Fairmint/api")
+  .custom(/\bINC-\d+\b/g, ({ match }) => `https://incident.io/${match}`);
+
+// Linkify text
+linker.linkText("Fix ENG-533 PR#42 INC-99", { format: "slack" });
+// "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> <https://github.com/Fairmint/api/pull/42|PR#42> <https://incident.io/INC-99|INC-99>"
 ```
 
-### `Linker` Class
+### Rule API
 
-Stateful linker that applies configured rules to text.
-
-**Methods:**
-
-| Method         | Description                                                            |
-|----------------|------------------------------------------------------------------------|
-| `addRule(rule)`| Add a custom link rule                                                 |
-| `rule(...)`    | Add a rule (supports fluent and named forms)                           |
-| `custom(...)`  | Add a custom rule with regex pattern and href builder                  |
-| `linear(...)`  | Add Linear issue reference rule (e.g., `ENG-533`)                      |
-| `githubPr(...)`| Add GitHub PR reference rule (e.g., `PR#42`)                           |
-| `apply(...)`   | Apply linkification to text with options                               |
-| `linkText(...)`| Alias for `apply` (same behavior)                                      |
-
-### Rules
-
-| Parameter | Type                      | Description                                                                 |
-|-----------|---------------------------|-----------------------------------------------------------------------------|
-| `pattern` | `RegExp`                  | Match pattern (global flag is enforced automatically)                       |
-| `href`    | `string`                  | URL template (supports `$0`/`$&`, `$1..$N`)                                |
-| `toHref`  | `string \| LinkHrefBuilder`| Either href template or callback; takes precedence over `href`            |
-| `priority`| `number`                  | Higher priority wins for overlapping matches (default: `0`)               |
-
-### Options
-
-| Parameter             | Type                        | Description                                                             |
-|-----------------------|-----------------------------|-------------------------------------------------------------------------|
-| `format` / `platform` | `LinkerPlatform`            | Output format: `"slack"`, `"discord"`, `"markdown"`, `"plaintext"`     |
-| `skipCode`            | `boolean`                   | Skip linkification inside code spans (default: `true`)                 |
-| `skipExistingLinks`   | `boolean`                   | Skip linkification inside existing links (default: `true`)             |
-
-### Platforms
-
-| Platform     | Format                          |
-|--------------|---------------------------------|
-| `slack`      | `<href|text>`                   |
-| `discord`    | `[text](href)`                  |
-| `markdown`   | `[text](href)`                  |
-| `plaintext`  | `href` (raw URL)                |
-
-### Examples
-
-**Custom rules**
+Custom rules support patterns, href templates or callbacks, priorities, and match metadata.
 
 ```typescript
-const linker = createLinker().custom(
-  /\bINC-\d+\b/g,
-  ({ match }) => `https://incident.io/${match}`
-);
-linker.apply("Handle INC-99", { format: "slack" });
-// "Handle <https://incident.io/INC-99|INC-99>"
+interface LinkRule {
+  id: string;
+  priority: number;
+  pattern: RegExp;
+  href: string | ((ctx: { match: string; groups?: string[] }) => string);
+  skipCode?: boolean;
+  skipExistingLinks?: boolean;
+}
 ```
 
-**Priority-based resolution**
+### Methods
 
-```typescript
-const linker = createLinker()
-  .custom(/\bENG-\d+\b/g, "https://low.example/$0", { priority: 0 })
-  .custom(/\bENG-533\b/g, "https://high.example/$0", { priority: 10 });
+- `custom(pattern, href, options)`: Add custom rule
+- `linear(orgOrProject)`: Link Linear issues
+- `githubPr(repo)`: Link GitHub PRs
+- `apply(text, options)`: Linkify and preserve format
+- `linkText(text, options)`: Linkify plain text
+- `linkMarkdown(text, options)`: Linkify markdown content
+- `reset()`: Clear rules
 
-linker.apply("ENG-533 and ENG-534", { format: "markdown" });
-// "[ENG-533](https://high.example/ENG-533) and [ENG-534](https://low.example/ENG-534)"
-```
+## Markdown Utilities
 
-**Idempotent linkification**
+Tools for working with markdown fences and formatting.
 
-```typescript
-const linker = createLinker().linear("my-org");
-const first = linker.apply("Ship ENG-533", { format: "slack" });
-const second = linker.apply(first, { format: "slack" });
-// first === second (no double-linkification)
-```
+### escapeFence
 
-## Text with Line Numbers
-
-Format text content with right-aligned line numbers.
-
-```typescript
-import { formatWithLineNumbers } from "@hardlydifficult/text";
-
-formatWithLineNumbers("foo\nbar\nbaz");
-// 1: foo
-// 2: bar
-// 3: baz
-
-formatWithLineNumbers("hello\nworld", 10);
-// 10: hello
-// 11: world
-```
-
-## Escaping Markdown Fences
-
-Escape markdown code fences by dynamically selecting a fence delimiter longer than any backtick sequence in the content.
+Selects the minimal fence length to safely escape content.
 
 ```typescript
 import { escapeFence } from "@hardlydifficult/text";
 
-escapeFence("Content with `` backticks");
-// { fence: "````", content: "Content with `` backticks" }
+escapeFence("hello");          // { fence: "```", content: "hello" }
+escapeFence("code ``` here");  // { fence: "````", content: "code ``` here" }
 ```
+
+### stripAnsi
+
+Removes ANSI escape codes from strings.
+
+```typescript
+import { stripAnsi } from "@hardlydifficult/text";
+
+stripAnsi("\x1b[31mRed\x1b[0m"); // "Red"
+```
+
+## License
+
+MIT

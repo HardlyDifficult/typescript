@@ -107,6 +107,65 @@ export function groupByDirectory(
   return groups;
 }
 
+/** A direct child entry discovered from a flat git tree. */
+export interface TreeChild {
+  /** The child's name (filename or directory name, no path separators). */
+  name: string;
+  /** The full path from the repository root. */
+  fullPath: string;
+  /** True if this child represents a directory. */
+  isDir: boolean;
+}
+
+/**
+ * Discover the direct children (files and directories) of a directory from a
+ * flat git tree. Returns entries sorted: directories first, then files,
+ * alphabetically within each group.
+ *
+ * Pass `dirPath = ''` to discover children of the repository root.
+ */
+export function discoverTreeChildren(
+  tree: readonly TreeEntry[],
+  dirPath: string
+): readonly TreeChild[] {
+  const prefix = dirPath === "" ? "" : `${dirPath}/`;
+  const children: TreeChild[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of tree) {
+    if (entry.type !== "blob") {
+      continue;
+    }
+    if (prefix !== "" && !entry.path.startsWith(prefix)) {
+      continue;
+    }
+
+    const relative =
+      prefix === "" ? entry.path : entry.path.slice(prefix.length);
+    const slashIndex = relative.indexOf("/");
+    const isDir = slashIndex !== -1;
+    const childName = isDir ? relative.slice(0, slashIndex) : relative;
+
+    if (!seen.has(childName)) {
+      seen.add(childName);
+      children.push({
+        name: childName,
+        fullPath: dirPath === "" ? childName : `${dirPath}/${childName}`,
+        isDir,
+      });
+    }
+  }
+
+  children.sort((a, b) => {
+    if (a.isDir !== b.isDir) {
+      return a.isDir ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return children;
+}
+
 /**
  * Add all ancestor directories of a file path to the set.
  */
