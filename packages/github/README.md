@@ -520,6 +520,65 @@ Removes a repository from watching.
 watcher.removeRepo("owner/outdated-repo");
 ```
 
+## Advanced Features
+
+### Custom Classification
+
+```typescript
+const watcher = client.watch({
+  repos: ["owner/repo"],
+  classifyPR: async ({ pr, repo }, activity) => {
+    if (pr.draft) return "draft";
+    if (activity.comments.length > 5) return "needs_review";
+    if (activity.checkRuns.some(r => r.status === "pending")) return "ci_running";
+    return "approved";
+  },
+});
+
+watcher.onStatusChanged(({ previousStatus, status, pr }) => {
+  console.log(`Status changed for #${pr.number}: ${previousStatus} → ${status}`);
+});
+```
+
+### Dynamic Repository Discovery
+
+```typescript
+const watcher = client.watch({
+  repos: ["owner/main-repo"],
+  discoverRepos: async () => {
+    const { data: repositories } = await client.getOwnerRepos("owner");
+    return repositories
+      .filter(repo => repo.fork === false && repo.language === "TypeScript")
+      .map(repo => repo.fullName);
+  },
+});
+```
+
+### Throttling Integration
+
+```typescript
+const throttle = {
+  async wait(weight: number) {
+    // Implement custom rate limiting
+    await new Promise(resolve => setTimeout(resolve, weight * 100));
+  },
+};
+
+const watcher = client.watch({
+  repos: ["owner/repo"],
+  throttle,
+});
+```
+
+### Stale PR Cleanup
+
+```typescript
+const watcher = client.watch({
+  repos: ["owner/repo"],
+  stalePRThresholdMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
+```
+
 ## URL Parsing Utilities
 
 ### parseGitHubFileUrl(url)
@@ -652,7 +711,7 @@ You must provide a GitHub personal access token via the `token` parameter or `GH
 ## Appendix
 
 | Operation | Rate Limiting | Notes |
-|------|---|-------|
+|------|---|-----|
 | `getOwnerRepos` | Uses `repos.listForOrg` or `repos.listForUser` | Falls back to user if org is not found |
 | `fetchWatchedPRs` | 1 call per repo + 1 for `myPRs` if enabled | De-duplicates PRs |
 | `fetchPRActivitySelective` | Caches comments/reviews; checks check runs only when PR changed | Reduces API calls by up to 2/3 |
