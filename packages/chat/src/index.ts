@@ -65,6 +65,10 @@ export {
   RECOVERABLE_WORKER_ERRORS,
 } from "./commands";
 
+// Utilities
+export { findBestMemberMatch, extractMentionId } from "./memberMatching";
+export { toDiscordEmbed, toSlackBlocks } from "./outputters";
+
 // Factory
 import { type ChatClient } from "./ChatClient";
 import { DiscordChatClient } from "./discord";
