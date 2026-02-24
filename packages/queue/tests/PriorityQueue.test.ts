@@ -230,6 +230,87 @@ describe("PriorityQueue", () => {
     });
   });
 
+
+  describe("reordering and priority updates", () => {
+    it("moveBefore reorders within the same priority", () => {
+      const queue = createPriorityQueue<string>();
+      const one = queue.enqueue("one", "medium");
+      const two = queue.enqueue("two", "medium");
+      const three = queue.enqueue("three", "medium");
+
+      expect(queue.moveBefore(three.id, one.id)).toBe(true);
+      expect(queue.toArray().map((i) => i.data)).toEqual(["three", "one", "two"]);
+
+      expect(queue.moveBefore(one.id, two.id)).toBe(true);
+      expect(queue.toArray().map((i) => i.data)).toEqual(["three", "one", "two"]);
+    });
+
+    it("moveBefore fails for items in different priorities", () => {
+      const queue = createPriorityQueue<string>();
+      const high = queue.enqueue("high", "high");
+      const low = queue.enqueue("low", "low");
+
+      expect(queue.moveBefore(low.id, high.id)).toBe(false);
+      expect(queue.toArray().map((i) => i.data)).toEqual(["high", "low"]);
+    });
+
+    it("moveToEnd moves item to tail within priority", () => {
+      const queue = createPriorityQueue<string>();
+      const first = queue.enqueue("first", "high");
+      queue.enqueue("second", "high");
+      queue.enqueue("third", "high");
+
+      expect(queue.moveToEnd(first.id)).toBe(true);
+      expect(queue.toArray().map((i) => i.data)).toEqual(["second", "third", "first"]);
+    });
+
+    it("updatePriority appends item to the end of target priority", () => {
+      const queue = createPriorityQueue<string>();
+      const a = queue.enqueue("a", "medium");
+      queue.enqueue("b", "medium");
+      queue.enqueue("h", "high");
+
+      expect(queue.updatePriority(a.id, "high")).toBe(true);
+      expect(queue.toArray().map((i) => i.data)).toEqual(["h", "a", "b"]);
+      expect(queue.dequeue()?.data).toBe("h");
+      expect(queue.dequeue()?.data).toBe("a");
+    });
+  });
+
+  describe("head-index compaction behavior", () => {
+    it("preserves logical ordering after many dequeues and mutations", () => {
+      const queue = createPriorityQueue<string>();
+      for (let i = 0; i < 80; i++) {
+        queue.enqueue(`m-${i}`, "medium");
+      }
+
+      for (let i = 0; i < 45; i++) {
+        expect(queue.dequeue()?.data).toBe(`m-${i}`);
+      }
+
+      const remaining = queue.toArray();
+      expect(remaining[0]?.data).toBe("m-45");
+
+      const removedId = remaining[5]!.id;
+      expect(queue.remove(removedId)).toBe(true);
+
+      const firstRemainingId = queue.peek()!.id;
+      expect(queue.moveToEnd(firstRemainingId)).toBe(true);
+
+      const snapshot = queue.toArray().map((i) => i.data);
+      expect(snapshot[0]).toBe("m-46");
+      expect(snapshot.at(-1)).toBe("m-45");
+      expect(snapshot).not.toContain("m-50");
+
+      const drained: string[] = [];
+      while (!queue.isEmpty) {
+        drained.push(queue.dequeue()!.data);
+      }
+
+      expect(drained).toEqual(snapshot);
+    });
+  });
+
   describe("dequeue from empty queue", () => {
     it("returns undefined", () => {
       const queue = createPriorityQueue<string>();
