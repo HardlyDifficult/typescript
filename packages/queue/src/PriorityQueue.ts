@@ -246,6 +246,9 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
         const source = buckets[p];
         const idx = findIndex(source, id);
         if (idx !== -1) {
+          if (p === newPriority) {
+            return true;
+          }
           const [item] = source.items.splice(idx, 1);
           maybeCompactBucket(source);
           // Create new item with updated priority (preserves data + enqueuedAt)

@@ -12,10 +12,12 @@ export { Section } from "./layout/Section.js";
 export { Text } from "./content/Text.js";
 export { Badge } from "./content/Badge.js";
 export { CodeBlock } from "./content/CodeBlock.js";
+export { ChatMessage } from "./content/ChatMessage.js";
 
 // inputs
 export { Button } from "./inputs/Button.js";
 export { Input } from "./inputs/Input.js";
+export { ChatInput } from "./inputs/ChatInput.js";
 export { Select } from "./inputs/Select.js";
 export { Checkbox } from "./inputs/Checkbox.js";
 
@@ -23,6 +25,8 @@ export { Checkbox } from "./inputs/Checkbox.js";
 export { DataTable } from "./data/DataTable.js";
 export { StatCard } from "./data/StatCard.js";
 export { KeyValue } from "./data/KeyValue.js";
+export { ActivityItem } from "./data/ActivityItem.js";
+export { JsonTree } from "./data/JsonTree.js";
 
 // feedback
 export { Alert } from "./feedback/Alert.js";

@@ -1,8 +1,11 @@
+import type React from "react";
+
 type InputSize = "sm" | "md";
 
 interface InputProps {
   value: string;
   onChange: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
   placeholder?: string;
   size?: InputSize;
   type?: string;
@@ -23,6 +26,7 @@ const sizeStyles: Record<InputSize, string> = {
 export function Input({
   value,
   onChange,
+  onKeyDown,
   placeholder,
   size = "md",
   type = "text",
@@ -43,6 +47,7 @@ export function Input({
         onChange={(e) => {
           onChange(e.target.value);
         }}
+        onKeyDown={onKeyDown}
         rows={rows}
         placeholder={placeholder}
       />
@@ -57,6 +62,7 @@ export function Input({
       onChange={(e) => {
         onChange(e.target.value);
       }}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
     />
   );

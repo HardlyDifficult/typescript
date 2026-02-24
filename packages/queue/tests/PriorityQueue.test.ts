@@ -215,6 +215,18 @@ describe("PriorityQueue", () => {
     });
   });
 
+  describe("updatePriority", () => {
+    it("keeps FIFO order when updating to the same priority", () => {
+      const queue = createPriorityQueue<string>();
+      const first = queue.enqueue("first", "high");
+      queue.enqueue("second", "high");
+
+      expect(queue.updatePriority(first.id, "high")).toBe(true);
+      expect(queue.dequeue()?.data).toBe("first");
+      expect(queue.dequeue()?.data).toBe("second");
+    });
+  });
+
   describe("clear", () => {
     it("removes all items", () => {
       const queue = createPriorityQueue<string>();
