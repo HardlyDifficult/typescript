@@ -196,6 +196,9 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
       for (const p of PRIORITY_ORDER) {
         const idx = buckets[p].findIndex((item) => item.id === id);
         if (idx !== -1) {
+          if (p === newPriority) {
+            return true;
+          }
           const [item] = buckets[p].splice(idx, 1);
           // Create new item with updated priority (preserves data + enqueuedAt)
           const updated: QueueItem<T> = {
