@@ -19,11 +19,18 @@ export function readBody(
       }
     };
 
-    req.on("data", (chunk: Buffer) => {
+    req.on("data", (chunk: Buffer | string | Uint8Array) => {
       if (done) {
         return;
       }
-      totalBytes += chunk.length;
+
+      const normalized = Buffer.isBuffer(chunk)
+        ? chunk
+        : typeof chunk === "string"
+          ? Buffer.from(chunk)
+          : Buffer.from(chunk as Uint8Array);
+
+      totalBytes += normalized.length;
       if (totalBytes > maxBytes) {
         done = true;
         // Replace error handler with a no-op before destroying to prevent
@@ -36,7 +43,7 @@ export function readBody(
         reject(new Error("Payload too large"));
         return;
       }
-      chunks.push(chunk);
+      chunks.push(normalized);
     });
     req.on("end", () => {
       if (!done) {

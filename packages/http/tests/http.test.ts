@@ -3,14 +3,16 @@ import { EventEmitter } from "events";
 import type { IncomingMessage, ServerResponse } from "http";
 import { readBody, sendJson, MAX_BODY_BYTES } from "../src/http.js";
 
-function createMockRequest(chunks: string[]): IncomingMessage {
+function createMockRequest(
+  chunks: Array<string | Buffer | Uint8Array>
+): IncomingMessage {
   const emitter = new EventEmitter();
   (emitter as unknown as IncomingMessage).destroy = () => {
     emitter.emit("error", new Error("destroyed"));
   };
   process.nextTick(() => {
     for (const chunk of chunks) {
-      emitter.emit("data", Buffer.from(chunk));
+      emitter.emit("data", chunk);
     }
     emitter.emit("end");
   });
@@ -52,14 +54,29 @@ describe("readBody", () => {
   });
 
   it("concatenates multiple chunks", async () => {
-    const req = createMockRequest(["foo", "bar", "baz"]);
+    const req = createMockRequest([
+      Buffer.from("foo"),
+      Buffer.from("bar"),
+      Buffer.from("baz"),
+    ]);
     const body = await readBody(req);
     expect(body).toBe("foobarbaz");
+  });
+
+  it("accepts string chunks", async () => {
+    const req = createMockRequest(["hello", " ", "world"]);
+    const body = await readBody(req);
+    expect(body).toBe("hello world");
   });
 
   it("rejects when body exceeds maxBytes", async () => {
     const req = createMockRequest(["x".repeat(100)]);
     await expect(readBody(req, 50)).rejects.toThrow("Payload too large");
+  });
+
+  it("rejects when string chunks exceed maxBytes", async () => {
+    const req = createMockRequest(["abc", "def", "ghi"]);
+    await expect(readBody(req, 8)).rejects.toThrow("Payload too large");
   });
 });
 
