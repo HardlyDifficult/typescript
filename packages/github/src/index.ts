@@ -3,7 +3,12 @@ export { PRWatcher } from "./PRWatcher.js";
 export { buildTimeline, formatTimeline } from "./timeline.js";
 export type { TimelineEntry, TimelineEntryKind } from "./timeline.js";
 export type { PRActivity } from "./polling/fetchPRActivity.js";
-export { diffTree, collectDirectories, groupByDirectory, discoverTreeChildren } from "./treeDiff.js";
+export {
+  diffTree,
+  collectDirectories,
+  groupByDirectory,
+  discoverTreeChildren,
+} from "./treeDiff.js";
 export type { FileManifest, TreeDiff, TreeChild } from "./treeDiff.js";
 export type {
   PullRequest,

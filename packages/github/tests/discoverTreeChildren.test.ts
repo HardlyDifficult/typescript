@@ -2,8 +2,17 @@ import { describe, it, expect } from "vitest";
 import { discoverTreeChildren } from "../src/treeDiff.js";
 import type { TreeEntry } from "../src/types.js";
 
-const blob = (path: string): TreeEntry => ({ path, type: "blob", sha: "abc", size: 100 });
-const treeEntry = (path: string): TreeEntry => ({ path, type: "tree", sha: "def" });
+const blob = (path: string): TreeEntry => ({
+  path,
+  type: "blob",
+  sha: "abc",
+  size: 100,
+});
+const treeEntry = (path: string): TreeEntry => ({
+  path,
+  type: "tree",
+  sha: "def",
+});
 
 describe("discoverTreeChildren", () => {
   it("discovers direct file children of a directory", () => {
@@ -76,7 +85,11 @@ describe("discoverTreeChildren", () => {
 
     const result = discoverTreeChildren(tree, "src");
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ name: "utils", fullPath: "src/utils", isDir: true });
+    expect(result[0]).toEqual({
+      name: "utils",
+      fullPath: "src/utils",
+      isDir: true,
+    });
   });
 
   it("returns empty array when directory has no children", () => {
@@ -99,10 +112,7 @@ describe("discoverTreeChildren", () => {
   });
 
   it("does not include children of deeper nested paths in root discovery", () => {
-    const tree = [
-      blob("a/b/c.ts"),
-      blob("a/d.ts"),
-    ];
+    const tree = [blob("a/b/c.ts"), blob("a/d.ts")];
 
     const result = discoverTreeChildren(tree, "a");
     expect(result).toEqual([

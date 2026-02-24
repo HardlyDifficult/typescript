@@ -126,17 +126,22 @@ export interface TreeChild {
  */
 export function discoverTreeChildren(
   tree: readonly TreeEntry[],
-  dirPath: string,
+  dirPath: string
 ): readonly TreeChild[] {
   const prefix = dirPath === "" ? "" : `${dirPath}/`;
   const children: TreeChild[] = [];
   const seen = new Set<string>();
 
   for (const entry of tree) {
-    if (entry.type !== "blob") continue;
-    if (prefix !== "" && !entry.path.startsWith(prefix)) continue;
+    if (entry.type !== "blob") {
+      continue;
+    }
+    if (prefix !== "" && !entry.path.startsWith(prefix)) {
+      continue;
+    }
 
-    const relative = prefix === "" ? entry.path : entry.path.slice(prefix.length);
+    const relative =
+      prefix === "" ? entry.path : entry.path.slice(prefix.length);
     const slashIndex = relative.indexOf("/");
     const isDir = slashIndex !== -1;
     const childName = isDir ? relative.slice(0, slashIndex) : relative;
@@ -152,7 +157,9 @@ export function discoverTreeChildren(
   }
 
   children.sort((a, b) => {
-    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    if (a.isDir !== b.isDir) {
+      return a.isDir ? -1 : 1;
+    }
     return a.name.localeCompare(b.name);
   });
 
