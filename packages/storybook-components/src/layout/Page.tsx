@@ -16,15 +16,16 @@ const maxWidthStyles: Record<PageMaxWidth, string> = {
   full: "max-w-full",
 };
 
-/** Page layout — title is inline content, no separate header bar. */
-export function Page({ title, headerActions, maxWidth = "lg", children }: PageProps) {
+/** Page layout — title is shown in the global nav, not repeated inline. */
+export function Page({ title: _title, headerActions, maxWidth = "lg", children }: PageProps) {
   return (
     <div className="min-h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)] font-[family-name:var(--font-sans)]">
       <main className={`mx-auto px-6 py-5 ${maxWidthStyles[maxWidth]}`}>
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-[length:var(--text-sm)] font-medium text-[color:var(--color-text-secondary)]">{title}</h1>
-          {headerActions !== undefined && <div className="flex items-center gap-3">{headerActions}</div>}
-        </div>
+        {headerActions !== undefined && (
+          <div className="flex items-center justify-end mb-5">
+            <div className="flex items-center gap-3">{headerActions}</div>
+          </div>
+        )}
         {children}
       </main>
     </div>
