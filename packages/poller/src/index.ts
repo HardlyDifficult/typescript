@@ -1,1 +1,1 @@
-export { Poller } from "./Poller.js";
+export { Poller, type PollerOptions } from "./Poller.js";

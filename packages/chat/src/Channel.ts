@@ -18,14 +18,13 @@ import { Thread, type ThreadOperations } from "./Thread";
 import type {
   BatchQueryOptions,
   BeginBatchOptions,
+  ChannelOperations,
+  ChannelOptions,
   DeleteMessageOptions,
-  DisconnectCallback,
-  ErrorCallback,
   FileAttachment,
   Member,
   MessageCallback,
   MessageContent,
-  MessageData,
   MessageEvent,
   MessageQueryOptions,
   Platform,
@@ -33,74 +32,7 @@ import type {
   ThreadData,
 } from "./types";
 
-/**
- * Interface for platform-specific channel operations
- */
-export interface ChannelOperations {
-  postMessage(
-    channelId: string,
-    content: MessageContent,
-    options?: {
-      threadTs?: string;
-      files?: FileAttachment[];
-      linkPreviews?: boolean;
-    }
-  ): Promise<MessageData>;
-  updateMessage(
-    messageId: string,
-    channelId: string,
-    content: MessageContent
-  ): Promise<void>;
-  deleteMessage(
-    messageId: string,
-    channelId: string,
-    options?: DeleteMessageOptions
-  ): Promise<void>;
-  addReaction(
-    messageId: string,
-    channelId: string,
-    emoji: string
-  ): Promise<void>;
-  removeReaction(
-    messageId: string,
-    channelId: string,
-    emoji: string
-  ): Promise<void>;
-  removeAllReactions(messageId: string, channelId: string): Promise<void>;
-  subscribeToReactions(
-    channelId: string,
-    callback: ReactionCallback
-  ): () => void;
-  subscribeToMessages(channelId: string, callback: MessageCallback): () => void;
-  sendTyping(channelId: string): Promise<void>;
-  startThread(
-    messageId: string,
-    channelId: string,
-    name: string,
-    autoArchiveDuration?: number
-  ): Promise<ThreadData>;
-  bulkDelete(channelId: string, count: number): Promise<number>;
-  getMessages(
-    channelId: string,
-    options?: MessageQueryOptions
-  ): Promise<MessageData[]>;
-  getThreads(channelId: string): Promise<ThreadData[]>;
-  deleteThread(threadId: string, channelId: string): Promise<void>;
-  getMembers(channelId: string): Promise<Member[]>;
-  onDisconnect(callback: DisconnectCallback): () => void;
-  onError(callback: ErrorCallback): () => void;
-  subscribeToThread(
-    threadId: string,
-    channelId: string,
-    callback: MessageCallback
-  ): () => void;
-  postToThread(
-    threadId: string,
-    channelId: string,
-    content: MessageContent,
-    options?: { files?: FileAttachment[] }
-  ): Promise<MessageData>;
-}
+export type { ChannelOperations, ChannelOptions } from "./types.js";
 
 /** A platform-agnostic channel that provides messaging, reactions, typing indicators, and thread management. */
 export class Channel {
@@ -113,10 +45,19 @@ export class Channel {
   private readonly batchAdapter: ChannelBatchAdapter;
   private readonly typingController: TypingController;
 
-  constructor(id: string, platform: Platform, operations: ChannelOperations) {
-    this.id = id;
-    this.platform = platform;
-    this.operations = operations;
+  constructor(options: ChannelOptions);
+  /** @deprecated Use `new Channel({ id, platform, operations })` instead. */
+  constructor(id: string, platform: Platform, operations: ChannelOperations);
+  constructor(
+    optionsOrId: ChannelOptions | string,
+    platform?: Platform,
+    operations?: ChannelOperations
+  ) {
+    const options = Channel.resolveOptions(optionsOrId, platform, operations);
+
+    this.id = options.id;
+    this.platform = options.platform;
+    this.operations = options.operations;
     this.batchAdapter = createChannelBatchAdapter(
       this.id,
       this.platform,
@@ -130,7 +71,7 @@ export class Channel {
 
     // Subscribe to platform reactions and forward to message-specific callbacks
     this.unsubscribeFromPlatform = this.operations.subscribeToReactions(
-      id,
+      this.id,
       (event) => this.emitReaction(event)
     );
   }
@@ -556,5 +497,22 @@ export class Channel {
     }
     this.messageReactionCallbacks.clear();
     this.typingController.clear();
+  }
+  private static resolveOptions(
+    optionsOrId: ChannelOptions | string,
+    platform?: Platform,
+    operations?: ChannelOperations
+  ): ChannelOptions {
+    if (typeof optionsOrId !== "string") {
+      return optionsOrId;
+    }
+
+    if (!platform || !operations) {
+      throw new Error(
+        "Channel positional constructor requires id, platform, and operations."
+      );
+    }
+
+    return { id: optionsOrId, platform, operations };
   }
 }

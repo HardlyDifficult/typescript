@@ -3,6 +3,11 @@ import * as os from "os";
 import * as path from "path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Logger } from "@hardlydifficult/logger";
+import {
+  DuplicatePipelineStepNameError,
+  PipelineHasNoStepsError,
+  PipelineResumeError,
+} from "../src/errors.js";
 import { Pipeline } from "../src/Pipeline.js";
 import type {
   StepDefinition,
@@ -69,7 +74,7 @@ describe("Pipeline", () => {
             logger: createLogger(),
             stateDirectory: testDir,
           })
-      ).toThrow("Pipeline requires at least one step");
+      ).toThrow(PipelineHasNoStepsError);
     });
 
     it("throws if step names are not unique", () => {
@@ -78,7 +83,7 @@ describe("Pipeline", () => {
           { name: "step_a", execute: async () => ({}) },
           { name: "step_a", execute: async () => ({}) },
         ])
-      ).toThrow('Duplicate step name: "step_a"');
+      ).toThrow(DuplicatePipelineStepNameError);
     });
 
     it("creates pipeline with valid step definitions", () => {
@@ -288,9 +293,9 @@ describe("Pipeline", () => {
 
       await pipeline.run();
 
-      await expect(pipeline.resume()).rejects.toThrow(
-        "Cannot resume: pipeline is not at a gate"
-      );
+      const error = await pipeline.resume().catch((e) => e);
+      expect(error).toBeInstanceOf(PipelineResumeError);
+      expect((error as PipelineResumeError).code).toBe("PIPELINE_NOT_AT_GATE");
     });
 
     it("gate step with execute runs before pausing", async () => {

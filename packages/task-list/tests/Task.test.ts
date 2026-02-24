@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { Task } from "../src/Task.js";
 import { Project } from "../src/Project.js";
+import {
+  LabelNotFoundError,
+  StatusNotFoundError,
+  TaskNotFoundError,
+} from "../src/errors.js";
 import type { TaskContext, TaskData } from "../src/types.js";
 
 function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
@@ -356,9 +361,13 @@ describe("Project", () => {
       ctx
     );
 
-    expect(() => project.findTask("nonexistent")).toThrow(
-      'Task "nonexistent" not found in project "Alpha"'
-    );
+    expect(() => project.findTask("nonexistent")).toThrow(TaskNotFoundError);
+    try {
+      project.findTask("nonexistent");
+    } catch (error) {
+      expect(error).toBeInstanceOf(TaskNotFoundError);
+      expect((error as TaskNotFoundError).code).toBe("TASK_NOT_FOUND");
+    }
   });
 
   describe("getTasks", () => {
@@ -462,9 +471,13 @@ describe("Project", () => {
         ctx
       );
 
-      expect(() => project.findStatus("Missing")).toThrow(
-        'Status "Missing" not found'
-      );
+      expect(() => project.findStatus("Missing")).toThrow(StatusNotFoundError);
+      try {
+        project.findStatus("Missing");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StatusNotFoundError);
+        expect((error as StatusNotFoundError).code).toBe("STATUS_NOT_FOUND");
+      }
     });
 
     it("findLabel finds by partial name", () => {
@@ -494,9 +507,13 @@ describe("Project", () => {
         ctx
       );
 
-      expect(() => project.findLabel("Missing")).toThrow(
-        'Label "Missing" not found'
-      );
+      expect(() => project.findLabel("Missing")).toThrow(LabelNotFoundError);
+      try {
+        project.findLabel("Missing");
+      } catch (error) {
+        expect(error).toBeInstanceOf(LabelNotFoundError);
+        expect((error as LabelNotFoundError).code).toBe("LABEL_NOT_FOUND");
+      }
     });
   });
 
