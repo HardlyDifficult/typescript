@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+
 import { NavDropdown } from "./GlobalNavDropdown";
 
 export interface GlobalNavLink {
@@ -100,7 +101,7 @@ export function GlobalNav({
   const render = renderLink ?? ((p) => <DefaultLink {...p} />);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {return;}
 
     function handleMouseDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -109,7 +110,7 @@ export function GlobalNav({
     }
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {setOpen(false);}
     }
 
     document.addEventListener("mousedown", handleMouseDown);

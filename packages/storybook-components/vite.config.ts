@@ -15,7 +15,7 @@ export default defineConfig({
         mkdirSync("dist", { recursive: true });
         copyFileSync(
           resolve(__dirname, "src/tokens.css"),
-          resolve(__dirname, "dist/tokens.css"),
+          resolve(__dirname, "dist/tokens.css")
         );
       },
     },
