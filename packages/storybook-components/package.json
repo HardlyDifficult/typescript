@@ -43,6 +43,8 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./index.css": "./dist/index.css",
+    "./dist/index.css": "./dist/index.css",
     "./tokens.css": "./dist/tokens.css",
     "./dist/tokens.css": "./dist/tokens.css"
   }
