@@ -45,7 +45,6 @@ function convertTools(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK tool() requires explicit generic params for heterogeneous ToolMap
     result[name] = sdkTool<any, any>({
       description: def.description,
-
       inputSchema: def.inputSchema,
       execute: async (args: Record<string, unknown>) => {
         logger.debug("Tool call", { tool: name, input: args });
