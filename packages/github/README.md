@@ -336,6 +336,49 @@ await prClient.enableAutoMerge("REBASE");
 
 `PRWatcher` polls GitHub at regular intervals and emits events for PR activity.
 
+For new integrations, prefer `watcher.onEvent(...)` with a single `switch` statement. Existing `onX` methods remain fully supported for compatibility.
+
+Migration guidance: prefer `onEvent` for new code; `onX` remains supported.
+
+### watcher.onEvent(callback)
+
+Fires for every watcher event as a discriminated union: `{ type, payload }`.
+
+```typescript
+watcher.onEvent((event) => {
+  switch (event.type) {
+    case "new_pr":
+      console.log(`New PR: #${event.payload.pr.number}`);
+      break;
+    case "comment":
+      console.log(`Comment on #${event.payload.pr.number}: ${event.payload.comment.body}`);
+      break;
+    case "review":
+      console.log(`Review on #${event.payload.pr.number}: ${event.payload.review.state}`);
+      break;
+    case "check_run":
+      console.log(`Check run ${event.payload.checkRun.name}: ${event.payload.checkRun.status}`);
+      break;
+    case "merged":
+    case "closed":
+      console.log(`PR #${event.payload.pr.number} is now ${event.type}`);
+      break;
+    case "pr_updated":
+      console.log(`PR #${event.payload.pr.number} metadata changed`);
+      break;
+    case "status_changed":
+      console.log(`PR #${event.payload.pr.number} status: ${event.payload.previousStatus} -> ${event.payload.status}`);
+      break;
+    case "push":
+      console.log(`Push on ${event.payload.repo.owner}/${event.payload.repo.name}@${event.payload.branch}`);
+      break;
+    case "poll_complete":
+      console.log(`Tracking ${event.payload.prs.length} PRs`);
+      break;
+  }
+});
+```
+
 ### watcher.onNewPR(callback)
 
 Fires once when a PR is first seen.

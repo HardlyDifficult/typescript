@@ -30,6 +30,7 @@ export type {
   PRStatusEvent,
   PushEvent,
   StatusChangedEvent,
+  PRWatcherEvent,
   TreeEntry,
   FileTreeResult,
   RepoContext,

@@ -12,19 +12,13 @@ import {
   type PRSnapshot,
 } from "./polling/processSnapshot.js";
 import { classifyAndDetectChange } from "./polling/statusTracker.js";
+import { PRWatcherBase } from "./PRWatcherBase.js";
 import type {
-  CheckRunEvent,
   ClassifyPR,
-  CommentEvent,
   DiscoverRepos,
-  PollCompleteEvent,
   PREvent,
   PRStatusEvent,
-  PRUpdatedEvent,
   PullRequest,
-  PushEvent,
-  ReviewEvent,
-  StatusChangedEvent,
   WatchOptions,
   WatchThrottle,
 } from "./types.js";
@@ -32,7 +26,7 @@ import type {
 const DEFAULT_INTERVAL_MS = 30_000;
 
 /** Polls GitHub for open pull requests and emits events for new PRs, comments, reviews, check runs, merges, and status changes. */
-export class PRWatcher {
+export class PRWatcher extends PRWatcherBase {
   private readonly octokit: Octokit;
   private readonly username: string;
   private repos: string[];
@@ -43,27 +37,6 @@ export class PRWatcher {
   private readonly stalePRThresholdMs: number | undefined;
   private readonly throttle: WatchThrottle | undefined;
 
-  private readonly newPRCallbacks = new Set<(event: PREvent) => void>();
-  private readonly commentCallbacks = new Set<(event: CommentEvent) => void>();
-  private readonly reviewCallbacks = new Set<(event: ReviewEvent) => void>();
-  private readonly checkRunCallbacks = new Set<
-    (event: CheckRunEvent) => void
-  >();
-  private readonly mergedCallbacks = new Set<(event: PREvent) => void>();
-  private readonly closedCallbacks = new Set<(event: PREvent) => void>();
-  private readonly updatedCallbacks = new Set<
-    (event: PRUpdatedEvent) => void
-  >();
-  private readonly pollCompleteCallbacks = new Set<
-    (event: PollCompleteEvent) => void
-  >();
-  private readonly statusChangedCallbacks = new Set<
-    (event: StatusChangedEvent) => void
-  >();
-  private readonly errorCallbacks = new Set<(error: Error) => void>();
-
-  private readonly pushCallbacks = new Set<(event: PushEvent) => void>();
-
   private readonly snapshots = new Map<string, PRSnapshot>();
   private readonly branchTracker = new BranchHeadTracker();
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -72,6 +45,7 @@ export class PRWatcher {
 
   /** @internal */
   constructor(octokit: Octokit, username: string, options: WatchOptions) {
+    super();
     this.octokit = octokit;
     this.username = username;
     this.repos = [...(options.repos ?? [])];
@@ -81,62 +55,6 @@ export class PRWatcher {
     this.discoverRepos = options.discoverRepos;
     this.stalePRThresholdMs = options.stalePRThresholdMs;
     this.throttle = options.throttle;
-  }
-
-  onNewPR(callback: (event: PREvent) => void): () => void {
-    this.newPRCallbacks.add(callback);
-    return () => this.newPRCallbacks.delete(callback);
-  }
-
-  onComment(callback: (event: CommentEvent) => void): () => void {
-    this.commentCallbacks.add(callback);
-    return () => this.commentCallbacks.delete(callback);
-  }
-
-  onReview(callback: (event: ReviewEvent) => void): () => void {
-    this.reviewCallbacks.add(callback);
-    return () => this.reviewCallbacks.delete(callback);
-  }
-
-  onCheckRun(callback: (event: CheckRunEvent) => void): () => void {
-    this.checkRunCallbacks.add(callback);
-    return () => this.checkRunCallbacks.delete(callback);
-  }
-
-  onMerged(callback: (event: PREvent) => void): () => void {
-    this.mergedCallbacks.add(callback);
-    return () => this.mergedCallbacks.delete(callback);
-  }
-
-  onClosed(callback: (event: PREvent) => void): () => void {
-    this.closedCallbacks.add(callback);
-    return () => this.closedCallbacks.delete(callback);
-  }
-
-  onPRUpdated(callback: (event: PRUpdatedEvent) => void): () => void {
-    this.updatedCallbacks.add(callback);
-    return () => this.updatedCallbacks.delete(callback);
-  }
-
-  onPollComplete(callback: (event: PollCompleteEvent) => void): () => void {
-    this.pollCompleteCallbacks.add(callback);
-    return () => this.pollCompleteCallbacks.delete(callback);
-  }
-
-  onStatusChanged(callback: (event: StatusChangedEvent) => void): () => void {
-    this.statusChangedCallbacks.add(callback);
-    return () => this.statusChangedCallbacks.delete(callback);
-  }
-
-  /** Fires when the HEAD SHA of a watched repository's default branch changes. */
-  onPush(callback: (event: PushEvent) => void): () => void {
-    this.pushCallbacks.add(callback);
-    return () => this.pushCallbacks.delete(callback);
-  }
-
-  onError(callback: (error: Error) => void): () => void {
-    this.errorCallbacks.add(callback);
-    return () => this.errorCallbacks.delete(callback);
   }
 
   async start(): Promise<readonly PRStatusEvent[]> {
@@ -218,7 +136,7 @@ export class PRWatcher {
               this.throttle
             );
           for (const event of pushEvents) {
-            this.emit(this.pushCallbacks, event);
+            this.emitWatcherEvent({ type: "push", payload: event });
           }
           for (const error of pushErrors) {
             this.emitError(error);
@@ -277,7 +195,7 @@ export class PRWatcher {
       pr: s.pr,
       repo: { owner: s.owner, name: s.name },
     }));
-    this.emit(this.pollCompleteCallbacks, { prs });
+    this.emitWatcherEvent({ type: "poll_complete", payload: { prs } });
   }
 
   private async handleNewPR(
@@ -307,7 +225,10 @@ export class PRWatcher {
       ));
     }
     this.snapshots.set(key, buildSnapshot(pr, owner, name, activity, status));
-    this.emit(this.newPRCallbacks, { pr, repo: { owner, name } });
+    this.emitWatcherEvent({
+      type: "new_pr",
+      payload: { pr, repo: { owner, name } },
+    });
   }
 
   private async handleExistingPR(
@@ -320,12 +241,12 @@ export class PRWatcher {
     const repo = { owner, name };
 
     if (pr.merged_at !== null && previous.pr.merged_at === null) {
-      this.emit(this.mergedCallbacks, { pr, repo });
+      this.emitWatcherEvent({ type: "merged", payload: { pr, repo } });
       this.snapshots.delete(key);
       return;
     }
     if (pr.state === "closed" && previous.pr.state !== "closed") {
-      this.emit(this.closedCallbacks, { pr, repo });
+      this.emitWatcherEvent({ type: "closed", payload: { pr, repo } });
       this.snapshots.delete(key);
       return;
     }
@@ -333,7 +254,7 @@ export class PRWatcher {
     if (this.initialized) {
       const updateEvent = detectPRChanges(pr, previous.pr, repo);
       if (updateEvent) {
-        this.emit(this.updatedCallbacks, updateEvent);
+        this.emitWatcherEvent({ type: "pr_updated", payload: updateEvent });
       }
     }
 
@@ -350,16 +271,25 @@ export class PRWatcher {
 
     if (this.initialized) {
       for (const comment of detectNewComments(activity.comments, previous)) {
-        this.emit(this.commentCallbacks, { comment, pr, repo });
+        this.emitWatcherEvent({
+          type: "comment",
+          payload: { comment, pr, repo },
+        });
       }
       for (const review of detectNewReviews(activity.reviews, previous)) {
-        this.emit(this.reviewCallbacks, { review, pr, repo });
+        this.emitWatcherEvent({
+          type: "review",
+          payload: { review, pr, repo },
+        });
       }
       for (const checkRun of detectCheckRunChanges(
         activity.checkRuns,
         previous
       )) {
-        this.emit(this.checkRunCallbacks, { checkRun, pr, repo });
+        this.emitWatcherEvent({
+          type: "check_run",
+          payload: { checkRun, pr, repo },
+        });
       }
     }
 
@@ -374,7 +304,10 @@ export class PRWatcher {
       );
       ({ status } = result);
       if (result.changed) {
-        this.emit(this.statusChangedCallbacks, result.changed);
+        this.emitWatcherEvent({
+          type: "status_changed",
+          payload: result.changed,
+        });
       }
     }
 
@@ -398,33 +331,21 @@ export class PRWatcher {
         const repo = { owner: snapshot.owner, name: snapshot.name };
 
         if (freshPR.merged_at !== null) {
-          this.emit(this.mergedCallbacks, { pr: freshPR, repo });
+          this.emitWatcherEvent({
+            type: "merged",
+            payload: { pr: freshPR, repo },
+          });
         } else if (freshPR.state === "closed") {
-          this.emit(this.closedCallbacks, { pr: freshPR, repo });
+          this.emitWatcherEvent({
+            type: "closed",
+            payload: { pr: freshPR, repo },
+          });
         }
       } catch {
         // PR may have been deleted or become inaccessible
       }
 
       this.snapshots.delete(key);
-    }
-  }
-
-  private emit<T>(callbacks: Set<(event: T) => void>, event: T): void {
-    for (const callback of callbacks) {
-      try {
-        callback(event);
-      } catch (error: unknown) {
-        this.emitError(
-          error instanceof Error ? error : new Error(String(error))
-        );
-      }
-    }
-  }
-
-  private emitError(error: Error): void {
-    for (const callback of this.errorCallbacks) {
-      callback(error);
     }
   }
 }

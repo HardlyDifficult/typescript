@@ -5,7 +5,8 @@
   "bin": {
     "check-pinned-deps": "./dist/check-pinned-deps.js",
     "monorepo-publish": "./dist/publish.js",
-    "auto-commit-fixes": "./dist/auto-commit-fixes.js"
+    "auto-commit-fixes": "./dist/auto-commit-fixes.js",
+    "check-package-metadata": "./dist/check-package-metadata.js"
   },
   "files": [
     "dist"
@@ -16,12 +17,12 @@
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "25.2.3",
+    "@types/node": "25.3.0",
     "typescript": "5.9.3"
   },
   "type": "commonjs",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

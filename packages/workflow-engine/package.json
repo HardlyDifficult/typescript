@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@hardlydifficult/logger": "file:../logger",
-    "@types/node": "25.2.3",
+    "@types/node": "25.3.0",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   },
@@ -28,7 +28,7 @@
     "@hardlydifficult/state-tracker": ">=2.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   },
   "type": "commonjs",
   "exports": {

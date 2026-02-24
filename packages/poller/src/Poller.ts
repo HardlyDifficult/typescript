@@ -51,10 +51,7 @@ export class Poller<T> {
     this.intervalMs = options.intervalMs;
     this.onError = options.onError;
     this.debounceMs = options.debounceMs ?? 1_000;
-    this.comparator =
-      options.comparator ??
-      ((current, previous) =>
-        JSON.stringify(current) === JSON.stringify(previous));
+    this.comparator = options.comparator ?? defaultIsEqual;
   }
 
   static create<T>(options: PollerOptions<T>): Poller<T> {
@@ -141,4 +138,80 @@ export class Poller<T> {
       onError,
     };
   }
+}
+
+function defaultIsEqual<T>(a: T, b: T | undefined): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+
+  if (isPrimitive(a) || isPrimitive(b) || b === undefined) {
+    return false;
+  }
+
+  if (isPlainObjectOrArray(a) && isPlainObjectOrArray(b)) {
+    return deepEqual(a, b);
+  }
+
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+function isPrimitive(
+  value: unknown
+): value is null | undefined | string | number | boolean | symbol | bigint {
+  return (
+    value === null || (typeof value !== "object" && typeof value !== "function")
+  );
+}
+
+function isPlainObjectOrArray(value: unknown): value is object {
+  if (Array.isArray(value)) {
+    return true;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  const prototype: object | null = Object.getPrototypeOf(value) as
+    | object
+    | null;
+  return prototype === Object.prototype || prototype === null;
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) {
+      return false;
+    }
+
+    return a.every((item, index) => deepEqual(item, b[index]));
+  }
+
+  if (!isPlainObjectOrArray(a) || !isPlainObjectOrArray(b)) {
+    return false;
+  }
+
+  const aEntries = Object.entries(a as Record<string, unknown>);
+  const bEntries = Object.entries(b as Record<string, unknown>);
+
+  if (aEntries.length !== bEntries.length) {
+    return false;
+  }
+
+  return aEntries.every(([key, value]) => {
+    if (!(key in b)) {
+      return false;
+    }
+
+    return deepEqual(value, (b as Record<string, unknown>)[key]);
+  });
 }
