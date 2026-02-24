@@ -45,7 +45,7 @@ export function NavDropdown({
     >
       {categories.map((category, i) => {
         const visible = category.items.filter((item) => item.href !== currentPath);
-        if (visible.length === 0) return null;
+        if (visible.length === 0) {return null;}
 
         return (
           <div key={category.label}>
