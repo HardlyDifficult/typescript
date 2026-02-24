@@ -13,26 +13,27 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "lint": "eslint --config .config/eslint.config.js packages/",
+    "lint": "eslint --config .config/eslint.config.js packages/ && npm run validate:manifests",
     "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
     "format": "prettier --write \"packages/**/*.ts\"",
     "format:check": "prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+"validate:manifests": "node ./scripts/validate-package-manifests.mjs"
   },
   "devDependencies": {
     "@eslint/compat": "2.0.2",
     "@eslint/js": "10.0.1",
-    "@types/node": "25.2.3",
-    "eslint": "10.0.0",
+    "@types/node": "25.3.0",
+    "eslint": "10.0.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import-x": "4.16.1",
-    "eslint-plugin-jsdoc": "62.5.5",
+    "eslint-plugin-jsdoc": "62.7.0",
     "eslint-plugin-unused-imports": "4.4.1",
     "prettier": "3.8.1",
-    "turbo": "2.8.9",
+    "turbo": "2.8.10",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.56.0"
+    "typescript-eslint": "8.56.1"
   },
   "engines": {
     "node": ">=20.19.0"

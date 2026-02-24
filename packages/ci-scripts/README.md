@@ -14,6 +14,9 @@ npm install @hardlydifficult/ci-scripts
 // Check for unpinned dependencies across the monorepo
 // npx check-pinned-deps
 
+// Validate package metadata consistency
+// npx check-package-metadata
+
 // Auto-commit lint/format fixes
 // npx auto-commit-fixes
 
@@ -54,6 +57,30 @@ Found unpinned dependencies:
 
 All dependencies must use exact versions (no ^ or ~ prefixes).
 Fix by removing the ^ or ~ prefix from each version.
+```
+
+
+## Package Metadata Validation
+
+Validates monorepo package metadata for consistency, including the Node.js support baseline.
+
+### Checks
+
+- `engines.node` is exactly `>=20.19.0` in every `packages/*/package.json`
+- Required fields exist: `name`, `version`, `files`, `scripts`, `engines`
+- Required scripts exist: `build`, `clean`
+
+### Usage
+
+```bash
+npx check-package-metadata
+```
+
+### Example
+
+```bash
+$ npx check-package-metadata
+Validated 28 package.json file(s): metadata and Node baseline are consistent.
 ```
 
 ## Auto-Commit Fixes

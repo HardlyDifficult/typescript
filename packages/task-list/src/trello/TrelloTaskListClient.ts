@@ -1,5 +1,6 @@
 import { Throttle } from "@hardlydifficult/throttle";
 
+import { TaskListApiError } from "../errors.js";
 import { Project } from "../Project.js";
 import { buildContextResolvers } from "../resolvers.js";
 import { Task } from "../Task.js";
@@ -72,7 +73,7 @@ export class TrelloTaskListClient extends TaskListClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Trello API error: ${String(response.status)} ${text}`);
+      throw new TaskListApiError("trello", response.status, text);
     }
 
     return response.json() as Promise<T>;

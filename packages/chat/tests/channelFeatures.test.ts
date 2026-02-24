@@ -47,6 +47,15 @@ describe("Channel feature helpers", () => {
     resetBatchStore();
   });
 
+  it("supports positional constructor for backward compatibility", () => {
+    const operations = createMockOperations();
+
+    const channel = new Channel("channel-1", "slack", operations);
+
+    expect(channel.id).toBe("channel-1");
+    expect(channel.platform).toBe("slack");
+  });
+
   it("resolveMention() matches username/display name/email queries", async () => {
     const operations = createMockOperations();
     vi.mocked(operations.getMembers).mockResolvedValue([
@@ -58,7 +67,11 @@ describe("Channel feature helpers", () => {
         email: "nick@example.com",
       },
     ]);
-    const channel = new Channel("channel-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-1",
+      platform: "slack",
+      operations,
+    });
 
     await expect(channel.resolveMention("@nick")).resolves.toBe("<@U1>");
     await expect(channel.resolveMention("Nick Mancuso")).resolves.toBe("<@U1>");
@@ -83,7 +96,11 @@ describe("Channel feature helpers", () => {
         mention: "<@U2>",
       },
     ]);
-    const channel = new Channel("channel-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-1",
+      platform: "slack",
+      operations,
+    });
 
     await expect(channel.resolveMention("Nick")).resolves.toBeNull();
   });
@@ -106,7 +123,11 @@ describe("Channel feature helpers", () => {
         content: "hello",
       },
     ]);
-    const channel = new Channel("channel-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-1",
+      platform: "slack",
+      operations,
+    });
 
     const messages = await channel.getMessages({ author: "Alice" });
 
@@ -119,7 +140,11 @@ describe("Channel feature helpers", () => {
 
   it("getRecentBotMessages() uses author=me filter", async () => {
     const operations = createMockOperations();
-    const channel = new Channel("channel-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-1",
+      platform: "slack",
+      operations,
+    });
 
     await channel.getRecentBotMessages(25);
 
@@ -142,7 +167,11 @@ describe("Channel feature helpers", () => {
       },
     ];
     vi.mocked(operations.getMessages).mockResolvedValue(history);
-    const channel = new Channel("channel-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-1",
+      platform: "slack",
+      operations,
+    });
 
     const deleted = await channel.pruneMessages({
       keep: 1,
@@ -182,7 +211,11 @@ describe("Channel feature helpers", () => {
         platform: "slack",
       });
 
-    const channel = new Channel("channel-batch-1", "slack", operations);
+    const channel = new Channel({
+      id: "channel-batch-1",
+      platform: "slack",
+      operations,
+    });
     const batch = await channel.beginBatch({ key: "sprint-update" });
     await batch.post("first");
     await batch.post("second");
@@ -210,7 +243,11 @@ describe("Channel feature helpers", () => {
       channelId: "channel-batch-2",
       platform: "slack",
     });
-    const channel = new Channel("channel-batch-2", "slack", operations);
+    const channel = new Channel({
+      id: "channel-batch-2",
+      platform: "slack",
+      operations,
+    });
 
     await expect(
       channel.withBatch({ key: "fail-run" }, async (batch) => {
@@ -241,7 +278,11 @@ describe("Channel feature helpers", () => {
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("cannot delete"));
 
-    const channel = new Channel("channel-batch-3", "slack", operations);
+    const channel = new Channel({
+      id: "channel-batch-3",
+      platform: "slack",
+      operations,
+    });
     const batch = await channel.beginBatch({ key: "cleanup" });
     await batch.post("one");
     await batch.post("two");
@@ -281,7 +322,11 @@ describe("Channel feature helpers", () => {
         platform: "slack",
       });
 
-    const channel = new Channel("channel-batch-4", "slack", operations);
+    const channel = new Channel({
+      id: "channel-batch-4",
+      platform: "slack",
+      operations,
+    });
     const batch = await channel.beginBatch({ key: "keep-latest" });
     await batch.post("one");
     await batch.post("two");

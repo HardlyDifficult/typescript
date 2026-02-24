@@ -1,3 +1,4 @@
+import { ProjectNotFoundError } from "./errors.js";
 import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
 import type { TaskListConfig } from "./types.js";
@@ -37,7 +38,7 @@ export abstract class TaskListClient {
     const lower = name.toLowerCase();
     const project = projects.find((p) => p.name.toLowerCase().includes(lower));
     if (!project) {
-      throw new Error(`Project "${name}" not found`);
+      throw new ProjectNotFoundError(name);
     }
     return project;
   }

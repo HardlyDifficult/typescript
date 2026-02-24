@@ -10,6 +10,7 @@ import type {
   CheckRunEvent,
   StatusChangedEvent,
   PushEvent,
+  PRWatcherEvent,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
@@ -1931,6 +1932,70 @@ describe("PRWatcher", () => {
       expect(
         weights.filter((w: number) => w === 1).length
       ).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("onEvent", () => {
+    it("emits discriminated union events in sync with onX listeners", async () => {
+      const pr = makePR();
+      const comment = makeComment();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubActivity([], [], []);
+
+      const unionEvents: PRWatcherEvent[] = [];
+      const newPREvents: PREvent[] = [];
+      const commentEvents: CommentEvent[] = [];
+
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+        intervalMs: 1000,
+      });
+      watcher.onEvent((event) => unionEvents.push(event));
+      watcher.onNewPR((event) => newPREvents.push(event));
+      watcher.onComment((event) => commentEvents.push(event));
+
+      await watcher.start();
+      expect(unionEvents.map((event) => event.type)).toContain("new_pr");
+      expect(newPREvents).toHaveLength(1);
+
+      const updatedPR = makePR({ updated_at: "2024-01-01T00:05:00Z" });
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [updatedPR],
+      });
+      stubActivity([comment], [], []);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const commentUnionEvent = unionEvents.find(
+        (event) => event.type === "comment"
+      );
+      expect(commentUnionEvent).toBeDefined();
+      expect(commentEvents).toHaveLength(1);
+
+      if (!commentUnionEvent || commentUnionEvent.type !== "comment") {
+        throw new Error("Expected comment event");
+      }
+
+      expect(commentUnionEvent.payload).toEqual(commentEvents[0]);
+    });
+
+    it("supports unsubscribing from onEvent callbacks", async () => {
+      const pr = makePR();
+      (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [pr],
+      });
+      stubEmptyActivity();
+
+      const events: PRWatcherEvent[] = [];
+      watcher = new PRWatcher(mockOctokit, "testuser", {
+        repos: ["owner/repo"],
+      });
+      const unsub = watcher.onEvent((event) => events.push(event));
+      unsub();
+
+      await watcher.start();
+      expect(events).toHaveLength(0);
     });
   });
 });

@@ -9,6 +9,7 @@
 
 import type { Logger } from "@hardlydifficult/logger";
 
+import { StepExecutionMissingError } from "./errors.js";
 import type {
   PipelineData,
   PipelineHooks,
@@ -148,9 +149,7 @@ export async function runStep<TData extends Record<string, unknown>>(
   const maxAttempts = (stepDef.retries ?? 0) + 1;
 
   if (!stepDef.execute) {
-    throw new Error(
-      `Step "${stepDef.name}" has no execute function and is not a gate`
-    );
+    throw new StepExecutionMissingError(stepDef.name);
   }
 
   // Transition to running status

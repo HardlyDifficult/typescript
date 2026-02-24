@@ -20,34 +20,22 @@
   },
   "devDependencies": {
     "@hardlydifficult/document-generator": "file:../document-generator",
-    "@types/node": "25.2.3",
+    "@types/node": "25.3.0",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   },
   "peerDependencies": {
     "@hardlydifficult/document-generator": ">=1.1.0"
   },
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./discord": {
-      "types": "./dist/discord/index.d.ts",
-      "import": "./dist/discord/index.js"
-    },
-    "./slack": {
-      "types": "./dist/slack/index.d.ts",
-      "import": "./dist/slack/index.js"
-    },
-    "./commands": {
-      "types": "./dist/commands/index.d.ts",
-      "import": "./dist/commands/index.js"
-    },
-    "./outputters": {
-      "types": "./dist/outputters/index.d.ts",
-      "import": "./dist/outputters/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     }
-  },
-  "sideEffects": false
+  }
 }

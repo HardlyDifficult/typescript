@@ -242,3 +242,77 @@ export interface BatchKeepLatestSummary extends BatchDeleteSummary {
   /** Number of messages retained in the batch after pruning. */
   kept: number;
 }
+
+/** Interface for platform-specific channel operations */
+export interface ChannelOperations {
+  postMessage(
+    channelId: string,
+    content: MessageContent,
+    options?: {
+      threadTs?: string;
+      files?: FileAttachment[];
+      linkPreviews?: boolean;
+    }
+  ): Promise<MessageData>;
+  updateMessage(
+    messageId: string,
+    channelId: string,
+    content: MessageContent
+  ): Promise<void>;
+  deleteMessage(
+    messageId: string,
+    channelId: string,
+    options?: DeleteMessageOptions
+  ): Promise<void>;
+  addReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  removeReaction(
+    messageId: string,
+    channelId: string,
+    emoji: string
+  ): Promise<void>;
+  removeAllReactions(messageId: string, channelId: string): Promise<void>;
+  subscribeToReactions(
+    channelId: string,
+    callback: ReactionCallback
+  ): () => void;
+  subscribeToMessages(channelId: string, callback: MessageCallback): () => void;
+  sendTyping(channelId: string): Promise<void>;
+  startThread(
+    messageId: string,
+    channelId: string,
+    name: string,
+    autoArchiveDuration?: number
+  ): Promise<ThreadData>;
+  bulkDelete(channelId: string, count: number): Promise<number>;
+  getMessages(
+    channelId: string,
+    options?: MessageQueryOptions
+  ): Promise<MessageData[]>;
+  getThreads(channelId: string): Promise<ThreadData[]>;
+  deleteThread(threadId: string, channelId: string): Promise<void>;
+  getMembers(channelId: string): Promise<Member[]>;
+  onDisconnect(callback: DisconnectCallback): () => void;
+  onError(callback: ErrorCallback): () => void;
+  subscribeToThread(
+    threadId: string,
+    channelId: string,
+    callback: MessageCallback
+  ): () => void;
+  postToThread(
+    threadId: string,
+    channelId: string,
+    content: MessageContent,
+    options?: { files?: FileAttachment[] }
+  ): Promise<MessageData>;
+}
+
+/** Options for constructing a Channel instance. */
+export interface ChannelOptions {
+  id: string;
+  platform: Platform;
+  operations: ChannelOperations;
+}
