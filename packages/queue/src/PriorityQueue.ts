@@ -112,7 +112,10 @@ export interface PriorityQueue<T> {
  * Create a new priority queue.
  */
 export function createPriorityQueue<T>(): PriorityQueue<T> {
-  type Bucket = { items: QueueItem<T>[]; head: number };
+  interface Bucket {
+    items: QueueItem<T>[];
+    head: number;
+  }
 
   const buckets: Record<Priority, Bucket> = {
     high: { items: [], head: 0 },

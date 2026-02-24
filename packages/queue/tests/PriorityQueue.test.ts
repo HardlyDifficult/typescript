@@ -242,7 +242,6 @@ describe("PriorityQueue", () => {
     });
   });
 
-
   describe("reordering and priority updates", () => {
     it("moveBefore reorders within the same priority", () => {
       const queue = createPriorityQueue<string>();
@@ -251,10 +250,18 @@ describe("PriorityQueue", () => {
       const three = queue.enqueue("three", "medium");
 
       expect(queue.moveBefore(three.id, one.id)).toBe(true);
-      expect(queue.toArray().map((i) => i.data)).toEqual(["three", "one", "two"]);
+      expect(queue.toArray().map((i) => i.data)).toEqual([
+        "three",
+        "one",
+        "two",
+      ]);
 
       expect(queue.moveBefore(one.id, two.id)).toBe(true);
-      expect(queue.toArray().map((i) => i.data)).toEqual(["three", "one", "two"]);
+      expect(queue.toArray().map((i) => i.data)).toEqual([
+        "three",
+        "one",
+        "two",
+      ]);
     });
 
     it("moveBefore fails for items in different priorities", () => {
@@ -273,7 +280,11 @@ describe("PriorityQueue", () => {
       queue.enqueue("third", "high");
 
       expect(queue.moveToEnd(first.id)).toBe(true);
-      expect(queue.toArray().map((i) => i.data)).toEqual(["second", "third", "first"]);
+      expect(queue.toArray().map((i) => i.data)).toEqual([
+        "second",
+        "third",
+        "first",
+      ]);
     });
 
     it("updatePriority appends item to the end of target priority", () => {
