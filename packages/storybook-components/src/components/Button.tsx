@@ -1,6 +1,6 @@
 import type { MouseEventHandler, ReactNode } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
 
 interface ButtonProps {
@@ -22,6 +22,8 @@ const variantStyles: Record<ButtonVariant, string> = {
     "bg-[color:var(--color-bg)] text-[color:var(--color-text)] border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)] hover:border-[color:var(--color-border-strong)] shadow-[var(--shadow-sm)]",
   ghost:
     "bg-transparent text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-muted)] hover:text-[color:var(--color-text)]",
+  danger:
+    "bg-[color:var(--color-error)] text-white hover:bg-[color:var(--color-error-dark)] shadow-[0_0_0_1px_rgba(220,38,38,0.15),0_2px_8px_rgba(220,38,38,0.25)]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -29,7 +31,7 @@ const sizeStyles: Record<ButtonSize, string> = {
   md: "text-[length:var(--text-sm)] px-[var(--space-5)] py-[0.62rem] gap-[var(--space-2)]",
 };
 
-/** Button with primary, secondary, and ghost variants. */
+/** Button with primary, secondary, ghost, and danger variants. */
 export function Button({
   variant = "primary",
   size = "md",
