@@ -4,47 +4,46 @@ import { Badge } from "../src/index.js";
 const meta: Meta<typeof Badge> = {
   title: "Content/Badge",
   component: Badge,
+  argTypes: {
+    variant: {
+      control: "select",
+      options: ["default", "success", "warning", "error", "info", "accent", "muted"],
+    },
+    size: {
+      control: "select",
+      options: ["sm", "md"],
+    },
+    dot: { control: "boolean" },
+    pulse: { control: "boolean" },
+    children: { control: "text" },
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof Badge>;
 
-export const Default: Story = {
-  args: { variant: "default", children: "Draft" },
+export const WithLabel: Story = {
+  args: { variant: "success", children: "Merged", size: "md", dot: false, pulse: false },
 };
 
-export const Success: Story = {
-  args: { variant: "success", children: "Merged" },
-};
-
-export const Warning: Story = {
-  args: { variant: "warning", children: "Review needed" },
-};
-
-export const Error: Story = {
-  args: { variant: "error", children: "Failed" },
-};
-
-export const Info: Story = {
-  args: { variant: "info", children: "In progress" },
-};
-
-export const Accent: Story = {
-  args: { variant: "accent", children: "New" },
-};
-
-export const Muted: Story = {
-  args: { variant: "muted", children: "Archived" },
+export const DotWithText: Story = {
+  args: { variant: "error", children: "Live", dot: true, pulse: true, size: "md" },
 };
 
 export const DotOnly: Story = {
-  args: { variant: "success", dot: true },
+  args: { variant: "success", dot: true, pulse: false, size: "md" },
 };
 
-export const DotPulse: Story = {
-  args: { variant: "success", dot: true, pulse: true },
-};
-
-export const WithPulse: Story = {
-  args: { variant: "error", children: "Live", pulse: true },
+export const AllVariants: Story = {
+  render: () => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+      <Badge variant="default">Draft</Badge>
+      <Badge variant="success">Merged</Badge>
+      <Badge variant="warning">Review</Badge>
+      <Badge variant="error">Failed</Badge>
+      <Badge variant="info">In progress</Badge>
+      <Badge variant="accent">New</Badge>
+      <Badge variant="muted">Archived</Badge>
+    </div>
+  ),
 };

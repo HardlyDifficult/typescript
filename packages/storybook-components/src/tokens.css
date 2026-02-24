@@ -51,7 +51,7 @@
   --space-8: 2rem;
 
   /* Typography */
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Patrick Hand", cursive, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --text-xs:   0.75rem;
   --text-sm:   0.875rem;
