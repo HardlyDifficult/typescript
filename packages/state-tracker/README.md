@@ -13,156 +13,130 @@ npm install @hardlydifficult/state-tracker
 ```typescript
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
-interface AppState {
-  count: number;
-  name: string;
-}
-
-const tracker = new StateTracker<AppState>({
+const tracker = new StateTracker({
   key: "my-app",
-  default: { count: 0, name: "default" }
+  default: { cursor: 0, done: [] as string[] },
 });
 
-// Save state synchronously
-tracker.save({ count: 42, name: "example" });
-
-// Load state
-const state = tracker.load();
-console.log(state); // { count: 42, name: "example" }
-
-// Update with debounced auto-save
-tracker.set({ count: 100, name: "auto-saved" });
+tracker.set({ cursor: 5, done: ["task1", "task2"] });
+console.log(tracker.state); // { cursor: 5, done: ['task1', 'task2'] }
 ```
 
-## Core API
+## Core Features
 
-### StateTracker
+### State Persistence
 
-A robust state management class that persists JSON state to disk using atomic writes (temp file + rename), supports typed migrations, and gracefully degrades to in-memory mode when storage is unavailable.
-
-#### Constructor
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `string` | Unique identifier for the state file (alphanumeric, hyphens, and underscores only) |
-| `default` | `T` | Default state value used when no saved state exists or loading fails |
-| `stateDirectory?` | `string` | Directory to store state files (default: `~/.app-state`) |
-| `autoSaveMs?` | `number` | Debounce delay in milliseconds for auto-save after state changes (default: 0, disabled) |
-| `onEvent?` | `(event: StateTrackerEvent) => void` | Callback for debug/info/warn/error events |
-
-#### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `state` | `Readonly<T>` | Current in-memory state (readonly) |
-| `isPersistent` | `boolean` | Whether disk storage is available (`true` after successful `loadAsync()` unless storage failed) |
-
-#### Methods
-
-| Method | Return Type | Description |
-|--------|-------------|-------------|
-| `load()` | `T` | Synchronously load state from disk (v1-compatible) |
-| `loadOrDefault(options?)` | `T` | Load state or fall back to defaults with optional migrations |
-| `save(value)` | `void` | Synchronously save state to disk |
-| `saveWithMeta(value, meta?)` | `void` | Save state with optional metadata in the envelope |
-| `loadAsync()` | `Promise<void>` | Asynchronously load state, sets `isPersistent` on success/failure |
-| `saveAsync()` | `Promise<void>` | Asynchronously save state using atomic write |
-| `set(newState)` | `void` | Replace state entirely and schedule auto-save |
-| `update(changes)` | `void` | Shallow merge partial state and schedule auto-save (objects only) |
-| `reset()` | `void` | Restore state to default and schedule auto-save |
-| `getFilePath()` | `string` | Return the full path to the state file |
-
-### defineStateMigration
-
-Helper function to define and type migrations from legacy state formats.
+Sync and async loading and saving with atomic writes using temp file + rename.
 
 ```typescript
-import { defineStateMigration, StateTracker } from "@hardlydifficult/state-tracker";
+import { StateTracker } from "@hardlydifficult/state-tracker";
 
-interface LegacyState {
-  offset: number;
-  completedIds: string[];
-}
+const tracker = new StateTracker({
+  key: "config",
+  default: { theme: "dark" },
+});
 
-interface CurrentState {
-  cursor: number;
-  done: string[];
-}
+// Sync operations
+tracker.save({ theme: "light" });
+const value = tracker.load(); // => { theme: "light" }
+
+// Async operations
+await tracker.loadAsync(); // loads from disk
+tracker.set({ theme: "system" });
+await tracker.saveAsync(); // atomic async save
+```
+
+### State Access and Mutation
+
+Access cached state and mutate with `set`, `update`, and `reset`.
+
+```typescript
+const tracker = new StateTracker({
+  key: "settings",
+  default: { volume: 50, muted: false },
+});
+
+tracker.set({ volume: 75, muted: true });
+tracker.update({ volume: 60 }); // shallow merge => { volume: 60, muted: true }
+tracker.reset(); // => { volume: 50, muted: false }
+```
+
+### Auto-Save with Debounce
+
+Configure auto-save with a debounce delay to batch rapid updates.
+
+```typescript
+const tracker = new StateTracker({
+  key: "editor",
+  default: { content: "" },
+  autoSaveMs: 1000,
+});
+
+tracker.set({ content: "Draft 1" });
+// File saved after 1 second of inactivity
+
+tracker.set({ content: "Draft 2" }); // resets debounce timer
+```
+
+### Typed Migrations
+
+Support legacy state formats with type-safe migration definitions.
+
+```typescript
+interface LegacyState { offset: number; completedIds: string[] }
+interface CurrentState { cursor: number; done: string[] }
 
 const migration = defineStateMigration<CurrentState, LegacyState>({
-  name: "cursor-migration",
+  name: "sync-state-v0",
   isLegacy(input): input is LegacyState {
-    return (
-      input !== null &&
-      typeof input === "object" &&
-      typeof (input as Record<string, unknown>).offset === "number"
-    );
+    return input !== null && typeof input === "object" &&
+      typeof (input as Record<string, unknown>).offset === "number";
   },
   migrate(legacy) {
     return {
       cursor: legacy.offset,
-      done: legacy.completedIds
+      done: legacy.completedIds,
     };
-  }
+  },
 });
 
-const tracker = new StateTracker<CurrentState>({
-  key: "data",
-  default: { cursor: 0, done: [] }
+const tracker = new StateTracker({
+  key: "legacy-store",
+  default: { cursor: 0, done: [] },
 });
 
-// Load with migration support
-const state = tracker.loadOrDefault({ migrations: [migration] });
+tracker.loadOrDefault({ migrations: [migration] });
 ```
 
-## Event System
+### Event Logging
 
-The `StateTracker` emits events via the optional `onEvent` callback during operations:
-
-| Level | Description |
-|-------|-------------|
-| `"debug"` | Detailed operational logs (e.g., successful load/save) |
-| `"info"` | Informational messages (e.g., directory creation, no existing state) |
-| `"warn"` | Non-fatal issues (e.g., migration failure, storage failure) |
-| `"error"` | Critical errors (e.g., file write failure) |
-
-Event type definition:
-
-```typescript
-interface StateTrackerEvent {
-  level: "debug" | "info" | "warn" | "error";
-  message: string;
-  context?: Record<string, unknown>;
-}
-```
-
-## Migrations
-
-### Typed Migrations
-
-Migrations allow backward/forward compatibility for state schema changes. Migrations are applied only when the state matches a legacy format.
+Subscribe to debug, info, warn, and error events.
 
 ```typescript
 const tracker = new StateTracker({
-  key: "migration-test",
-  default: { cursor: 0, done: [] as string[] }
+  key: "logger",
+  default: {},
+  onEvent: (event) => {
+    console.log(`[${event.level}] ${event.message}`, event.context);
+  },
 });
 
-const legacyState = { offset: 7, completedIds: ["a", "b"] } as const;
-fs.writeFileSync(tracker.getFilePath(), JSON.stringify(legacyState));
+await tracker.loadAsync();
+// Example output: [info] No existing state file, using defaults { path: "/path/to/logger.json" }
+```
 
-const migration = defineStateMigration(
-  {
-    isLegacy(input): input is typeof legacyState {
-      return typeof (input as any).offset === "number";
-    },
-    migrate(legacy) {
-      return { cursor: legacy.offset, done: legacy.completedIds };
-    }
-  }
-);
+### Storage Availability
 
-tracker.loadOrDefault({ migrations: [migration] }); // { cursor: 7, done: ["a", "b"] }
+Check `isPersistent` to determine whether disk operations succeeded.
+
+```typescript
+const tracker = new StateTracker({
+  key: "status",
+  default: {},
+});
+
+await tracker.loadAsync();
+console.log(tracker.isPersistent); // true if file operations working
 ```
 
 ### Envelope Format
@@ -179,23 +153,7 @@ State files use a JSON envelope format:
 
 The `meta` field is optional and can include arbitrary metadata.
 
-## Auto-Save
-
-Auto-save is debounced and triggered automatically on `set()` and `update()` when `autoSaveMs > 0`. Multiple rapid updates collapse into a single save.
-
-```typescript
-const tracker = new StateTracker({
-  key: "autosave",
-  default: { count: 0 },
-  autoSaveMs: 500
-});
-
-tracker.set({ count: 1 }); // Schedule save in 500ms
-tracker.set({ count: 2 }); // Cancel previous, schedule save in 500ms
-// Only { count: 2 } is saved after 500ms
-```
-
-## PersistentStore Compatibility
+### PersistentStore Compatibility
 
 The `StateTracker` v2 gracefully loads legacy state stored in the raw PersistentStore format (plain JSON without envelope). It automatically migrates to the v2 envelope format on first save.
 
@@ -210,6 +168,77 @@ const tracker = new StateTracker({
 
 await tracker.loadAsync(); // { count: 42, name: "default" }
 await tracker.saveAsync(); // Saves envelope format
+```
+
+## API Reference
+
+### StateTracker Class
+
+| Method | Description |
+|--------|-----------|
+| `load(): T` | Sync load from disk, falls back to defaults |
+| `loadOrDefault(options?: StateTrackerLoadOrDefaultOptions<T>): T` | Sync load with optional migrations |
+| `save(value: T): void` | Sync save with value only |
+| `saveWithMeta(value: T, meta?: StateTrackerSaveMeta): void` | Sync save with optional metadata |
+| `loadAsync(): Promise<void>` | Async load with graceful fallback |
+| `saveAsync(): Promise<void>` | Atomic async save |
+| `set(newState: T): void` | Replace state, schedules auto-save |
+| `update(changes: Partial<T>): void` | Shallow merge (object state only) |
+| `reset(): void` | Restore defaults, schedules auto-save |
+| `get state(): Readonly<T>` | Current in-memory state |
+| `get isPersistent(): boolean` | Whether disk operations are available |
+| `getFilePath(): string` | Full path to state file |
+
+### Options
+
+| Option | Type | Default |
+|--------|------|---------|
+| `key` | `string` | — |
+| `default` | `T` | — |
+| `stateDirectory` | `string` | `STATE_TRACKER_DIR` env or `~/.app-state` |
+| `autoSaveMs` | `number` | `0` (disabled) |
+| `onEvent` | `(event: StateTrackerEvent) => void` | — |
+
+### Event Types
+
+```typescript
+type StateTrackerEventLevel = "debug" | "info" | "warn" | "error";
+
+interface StateTrackerEvent {
+  level: StateTrackerEventLevel;
+  message: string;
+  context?: Record<string, unknown>;
+}
+
+interface StateTrackerSaveMeta {
+  [key: string]: unknown;
+}
+```
+
+### Migration Type
+
+```typescript
+interface StateTrackerMigration<TCurrent, TLegacy = unknown> {
+  readonly name?: string;
+  isLegacy(input: unknown): input is TLegacy;
+  migrate(legacy: TLegacy): TCurrent;
+}
+```
+
+### defineStateMigration
+
+Helper for typed migration definitions.
+
+```typescript
+const migration = defineStateMigration<{ count: number }, { offset: number }>({
+  name: "v1-to-v2",
+  isLegacy(input): input is { offset: number } {
+    return typeof (input as any).offset === "number";
+  },
+  migrate(legacy) {
+    return { count: legacy.offset };
+  },
+});
 ```
 
 ## Environment Variables

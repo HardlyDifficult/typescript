@@ -404,7 +404,7 @@ import type { Member, Message, Thread, MessageBatch } from "@hardlydifficult/cha
 ### Streaming Behavior
 
 | Feature | Discord | Slack |
-|---------|:-------:|:-----:|
+|---------|:-----:|:-----:|
 | Message editing | ✅ | ✅ |
 | Stream chunking | Automatic, 1000 chars | Automatic, 2000 chars |
 | Truncation | Oldest first | Oldest first |
@@ -667,18 +667,143 @@ console.log(MESSAGE_LIMITS.SLACK_MAX_MESSAGE_LENGTH);   // 4000
 
 ### Platform Differences
 
-| Feature                | Discord                           | Slack                             |
-|------------------------|-----------------------------------|-----------------------------------|
-| Typing indicators      | ✅ Supported                      | ❌ No API support (no-op)         |
-| Message length limit   | 2000 characters                   | 4000 characters                   |
-| Thread creation        | Explicit thread channel           | Implicit via parent message ts    |
-| Bulk delete            | ✅ Up to 100 messages at once     | ❌ Must delete one-by-one         |
-| Emoji format           | Plain Unicode or `:name:`         | Colon-wrapped `:name:`            |
-| File uploads           | As attachments                    | Via `filesUploadV2` API           |
+| Feature | Discord | Slack |
+|---------|:-----:|:-----:|
+| Typing indicators | ✅ Supported | ❌ No API support (no-op) |
+| Message length limit | 2000 characters | 4000 characters |
+| Thread creation | Explicit thread channel | Implicit via parent message ts |
+| Bulk delete | ✅ Up to 100 messages at once | ❌ Must delete one-by-one |
+| Emoji format | Plain Unicode or `:name:` | Colon-wrapped `:name:` |
+| File uploads | As attachments | Via `filesUploadV2` API |
 
 ### Message Limits
 
 | Platform | Max Message Length | Notes |
-|----------|--------------------|-------|
-| Discord  | 2000               | Embed-only messages may be larger |
-| Slack    | 4000               | Per block element; message may contain many |
+|---------|-------------------|-------|
+| Discord | 2000 | Embed-only messages may be larger |
+| Slack | 4000 | Per block element; message may contain many |
+
+## Core Components
+
+### Chat Clients
+- **`DiscordChatClient`** - Discord implementation using `discord.js`
+- **`SlackChatClient`** - Slack implementation using `@slack/bolt`
+- **`ChatClient`** - Abstract base class shared by both implementations
+
+### Channel & Message Abstraction
+- **`Channel`** - Unified channel interface supporting posts, threads, reactions, and message tracking
+- **`Message`** - Represents a message with operations for updates, deletes, and reactions
+- **`PendingMessage`** - A message still being posted, awaitable and chainable
+- **`Thread`** - Thread management with streaming and reply subscription
+- **`MessageBatch`** - Logical group of messages for batch operations
+- **`batchStore`** - In-memory storage for tracking message batches
+
+### Streaming & Output
+- **`StreamingReply`** - Buffers and flushes text as multiple messages with auto-chunking
+- **`StreamingThread`** - Extends streaming for thread context with auto-creation and cleanup
+- **`StreamConsumer`** - Converts an async generator into a streaming reply
+
+### Command Handling
+- **`CommandParser`** - Parses user input with channel awareness and member lookups
+- **`findBestMemberMatch`** - Fuzzy member matching by ID, mention, name, email, etc.
+- **`MessageContext`** - Contextual info for command execution
+- **`CommandContext`** - Full execution context for commands
+
+### Utilities
+- **`channelIdToName`** - Extracts readable channel name from ID
+- **`extractMentionId`** - Extracts user ID from Discord mention format
+- **`isDocument`** - Type guard for Document objects in content
+- **`toDiscordEmbed`** - Converts Document blocks to Discord embed format
+- **`toSlackBlocks`** - Converts Document blocks to Slack Block Kit format
+
+### Job Lifecycle
+- **`setupJobLifecycle`** - Manages cancel/dismiss flow for long-running jobs
+- **`EMOJI_CANCEL`** - ❌ Emoji for canceling jobs
+- **`EMOJI_DISMISS`** - 🗑️ Emoji for deleting completed jobs
+
+## Usage
+
+### Creating a client
+
+```ts
+import { DiscordChatClient, SlackChatClient } from "@hardlydifficult/chat";
+
+// Discord
+const discordClient = new DiscordChatClient({
+  token: process.env.DISCORD_TOKEN!,
+  guildId: process.env.DISCORD_GUILD_ID!,
+});
+
+// Slack
+const slackClient = new SlackChatClient({
+  token: process.env.SLACK_BOT_TOKEN!,
+  appToken: process.env.SLACK_APP_TOKEN!,
+});
+```
+
+### Subscribing to messages and commands
+
+```ts
+const channel = await client.connect(channelId);
+
+channel.onMessage(async (event) => {
+  if (event.content.startsWith("!")) {
+    const { command, args, context } = new CommandParser(channel).parse(event.content);
+    if (command === "help") {
+      await channel.postMessage("Here's how to use this bot...");
+    }
+  }
+});
+```
+
+### Posting with formatting
+
+```ts
+import { Document, heading, text, list } from "@hardlydifficult/document-generator";
+
+const doc = new Document()
+  .addBlock(heading("My Title", 1))
+  .addBlock(text("This is some **bold** text."))
+  .addBlock(list(["Item 1", "Item 2", "Item 3"]));
+
+await channel.postMessage(doc);
+```
+
+### Streaming replies
+
+```ts
+import { StreamingReply, StreamConsumer } from "@hardlydifficult/chat";
+
+const stream = new StreamingReply(channel);
+stream.append("Hello ");
+await stream.flush();
+
+// Later...
+stream.append("world!");
+await stream.flush();
+
+// Or stream from an async generator
+const asyncGenerator = (function* () {
+  yield "Part 1\n";
+  yield "Part 2\n";
+  yield "Part 3\n";
+})();
+
+await new StreamConsumer(stream, asyncGenerator()).consume();
+```
+
+## Installation
+
+```bash
+npm install @hardlydifficult/chat
+```
+
+## Dependencies
+
+- `discord.js` for Discord integration
+- `@slack/bolt` for Slack integration
+- `@hardlydifficult/document-generator` for structured content
+
+## License
+
+MIT

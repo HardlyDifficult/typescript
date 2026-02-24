@@ -1,6 +1,6 @@
 # @hardlydifficult/workflow-engine
 
-General-purpose state machine with typed statuses, validated transitions, and persistent state.
+A powerful workflow and pipeline execution engine with persistence, lifecycle management, and flexible execution patterns.
 
 ## Installation
 
@@ -8,7 +8,122 @@ General-purpose state machine with typed statuses, validated transitions, and pe
 npm install @hardlydifficult/workflow-engine @hardlydifficult/state-tracker
 ```
 
-## Usage
+Optionally, for pipeline support:
+
+```bash
+npm install @hardlydifficult/logger
+```
+
+## Features
+
+- **Pipeline Execution**: Define linear sequences of steps with automatic state management and persistence
+- **Gate Steps**: Pause pipeline execution and resume later with optional data
+- **Retry Logic**: Automatic retry with recovery functions for failed steps
+- **Lifecycle Hooks**: Customizable hooks for step start/complete/failed events
+- **Persistence**: Automatic state saving and recovery across restarts
+- **Cancellation**: Graceful cancellation with AbortSignal support
+- **Data Accumulation**: Steps receive accumulated data from all previous steps
+- **Status Tracking**: Clear status strings (`running:step`, `gate:step`, `completed`, `failed`, `cancelled`)
+
+## Quick Start
+
+```typescript
+import { Pipeline } from "@hardlydifficult/workflow-engine";
+import { Logger } from "@hardlydifficult/logger";
+
+// Define steps
+const steps = [
+  {
+    name: "create_plan",
+    execute: async () => ({ plan: "create resources" }),
+  },
+  {
+    name: "approve",
+    gate: true, // Pause here until resume() is called
+  },
+  {
+    name: "execute_plan",
+    execute: async ({ data }) => {
+      console.log(`Executing: ${data.plan}`);
+      return { executed: true };
+    },
+  },
+];
+
+// Create pipeline
+const pipeline = new Pipeline({
+  key: "my-pipeline-123",
+  steps,
+  initialData: {},
+  logger: new Logger("info"),
+  stateDirectory: "./pipeline-state",
+});
+
+// Run and wait at gate
+await pipeline.run();
+console.log(pipeline.status); // "gate:approve"
+
+// Resume with optional data
+await pipeline.resume({ approved: true });
+
+// Check completion
+console.log(pipeline.status); // "completed"
+console.log(pipeline.data);   // { plan: "...", executed: true, approved: true }
+```
+
+## Step Types
+
+### Regular Steps
+Execute immediately and return data to accumulate:
+
+```typescript
+{
+  name: "fetch_data",
+  execute: async () => ({ data: "fetched" }),
+}
+```
+
+### Gate Steps
+Pause execution until `resume()` is called:
+
+```typescript
+{
+  name: "manual_approval",
+  gate: true,
+}
+```
+
+Gate steps can also have execution logic:
+
+```typescript
+{
+  name: "pre_approval_check",
+  gate: true,
+  execute: async () => ({ check_passed: true }),
+}
+```
+
+### Retryable Steps
+
+```typescript
+{
+  name: "flaky_api_call",
+  retries: 3,
+  execute: async ({ data }) => {
+    const result = await callApi();
+    if (!result.success) throw new Error("API failed");
+    return result;
+  },
+  recover: async ({ data }) => {
+    // Cleanup between retries
+    return { retry_count: (data.retry_count || 0) + 1 };
+  },
+}
+```
+
+## General-Purpose Workflow Engine
+
+A lower-level state machine with typed statuses, validated transitions, and persistent state.
 
 ```typescript
 import { WorkflowEngine } from "@hardlydifficult/workflow-engine";
@@ -42,8 +157,6 @@ await engine.transition("completed", (draft) => {
 
 engine.isTerminal; // true
 ```
-
-## API
 
 ### `new WorkflowEngine<TStatus, TData>(options)`
 
@@ -79,7 +192,7 @@ engine.isTerminal; // true
 | `canTransition(to)` | Check if a transition is allowed from current status. |
 | `allowedTransitions()` | List statuses reachable from current status. |
 
-### `cursor<TItem>(selector)`
+#### `cursor<TItem>(selector)`
 
 Creates a reusable cursor for safe navigation into nested engine data. Define the selector once, then use `get()`, `find()`, or `update()` without repeating navigation logic.
 
@@ -94,7 +207,7 @@ await item.update((it) => { it.done = true; });            // persists, no-op if
 await item.update((it, d) => { d.currentIndex = undefined; }); // access parent data too
 ```
 
-### Updater Pattern
+#### Updater Pattern
 
 `transition()` and `update()` accept an updater callback that receives a `structuredClone` of the data. Mutate it directly — if the updater throws, nothing changes.
 
@@ -105,73 +218,53 @@ await engine.transition("running", (draft) => {
 });
 ```
 
----
-
-## Pipeline
-
-A higher-level abstraction that manages a linear sequence of steps, wrapping `WorkflowEngine` internally. Supports gates (pause for external input), retries with recovery, cancellation via `AbortSignal`, and automatic lifecycle logging.
-
-### Installation
-
-Requires `@hardlydifficult/logger` as a peer dependency:
-
-```bash
-npm install @hardlydifficult/workflow-engine @hardlydifficult/state-tracker @hardlydifficult/logger
-```
-
-### Usage
+## Lifecycle Hooks
 
 ```typescript
-import { Pipeline } from "@hardlydifficult/workflow-engine";
-import { createLogger } from "@hardlydifficult/logger";
-
-interface Data { prompt: string; plan?: string; approved?: boolean; result?: string; }
-
-const logger = createLogger("my-pipeline");
-
-const pipeline = new Pipeline<Data>({
+const pipeline = new Pipeline({
   key: "my-pipeline",
-  steps: [
-    { name: "create_plan", execute: async ({ data }) => {
-      const plan = await generatePlan(data.prompt);
-      return { plan };
-    }},
-    { name: "approve", gate: true, execute: async ({ data }) => {
-      await postForApproval(data.plan);
-      return {};
-    }},
-    { name: "implement", retries: 2, execute: async ({ data, signal }) => {
-      const result = await implement(data.plan!, signal);
-      return { result };
-    }, recover: async (error) => {
-      await fixIssue(error);
-      return {};
-    }},
-  ],
-  initialData: { prompt: "Build a feature" },
-  logger,
-  stateDirectory: "/var/data",
+  steps,
   hooks: {
-    onStepComplete: (name) => console.log(`${name} done`),
-    onGateReached: (name) => console.log(`Waiting at ${name}`),
+    onStepStart: (name) => console.log(`Starting: ${name}`),
+    onStepComplete: (name, data) => console.log(`Completed: ${name}`),
+    onGateReached: (name) => console.log(`Reached gate: ${name}`),
+    onComplete: () => console.log("Pipeline completed"),
+    onFailed: (name, error) => console.error(`Failed at ${name}: ${error}`),
   },
+});
+```
+
+## Cancellation
+
+```typescript
+const controller = new AbortController();
+
+const pipeline = new Pipeline({
+  key: "my-pipeline",
+  steps,
+  signal: controller.signal,
 });
 
 await pipeline.run();
-// Pipeline pauses at "approve" gate...
 
-// Later, on approval:
-await pipeline.resume({ approved: true });
-// Pipeline continues through "implement" and completes
+// Cancel from elsewhere
+controller.abort();
 ```
 
-### Step Types
+## State Persistence
 
-| Type | Definition | Behavior |
-|------|-----------|----------|
-| Regular | `{ name, execute }` | Runs immediately, merges returned data |
-| Gate | `{ name, gate: true, execute? }` | Runs optional execute, then pauses until `resume()` is called |
-| Retryable | `{ name, execute, retries, recover? }` | On failure, calls `recover()` then re-runs `execute`, up to N times |
+State is automatically saved to disk:
+
+```typescript
+const pipeline = new Pipeline({
+  key: "my-pipeline",
+  steps,
+  stateDirectory: "./state",
+  autoSaveMs: 1000, // Save every second (default)
+});
+```
+
+## Pipeline API Reference
 
 ### `new Pipeline<TData>(options)`
 
@@ -207,6 +300,18 @@ await pipeline.resume({ approved: true });
 | `on(listener)` | Subscribe to changes. Returns unsubscribe function. |
 | `toSnapshot()` | Return a read-only snapshot of `{ status, data, steps, isTerminal }`. |
 
+### Step Definition
+
+```typescript
+interface StepDefinition<TData> {
+  name: string;
+  execute?: (context: { data: TData }) => Promise<Partial<TData>>;
+  gate?: boolean;
+  retries?: number;
+  recover?: (context: { data: TData }) => Promise<Partial<TData>>;
+}
+```
+
 ### Hooks
 
 All hooks are optional. Hook errors are swallowed to avoid breaking pipeline execution.
@@ -220,9 +325,38 @@ All hooks are optional. Hook errors are swallowed to avoid breaking pipeline exe
 | `onComplete` | `(data)` | When all steps finish |
 | `onFailed` | `(name, error, data)` | When pipeline enters failed state |
 
-### Crash Recovery
+### Status Values
+
+- `running:step_name` - Currently executing step
+- `gate:gate_name` - Waiting at a gate
+- `completed` - Successfully finished
+- `failed` - Failed execution
+- `cancelled` - Cancelled execution
+
+## Error Handling
+
+```typescript
+try {
+  await pipeline.run();
+} catch (error) {
+  if (error instanceof PipelineHasNoStepsError) {
+    // Handle empty pipeline
+  } else if (error instanceof DuplicatePipelineStepNameError) {
+    // Handle duplicate step names
+  } else if (error instanceof PipelineResumeError) {
+    // Handle resume errors
+    console.log(error.code); // "PIPELINE_NOT_AT_GATE"
+  }
+}
+```
+
+## Crash Recovery
 
 Pipeline state is persisted automatically. On restart, `run()` detects the interrupted state:
 - **Mid-step**: re-executes the step (steps should be idempotent)
 - **At gate**: stays at gate, waiting for `resume()`
 - **Terminal**: no-op
+
+## Migration
+
+See the [migration guide](./docs/migration.md) for upgrading from v0.x to v1.x.

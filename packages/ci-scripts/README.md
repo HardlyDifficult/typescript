@@ -1,6 +1,6 @@
 # @hardlydifficult/ci-scripts
 
-CLI tools for CI automation: dependency pinning validation, monorepo publishing with inter-package dependency resolution, and auto-committing linting fixes.
+CLI tools for CI automation: dependency pinning validation, monorepo publishing with inter-package resolution, and auto-committing linting fixes.
 
 ## Installation
 
@@ -11,22 +11,75 @@ npm install @hardlydifficult/ci-scripts
 ## Quick Start
 
 ```typescript
-// Check for unpinned dependencies across the monorepo
-// npx check-pinned-deps
+// Use the exported package name identifier
+import { packageName } from "@hardlydifficult/ci-scripts";
 
-// Validate package metadata consistency
-// npx check-package-metadata
-
-// Auto-commit lint/format fixes
-// npx auto-commit-fixes
-
-// Publish monorepo packages with versioning and git tags
-// npx monorepo-publish
+console.log(packageName); // "@hardlydifficult/ci-scripts"
 ```
 
-## Dependency Checking
+## Auto-committing Linting Fixes
 
-Validates that all dependencies in `package.json` files use pinned versions (no `^` or `~` prefixes).
+Auto-commits and pushes lint/format auto-fixes, exiting 0 if no changes or 1 after a successful commit to trigger a CI re-run.
+
+### Usage
+
+```bash
+npx auto-commit-fixes
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BRANCH` | Yes | Branch to push to (e.g., `${{ github.head_ref || github.ref_name }}`) |
+| `GH_PAT` | No | GitHub PAT for push (triggers CI); default `GITHUB_TOKEN` does not |
+
+### Example
+
+```typescript
+// .github/workflows/lint.yml
+- name: Auto-fix and commit
+  run: npx auto-commit-fixes
+  env:
+    BRANCH: ${{ github.head_ref || github.ref_name }}
+    GH_PAT: ${{ secrets.GH_PAT }}
+```
+
+## Package Metadata Validation
+
+Validates monorepo package metadata for consistency with the baseline configuration.
+
+### Checks
+
+- `engines.node` equals `>=20.19.0`
+- Required fields: `name`, `version`, `files`, `scripts`, `engines`
+- Required scripts: `build`, `clean`
+- `files` array must not be empty
+
+### Usage
+
+```bash
+npx check-package-metadata
+```
+
+### Example Output (Success)
+
+```
+Validated 3 package.json file(s): metadata and Node baseline are consistent.
+```
+
+### Example Output (Failure)
+
+```
+Package metadata validation failed:
+
+  packages/example/package.json
+    - missing required script: scripts.test
+```
+
+## Dependency Pinning Validation
+
+Ensures all dependencies in package.json files use exact versions (no `^` or `~` prefixes).
 
 ### Usage
 
@@ -41,12 +94,26 @@ Runs in the current working directory and recursively checks all `package.json` 
 ### Example
 
 ```bash
+# Fails if package.json contains:
+"dependencies": {
+  "lodash": "^4.17.21"
+}
+
+# Instead of:
+"dependencies": {
+  "lodash": "4.17.21"
+}
+```
+
+### Example Output (Success)
+
+```bash
 $ npx check-pinned-deps
 
 Checked 5 package.json file(s) - all dependencies are pinned.
 ```
 
-If unpinned dependencies are found:
+### Example Output (Failure)
 
 ```bash
 $ npx check-pinned-deps
@@ -59,84 +126,16 @@ All dependencies must use exact versions (no ^ or ~ prefixes).
 Fix by removing the ^ or ~ prefix from each version.
 ```
 
-
-## Package Metadata Validation
-
-Validates monorepo package metadata for consistency, including the Node.js support baseline.
-
-### Checks
-
-- `engines.node` is exactly `>=20.19.0` in every `packages/*/package.json`
-- Required fields exist: `name`, `version`, `files`, `scripts`, `engines`
-- Required scripts exist: `build`, `clean`
-
-### Usage
-
-```bash
-npx check-package-metadata
-```
-
-### Example
-
-```bash
-$ npx check-package-metadata
-Validated 28 package.json file(s): metadata and Node baseline are consistent.
-```
-
-## Auto-Commit Fixes
-
-Auto-commits and pushes lint/format fixes (e.g., from ESLint or Prettier) to trigger CI re-runs.
-
-### Usage
-
-```bash
-npx auto-commit-fixes
-```
-
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `BRANCH` | The branch to push to (e.g., `${{ github.head_ref || github.ref_name }}` in GitHub Actions) | Yes |
-| `GH_PAT` | GitHub personal access token (PAT) to trigger workflow on push | No |
-
-### Example
-
-```typescript
-// In a GitHub Actions workflow:
-// - name: Auto-fix linting issues
-//   run: npx auto-commit-fixes
-//   env:
-//     BRANCH: ${{ github.head_ref || github.ref_name }}
-//     GH_PAT: ${{ secrets.GH_PAT }}
-```
-
-If no changes are detected:
-
-```bash
-$ npx auto-commit-fixes
-No changes detected. Nothing to commit.
-```
-
-If changes are detected and pushed:
-
-```bash
-$ npx auto-commit-fixes
-Auto-fix commit pushed successfully.
-This build will fail so the next CI run validates the fixes.
-```
-
 ## Monorepo Publishing
 
-Publishes packages that have changed since the last publish, with automatic versioning and git tagging.
+Publishes changed packages with auto-incremented patch versions and resolves inter-package dependencies.
 
 ### Features
 
-- Detects inter-package dependencies and publishes them first (topological sort)
-- Auto-updates dependency versions before publishing dependent packages
-- Transforms `file:` references to real versions at publish time
-- Auto-increments patch versions based on the latest version published to npm
-- Creates and pushes git tags in format `<safe-package-name>-v<version>`
+- Topological sort ensures dependencies are published first
+- Auto-updates `file:` references to versioned dependencies
+- Auto-determines next patch version from npm history
+- Tags and pushes git tags after successful publish
 
 ### Usage
 
@@ -146,9 +145,9 @@ npx monorepo-publish [--packages-dir <dir>]
 
 ### Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--packages-dir` | Directory containing packages | `packages` |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--packages-dir` | `packages` | Directory containing monorepo packages |
 
 ### Example
 
@@ -177,14 +176,12 @@ Created and pushed tag: acme-core-v1.0.1
 Done!
 ```
 
-### Inter-Package Dependency Resolution
+### Dependency Resolution
 
-When publishing multiple packages, the tool:
+If package `A` depends on `B` (both in the monorepo), and only `B` changed:
 
-1. Determines publish order using topological sort based on dependency graph
-2. Tracks newly published versions during the run
-3. Updates `dependencies` and `devDependencies` that reference internal packages:
-   - `file:../package` → exact version string (e.g., `"1.0.0"`)
-   - existing version numbers → updated if a newer version was published
+- `B` is published first with version `1.1.3`
+- `A`’s `file:../B` reference is transformed to `"1.1.3"`
+- `A` is published with `1.1.3` in its `dependencies`
 
-Note: `peerDependencies` are excluded from `file:` transformations since they should use version ranges for compatibility.
+**Note:** `peerDependencies` are excluded from `file:` transformations since they should use version ranges for compatibility.

@@ -88,7 +88,38 @@ untrap();
 ### Behavior Notes
 
 - Errors in teardown functions are caught and logged, allowing remaining functions to complete.
-- Signal handlers are added only once per process and cleaned up automatically when untrap() is called.
+- Signal handlers are added only once per process and cleaned up automatically when `untrap()` is called.
+
+### Example: Basic Teardown
+
+```typescript
+import { createTeardown } from "@hardlydifficult/daemon";
+
+const teardown = createTeardown();
+
+teardown.add(() => console.log("Closing database"));
+teardown.add(() => console.log("Stopping server"));
+teardown.trapSignals();
+
+await teardown.run();
+// Output:
+// Stopping server
+// Closing database
+```
+
+### Unregistering Teardown Functions
+
+Teardown functions can be unregistered before `run()` is called.
+
+```typescript
+const teardown = createTeardown();
+
+const unregister = teardown.add(() => cleanupA());
+teardown.add(() => cleanupB());
+
+unregister(); // Removes cleanupA from the teardown list
+await teardown.run(); // Only cleanupB runs
+```
 
 ## Continuous Loop with `runContinuousLoop`
 
@@ -99,11 +130,11 @@ Runs a recurring task in a loop with built-in signal handling, dynamic delays, a
 | Option | Type | Description |
 |--------|------|-------------|
 | `intervalSeconds` | `number` | Default delay between cycles in seconds |
-| `runCycle` | `() => Promise<RunCycleResult>` | Main function executed per cycle |
-| `getNextDelayMs` | `() => Delay \| undefined` | Optional custom delay resolver |
-| `onCycleError` | `ErrorHandler` | Custom error handling strategy |
-| `onShutdown` | `() => Promise<void>` | Cleanup hook called on shutdown |
-| `logger` | `ContinuousLoopLogger` | Optional logger (defaults to console) |
+| `runCycle` | `(isShutdownRequested: () => boolean) => Promise<RunCycleResult>` | Main function executed per cycle |
+| `getNextDelayMs?` | `(result, context) => ContinuousLoopDelay \| undefined` | Optional custom delay resolver |
+| `onCycleError?` | `ContinuousLoopErrorHandler` | Custom error handling strategy |
+| `onShutdown?` | `() => void \| Promise<void>` | Cleanup hook called on shutdown |
+| `logger?` | `ContinuousLoopLogger` | Optional logger (defaults to console) |
 
 ### Return Values from `runCycle`
 
@@ -154,6 +185,26 @@ await runContinuousLoop({
   onCycleError: async (error, context) => {
     console.error(`Cycle ${context.cycleNumber} failed: ${error.message}`);
     return "stop"; // or "continue"
+  }
+});
+```
+
+### Dynamic Delays
+
+Use `getNextDelayMs` to derive delays from domain results:
+
+```typescript
+type CycleResult = { delaySeconds: number } | { stop: true };
+
+await runContinuousLoop({
+  intervalSeconds: 60, // default fallback
+  async runCycle() {
+    const result = await fetchStatus();
+    if (result.stopped) return { stop: true };
+    return { delaySeconds: result.delay };
+  },
+  getNextDelayMs(result) {
+    return "delaySeconds" in result ? result.delaySeconds * 1000 : undefined;
   }
 });
 ```

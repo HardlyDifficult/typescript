@@ -13,46 +13,49 @@ npm install @hardlydifficult/date-time
 ```typescript
 import { toMilliseconds, type TimeSpan } from "@hardlydifficult/date-time";
 
-const duration: TimeSpan = { value: 2, unit: "minutes" };
-const milliseconds = toMilliseconds(duration); // 120_000
+const duration: TimeSpan = { value: 2.5, unit: "minutes" };
+console.log(toMilliseconds(duration)); // 150_000
 ```
 
-## TimeSpan Conversion
+## Time Spans
 
-Converts a time duration (represented as a `TimeSpan`) to its equivalent value in milliseconds.
+Represents a time duration with a numeric `value` and a `unit`, and converts it to milliseconds.
 
-### Interface
+### `TimeSpan` Interface
 
-| Property | Type     | Description                |
-|----------|----------|----------------------------|
-| `value`  | `number` | The numeric value of time  |
-| `unit`   | `TimeUnit` | The time unit (see below) |
+| Field | Type      | Description          |
+|-------|-----------|----------------------|
+| value | `number`  | Numeric duration     |
+| unit  | `TimeUnit`| Time unit identifier |
 
-### TimeUnit Options
+### `TimeUnit` Type
 
+Supported units:
 - `"milliseconds"`
 - `"seconds"`
 - `"minutes"`
 - `"hours"`
 - `"days"`
 
-### Function
+### `toMilliseconds`
 
-```typescript
-toMilliseconds(timeSpan: TimeSpan): number
-```
-
-Converts the given time span to milliseconds using predefined unit multipliers.
-
-### Examples
+Converts a `TimeSpan` to its equivalent value in milliseconds.
 
 ```typescript
 import { toMilliseconds } from "@hardlydifficult/date-time";
 
+toMilliseconds({ value: 1, unit: "hours" });   // 3_600_000
+toMilliseconds({ value: 0.5, unit: "days" });  // 43_200_000
+toMilliseconds({ value: 120, unit: "seconds" }); // 120_000
+```
+
+#### Additional Examples
+
+```typescript
 // Seconds to milliseconds
 toMilliseconds({ value: 2, unit: "seconds" }); // 2_000
 
-// Minutes to milliseconds
+// Minutes to milliseconds (fractional value)
 toMilliseconds({ value: 1.5, unit: "minutes" }); // 90_000
 
 // Days to milliseconds

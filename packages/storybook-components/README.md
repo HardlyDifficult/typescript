@@ -1,6 +1,6 @@
 # @hardlydifficult/storybook-components
 
-A React component library built with TypeScript, Tailwind CSS, and Storybook—featuring atomic primitives and higher-level UI widgets for rapid interface development.
+A React component library for Storybook, offering atomic design primitives and domain-specific UI widgets built with Tailwind CSS and TypeScript.
 
 ## Installation
 
@@ -11,306 +11,267 @@ npm install @hardlydifficult/storybook-components
 ## Quick Start
 
 ```tsx
-import { Button, Text, Badge } from "@hardlydifficult/storybook-components";
+import { Button, Stack, Text } from '@hardlydifficult/storybook-components';
 
 function Example() {
   return (
-    <div>
-      <Text variant="heading">Welcome</Text>
-      <Button variant="primary" onClick={() => console.log("Clicked!")}>
-        Click me
-      </Button>
-      <Badge variant="success">Active</Badge>
-    </div>
-  );
-}
-```
-
-## Atomic Components
-
-### Text
-
-Typography primitive with semantic variants: heading, subheading, body, caption, and code.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `as` | `ElementType` | `'p'` |
-| `variant` | `'h1' \| 'h2' \| 'h3' \| 'h4' \| 'p' \| 'small' \| 'label' \| 'heading' \| 'subheading' \| 'caption' \| 'code'` | `'p'` |
-| `color` | `'neutral' \| 'primary' \| 'success' \| 'warning' \| 'error' \| 'muted'` | `'neutral'` |
-| `align` | `'left' \| 'center' \| 'right'` | `'left'` |
-| `truncate` | `boolean` | `false` |
-| `weight` | `'normal' \| 'medium' \| 'semibold' \| 'bold'` | `'normal'` |
-
-```tsx
-import { Text } from "@hardlydifficult/storybook-components";
-
-function Example() {
-  return (
-    <>
-      <Text variant="heading">Heading</Text>
-      <Text variant="body">Body text</Text>
-      <Text variant="code">const x = 1;</Text>
-    </>
-  );
-}
-```
-
-### Button
-
-Reusable button with primary, secondary, and ghost variants, supports icons and optional click handler.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `variant` | `"primary" \| "secondary" \| "ghost"` | `"primary"` |
-| `size` | `"sm" \| "md" \| "lg"` | `"md"` |
-| `disabled` | `boolean` | `false` |
-| `isLoading` | `boolean` | `false` |
-| `icon` | `ReactNode` | `undefined` |
-| `onClick` | `MouseEventHandler<HTMLButtonElement>` | `undefined` |
-
-```tsx
-import { Button } from "@hardlydifficult/storybook-components";
-
-function Example() {
-  return (
-    <>
-      <Button variant="primary">Primary</Button>
-      <Button icon={<span>⚡</span>}>With Icon</Button>
-      <Button variant="ghost" disabled>Disabled</Button>
-    </>
-  );
-}
-```
-
-### Badge
-
-Semantic status badge with a colored dot indicator.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `variant` | `"default" \| "success" \| "warning" \| "error" \| "info"` | `"default"` |
-| `size` | `"sm" \| "md" \| "lg"` | `"md"` |
-
-```tsx
-import { Badge } from "@hardlydifficult/storybook-components";
-
-function Example() {
-  return (
-    <>
-      <Badge variant="success">Success</Badge>
-      <Badge variant="warning">Warning</Badge>
-      <Badge size="sm">Small</Badge>
-    </>
-  );
-}
-```
-
-### Card
-
-Container component with optional header and footer sections.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `title` | `string` | `undefined` |
-| `footer` | `ReactNode` | `undefined` |
-| `children` | `ReactNode` | required |
-| `padding` | `'none' \| 'sm' \| 'md' \| 'lg'` | `'md'` |
-
-```tsx
-import { Card, Text } from "@hardlydifficult/storybook-components";
-
-function Example() {
-  return (
-    <Card title="Header" footer={<button>Footer</button>}>
-      <Text variant="body">Content goes here</Text>
-    </Card>
-  );
-}
-```
-
-### Stack
-
-Flex layout primitive for vertical or horizontal stacking.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `direction` | `"vertical" \| "horizontal"` | `"vertical"` |
-| `gap` | `"none" \| "xs" \| "sm" \| "md" \| "lg" \| "xl"` | `"md"` |
-
-```tsx
-import { Stack, Button, Text } from "@hardlydifficult/storybook-components";
-
-function Example() {
-  return (
-    <Stack direction="horizontal" gap="lg">
-      <Button>One</Button>
-      <Button>Two</Button>
+    <Stack gap="md">
+      <Text variant="h1">Hello, World!</Text>
+      <Button variant="primary">Click me</Button>
     </Stack>
   );
 }
 ```
 
+## Primitives
+
+### Stack
+
+A flexible layout primitive for vertical and horizontal stacking using CSS Flexbox.
+
+```tsx
+import { Stack } from '@hardlydifficult/storybook-components';
+
+// Horizontal layout with default spacing
+<Stack direction="horizontal">
+  <div>Item 1</div>
+  <div>Item 2</div>
+</Stack>
+
+// Vertical layout with custom gap
+<Stack direction="vertical" gap="lg">
+  <div>Top</div>
+  <div>Bottom</div>
+</Stack>
+```
+
+### Text
+
+A typography primitive supporting semantic HTML elements and variant-based styling.
+
+| Variant   | HTML Element | Example Usage                     |
+|-----------|--------------|-----------------------------------|
+| `h1`      | `<h1>`       | `<Text variant="h1">Heading 1</Text>` |
+| `h2`      | `<h2>`       | `<Text variant="h2">Heading 2</Text>` |
+| `body`    | `<p>`        | `<Text variant="body">Paragraph</Text>` |
+| `caption` | `<small>`    | `<Text variant="caption">Note</Text>` |
+
+```tsx
+import { Text } from '@hardlydifficult/storybook-components';
+
+<Text variant="h2">Section Title</Text>
+<Text variant="body" className="text-gray-600">
+  This is descriptive text.
+</Text>
+```
+
+### Button
+
+A reusable button component supporting multiple visual variants and optional icons.
+
+| Variant    | Use Case                         |
+|------------|----------------------------------|
+| `primary`  | Main actions (e.g., Save)        |
+| `secondary`| Secondary actions (e.g., Cancel) |
+| `ghost`    | Minimal emphasis (e.g., icons)   |
+
+```tsx
+import { Button } from '@hardlydifficult/storybook-components';
+
+<Button variant="primary">Submit</Button>
+<Button variant="secondary">Reset</Button>
+<Button variant="ghost" aria-label="More options">
+  ⋮
+</Button>
+```
+
+### Card
+
+A container component with optional header and footer sections and dynamic padding.
+
+```tsx
+import { Card, Stack, Text } from '@hardlydifficult/storybook-components';
+
+<Card>
+  <Card.Header>
+    <Text variant="h3">Card Title</Text>
+  </Card.Header>
+  <Card.Body>
+    <Stack gap="sm">
+      <Text variant="body">Content goes here.</Text>
+    </Stack>
+  </Card.Body>
+  <Card.Footer>
+    <Text variant="caption">Footer content</Text>
+  </Card.Footer>
+</Card>
+```
+
+### Badge
+
+Renders semantic status indicators with colored dot and variant-based styling.
+
+| Variant   | Dot Color | Use Case                         |
+|-----------|-----------|----------------------------------|
+| `success` | Green     | Active / Completed               |
+| `warning` | Orange    | Warning / Pending                |
+| `error`   | Red       | Error / Failed                   |
+| `info`    | Blue      | Information                      |
+| `default` | Gray      | Neutral / Default state          |
+
+```tsx
+import { Badge } from '@hardlydifficult/storybook-components';
+
+<Badge variant="success">Online</Badge>
+<Badge variant="warning" size="sm">Pending</Badge>
+```
+
 ## Widgets
+
+### GlobalNav
+
+A responsive global navigation bar with dropdown menus, external link rendering, and keyboard interaction support.
+
+```tsx
+import { GlobalNav } from '@hardlydifficult/storybook-components';
+
+<GlobalNav
+  brand="App"
+  links={[
+    { label: 'Dashboard', url: '/dashboard' },
+    {
+      label: 'More',
+      dropdown: [
+        { label: 'Settings', url: '/settings' },
+        { label: 'Help', url: '/help', external: true },
+      ],
+    },
+  ]}
+  user={{ name: 'Alice', avatar: '/alice.png' }}
+/>
+```
 
 ### ActivityFeed
 
-Renders a chronological list of activity events with status indicators, avatars, and relative timestamps.
+Renders chronological activity items with avatars, timestamps, and optional status indicators.
 
-| Property | Type | Default |
-|----------|------|---------|
-| `events` | `ActivityEvent[]` | required |
-| `title` | `string` | `undefined` |
-| `emptyMessage` | `ReactNode` | `"No recent activity"` |
-| `showSystemEvents` | `boolean` | `false` |
-
-`ActivityEvent` interface:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | `string` | Unique identifier |
-| `message` | `string` | Event description |
-| `timestamp` | `Date` | Event time |
-| `status` | `"success" \| "error" \| "warning" \| "info" \| "pending"` | Event status |
-| `actor?` | `{ name: string; avatar?: string }` | Optional actor information |
-| `detail?` | `string` | Optional detail text |
+| Feed Type       | Behavior                                |
+|-----------------|-----------------------------------------|
+| `normal`        | Standard user activity with avatars     |
+| `empty`         | Displays empty state when no activities |
+| `system-events` | Highlights system-generated events      |
 
 ```tsx
-import { ActivityFeed } from "@hardlydifficult/storybook-components";
+import { ActivityFeed } from '@hardlydifficult/storybook-components';
 
-const events: ActivityFeed.ActivityEvent[] = [
+const activities = [
   {
-    id: "1",
-    message: "Deployment successful",
-    timestamp: new Date(),
-    status: "success",
-    actor: { name: "Jane Doe" },
-    detail: "v2.3.1",
+    id: '1',
+    type: 'user',
+    user: { name: 'Bob', avatar: '/bob.png' },
+    verb: 'commented on',
+    object: 'Task #123',
+    timestamp: '2024-06-10T14:30:00Z',
   },
 ];
 
-function Example() {
-  return <ActivityFeed events={events} title="Recent Activity" />;
-}
+<ActivityFeed activities={activities} />
 ```
 
 ### NotificationToast
 
-Dismissable notification toast with status-specific styling and optional action button.
+A dismissable notification component supporting success, error, warning, and info variants.
 
-| Property | Type | Default |
-|----------|------|---------|
-| `variant` | `"success" \| "error" \| "warning" \| "info"` | required |
-| `title` | `string` | required |
-| `message` | `string` | `undefined` |
-| `onDismiss` | `() => void` | `undefined` |
-| `action?` | `{ label: string; onClick: () => void }` | `undefined` |
+| Variant   | Styling             | Example Use                        |
+|-----------|---------------------|------------------------------------|
+| `success` | Green bar + check   | Save successful                    |
+| `error`   | Red bar + X         | Failed to load                     |
+| `warning` | Orange bar + alert  | Deprecated API usage               |
+| `info`    | Blue bar + info     | New feature available              |
 
 ```tsx
-import { NotificationToast } from "@hardlydifficult/storybook-components";
+import { NotificationToast } from '@hardlydifficult/storybook-components';
 
-function Example() {
-  return (
-    <NotificationToast
-      variant="success"
-      title="Saved"
-      message="Changes have been saved successfully."
-      onDismiss={() => console.log("Dismissed")}
-    />
-  );
-}
+<NotificationToast
+  variant="success"
+  title="Saved!"
+  message="Your changes were saved successfully."
+  onDismiss={() => console.log('Dismissed')}
+/>
 ```
 
 ### ProgressBar
 
-Linear progress bar with dynamic color and optional label.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `value` | `number` | required (0–100, clamped) |
-| `label?` | `string` | `undefined` |
+Renders a linear progress bar with dynamic color and optional label.
 
 ```tsx
-import { ProgressBar } from "@hardlydifficult/storybook-components";
+import { ProgressBar } from '@hardlydifficult/storybook-components';
 
-function Example() {
-  return (
-    <>
-      <ProgressBar value={60} label="Upload progress" />
-      <ProgressBar value={100} />
-    </>
-  );
-}
+<ProgressBar progress={75} label="Uploading..." />
+<ProgressBar progress={100} variant="success" />
 ```
 
 ### StatCard
 
-Metric card showing a label, value, optional trend (up/down with percentage), and caption.
-
-| Property | Type | Default |
-|----------|------|---------|
-| `label` | `string` | required |
-| `value` | `string \| number` | required |
-| `trend?` | `number` | `undefined` |
-| `caption?` | `string` | `undefined` |
+Displays metric cards with optional trend indicators (up/down icon + percentage).
 
 ```tsx
-import { StatCard } from "@hardlydifficult/storybook-components";
+import { StatCard } from '@hardlydifficult/storybook-components';
 
-function Example() {
-  return (
-    <>
-      <StatCard label="Revenue" value="$12.4k" trend={12.5} />
-      <StatCard label="Error rate" value="0.3%" trend={-1.2} caption="Better than last week" />
-    </>
-  );
-}
+<StatCard
+  title="Revenue"
+  value="$12,450"
+  trend={{ value: 12.5, direction: 'up' }}
+/>
+<StatCard
+  title="Errors"
+  value="2.1%"
+  trend={{ value: 0.3, direction: 'down' }}
+/>
+<StatCard
+  title="Users"
+  value="1,024"
+  // No trend indicator
+/>
 ```
 
 ### UserCard
 
-User profile card with deterministic avatar, role, status indicator, and optional action button.
+A user profile card with deterministic avatar selection, status indicator, and optional action button.
 
-| Property | Type | Default |
-|----------|------|---------|
-| `name` | `string` | required |
-| `role` | `string` | required |
-| `status?` | `"online" \| "away" \| "offline"` | `undefined` |
-| `action?` | `{ label: string; onClick: () => void }` | `undefined` |
+| Status   | Dot Color | Description          |
+|----------|-----------|----------------------|
+| `online` | Green     | User is active       |
+| `busy`   | Red       | Do not disturb       |
+| `offline`| Gray      | User is away         |
 
 ```tsx
-import { UserCard } from "@hardlydifficult/storybook-components";
+import { UserCard } from '@hardlydifficult/storybook-components';
 
-function Example() {
-  return (
-    <UserCard
-      name="John Smith"
-      role="Product Designer"
-      status="online"
-      action={{ label: "View Profile", onClick: () => {} }}
-    />
-  );
-}
+<UserCard
+  user={{
+    name: 'Alice',
+    avatar: '/alice.png',
+    status: 'online',
+  }}
+  action={{ label: 'Message', onClick: () => {} }}
+/>
 ```
 
-## Exports
+## Setup
 
-All components are exported via the barrel entry `@hardlydifficult/storybook-components`:
+This package is intended for use with Storybook, which is already configured in the `.storybook` directory using Vite and Tailwind CSS. To use these components in a Storybook project:
 
-```ts
-// Primitives
-export { Badge } from './components/Badge';
-export { Button } from './components/Button';
-export { Card } from './components/Card';
-export { Stack } from './components/Stack';
-export { Text } from './components/Text';
+1. Install the package:
+   ```bash
+   npm install @hardlydifficult/storybook-components
+   ```
+2. Import components directly in your stories:
+   ```tsx
+   import { Button } from '@hardlydifficult/storybook-components';
+   ```
 
-// Widgets
-export { ActivityFeed } from './widgets/ActivityFeed';
-export { NotificationToast } from './widgets/NotificationToast';
-export { ProgressBar } from './widgets/ProgressBar';
-export { StatCard } from './widgets/StatCard';
-export { UserCard } from './widgets/UserCard';
-```
+No additional environment variables or configuration is required beyond Storybook itself.
 
 ## Local Development
 
@@ -356,3 +317,28 @@ The Storybook will be available at `https://HardlyDifficult.github.io/typescript
 2. Create `stories/MyComponent.stories.tsx`
 3. Export from `src/index.ts`
 4. Run `npm run storybook` to preview
+
+## Exports
+
+All components are exported via the barrel entry `@hardlydifficult/storybook-components`:
+
+```ts
+// Primitives
+export { Badge } from './components/Badge';
+export { Button } from './components/Button';
+export { Card } from './components/Card';
+export { Stack } from './components/Stack';
+export { Text } from './components/Text';
+
+// Widgets
+export { ActivityFeed } from './widgets/ActivityFeed';
+export { NotificationToast } from './widgets/NotificationToast';
+export { ProgressBar } from './widgets/ProgressBar';
+export { StatCard } from './widgets/StatCard';
+export { UserCard } from './widgets/UserCard';
+export { GlobalNav } from './widgets/GlobalNav';
+```
+
+## Appendix
+
+No behavioral differences across platforms or environments are present in this package. All components are purely UI-focused and rely on Tailwind CSS for rendering. Variant behavior is standardized and documented in tables above.

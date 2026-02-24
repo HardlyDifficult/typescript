@@ -11,284 +11,260 @@ npm install @hardlydifficult/document-generator
 ## Quick Start
 
 ```typescript
-import { Document } from '@hardlydifficult/document-generator';
-
-const document = new Document()
-  .header("Weekly Report")
-  .text("Summary of this week's **key highlights**.")
-  .list(["Completed feature A", "Fixed bug B", "Started project C"])
-  .divider()
-  .link("View details", "https://example.com")
-  .context("Generated on 2025-01-15");
-
-// Output as markdown
-console.log(document.toMarkdown());
-
-// Output as Slack mrkdwn
-console.log(document.toSlackText());
-
-// Output as plain text
-console.log(document.toPlainText());
-```
-
-## Core Blocks
-
-Build documents by chaining block methods. All methods return `this` for fluent composition.
-
-```typescript
-const doc = new Document()
-  .header("Title")                           // # Title
-  .text("Paragraph with **bold** text")      // Supports inline markdown
-  .list(["Item 1", "Item 2"])                // Bulleted list
-  .divider()                                 // Horizontal line
-  .link("Click here", "https://example.com") // Hyperlink
-  .code("const x = 1;")                      // Inline or multiline code
-  .image("https://example.com/img.png")      // Image with optional alt text
-  .context("Footer text");                   // Italicized context
-```
-
-### Inline Markdown
-
-Text blocks support standard markdown formatting that auto-converts per platform:
-
-```typescript
-new Document().text('This has **bold**, *italic*, and ~~strikethrough~~ text.');
-```
-
-- **Markdown/Discord:** `**bold**`, `*italic*`, `~~strike~~` (unchanged)
-- **Slack:** Converts to `*bold*`, `_italic_`, `~strike~`
-- **Plain text:** Formatting stripped, text only
-
-## Structured Content
-
-### Sections
-
-Add titled sections with optional content (string or list of items):
-
-```typescript
-// Legacy style: header + divider
-doc.section("My Section");
-
-// With string content
-doc.section("Summary", "All systems operational");
-
-// With list items
-doc.section("Today", ["Ship feature", "Fix bug", "Review PR"]);
-
-// With empty state
-doc.section("Blockers", [], { emptyText: "None." });
-
-// Ordered list
-doc.section("Steps", ["First", "Second"], { ordered: true });
-```
-
-### Fields and Key-Value Pairs
-
-Add single or multiple key-value lines:
-
-```typescript
-// Single field
-doc.field("ETA", "Tomorrow");
-// Output: **ETA**: Tomorrow
-
-// Multiple fields
-doc.keyValue({ Network: "mainnet", Status: "active" });
-// Output: **Network**: mainnet\n**Status**: active
-
-// With styling options
-doc.keyValue(
-  { Name: "Alice", Role: "Admin" },
-  { style: "bullet", separator: " =", bold: false }
-);
-// Output: • Name = Alice\n• Role = Admin
-```
-
-### Truncated Lists
-
-Display a limited number of items with an "X more" indicator:
-
-```typescript
-doc.truncatedList(
-  ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5"],
-  { limit: 3 }
-);
-// Output:
-// • Item 1
-// • Item 2
-// • Item 3
-// _... and 2 more_
-
-// Custom formatting
-const users = [{ name: "Alice" }, { name: "Bob" }, { name: "Charlie" }];
-doc.truncatedList(users, {
-  limit: 2,
-  format: (u) => u.name,
-  moreText: (n) => `Plus ${n} others`,
-  ordered: true
-});
-```
-
-### Timestamps
-
-Add ISO timestamps with optional emoji and label:
-
-```typescript
-doc.timestamp();
-// Output: 🕐 2024-02-04T12:00:00.000Z
-
-doc.timestamp({ emoji: false });
-// Output: 2024-02-04T12:00:00.000Z
-
-doc.timestamp({ label: "Generated" });
-// Output: Generated 2024-02-04T12:00:00.000Z
-
-doc.timestamp({ date: new Date("2025-01-01") });
-// Output: 🕐 2025-01-01T00:00:00.000Z
-```
-
-## Output Formats
-
-Convert documents to different formats with a single method call:
-
-```typescript
-const doc = new Document()
-  .header("Report")
-  .text("Status: **active**");
-
-doc.toMarkdown();   // # Report\n\nStatus: **active**
-doc.toSlackText();  // *Report*\n\nStatus: *active*
-doc.toSlack();      // Alias for toSlackText()
-doc.toPlainText();  // REPORT\n\nStatus: active
-
-// Or use render() with explicit format
-doc.render("markdown");   // Standard markdown
-doc.render("slack");      // Slack mrkdwn
-doc.render("plaintext");  // Plain text
-```
-
-## Linkification
-
-Transform text in document blocks (headers, paragraphs, lists, context) while preserving code and explicit links:
-
-```typescript
 import { Document } from "@hardlydifficult/document-generator";
 
-const doc = new Document()
-  .header("Sprint ENG-533")
-  .text("Shipped ENG-533 and reviewed PR#42")
-  .code("ENG-533 inside code is untouched")
-  .link("PR", "https://github.com/example/pull/42");
+const doc = new Document({
+  header: "Release Notes",
+  sections: [
+    { title: "New Features", content: "Ship onboarding flow\nFix retry bug" },
+  ],
+  context: { Network: "mainnet", Status: "active" },
+});
 
-// Simple function transformer
-doc.linkify((text) => text.replace("ENG-533", "[ENG-533](...)"));
+console.log(doc.toMarkdown());
+// # Release Notes
+//
+// **New Features**
+// Ship onboarding flow
+// Fix retry bug
+//
+// ---
+//
+// *Network: mainnet, Status: active*
 
-// Linker-style object with platform awareness
-doc.linkify(
-  {
-    linkText: (text, { platform }) => {
-      if (text.includes("ENG-")) {
-        return `[${text}](https://linear.app/...)`;
-      }
-      return text;
-    }
-  },
-  { platform: "slack" }
-);
+console.log(doc.toSlack());
+// *Release Notes*
+//
+// **New Features**
+// Ship onboarding flow
+// Fix retry bug
+//
+// ────────────────
+//
+// Network: mainnet, Status: active
 ```
 
-## Constructor Options
+## Core Document API
 
-Initialize a document with pre-populated content:
+The `Document` class provides a fluent, chainable builder for structured content.
+
+### Constructor
+
+Creates a new document, optionally initialized with header, sections, and context.
 
 ```typescript
 const doc = new Document({
-  header: "Daily Report",
+  header: "My Report",
   sections: [
     { title: "Summary", content: "All systems operational" },
-    { content: "No blockers" }
+    { content: "No issues found" },
   ],
-  context: { Network: "mainnet", Status: "active" }
+  context: { Network: "mainnet", Status: "active" },
 });
 ```
 
-## Utility Methods
+### Block Methods
 
-### `isEmpty()`
-
-Check if document has no blocks:
+These methods add specific block types and return `this` for chaining.
 
 ```typescript
-const doc = new Document();
-doc.isEmpty(); // true
-
-doc.text("Content");
-doc.isEmpty(); // false
+const doc = new Document()
+  .header("Title")
+  .text("Content")
+  .list(["Item 1", "Item 2"])
+  .divider()
+  .context("Context text")
+  .link("Visit Site", "https://example.com")
+  .code("const x = 1;")
+  .image("https://example.com/image.png", "Alt text");
 ```
 
-### `clone()`
+### Convenience Methods
 
-Create a shallow copy of the document:
+#### `section(title, content?, options?)`
+
+Renders section titles as bold with optional content.
 
 ```typescript
-const original = new Document().header("Title").text("Content");
-const copy = original.clone();
+doc.section("Summary").text("All systems green");
+// Output: **Summary**\nAll systems green
 
-copy.text("Added to copy");
-// original still has 2 blocks, copy has 3
+doc.section("Today", ["Ship onboarding", "Fix flaky test"]);
+// Output: **Today**\n- Ship onboarding\n- Fix flaky test
+
+doc.section("Blockers", [], { emptyText: "None." });
+// Output: **Blockers**\n- None.
 ```
 
-### `getBlocks()`
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `emptyText` | `string` | _none_ | Fallback when content is empty |
+| `ordered` | `boolean` | `false` | Render list as numbered instead of bullets |
+| `divider` | `boolean` | `false` | Insert divider before section output |
 
-Access the raw block array for custom processing:
+#### `field(label, value, options?)`
+
+Renders a single key-value pair.
 
 ```typescript
-const blocks = doc.getBlocks();
-// blocks: Block[]
+doc.field("ETA", "Tomorrow");
+// Output: **ETA:** Tomorrow
+
+doc.field("Blockers", "", { emptyText: "None." });
+// Output: **Blockers:** None.
 ```
 
-### `Document.truncate(text, maxLength)`
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `emptyText` | `string` | _none_ | Fallback when value is empty |
+| `separator` | `string` | `":"` | Separator between label and value |
+| `bold` | `boolean` | `true` | Whether to bold the label |
 
-Static utility to truncate text with ellipsis:
+#### `keyValue(data, options?)`
+
+Formats an object as key-value lines.
 
 ```typescript
-Document.truncate("Hello world", 8); // "Hello..."
-Document.truncate("Hi", 10);         // "Hi"
+doc.keyValue({ Name: "Alice", Role: "Admin" });
+// Output: **Name:** Alice\n**Role:** Admin
+
+doc.keyValue({ A: "1", B: "2" }, { style: "bullet" });
+// Output: • **A**: 1\n• **B**: 2
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `style` | `"plain" \| "bullet" \| "numbered"` | `"plain"` | List style |
+| `separator` | `string` | `":"` | Key-value separator |
+| `bold` | `boolean` | `true` | Bold the keys |
+
+#### `truncatedList(items, options?)`
+
+Renders a list with automatic truncation.
+
+```typescript
+doc.truncatedList(["a", "b", "c", "d", "e"], { limit: 3 });
+// Output:
+// • a
+// • b
+// • c
+// _... and 2 more_
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `limit` | `number` | `10` | Maximum items to show |
+| `format` | `(item, index) => string` | `String` | Custom formatter |
+| `moreText` | `(remaining) => string` | `_... and N more_` | Truncation text |
+| `ordered` | `boolean` | `false` | Numbered list |
+
+#### `timestamp(options?)`
+
+Adds a timestamp in context format.
+
+```typescript
+doc.timestamp(); // 🕐 2024-02-04T12:00:00.000Z
+doc.timestamp({ emoji: false }); // 2024-02-04T12:00:00.000Z
+doc.timestamp({ label: "Generated" }); // Generated 2024-02-04T...
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `date` | `Date` | `new Date()` | Custom date |
+| `emoji` | `boolean` | `true` | Include clock emoji |
+| `label` | `string` | _none_ | Prefix label |
+
+### Utility Methods
+
+#### `linkify(transform, options?)`
+
+Applies transformations to text-bearing blocks (headers, paragraphs, lists, context).
+
+```typescript
+doc.linkify((text) => text.toUpperCase());
+
+// Example with linkText-style transformer:
+doc.linkify({ linkText: (t) => t.replace("ENG-533", "LINKED") }, { platform: "slack" });
+```
+
+#### `isEmpty(): boolean`
+
+Returns `true` if no blocks have been added.
+
+```typescript
+new Document().isEmpty(); // true
+new Document().text("Content").isEmpty(); // false
+```
+
+#### `clone(): Document`
+
+Creates a shallow copy.
+
+```typescript
+const doc1 = new Document().header("Title");
+const doc2 = doc1.clone();
+doc2.text("Extra"); // does not affect doc1
+```
+
+#### `getBlocks(): Block[]`
+
+Returns the internal blocks array for inspection.
+
+```typescript
+const blocks = new Document().header("Title").getBlocks();
+// [{ type: "header", text: "Title" }]
+```
+
+### Output Methods
+
+Render the document to different formats.
+
+```typescript
+const doc = new Document().text("Hello **world**");
+
+doc.toMarkdown(); // "**world**" preserved
+doc.toSlack(); // "*world*" (italic)
+doc.toPlainText(); // "world" (stripped)
+doc.render("slack"); // same as toSlack()
 ```
 
 ## Direct Outputter Functions
 
-For cases where you already have a `Block[]` array, use outputter functions directly:
+Use the outputters directly without `Document` if you have raw blocks.
 
 ```typescript
-import { toMarkdown, toSlackText, toPlainText } from '@hardlydifficult/document-generator';
+import { toMarkdown, toPlainText, toSlackText } from "@hardlydifficult/document-generator";
 
 const blocks = [
-  { type: 'header', text: 'Title' },
-  { type: 'text', content: 'Body' }
+  { type: "header", text: "Title" },
+  { type: "text", content: "Body with **bold**" },
 ];
 
-toMarkdown(blocks);   // # Title\n\nBody\n\n
-toSlackText(blocks);  // *Title*\n\nBody\n\n
-toPlainText(blocks);  // TITLE\n\nBody\n\n
+console.log(toMarkdown(blocks)); // # Title\n\nBody with **bold**
+console.log(toSlackText(blocks)); // *Title*\n\nBody with *bold*
+console.log(toPlainText(blocks)); // TITLE\n\nBody with bold
 ```
 
-## Markdown Conversion Utilities
+## Markdown Conversion
 
-Convert or strip markdown formatting for custom outputters:
+### `convertMarkdown(text, platform)`
+
+Converts inline markdown formatting to target platform syntax.
 
 ```typescript
-import { convertMarkdown, stripMarkdown } from '@hardlydifficult/document-generator';
+convertMarkdown("**bold** and *italic*", "slack"); // "*bold* and _italic_"
+convertMarkdown("~~strike~~", "discord"); // "~~strike~~"
+convertMarkdown("**bold**", "plaintext"); // "bold"
+```
 
-// Convert to platform-specific format
-convertMarkdown("**bold** and *italic*", "slack");
-// → "*bold* and _italic_"
+Supported platforms: `"markdown"`, `"slack"`, `"discord"`, `"plaintext"`
 
-convertMarkdown("**bold** and *italic*", "markdown");
-// → "**bold** and *italic*"
+### `stripMarkdown(text)`
 
-// Strip all markdown
-stripMarkdown("**bold** and *italic*");
-// → "bold and italic"
+Strips all formatting and returns plain text.
+
+```typescript
+stripMarkdown("**bold** and *italic* and ~~strike~~"); // "bold and italic and strike"
 ```
 
 ## Block Types
@@ -306,6 +282,22 @@ type Block =
   | { type: 'code'; content: string; multiline: boolean }
   | { type: 'image'; url: string; alt?: string };
 ```
+
+## Types
+
+All exported types are listed below:
+
+| Name | Description |
+|--|--|
+| `Block` | Union type of all block types |
+| `HeaderBlock`, `TextBlock`, `ListBlock`, `DividerBlock`, `ContextBlock`, `LinkBlock`, `CodeBlock`, `ImageBlock` | Block structures |
+| `Platform` | `"markdown" \| "slack" \| "discord" \| "plaintext"` |
+| `StringOutputFormat` | `"markdown" \| "slack" \| "plaintext"` |
+| `DocumentOptions`, `DocumentSection` | Constructor options |
+| `SectionOptions`, `FieldOptions`, `KeyValueOptions` | Formatting options |
+| `TruncatedListOptions<T>` | Truncation configuration |
+| `TimestampOptions` | Timestamp configuration |
+| `DocumentLinkifier`, `DocumentLinkTransform`, `DocumentLinkifyOptions` | Link transformation types |
 
 ## Integration with @hardlydifficult/chat
 
@@ -331,7 +323,7 @@ await channel.postMessage(report);
 ## Appendix: Platform Differences
 
 | Feature | Markdown | Slack | Plain Text |
-|---------|----------|-------|-----------|
+|---------|---------|-------|-----------|
 | **Bold** | `**text**` | `*text*` | text |
 | *Italic* | `*text*` | `_text_` | text |
 | ~~Strike~~ | `~~text~~` | `~text~` | text |

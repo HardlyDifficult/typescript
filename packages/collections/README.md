@@ -29,7 +29,7 @@ console.log(groupByDepth(paths));
 
 ## Array Chunking
 
-Splits arrays into subarrays of a specified maximum size.
+The `chunk` function splits an array into subarrays of a specified maximum size.
 
 ### `chunk`
 
@@ -59,11 +59,11 @@ console.log(chunk([1, 2, 3], 5));
 
 ## Path Depth Grouping
 
-Groups file paths by their slash-separated depth, sorted deepest-first.
+The `groupByDepth` function groups filesystem paths by their slash-delimited depth, returning groups sorted deepest-first for bottom-up directory processing.
 
 ### `groupByDepth`
 
-Groups path strings by the number of `/`-separated segments, returning results in descending depth order.
+Groups path strings by `/`-separated depth, sorted deepest-first.
 
 **Signature:**
 ```typescript
