@@ -9,18 +9,60 @@ export default meta;
 
 type Story = StoryObj<typeof CodeBlock>;
 
-export const Default: Story = {
+export const TypeScript: Story = {
   args: {
     language: "typescript",
     children: `import { Stack, Text } from "@hardlydifficult/storybook-components";
 
-function App() {
+interface AppProps {
+  title: string;
+  count: number;
+  enabled: boolean;
+}
+
+// Main component
+function App({ title, count, enabled }: AppProps) {
+  const message = \`Hello \${title}\`;
+  const items = [1, 2, 3];
+
+  if (!enabled) {
+    return null;
+  }
+
+  /* Render the content */
   return (
     <Stack gap="md">
-      <Text variant="heading">Hello</Text>
+      <Text variant="heading">{message}</Text>
+      <Text variant="caption">{count} items</Text>
     </Stack>
   );
-}`,
+}
+
+export default App;`,
+  },
+};
+
+export const JavaScript: Story = {
+  args: {
+    language: "js",
+    children: `const express = require('express');
+const app = express();
+
+// Start server on port 3000
+app.get('/api/health', async (req, res) => {
+  const status = { ok: true, uptime: 42.5 };
+  res.json(status);
+});
+
+app.listen(3000);`,
+  },
+};
+
+export const PlainText: Story = {
+  args: {
+    children: `This is plain text without any syntax highlighting.
+It still has line numbers and the copy button.
+No language prop is set.`,
   },
 };
 

@@ -17,17 +17,27 @@ interface TextProps {
   children: ReactNode;
 }
 
-const variantStyles: Record<TextVariant, string> = {
+/** Layout/sizing classes per variant — no text color here (color prop handles it separately). */
+const variantBase: Record<TextVariant, string> = {
   heading:
-    "text-xl font-semibold text-[color:var(--color-text)] font-[family-name:var(--font-sans)] leading-[1.22] tracking-[var(--tracking-tighter)]",
+    "text-xl font-semibold font-[family-name:var(--font-sans)] leading-[1.22] tracking-[var(--tracking-tighter)]",
   subheading:
-    "text-xs font-medium uppercase tracking-[0.05em] text-[color:var(--color-text-muted)] font-[family-name:var(--font-sans)] leading-[var(--leading-snug)]",
+    "text-xs font-medium uppercase tracking-[0.05em] font-[family-name:var(--font-sans)] leading-[var(--leading-snug)]",
   body:
-    "text-sm text-[color:var(--color-text)] font-[family-name:var(--font-sans)] leading-[1.6] tracking-[0.01em]",
+    "text-sm font-[family-name:var(--font-sans)] leading-[1.6] tracking-[0.01em]",
   caption:
-    "text-xs text-[color:var(--color-text-muted)] font-normal font-[family-name:var(--font-sans)] leading-[var(--leading-normal)]",
+    "text-xs font-normal font-[family-name:var(--font-sans)] leading-[var(--leading-normal)]",
   code:
-    "text-xs font-[family-name:var(--font-mono)] text-[color:var(--color-text)] bg-[color:rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded-[var(--radius-sm)]",
+    "text-xs font-[family-name:var(--font-mono)] bg-[color:rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded-[var(--radius-sm)]",
+};
+
+/** Default text color per variant (used when no `color` prop is provided). */
+const variantDefaultColor: Record<TextVariant, string> = {
+  heading:    "text-[color:var(--color-text)]",
+  subheading: "text-[color:var(--color-text-muted)]",
+  body:       "text-[color:var(--color-text)]",
+  caption:    "text-[color:var(--color-text-muted)]",
+  code:       "text-[color:var(--color-text)]",
 };
 
 const defaultElements: Record<TextVariant, keyof HTMLElementTagNameMap> = {
@@ -76,9 +86,11 @@ export function Text({ variant = "body", color, weight, mono, truncate, align, h
   }
 
   const Element = defaultElements[variant];
-  const classes = [variantStyles[variant]];
+  const classes = [variantBase[variant]];
 
-  if (color !== undefined) {classes.push(colorStyles[color]);}
+  // Color prop wins over variant default color — only one text-color class applied.
+  classes.push(color !== undefined ? colorStyles[color] : variantDefaultColor[variant]);
+
   if (weight !== undefined) {classes.push(weightStyles[weight]);}
   if (mono === true) {classes.push("font-[family-name:var(--font-mono)]");}
   if (truncate === true) {classes.push("overflow-hidden text-ellipsis whitespace-nowrap");}
