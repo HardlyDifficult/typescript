@@ -14,6 +14,7 @@ interface NavDropdownCategory {
   items: { href: string; label: string }[];
 }
 
+/** Navigation dropdown menu with categorized links and optional sign-out. */
 export function NavDropdown({
   categories,
   currentPath,
