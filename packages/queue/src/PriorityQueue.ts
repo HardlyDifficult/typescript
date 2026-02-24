@@ -4,8 +4,9 @@
  * Items with higher priority are dequeued first.
  * Within the same priority level, items are dequeued in insertion order (FIFO).
  *
- * Uses a multi-bucket approach: one array per priority level.
- * O(1) enqueue, O(1) dequeue.
+ * Uses a multi-bucket approach: one logical queue per priority level.
+ * Enqueue is O(1), dequeue is O(1) amortized, peek is O(1).
+ * Reordering/removal helpers are O(n) within a bucket.
  */
 
 /**
@@ -111,16 +112,53 @@ export interface PriorityQueue<T> {
  * Create a new priority queue.
  */
 export function createPriorityQueue<T>(): PriorityQueue<T> {
-  const buckets: Record<Priority, QueueItem<T>[]> = {
-    high: [],
-    medium: [],
-    low: [],
+  interface Bucket {
+    items: QueueItem<T>[];
+    head: number;
+  }
+
+  const buckets: Record<Priority, Bucket> = {
+    high: { items: [], head: 0 },
+    medium: { items: [], head: 0 },
+    low: { items: [], head: 0 },
   };
   const listeners = new Set<(item: QueueItem<T>) => void>();
   let counter = 0;
 
+  function bucketSize(bucket: Bucket): number {
+    return bucket.items.length - bucket.head;
+  }
+
+  function maybeCompactBucket(bucket: Bucket): void {
+    if (bucket.head === 0) {
+      return;
+    }
+    if (bucket.head >= bucket.items.length) {
+      bucket.items = [];
+      bucket.head = 0;
+      return;
+    }
+    if (bucket.head > 32 && bucket.head * 2 >= bucket.items.length) {
+      bucket.items = bucket.items.slice(bucket.head);
+      bucket.head = 0;
+    }
+  }
+
+  function findIndex(bucket: Bucket, id: string): number {
+    for (let i = bucket.head; i < bucket.items.length; i++) {
+      if (bucket.items[i].id === id) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   function getSize(): number {
-    return buckets.high.length + buckets.medium.length + buckets.low.length;
+    return (
+      bucketSize(buckets.high) +
+      bucketSize(buckets.medium) +
+      bucketSize(buckets.low)
+    );
   }
 
   return {
@@ -131,7 +169,7 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
         enqueuedAt: Date.now(),
         id: `q_${String(++counter)}`,
       };
-      buckets[priority].push(item);
+      buckets[priority].items.push(item);
       for (const cb of listeners) {
         cb(item);
       }
@@ -140,8 +178,12 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
 
     dequeue(): QueueItem<T> | undefined {
       for (const p of PRIORITY_ORDER) {
-        if (buckets[p].length > 0) {
-          return buckets[p].shift();
+        const bucket = buckets[p];
+        if (bucket.head < bucket.items.length) {
+          const item = bucket.items[bucket.head];
+          bucket.head += 1;
+          maybeCompactBucket(bucket);
+          return item;
         }
       }
       return undefined;
@@ -149,8 +191,9 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
 
     peek(): QueueItem<T> | undefined {
       for (const p of PRIORITY_ORDER) {
-        if (buckets[p].length > 0) {
-          return buckets[p][0];
+        const bucket = buckets[p];
+        if (bucket.head < bucket.items.length) {
+          return bucket.items[bucket.head];
         }
       }
       return undefined;
@@ -158,9 +201,11 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
 
     remove(id: string): boolean {
       for (const p of PRIORITY_ORDER) {
-        const idx = buckets[p].findIndex((item) => item.id === id);
+        const bucket = buckets[p];
+        const idx = findIndex(bucket, id);
         if (idx !== -1) {
-          buckets[p].splice(idx, 1);
+          bucket.items.splice(idx, 1);
+          maybeCompactBucket(bucket);
           return true;
         }
       }
@@ -183,23 +228,32 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
     },
 
     toArray(): readonly QueueItem<T>[] {
-      return [...buckets.high, ...buckets.medium, ...buckets.low];
+      return [
+        ...buckets.high.items.slice(buckets.high.head),
+        ...buckets.medium.items.slice(buckets.medium.head),
+        ...buckets.low.items.slice(buckets.low.head),
+      ];
     },
 
     clear(): void {
-      buckets.high.length = 0;
-      buckets.medium.length = 0;
-      buckets.low.length = 0;
+      buckets.high.items = [];
+      buckets.high.head = 0;
+      buckets.medium.items = [];
+      buckets.medium.head = 0;
+      buckets.low.items = [];
+      buckets.low.head = 0;
     },
 
     updatePriority(id: string, newPriority: Priority): boolean {
       for (const p of PRIORITY_ORDER) {
-        const idx = buckets[p].findIndex((item) => item.id === id);
+        const source = buckets[p];
+        const idx = findIndex(source, id);
         if (idx !== -1) {
           if (p === newPriority) {
             return true;
           }
-          const [item] = buckets[p].splice(idx, 1);
+          const [item] = source.items.splice(idx, 1);
+          maybeCompactBucket(source);
           // Create new item with updated priority (preserves data + enqueuedAt)
           const updated: QueueItem<T> = {
             data: item.data,
@@ -207,7 +261,7 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
             enqueuedAt: item.enqueuedAt,
             id: item.id,
           };
-          buckets[newPriority].push(updated);
+          buckets[newPriority].items.push(updated);
           return true;
         }
       }
@@ -218,13 +272,13 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
       // Find both items - they must be in the same priority bucket
       for (const p of PRIORITY_ORDER) {
         const bucket = buckets[p];
-        const itemIdx = bucket.findIndex((i) => i.id === itemId);
-        const beforeIdx = bucket.findIndex((i) => i.id === beforeItemId);
+        const itemIdx = findIndex(bucket, itemId);
+        const beforeIdx = findIndex(bucket, beforeItemId);
         if (itemIdx !== -1 && beforeIdx !== -1 && itemIdx !== beforeIdx) {
-          const [item] = bucket.splice(itemIdx, 1);
+          const [item] = bucket.items.splice(itemIdx, 1);
           // Recalculate target index after removal
-          const newBeforeIdx = bucket.findIndex((i) => i.id === beforeItemId);
-          bucket.splice(newBeforeIdx, 0, item);
+          const newBeforeIdx = findIndex(bucket, beforeItemId);
+          bucket.items.splice(newBeforeIdx, 0, item);
           return true;
         }
       }
@@ -234,13 +288,13 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
     moveToEnd(itemId: string): boolean {
       for (const p of PRIORITY_ORDER) {
         const bucket = buckets[p];
-        const idx = bucket.findIndex((i) => i.id === itemId);
-        if (idx !== -1 && idx < bucket.length - 1) {
-          const [item] = bucket.splice(idx, 1);
-          bucket.push(item);
+        const idx = findIndex(bucket, itemId);
+        if (idx !== -1 && idx < bucket.items.length - 1) {
+          const [item] = bucket.items.splice(idx, 1);
+          bucket.items.push(item);
           return true;
         }
-        if (idx === bucket.length - 1) {
+        if (idx !== -1 && idx === bucket.items.length - 1) {
           return true; // Already at end
         }
       }
