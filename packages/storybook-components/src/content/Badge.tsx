@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 
-type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
+type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "accent" | "muted";
 type BadgeSize = "sm" | "md";
 
 interface BadgeProps {
   variant?: BadgeVariant;
   size?: BadgeSize;
-  children: ReactNode;
+  dot?: boolean;
+  pulse?: boolean;
+  children?: ReactNode;
 }
 
 const sizeStyles: Record<BadgeSize, string> = {
@@ -15,8 +17,8 @@ const sizeStyles: Record<BadgeSize, string> = {
 };
 
 const dotSizeStyles: Record<BadgeSize, string> = {
-  sm: "w-1 h-1",
-  md: "w-1.5 h-1.5",
+  sm: "w-1.5 h-1.5",
+  md: "w-2 h-2",
 };
 
 const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string; border: string }> = {
@@ -50,16 +52,38 @@ const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: strin
     dot:    "bg-[color:var(--color-info)]",
     border: "border-[color:var(--color-info-border)]",
   },
+  accent: {
+    bg:     "bg-[color:var(--color-accent-subtle)]",
+    text:   "text-[color:var(--color-accent)]",
+    dot:    "bg-[color:var(--color-accent)]",
+    border: "border-[color:var(--color-accent-border)]",
+  },
+  muted: {
+    bg:     "bg-[color:var(--color-bg-muted)]",
+    text:   "text-[color:var(--color-text-muted)]",
+    dot:    "bg-[color:var(--color-text-muted)]",
+    border: "border-[color:var(--color-border)]",
+  },
 };
 
-/** Semantic status badge with colored dot indicator. */
-export function Badge({ variant = "default", size = "md", children }: BadgeProps) {
+/** Semantic status badge with colored dot indicator. Use `dot` for standalone dot mode (no label). */
+export function Badge({ variant = "default", size = "md", dot = false, pulse = false, children }: BadgeProps) {
   const styles = variantStyles[variant];
+
+  // Dot-only mode: render just the circle
+  if (dot && children === undefined) {
+    return (
+      <span
+        className={`inline-block rounded-full ${dotSizeStyles[size]} ${styles.dot}${pulse ? " animate-pulse" : ""}`}
+      />
+    );
+  }
+
   return (
     <span
       className={`inline-flex items-center gap-[var(--space-1)] rounded-[var(--radius-full)] font-medium font-[family-name:var(--font-sans)] border ${sizeStyles[size]} ${styles.bg} ${styles.text} ${styles.border}`}
     >
-      <span className={`rounded-full flex-shrink-0 ${dotSizeStyles[size]} ${styles.dot}`} />
+      <span className={`rounded-full flex-shrink-0 ${dotSizeStyles[size]} ${styles.dot}${pulse ? " animate-pulse" : ""}`} />
       {children}
     </span>
   );

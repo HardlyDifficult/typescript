@@ -1,12 +1,15 @@
 import type { MouseEventHandler, ReactNode } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "link";
 type ButtonSize = "sm" | "md";
 
 interface ButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
+  loading?: boolean;
+  fullWidth?: boolean;
+  type?: "button" | "submit" | "reset";
   icon?: ReactNode;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   children: ReactNode;
@@ -24,29 +27,41 @@ const variantStyles: Record<ButtonVariant, string> = {
     "bg-transparent text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-muted)] hover:text-[color:var(--color-text)]",
   danger:
     "bg-[color:var(--color-error)] text-white hover:bg-[color:var(--color-error-dark)] shadow-[0_0_0_1px_rgba(220,38,38,0.15),0_2px_8px_rgba(220,38,38,0.25)]",
+  link:
+    "bg-transparent text-[color:var(--color-accent)] hover:underline border-none shadow-none p-0",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "text-[length:var(--text-sm)] px-[var(--space-3)] py-[0.42rem] gap-[var(--space-1)]",
-  md: "text-[length:var(--text-sm)] px-[var(--space-5)] py-[0.62rem] gap-[var(--space-2)]",
+  sm: "text-[length:var(--text-xs)] px-[var(--space-2)] py-[0.25rem] gap-[var(--space-1)]",
+  md: "text-[length:var(--text-sm)] px-[var(--space-3)] py-[0.375rem] gap-[var(--space-2)]",
 };
 
-/** Button with primary, secondary, ghost, and danger variants. */
+/** Button with primary, secondary, ghost, danger, and link variants. */
 export function Button({
   variant = "primary",
   size = "md",
   disabled = false,
+  loading = false,
+  fullWidth = false,
+  type = "button",
   icon,
   onClick,
   children,
 }: ButtonProps) {
+  const classes = [base, variantStyles[variant], sizeStyles[size]];
+  if (fullWidth) {
+    classes.push("w-full");
+  }
   return (
     <button
-      className={`${base} ${variantStyles[variant]} ${sizeStyles[size]}`}
-      disabled={disabled}
+      className={classes.join(" ")}
+      disabled={disabled || loading}
       onClick={onClick}
+      type={type}
     >
-      {icon !== undefined && icon}{children}
+      {icon !== undefined && icon}
+      {loading && <span className="animate-pulse">...</span>}
+      {children}
     </button>
   );
 }

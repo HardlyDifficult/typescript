@@ -9,11 +9,11 @@
   --color-text-secondary: #5a4232;
   --color-text-muted:     #987763;
 
-  /* Accent — cheerful plum */
-  --color-accent:        #8b5cf6;
-  --color-accent-hover:  #7c3aed;
-  --color-accent-subtle: #f3e8ff;
-  --color-accent-border: #e9d5ff;
+  /* Accent — deep indigo */
+  --color-accent:        #4f46e5;
+  --color-accent-hover:  #4338ca;
+  --color-accent-subtle: #eef2ff;
+  --color-accent-border: #c7d2fe;
 
   /* Status */
   --color-success:        #16a34a;
@@ -69,9 +69,9 @@
   --tracking-tight:   -0.01em;
 
   /* Radii */
-  --radius-sm:   0.5rem;
-  --radius-md:   0.9rem;
-  --radius-lg:   1.25rem;
+  --radius-sm:   0.375rem;
+  --radius-md:   0.5rem;
+  --radius-lg:   0.75rem;
   --radius-full: 9999px;
 
   /* Shadows */
@@ -79,5 +79,5 @@
   --shadow-md:     0 8px 16px -10px rgba(80, 45, 20, 0.22), 0 3px 8px -4px rgba(80, 45, 20, 0.12);
   --shadow-lg:     0 16px 30px -16px rgba(80, 45, 20, 0.25), 0 8px 14px -8px rgba(80, 45, 20, 0.12);
   --shadow-lift:   0 24px 40px -22px rgba(80, 45, 20, 0.3), 0 10px 18px -10px rgba(80, 45, 20, 0.15);
-  --shadow-accent: 0 0 0 1px rgba(139, 92, 246, 0.28), 0 10px 22px -14px rgba(124, 58, 237, 0.6);
+  --shadow-accent: 0 0 0 1px rgba(79, 70, 229, 0.28), 0 10px 22px -14px rgba(67, 56, 202, 0.5);
 }

@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "../src/index.js";
+import { Text } from "../src/index.js";
+import { Stack } from "../src/index.js";
 
 const meta: Meta<typeof Button> = {
-  title: "Components/Button",
+  title: "Inputs/Button",
   component: Button,
 };
 export default meta;
@@ -10,48 +12,81 @@ export default meta;
 type Story = StoryObj<typeof Button>;
 
 export const Primary: Story = {
-  args: { variant: "primary", children: "Deploy" },
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Text variant="body">Ready to ship?</Text>
+      <Button>Deploy</Button>
+    </Stack>
+  ),
 };
 
 export const Secondary: Story = {
-  args: { variant: "secondary", children: "Cancel" },
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Text variant="body">Unsaved changes</Text>
+      <Button variant="secondary">Cancel</Button>
+      <Button>Save</Button>
+    </Stack>
+  ),
 };
 
 export const Ghost: Story = {
-  args: { variant: "ghost", children: "Learn more" },
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Text variant="caption" color="muted">3 more items</Text>
+      <Button variant="ghost" size="sm">Show all</Button>
+    </Stack>
+  ),
 };
 
 export const Danger: Story = {
-  args: { variant: "danger", children: "Delete" },
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Text variant="body">This action cannot be undone.</Text>
+      <Button variant="danger">Delete</Button>
+    </Stack>
+  ),
 };
 
 export const Small: Story = {
-  args: { variant: "primary", size: "sm", children: "Save" },
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Text variant="caption" color="secondary">Filter applied</Text>
+      <Button size="sm">Clear</Button>
+      <Button variant="secondary" size="sm">Edit</Button>
+    </Stack>
+  ),
 };
 
-export const Disabled: Story = {
-  args: { variant: "primary", disabled: true, children: "Processing..." },
+export const Loading: Story = {
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Button loading>Deploying</Button>
+      <Text variant="caption" color="muted">This may take a moment...</Text>
+    </Stack>
+  ),
 };
 
-// A simple inline SVG deploy/rocket icon
-const DeployIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M7 1.5C9 1.5 12.5 3 12.5 7C12.5 9.5 10.5 12 7 12.5C3.5 12 1.5 9.5 1.5 7C1.5 3 5 1.5 7 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M7 4.5V7.5M7 7.5L5.5 6M7 7.5L8.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+export const LinkVariant: Story = {
+  render: () => (
+    <Text variant="body">
+      See the <Button variant="link">documentation</Button> for details.
+    </Text>
+  ),
+};
 
 // A simple plus icon
 const PlusIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
     <path d="M7 2.5V11.5M2.5 7H11.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 
 export const WithIcon: Story = {
-  render: () => <Button icon={<DeployIcon />}>Deploy</Button>,
-};
-
-export const SecondaryWithIcon: Story = {
-  render: () => <Button variant="secondary" icon={<PlusIcon />}>New branch</Button>,
+  render: () => (
+    <Stack direction="horizontal" gap="sm" align="center">
+      <Button variant="secondary" icon={<PlusIcon />}>New branch</Button>
+      <Text variant="caption" color="muted">from main</Text>
+    </Stack>
+  ),
 };
