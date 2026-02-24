@@ -1,3 +1,20 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 @import "./tokens.css";
+
+:root {
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at 5% 0%, #fff6fb 0%, transparent 38%),
+    radial-gradient(circle at 95% 0%, #eff6ff 0%, transparent 42%),
+    linear-gradient(180deg, #fffefc 0%, var(--color-bg-subtle) 100%);
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  background: transparent;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}

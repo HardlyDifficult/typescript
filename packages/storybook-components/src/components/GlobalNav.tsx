@@ -15,20 +15,11 @@ export interface GlobalNavCategory {
 }
 
 export interface GlobalNavProps {
-  /** Application title shown on the left side */
   title?: string;
-  /** Current page path — that nav item is hidden from the dropdown */
   currentPath?: string;
-  /** Navigation categories and their links */
   categories: GlobalNavCategory[];
-  /** Custom content rendered between the title and the menu button (status badges, etc.) */
   indicators?: ReactNode;
-  /** Called when the user clicks Sign out */
   onSignOut?: () => void;
-  /**
-   * Render a navigation link. Defaults to a plain `<a>` tag.
-   * Pass a Next.js `<Link>` or React Router `<Link>` for SPA navigation.
-   */
   renderLink?: (props: {
     href: string;
     children: ReactNode;
@@ -37,12 +28,7 @@ export interface GlobalNavProps {
   }) => ReactNode;
 }
 
-function DefaultLink({
-  href,
-  children,
-  className,
-  onClick,
-}: {
+function DefaultLink({ href, children, className, onClick }: {
   href: string;
   children: ReactNode;
   className?: string;
@@ -55,7 +41,6 @@ function DefaultLink({
   );
 }
 
-/** Hamburger / menu icon */
 function MenuIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
@@ -66,11 +51,6 @@ function MenuIcon() {
   );
 }
 
-/**
- * Global navigation bar.
- * Renders a top bar with a title on the left, optional custom indicators, and a nav dropdown.
- * All styling comes from the design system tokens; consumers provide business logic via props.
- */
 export function GlobalNav({
   title,
   currentPath,
@@ -106,57 +86,20 @@ export function GlobalNav({
   }, [open]);
 
   return (
-    <nav
-      style={{
-        width: "100%",
-        background: "var(--color-bg)",
-        borderBottom: "1px solid var(--color-border)",
-        boxShadow: "var(--shadow-sm)",
-        fontFamily: "var(--font-sans)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: "48px",
-          padding: "0 var(--space-6)",
-          margin: "0 auto",
-          maxWidth: "1280px",
-        }}
-      >
-        {/* Left: title */}
-        <div style={{ display: "flex", alignItems: "center" }}>
+    <nav className="w-full bg-[color:var(--color-bg)]/90 border-b border-[color:var(--color-border)] shadow-[var(--shadow-sm)] font-[family-name:var(--font-sans)] backdrop-blur-sm">
+      <div className="flex items-center justify-between h-13 px-[var(--space-6)] mx-auto max-w-[1280px]">
+        <div className="flex items-center">
           {title !== undefined && title !== "" && (
-            <span
-              style={{
-                fontSize: "var(--text-sm)",
-                fontWeight: 600,
-                letterSpacing: "var(--tracking-tight)",
-                color: "var(--color-text)",
-                userSelect: "none",
-              }}
-            >
+            <span className="text-[length:var(--text-sm)] font-semibold tracking-[var(--tracking-tight)] text-[color:var(--color-text)] select-none">
               {title}
             </span>
           )}
         </div>
 
-        {/* Right: indicators + menu */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-3)",
-          }}
-        >
+        <div className="flex items-center gap-[var(--space-3)]">
           {indicators}
-
-          {/* Nav dropdown */}
-          <div ref={containerRef} style={{ position: "relative" }}>
+          <div ref={containerRef} className="relative">
             <MenuButton open={open} onClick={() => { setOpen((v) => !v); }} />
-
             {open && (
               <NavDropdown
                 categories={categories}
@@ -173,39 +116,14 @@ export function GlobalNav({
   );
 }
 
-/* ── Sub-components ── */
-
 function MenuButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       aria-label="Navigation menu"
       aria-expanded={open}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: "32px",
-        height: "32px",
-        borderRadius: "var(--radius-sm)",
-        border: "1px solid var(--color-border)",
-        background: open ? "var(--color-bg-muted)" : "transparent",
-        color: "var(--color-text-secondary)",
-        cursor: "pointer",
-        transition: "background 120ms ease, color 120ms ease, border-color 120ms ease",
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.background = "var(--color-bg-muted)";
-        el.style.color = "var(--color-text)";
-        el.style.borderColor = "var(--color-border-strong)";
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLElement;
-        el.style.background = open ? "var(--color-bg-muted)" : "transparent";
-        el.style.color = "var(--color-text-secondary)";
-        el.style.borderColor = "var(--color-border)";
-      }}
+      className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-secondary)] bg-[color:var(--color-bg)] hover:bg-[color:var(--color-bg-muted)] hover:text-[color:var(--color-text)] hover:border-[color:var(--color-border-strong)] transition-colors duration-150 cursor-pointer"
+      style={{ background: open ? "var(--color-bg-muted)" : undefined }}
     >
       <MenuIcon />
     </button>
