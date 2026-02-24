@@ -21,6 +21,10 @@ export const Ghost: Story = {
   args: { variant: "ghost", children: "Learn more" },
 };
 
+export const Danger: Story = {
+  args: { variant: "danger", children: "Delete" },
+};
+
 export const Small: Story = {
   args: { variant: "primary", size: "sm", children: "Save" },
 };
