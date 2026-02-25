@@ -8,7 +8,8 @@
  *   - agent-browser's browser must be installed (`npx agent-browser install`)
  *
  * Output:
- *   - PNG screenshots in `.screenshots/<category>/<name>.png`
+ *   - Light mode PNGs in `.screenshots/<category>/<name>.png`
+ *   - Dark mode PNGs in `.screenshots/dark/<category>/<name>.png`
  *   - Small components (Button, Badge, Text) are combined into composite shots
  *   - Screenshots are cropped tight to the component (no viewport whitespace)
  */
@@ -21,6 +22,7 @@ import { executeCommand } from "agent-browser/dist/actions.js";
 
 const STORYBOOK_DIR = new URL("../storybook-static", import.meta.url).pathname;
 const SCREENSHOTS_DIR = new URL("../.screenshots", import.meta.url).pathname;
+const DARK_SCREENSHOTS_DIR = join(SCREENSHOTS_DIR, "dark");
 
 const MIME_TYPES = {
   ".html": "text/html",
@@ -64,11 +66,20 @@ const COMPOSITES = {
 const compositeStoryIds = new Set(Object.values(COMPOSITES).flat());
 
 /** Maps a story to its screenshot path: `<category>/<component>-<variant>.png` */
-function outputPath(story) {
+function outputPath(story, dark = false) {
   const category = story.title.split("/")[0].toLowerCase();
   const component = story.title.split("/").slice(1).join("-").toLowerCase();
   const variant = story.name.toLowerCase().replace(/\s+/g, "-");
-  return join(SCREENSHOTS_DIR, category, `${component}-${variant}.png`);
+  const dir = dark ? DARK_SCREENSHOTS_DIR : SCREENSHOTS_DIR;
+  return join(dir, category, `${component}-${variant}.png`);
+}
+
+/** Set data-theme="dark" on the document root to activate dark mode styles. */
+async function enableDarkMode(browser) {
+  const page = browser.getPage();
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
 }
 
 /** Minimal static file server for storybook-static. */
@@ -113,13 +124,14 @@ async function freezeAnimations(browser) {
 }
 
 /** Capture a single story, cropped to #storybook-root. */
-async function captureStory(browser, port, story) {
+async function captureStory(browser, port, story, dark = false) {
   const url = storyUrl(port, story.id);
-  const dest = outputPath(story);
+  const dest = outputPath(story, dark);
   await mkdir(join(dest, ".."), { recursive: true });
 
   await executeCommand({ id: "nav", action: "navigate", url, waitUntil: "networkidle" }, browser);
   await executeCommand({ id: "wait", action: "wait", timeout: 300 }, browser);
+  if (dark) await enableDarkMode(browser);
   await freezeAnimations(browser);
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
@@ -129,8 +141,9 @@ async function captureStory(browser, port, story) {
 }
 
 /** Capture a composite: render all variants in a flex row, then screenshot. */
-async function captureComposite(browser, port, name, storyIds) {
-  const dest = join(SCREENSHOTS_DIR, `${name}.png`);
+async function captureComposite(browser, port, name, storyIds, dark = false) {
+  const baseDir = dark ? DARK_SCREENSHOTS_DIR : SCREENSHOTS_DIR;
+  const dest = join(baseDir, `${name}.png`);
   await mkdir(join(dest, ".."), { recursive: true });
 
   const page = browser.getPage();
@@ -140,6 +153,11 @@ async function captureComposite(browser, port, name, storyIds) {
   for (const storyId of storyIds) {
     await page.goto(storyUrl(port, storyId), { waitUntil: "networkidle" });
     await page.waitForTimeout(300);
+    if (dark) {
+      await page.evaluate(() => {
+        document.documentElement.setAttribute("data-theme", "dark");
+      });
+    }
     const html = await page.evaluate(() => {
       const root = document.querySelector("#storybook-root");
       return root ? root.innerHTML : "";
@@ -181,6 +199,11 @@ async function captureComposite(browser, port, name, storyIds) {
     }
   }, fragments);
 
+  if (dark) {
+    await page.evaluate(() => {
+      document.documentElement.setAttribute("data-theme", "dark");
+    });
+  }
   await page.waitForTimeout(200);
   await freezeAnimations(browser);
   await executeCommand(
@@ -208,7 +231,7 @@ async function main() {
   await browser.launch({ id: "launch", action: "launch", headless: true });
 
   try {
-    // Composite screenshots for small components
+    // Light mode: composite screenshots for small components
     for (const [name, storyIds] of Object.entries(COMPOSITES)) {
       try {
         const dest = await captureComposite(browser, port, name, storyIds);
@@ -218,7 +241,7 @@ async function main() {
       }
     }
 
-    // Individual screenshots (skip stories already in composites)
+    // Light mode: individual screenshots (skip stories already in composites)
     for (const story of stories) {
       if (compositeStoryIds.has(story.id)) continue;
       try {
@@ -226,6 +249,28 @@ async function main() {
         console.log(`  captured: ${dest.replace(SCREENSHOTS_DIR + "/", "")}`);
       } catch (err) {
         console.error(`  FAILED: ${story.id} — ${err.message}`);
+      }
+    }
+
+    // Dark mode: composite screenshots
+    console.log("\nCapturing dark mode screenshots...");
+    for (const [name, storyIds] of Object.entries(COMPOSITES)) {
+      try {
+        const dest = await captureComposite(browser, port, name, storyIds, true);
+        console.log(`  captured: ${dest.replace(SCREENSHOTS_DIR + "/", "")}`);
+      } catch (err) {
+        console.error(`  FAILED composite ${name} (dark): ${err.message}`);
+      }
+    }
+
+    // Dark mode: individual screenshots
+    for (const story of stories) {
+      if (compositeStoryIds.has(story.id)) continue;
+      try {
+        const dest = await captureStory(browser, port, story, true);
+        console.log(`  captured: ${dest.replace(SCREENSHOTS_DIR + "/", "")}`);
+      } catch (err) {
+        console.error(`  FAILED: ${story.id} (dark) — ${err.message}`);
       }
     }
   } finally {
