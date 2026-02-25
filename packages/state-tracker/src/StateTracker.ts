@@ -93,7 +93,7 @@ export class StateTracker<T> {
 
   /** Read-only getter for cached in-memory state */
   get state(): Readonly<T> {
-    return this._state;
+    return structuredClone(this._state);
   }
 
   /** Whether storage is working */

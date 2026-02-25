@@ -359,6 +359,31 @@ describe("StateTracker", () => {
     });
   });
 
+  describe("state getter defensive copy", () => {
+    it("does not allow external mutation of nested objects", () => {
+      const tracker = new StateTracker({
+        key: "state-clone",
+        default: {
+          stats: { count: 1 },
+          tags: ["a"],
+        },
+        stateDirectory: testDir,
+      });
+
+      const state = tracker.state as {
+        stats: { count: number };
+        tags: string[];
+      };
+      state.stats.count = 999;
+      state.tags.push("b");
+
+      expect(tracker.state).toEqual({
+        stats: { count: 1 },
+        tags: ["a"],
+      });
+    });
+  });
+
   describe("getFilePath", () => {
     it("should return correct file path", () => {
       const tracker = new StateTracker({

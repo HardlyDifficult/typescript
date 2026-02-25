@@ -736,6 +736,36 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("read-only getters are defensive", () => {
+    it("data getter returns a deep copy", async () => {
+      const engine = createEngine({
+        initialData: { count: 1, message: "hello" },
+      });
+      await engine.load();
+
+      const view = engine.data as Data;
+      view.count = 999;
+      view.message = "mutated";
+
+      expect(engine.data).toEqual({ count: 1, message: "hello" });
+    });
+
+    it("event payload data is isolated from engine state", async () => {
+      const events: TransitionEvent<Status, Data>[] = [];
+      const engine = createEngine({ onTransition: (e) => events.push(e) });
+      await engine.load();
+
+      const loadEvent = events.find((e) => e.type === "load");
+      expect(loadEvent).toBeDefined();
+
+      if (loadEvent) {
+        loadEvent.data.count = 123;
+      }
+
+      expect(engine.data.count).toBe(0);
+    });
+  });
+
   describe("toSnapshot", () => {
     it("returns correct shape", async () => {
       const engine = createEngine();
