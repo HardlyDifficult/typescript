@@ -9,6 +9,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
+import { MILLISECONDS_PER_DAY } from "@hardlydifficult/date-time";
+
 import type { SessionEntry, SessionEntryType, SessionInfo } from "./types.js";
 
 export interface SessionTrackerOptions {
@@ -21,7 +23,7 @@ export interface SessionTrackerOptions {
 }
 
 const DEFAULT_SUBDIRECTORY = "sessions";
-const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DEFAULT_MAX_AGE_MS = 7 * MILLISECONDS_PER_DAY; // 7 days
 const JSONL_EXTENSION = ".jsonl";
 
 /**

@@ -29,5 +29,8 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     }
+  },
+  "dependencies": {
+    "@hardlydifficult/date-time": "file:../date-time"
   }
 }

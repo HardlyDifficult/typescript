@@ -1,3 +1,4 @@
+import { MILLISECONDS_PER_SECOND } from "@hardlydifficult/date-time";
 import type { Octokit } from "@octokit/rest";
 
 import { BranchHeadTracker } from "./polling/branchHeadTracker.js";
@@ -23,7 +24,7 @@ import type {
   WatchThrottle,
 } from "./types.js";
 
-const DEFAULT_INTERVAL_MS = 30_000;
+const DEFAULT_INTERVAL_MS = 30 * MILLISECONDS_PER_SECOND;
 
 /** Polls GitHub for open pull requests and emits events for new PRs, comments, reviews, check runs, merges, and status changes. */
 export class PRWatcher extends PRWatcherBase {

@@ -1,5 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { toMilliseconds, type TimeSpan } from "../src/TimeSpan";
+import {
+  MILLISECONDS_PER_DAY,
+  MILLISECONDS_PER_HOUR,
+  MILLISECONDS_PER_MINUTE,
+  MILLISECONDS_PER_SECOND,
+  toMilliseconds,
+  type TimeSpan,
+} from "../src/TimeSpan";
+
+describe("duration constants", () => {
+  it("should expose standard conversion constants", () => {
+    expect(MILLISECONDS_PER_SECOND).toBe(1_000);
+    expect(MILLISECONDS_PER_MINUTE).toBe(60_000);
+    expect(MILLISECONDS_PER_HOUR).toBe(3_600_000);
+    expect(MILLISECONDS_PER_DAY).toBe(86_400_000);
+  });
+});
 
 describe("toMilliseconds", () => {
   it("should convert milliseconds", () => {
