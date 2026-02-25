@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 const packagesDir = join(process.cwd(), "packages");
 const requiredFields = ["name", "version", "exports", "types", "files", "engines"];
+const requiredScripts = ["build", "clean", "lint"];
 
 const errors = [];
 
@@ -25,6 +26,16 @@ for (const entry of readdirSync(packagesDir)) {
   for (const field of requiredFields) {
     if (!(field in manifest)) {
       errors.push(`${manifestPath}: missing required field \`${field}\`.`);
+    }
+  }
+
+  if (typeof manifest.scripts !== "object" || manifest.scripts === null) {
+    errors.push(`${manifestPath}: missing required field \`scripts\`.`);
+  } else {
+    for (const script of requiredScripts) {
+      if (typeof manifest.scripts[script] !== "string" || manifest.scripts[script].trim() === "") {
+        errors.push(`${manifestPath}: missing required script \`scripts.${script}\`.`);
+      }
     }
   }
 
