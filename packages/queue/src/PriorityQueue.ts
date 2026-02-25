@@ -125,6 +125,20 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
   const listeners = new Set<(item: QueueItem<T>) => void>();
   let counter = 0;
 
+  function notifyEnqueueListeners(item: QueueItem<T>): void {
+    const errors: unknown[] = [];
+    for (const cb of [...listeners]) {
+      try {
+        cb(item);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "enqueue listener error");
+    }
+  }
+
   function bucketSize(bucket: Bucket): number {
     return bucket.items.length - bucket.head;
   }
@@ -170,9 +184,7 @@ export function createPriorityQueue<T>(): PriorityQueue<T> {
         id: `q_${String(++counter)}`,
       };
       buckets[priority].items.push(item);
-      for (const cb of listeners) {
-        cb(item);
-      }
+      notifyEnqueueListeners(item);
       return item;
     },
 

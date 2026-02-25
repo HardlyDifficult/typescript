@@ -186,6 +186,20 @@ describe("PriorityQueue", () => {
       expect(cb1).toHaveBeenCalledOnce();
       expect(cb2).toHaveBeenCalledOnce();
     });
+
+    it("continues notifying listeners when one throws", () => {
+      const queue = createPriorityQueue<string>();
+      const failing = vi.fn(() => {
+        throw new Error("listener failed");
+      });
+      const succeeding = vi.fn();
+      queue.onEnqueue(failing);
+      queue.onEnqueue(succeeding);
+
+      expect(() => queue.enqueue("test")).toThrow(AggregateError);
+      expect(succeeding).toHaveBeenCalledOnce();
+      expect(queue.size).toBe(1);
+    });
   });
 
   describe("toArray", () => {

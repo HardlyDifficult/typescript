@@ -734,6 +734,27 @@ describe("WorkflowEngine", () => {
       expect(events[0]!.type).toBe("transition");
       expect(events[1]!.type).toBe("update");
     });
+
+    it("continues notifying listeners when one throws", async () => {
+      const optionEvents: TransitionEvent<Status, Data>[] = [];
+      const regularListener = vi.fn();
+      const engine = createEngine({
+        onTransition: (event) => optionEvents.push(event),
+      });
+      await engine.load();
+
+      engine.on(() => {
+        throw new Error("listener failed");
+      });
+      engine.on(regularListener);
+
+      await expect(engine.transition("running")).rejects.toThrow(
+        AggregateError
+      );
+      expect(regularListener).toHaveBeenCalledOnce();
+      expect(optionEvents).toHaveLength(2);
+      expect(engine.status).toBe("running");
+    });
   });
 
   describe("read-only getters are defensive", () => {
