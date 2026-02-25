@@ -10,13 +10,14 @@
     "apps/*"
   ],
   "scripts": {
+    "build:tooling": "npm --workspace @hardlydifficult/ts-config run build",
     "build": "turbo run build",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "lint": "eslint --config .config/eslint.config.js packages/ && npm run validate:manifests",
-    "lint:fix": "eslint --config .config/eslint.config.js packages/ --fix",
-    "format": "prettier --write \"packages/**/*.ts\"",
-    "format:check": "prettier --check \"packages/**/*.ts\"",
+    "lint": "npm run build:tooling && eslint --config .config/eslint.config.js packages/ && npm run validate:manifests",
+    "lint:fix": "npm run build:tooling && eslint --config .config/eslint.config.js packages/ --fix",
+    "format": "npm run build:tooling && prettier --write \"packages/**/*.ts\"",
+    "format:check": "npm run build:tooling && prettier --check \"packages/**/*.ts\"",
     "fix": "npm run lint:fix && npm run format",
     "clean": "turbo run clean",
     "validate:manifests": "node ./scripts/validate-package-manifests.mjs"
