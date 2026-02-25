@@ -1,3 +1,7 @@
+import {
+  minutesToMilliseconds,
+  secondsToMilliseconds,
+} from "@hardlydifficult/date-time";
 import axios from "axios";
 
 import { AuthenticationError, HttpError } from "./errors";
@@ -131,7 +135,8 @@ export class AuthenticationManager {
         response.data.expires_in !== undefined &&
         response.data.expires_in !== 0
       ) {
-        this.tokenExpiry = this.tokenIssuedAt + response.data.expires_in * 1000;
+        this.tokenExpiry =
+          this.tokenIssuedAt + secondsToMilliseconds(response.data.expires_in);
       }
 
       this.logger?.debug?.("OAuth2 token acquired", {
@@ -173,7 +178,7 @@ export class AuthenticationManager {
       return true;
     }
     const lifetimeMs = this.getTokenLifetimeMs();
-    const defaultBufferMs = 5 * 60 * 1000;
+    const defaultBufferMs = minutesToMilliseconds(5);
     const bufferMs =
       lifetimeMs !== null
         ? Math.min(defaultBufferMs, Math.floor(lifetimeMs / 2))

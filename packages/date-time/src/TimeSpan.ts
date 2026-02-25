@@ -31,3 +31,23 @@ const multipliers: Record<TimeUnit, number> = {
 export function toMilliseconds(timeSpan: TimeSpan): number {
   return timeSpan.value * multipliers[timeSpan.unit];
 }
+
+/** Converts seconds to milliseconds. */
+export function secondsToMilliseconds(seconds: number): number {
+  return seconds * MILLISECONDS_PER_SECOND;
+}
+
+/** Converts minutes to milliseconds. */
+export function minutesToMilliseconds(minutes: number): number {
+  return minutes * MILLISECONDS_PER_MINUTE;
+}
+
+/** Converts hours to milliseconds. */
+export function hoursToMilliseconds(hours: number): number {
+  return hours * MILLISECONDS_PER_HOUR;
+}
+
+/** Converts days to milliseconds. */
+export function daysToMilliseconds(days: number): number {
+  return days * MILLISECONDS_PER_DAY;
+}

@@ -1,3 +1,4 @@
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
 const sleep = (ms: number): Promise<void> =>
@@ -52,7 +53,9 @@ export class Throttle {
 
     const now = Date.now();
     const startAt = Math.max(now, this.nextAvailableAt);
-    const processingWindowMs = (weight / this.unitsPerSecond) * 1000;
+    const processingWindowMs = secondsToMilliseconds(
+      weight / this.unitsPerSecond
+    );
     const delayMs = startAt - now;
     const newNextAvailableAt = startAt + processingWindowMs;
 

@@ -15,6 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@hardlydifficult/date-time": "file:../date-time",
     "@slack/bolt": "4.6.0",
     "discord.js": "14.25.1"
   },

@@ -1,3 +1,4 @@
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 import type { App } from "@slack/bolt";
 
 import type {
@@ -59,7 +60,7 @@ export async function getMessages(
       continue;
     }
 
-    const timestamp = new Date(parseFloat(message.ts) * 1000);
+    const timestamp = new Date(secondsToMilliseconds(parseFloat(message.ts)));
     if (!Number.isFinite(timestamp.getTime())) {
       continue;
     }
@@ -161,7 +162,7 @@ function toDate(input: TimestampInput | undefined): Date | undefined {
     return Number.isNaN(input.getTime()) ? undefined : input;
   }
   if (typeof input === "number") {
-    const ms = input > 10_000_000_000 ? input : input * 1000;
+    const ms = input > 10_000_000_000 ? input : secondsToMilliseconds(input);
     const date = new Date(ms);
     return Number.isNaN(date.getTime()) ? undefined : date;
   }
