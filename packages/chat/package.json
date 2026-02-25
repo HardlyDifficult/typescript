@@ -23,7 +23,8 @@
     "@hardlydifficult/document-generator": "file:../document-generator",
     "@types/node": "25.3.0",
     "typescript": "5.9.3",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "@vitest/coverage-v8": "4.0.18"
   },
   "peerDependencies": {
     "@hardlydifficult/document-generator": ">=1.1.0"
