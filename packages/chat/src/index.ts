@@ -25,20 +25,20 @@ export {
   type ThreadData,
   type DisconnectCallback,
   type ErrorCallback,
-} from "./types";
+} from "./types.js";
 
 // Constants
-export { MESSAGE_LIMITS } from "./constants";
+export { MESSAGE_LIMITS } from "./constants.js";
 
 // Core classes
-export { ChatClient } from "./ChatClient";
-export { Channel } from "./Channel";
-export { Message } from "./Message";
-export { MessageBatch } from "./MessageBatch";
-export { EditableStreamReply } from "./EditableStreamReply";
-export { StreamingReply } from "./StreamingReply";
-export { Thread } from "./Thread";
-export { createMessageTracker, type MessageTracker } from "./MessageTracker";
+export { ChatClient } from "./ChatClient.js";
+export { Channel } from "./Channel.js";
+export { Message } from "./Message.js";
+export { MessageBatch } from "./MessageBatch.js";
+export { EditableStreamReply } from "./EditableStreamReply.js";
+export { StreamingReply } from "./StreamingReply.js";
+export { Thread } from "./Thread.js";
+export { createMessageTracker, type MessageTracker } from "./MessageTracker.js";
 
 // Platform implementations
 export { DiscordChatClient } from "./discord";
@@ -66,14 +66,14 @@ export {
 } from "./commands";
 
 // Utilities
-export { findBestMemberMatch, extractMentionId } from "./memberMatching";
+export { findBestMemberMatch, extractMentionId } from "./memberMatching.js";
 export { toDiscordEmbed, toSlackBlocks } from "./outputters";
 
 // Factory
-import { type ChatClient } from "./ChatClient";
+import { type ChatClient } from "./ChatClient.js";
 import { DiscordChatClient } from "./discord";
 import { SlackChatClient } from "./slack";
-import type { ChatConfig } from "./types";
+import type { ChatConfig } from "./types.js";
 
 /**
  * Factory function to create a chat client based on config type

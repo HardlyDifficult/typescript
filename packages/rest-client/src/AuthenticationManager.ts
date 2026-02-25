@@ -1,7 +1,7 @@
 import axios from "axios";
 
-import { AuthenticationError, HttpError } from "./errors";
-import type { AuthConfig, OAuth2Auth, RestClientLogger } from "./types";
+import { AuthenticationError, HttpError } from "./errors.js";
+import type { AuthConfig, OAuth2Auth, RestClientLogger } from "./types.js";
 
 interface TokenResponse {
   readonly access_token?: string;

@@ -1,6 +1,6 @@
 import type { Document } from "@hardlydifficult/document-generator";
 
-import type { MessageContent } from "./types";
+import type { MessageContent } from "./types.js";
 
 /**
  * Type guard to check if content is a Document

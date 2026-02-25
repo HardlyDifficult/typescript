@@ -3,4 +3,4 @@ export {
   type PriorityQueue,
   type QueueItem,
   type Priority,
-} from "./PriorityQueue";
+} from "./PriorityQueue.js";

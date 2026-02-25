@@ -1,4 +1,4 @@
-import type { Message } from "./Message";
+import type { Message } from "./Message.js";
 
 /**
  * Tracks posted messages by key for later editing.

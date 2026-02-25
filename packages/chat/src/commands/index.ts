@@ -6,11 +6,11 @@ export type {
   ParseResult,
   Agent,
   CoreBotState,
-} from "./types";
+} from "./types.js";
 
 // Registry & Dispatcher
-export { CommandRegistry, type RegisteredCommand } from "./CommandRegistry";
-export { CommandDispatcher, type DispatcherOptions } from "./CommandDispatcher";
+export { CommandRegistry, type RegisteredCommand } from "./CommandRegistry.js";
+export { CommandDispatcher, type DispatcherOptions } from "./CommandDispatcher.js";
 
 // Job Lifecycle
 export {
@@ -19,8 +19,8 @@ export {
   type JobLifecycleHandle,
   EMOJI_CANCEL,
   EMOJI_DISMISS,
-} from "./jobLifecycle";
+} from "./jobLifecycle.js";
 
 // Helpers
-export { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from "./workerErrors";
-export { createPrefixParser } from "./createPrefixParser";
+export { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from "./workerErrors.js";
+export { createPrefixParser } from "./createPrefixParser.js";
