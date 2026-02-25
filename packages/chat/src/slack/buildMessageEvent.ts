@@ -1,3 +1,5 @@
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+
 import type { Attachment, MessageEvent, User } from "../types.js";
 
 /** Subset of Slack message event fields used for building a MessageEvent */
@@ -60,7 +62,7 @@ export function buildMessageEvent(event: SlackMessagePayload): MessageEvent {
     channelId,
     timestamp:
       event.ts !== undefined
-        ? new Date(parseFloat(event.ts) * 1000)
+        ? new Date(secondsToMilliseconds(parseFloat(event.ts)))
         : new Date(),
     attachments,
   };

@@ -10,6 +10,7 @@
  * Custom status logic can be injected via AnalyzerHooks.resolveStatus.
  */
 
+import { MILLISECONDS_PER_DAY } from "@hardlydifficult/date-time";
 import type {
   CheckRun,
   GitHubClient,
@@ -333,6 +334,6 @@ function hasConflicts(pr: PullRequest): boolean {
 
 function calculateDaysSinceUpdate(updatedAt: string): number {
   return Math.floor(
-    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+    (Date.now() - new Date(updatedAt).getTime()) / MILLISECONDS_PER_DAY
   );
 }

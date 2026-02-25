@@ -14,6 +14,7 @@
  *             (Pushes with the default GITHUB_TOKEN do not trigger workflows.)
  */
 
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 import { execSync } from "child_process";
 
 function exec(command: string, ignoreError = false): string {
@@ -58,8 +59,10 @@ async function pushWithRetry(branch: string): Promise<void> {
       if (attempt === 4) {
         throw new Error("Failed to push after 4 attempts");
       }
-      const delay = Math.pow(2, attempt) * 1000;
-      console.log(`Push failed, retrying in ${String(delay / 1000)}s...`);
+      const delay = secondsToMilliseconds(Math.pow(2, attempt));
+      console.log(
+        `Push failed, retrying in ${String(delay / secondsToMilliseconds(1))}s...`
+      );
       await sleep(delay);
     }
   }

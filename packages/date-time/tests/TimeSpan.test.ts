@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  daysToMilliseconds,
+  hoursToMilliseconds,
   MILLISECONDS_PER_DAY,
   MILLISECONDS_PER_HOUR,
   MILLISECONDS_PER_MINUTE,
   MILLISECONDS_PER_SECOND,
+  minutesToMilliseconds,
+  secondsToMilliseconds,
   toMilliseconds,
   type TimeSpan,
 } from "../src/TimeSpan";
@@ -51,5 +55,23 @@ describe("toMilliseconds", () => {
   it("should handle zero", () => {
     const span: TimeSpan = { value: 0, unit: "minutes" };
     expect(toMilliseconds(span)).toBe(0);
+  });
+});
+
+describe("unit conversion helpers", () => {
+  it("should convert seconds", () => {
+    expect(secondsToMilliseconds(2.5)).toBe(2_500);
+  });
+
+  it("should convert minutes", () => {
+    expect(minutesToMilliseconds(1.5)).toBe(90_000);
+  });
+
+  it("should convert hours", () => {
+    expect(hoursToMilliseconds(1.25)).toBe(4_500_000);
+  });
+
+  it("should convert days", () => {
+    expect(daysToMilliseconds(0.5)).toBe(43_200_000);
   });
 });

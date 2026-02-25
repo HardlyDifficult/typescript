@@ -30,5 +30,8 @@
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     }
+  },
+  "dependencies": {
+    "@hardlydifficult/date-time": "file:../date-time"
   }
 }

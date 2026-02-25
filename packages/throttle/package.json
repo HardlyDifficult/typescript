@@ -15,6 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@hardlydifficult/date-time": "file:../date-time",
     "@hardlydifficult/state-tracker": "file:../state-tracker"
   },
   "devDependencies": {
