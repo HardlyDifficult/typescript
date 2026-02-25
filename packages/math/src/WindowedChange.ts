@@ -5,6 +5,9 @@ interface TimestampedValue {
   value: number;
 }
 
+/**
+ *
+ */
 export class WindowedChange {
   private readonly buffer: RingBuffer<TimestampedValue>;
   private readonly windowMs: number;

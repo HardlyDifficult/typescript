@@ -1,3 +1,6 @@
+/**
+ *
+ */
 export class VwapTracker {
   private sumPV = 0;
   private sumV = 0;

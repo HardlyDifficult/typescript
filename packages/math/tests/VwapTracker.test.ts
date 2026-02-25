@@ -54,7 +54,11 @@ describe("VwapTracker", () => {
 
   it("supports chaining", () => {
     const tracker = new VwapTracker();
-    const result = tracker.addTrade(100, 1).addTrade(200, 1).reset().addTrade(300, 1);
+    const result = tracker
+      .addTrade(100, 1)
+      .addTrade(200, 1)
+      .reset()
+      .addTrade(300, 1);
     expect(result).toBe(tracker);
     expect(tracker.value).toBe(300);
   });

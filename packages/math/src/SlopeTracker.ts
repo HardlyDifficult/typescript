@@ -1,11 +1,14 @@
-import { RingBuffer } from "./RingBuffer.js";
 import { computeSlope, type Sample } from "./linearRegression.js";
+import { RingBuffer } from "./RingBuffer.js";
 
 interface TimestampedValue {
   ts: number;
   value: number;
 }
 
+/**
+ *
+ */
 export class SlopeTracker {
   private readonly buffer: RingBuffer<TimestampedValue>;
 

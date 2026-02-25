@@ -32,10 +32,7 @@ describe("WindowedChange", () => {
     tracker.addSample(now - fifteenMin, 101000);
     tracker.addSample(now, 105000);
 
-    expect(tracker.change).toBeCloseTo(
-      (105000 - 101000) / 101000,
-      3,
-    );
+    expect(tracker.change).toBeCloseTo((105000 - 101000) / 101000, 3);
   });
 
   it("supports chaining", () => {

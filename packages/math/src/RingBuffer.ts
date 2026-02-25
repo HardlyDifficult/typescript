@@ -1,3 +1,6 @@
+/**
+ *
+ */
 export class RingBuffer<T> {
   private readonly buffer: (T | undefined)[];
   private head = 0;
@@ -26,10 +29,7 @@ export class RingBuffer<T> {
     if (this.count === 0) {
       return [];
     }
-    const start =
-      this.count < this.capacity
-        ? 0
-        : this.head;
+    const start = this.count < this.capacity ? 0 : this.head;
     const result: T[] = [];
     for (let i = 0; i < this.count; i++) {
       const item = this.buffer[(start + i) % this.capacity];
@@ -44,10 +44,7 @@ export class RingBuffer<T> {
     if (this.count === 0) {
       return undefined;
     }
-    const start =
-      this.count < this.capacity
-        ? 0
-        : this.head;
+    const start = this.count < this.capacity ? 0 : this.head;
     return this.buffer[start];
   }
 

@@ -10,7 +10,7 @@ export function bookImbalance(bidSize: number, askSize: number): number {
 export function depthImbalance(
   bids: readonly Level[],
   asks: readonly Level[],
-  depthPct: number,
+  depthPct: number
 ): number {
   if (bids.length === 0 || asks.length === 0) {
     return 0;

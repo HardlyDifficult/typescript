@@ -6,6 +6,9 @@ interface TradeSample {
   size: number;
 }
 
+/**
+ *
+ */
 export class RollingVwap {
   private readonly buffer: RingBuffer<TradeSample>;
   private readonly windowMs: number;
