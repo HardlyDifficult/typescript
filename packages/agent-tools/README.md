@@ -40,7 +40,7 @@ Parses GitHub-style file paths with optional line ranges into structured objects
 
 ### `parsePath(path: string): ParsedPath`
 
-Parses paths like `file.ts`, `file.ts#L10`, or `file.ts#L10-L20`.
+Parses paths like `file.ts`, `file.ts#L10`, or `file.ts#L10-L20`. Line numbers must be positive integers, and reversed ranges are normalized.
 
 **Parameters:**
 
@@ -62,6 +62,8 @@ import { parsePath } from "@hardlydifficult/agent-tools";
 parsePath("src/index.ts"); // { filePath: "src/index.ts" }
 parsePath("src/index.ts#L5"); // { filePath: "src/index.ts", startLine: 5, endLine: 5 }
 parsePath("src/index.ts#L5-L15"); // { filePath: "src/index.ts", startLine: 5, endLine: 15 }
+parsePath("src/index.ts#L15-L5"); // { filePath: "src/index.ts", startLine: 5, endLine: 15 }
+parsePath("src/index.ts#L0"); // { filePath: "src/index.ts#L0" }
 ```
 
 ## Configuration Constants
