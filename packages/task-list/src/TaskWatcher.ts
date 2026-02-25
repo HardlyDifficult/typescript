@@ -1,3 +1,5 @@
+import { MILLISECONDS_PER_MINUTE } from "@hardlydifficult/date-time";
+
 import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
 import type { TaskListClient } from "./TaskListClient.js";
@@ -12,7 +14,7 @@ export interface TaskWatcherOptions {
   readonly triggerStatus: string;
   /** Move tasks to this status on pickup (e.g., "In Progress") */
   readonly pickupStatus: string;
-  /** Poll interval in ms (default: 60_000) */
+  /** Poll interval in ms (default: MILLISECONDS_PER_MINUTE) */
   readonly pollIntervalMs?: number;
   /** Called when a new task is found. Task has already been moved to pickupStatus. */
   readonly onTask: (task: Task, project: Project) => void;
@@ -34,7 +36,7 @@ export interface TaskWatcherOptions {
  *   projectName: "Bot",
  *   triggerStatus: "Todo",
  *   pickupStatus: "In Progress",
- *   pollIntervalMs: 60_000,
+ *   pollIntervalMs: MILLISECONDS_PER_MINUTE,
  *   onTask: (task, project) => console.log("Found:", task.name),
  * });
  * watcher.start();
@@ -58,7 +60,7 @@ export class TaskWatcher {
       projectName: options.projectName,
       triggerStatus: options.triggerStatus,
       pickupStatus: options.pickupStatus,
-      pollIntervalMs: options.pollIntervalMs ?? 60_000,
+      pollIntervalMs: options.pollIntervalMs ?? MILLISECONDS_PER_MINUTE,
       onTask: options.onTask,
       onError: options.onError,
     };

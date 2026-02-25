@@ -10,12 +10,21 @@ export interface TimeSpan {
   unit: TimeUnit;
 }
 
+/** Number of milliseconds in one second. */
+export const MILLISECONDS_PER_SECOND = 1_000;
+/** Number of milliseconds in one minute. */
+export const MILLISECONDS_PER_MINUTE = 60 * MILLISECONDS_PER_SECOND;
+/** Number of milliseconds in one hour. */
+export const MILLISECONDS_PER_HOUR = 60 * MILLISECONDS_PER_MINUTE;
+/** Number of milliseconds in one day. */
+export const MILLISECONDS_PER_DAY = 24 * MILLISECONDS_PER_HOUR;
+
 const multipliers: Record<TimeUnit, number> = {
   milliseconds: 1,
-  seconds: 1_000,
-  minutes: 60_000,
-  hours: 3_600_000,
-  days: 86_400_000,
+  seconds: MILLISECONDS_PER_SECOND,
+  minutes: MILLISECONDS_PER_MINUTE,
+  hours: MILLISECONDS_PER_HOUR,
+  days: MILLISECONDS_PER_DAY,
 };
 
 /** Converts a TimeSpan to its equivalent value in milliseconds. */

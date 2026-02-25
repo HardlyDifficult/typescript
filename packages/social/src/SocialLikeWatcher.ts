@@ -1,3 +1,5 @@
+import { MILLISECONDS_PER_MINUTE } from "@hardlydifficult/date-time";
+
 import type { SocialProviderClient } from "./SocialProviderClient.js";
 import type { LikeNotification, LikeWatcherOptions } from "./types.js";
 
@@ -26,7 +28,7 @@ export class SocialLikeWatcher {
   ): SocialLikeWatcher {
     return new SocialLikeWatcher(provider, {
       ...options,
-      pollIntervalMs: options.pollIntervalMs ?? 60_000,
+      pollIntervalMs: options.pollIntervalMs ?? MILLISECONDS_PER_MINUTE,
     });
   }
 
