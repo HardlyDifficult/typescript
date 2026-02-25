@@ -34,6 +34,7 @@ export class EditableStreamReply {
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
+    this.intervalId.unref();
 
     if (abortSignal !== undefined) {
       if (abortSignal.aborted) {

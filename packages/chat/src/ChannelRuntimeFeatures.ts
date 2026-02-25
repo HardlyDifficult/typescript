@@ -29,6 +29,7 @@ export class TypingController {
         });
       }
     }, TYPING_REFRESH_MS);
+    this.interval.unref();
   }
 
   end(): void {
