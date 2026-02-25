@@ -67,7 +67,7 @@ export class Poller<T> {
     this.timer = setInterval(() => {
       void this.poll();
     }, this.intervalMs);
-    this.timer.unref?.();
+    this.timer.unref();
   }
 
   stop(): void {
@@ -93,7 +93,7 @@ export class Poller<T> {
       this.triggerTimeout = undefined;
       void this.poll();
     }, debounceMs);
-    this.triggerTimeout.unref?.();
+    this.triggerTimeout.unref();
   }
 
   private async poll(): Promise<void> {

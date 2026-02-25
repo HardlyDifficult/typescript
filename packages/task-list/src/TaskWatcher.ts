@@ -77,7 +77,7 @@ export class TaskWatcher {
       () => void this.poll(),
       this.options.pollIntervalMs
     );
-    this.timer.unref?.();
+    this.timer.unref();
   }
 
   /** Stop polling and clean up. */

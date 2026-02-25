@@ -63,7 +63,7 @@ export class StreamingReply {
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
-    this.intervalId.unref?.();
+    this.intervalId.unref();
 
     if (abortSignal !== undefined) {
       if (abortSignal.aborted) {

@@ -42,7 +42,7 @@ export class SocialLikeWatcher {
       () => void this.poll(),
       this.options.pollIntervalMs
     );
-    this.timer.unref?.();
+    this.timer.unref();
   }
 
   stop(): void {

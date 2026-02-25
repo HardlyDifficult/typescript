@@ -276,7 +276,7 @@ export class ReconnectingWebSocket<T> {
       this.heartbeatTimeout = setTimeout(() => {
         this.ws?.terminate();
       }, this.heartbeat.timeoutMs);
-      this.heartbeatTimeout.unref?.();
+      this.heartbeatTimeout.unref();
     }
   }
 
@@ -285,7 +285,7 @@ export class ReconnectingWebSocket<T> {
     this.heartbeatInterval = setInterval(() => {
       this.sendHeartbeat();
     }, this.heartbeat.intervalMs);
-    this.heartbeatInterval.unref?.();
+    this.heartbeatInterval.unref();
   }
 
   private stopHeartbeat(): void {
@@ -307,7 +307,7 @@ export class ReconnectingWebSocket<T> {
       this.ws = null;
       void this.connectInternal();
     }, delay);
-    this.reconnectTimeout.unref?.();
+    this.reconnectTimeout.unref();
   }
 
   private emit(event: "open"): void;

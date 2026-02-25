@@ -63,7 +63,7 @@ export class PRWatcher extends PRWatcherBase {
     this.timer = setInterval(() => {
       void this.poll();
     }, this.intervalMs);
-    this.timer.unref?.();
+    this.timer.unref();
     return [...this.snapshots.values()].map((s) => ({
       pr: s.pr,
       repo: { owner: s.owner, name: s.name },

@@ -76,7 +76,7 @@ export function createThrottledUpdater(
         void doUpdate(pendingText);
       }
     }, delay);
-    timeoutId.unref?.();
+    timeoutId.unref();
   };
 
   return {
