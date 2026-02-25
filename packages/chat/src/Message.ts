@@ -1,5 +1,5 @@
-import { StreamingReply } from "./StreamingReply";
-import type { Thread } from "./Thread";
+import { StreamingReply } from "./StreamingReply.js";
+import type { Thread } from "./Thread.js";
 import type {
   Attachment,
   DeleteMessageOptions,
@@ -9,7 +9,7 @@ import type {
   Platform,
   ReactionCallback,
   User,
-} from "./types";
+} from "./types.js";
 
 /**
  * Interface for message operations (reactions, updates, deletes, replies)

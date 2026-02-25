@@ -103,8 +103,17 @@ export class PipelineRegistry<TMeta = Record<string, unknown>> {
   }
 
   private emitChanged(): void {
-    for (const listener of this.listeners) {
-      listener();
+    const errors: unknown[] = [];
+    for (const listener of [...this.listeners]) {
+      try {
+        listener();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "pipeline registry listener error");
     }
   }
 }

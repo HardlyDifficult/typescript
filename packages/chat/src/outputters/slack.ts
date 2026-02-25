@@ -28,6 +28,10 @@ export interface SlackBlock {
  * to preserve readability. Each chunk will be at most maxLen characters.
  */
 function chunkText(text: string, maxLen = 2900): string[] {
+  if (!Number.isInteger(maxLen) || maxLen <= 0) {
+    throw new RangeError("maxLen must be a positive integer");
+  }
+
   if (text.length <= maxLen) {
     return [text];
   }

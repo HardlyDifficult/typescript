@@ -1,11 +1,15 @@
 import { MESSAGE_LIMITS } from "./constants.js";
-import type { Platform } from "./types";
+import type { Platform } from "./types.js";
 
 /**
  * Splits text into chunks that fit within a message length limit,
  * breaking at newlines or spaces when possible.
  */
 function chunkText(text: string, maxLength: number): string[] {
+  if (!Number.isInteger(maxLength) || maxLength <= 0) {
+    throw new RangeError("maxLength must be a positive integer");
+  }
+
   if (text.length <= maxLength) {
     return [text];
   }

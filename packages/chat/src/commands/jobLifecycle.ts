@@ -7,8 +7,8 @@
  * - On completion: swaps cancel for dismiss emoji to delete message + thread
  */
 
-import type { Message } from "../Message";
-import type { Thread } from "../Thread";
+import type { Message } from "../Message.js";
+import type { Thread } from "../Thread.js";
 
 /** Cancel emoji shown while a job is running */
 export const EMOJI_CANCEL = "\u274C"; // ❌

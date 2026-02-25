@@ -37,4 +37,17 @@ describe("chunk", () => {
       ["c", "d"],
     ]);
   });
+
+  it("throws when size is zero or negative", () => {
+    expect(() => chunk([1, 2, 3], 0)).toThrowError(RangeError);
+    expect(() => chunk([1, 2, 3], -1)).toThrowError(
+      "size must be a positive integer"
+    );
+  });
+
+  it("throws when size is not an integer", () => {
+    expect(() => chunk([1, 2, 3], 1.5)).toThrowError(
+      "size must be a positive integer"
+    );
+  });
 });

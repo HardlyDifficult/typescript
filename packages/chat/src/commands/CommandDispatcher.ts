@@ -6,11 +6,11 @@
  * input) is plugged in via the `onUnrecognized` callback.
  */
 
-import type { Channel } from "../Channel";
-import type { Message } from "../Message";
+import type { Channel } from "../Channel.js";
+import type { Message } from "../Message.js";
 
-import type { CommandRegistry } from "./CommandRegistry";
-import type { CommandContext, CoreBotState } from "./types";
+import type { CommandRegistry } from "./CommandRegistry.js";
+import type { CommandContext, CoreBotState } from "./types.js";
 
 export interface DispatcherOptions<TState extends CoreBotState = CoreBotState> {
   /** Channel to dispatch messages for */

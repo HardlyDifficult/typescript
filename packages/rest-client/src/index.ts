@@ -1,8 +1,8 @@
-export { RestClient } from "./RestClient";
-export { defineOperation, validateParams } from "./Operation";
-export type { OperationConfig } from "./Operation";
-export { AuthenticationManager } from "./AuthenticationManager";
-export { HttpClient } from "./HttpClient";
+export { RestClient } from "./RestClient.js";
+export { defineOperation, validateParams } from "./Operation.js";
+export type { OperationConfig } from "./Operation.js";
+export { AuthenticationManager } from "./AuthenticationManager.js";
+export { HttpClient } from "./HttpClient.js";
 
 export {
   RestClientError,
@@ -12,8 +12,8 @@ export {
   ValidationError,
   NetworkError,
   ErrorCode,
-} from "./errors";
-export type { ErrorContext, ErrorCodeType } from "./errors";
+} from "./errors.js";
+export type { ErrorContext, ErrorCodeType } from "./errors.js";
 
 export type {
   RestClientConfig,
@@ -25,4 +25,4 @@ export type {
   RetryConfig,
   RestClientLogger,
   HttpMethod,
-} from "./types";
+} from "./types.js";

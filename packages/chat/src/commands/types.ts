@@ -6,9 +6,9 @@
  * parser based on the declared shape.
  */
 
-import type { Channel } from "../Channel";
-import type { Message } from "../Message";
-import type { Thread } from "../Thread";
+import type { Channel } from "../Channel.js";
+import type { Message } from "../Message.js";
+import type { Thread } from "../Thread.js";
 
 /**
  * Minimal shared state required by the framework.

@@ -1,3 +1,4 @@
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 import { App } from "@slack/bolt";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
@@ -86,7 +87,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
         user,
         messageId: event.item.ts,
         channelId,
-        timestamp: new Date(parseFloat(event.event_ts) * 1000),
+        timestamp: new Date(secondsToMilliseconds(parseFloat(event.event_ts))),
       };
 
       for (const callback of callbacks) {

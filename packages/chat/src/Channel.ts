@@ -10,11 +10,11 @@ import {
   postDismissableMessage,
   TypingController,
 } from "./ChannelRuntimeFeatures.js";
-import { extractMentionId, findBestMemberMatch } from "./memberMatching";
-import { Message, type MessageOperations } from "./Message";
+import { extractMentionId, findBestMemberMatch } from "./memberMatching.js";
+import { Message, type MessageOperations } from "./Message.js";
 import type { MessageBatch } from "./MessageBatch.js";
-import { PendingMessage } from "./PendingMessage";
-import { Thread, type ThreadOperations } from "./Thread";
+import { PendingMessage } from "./PendingMessage.js";
+import { Thread, type ThreadOperations } from "./Thread.js";
 import type {
   BatchQueryOptions,
   BeginBatchOptions,
@@ -30,7 +30,7 @@ import type {
   Platform,
   ReactionCallback,
   ThreadData,
-} from "./types";
+} from "./types.js";
 
 export type { ChannelOperations, ChannelOptions } from "./types.js";
 

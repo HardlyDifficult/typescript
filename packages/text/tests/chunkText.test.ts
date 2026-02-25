@@ -29,4 +29,17 @@ describe("chunkText", () => {
   it("returns empty array for empty string", () => {
     expect(chunkText("", 100)).toEqual([]);
   });
+
+  it("throws when maxLength is zero or negative", () => {
+    expect(() => chunkText("abc", 0)).toThrowError(RangeError);
+    expect(() => chunkText("abc", -1)).toThrowError(
+      "maxLength must be a positive integer"
+    );
+  });
+
+  it("throws when maxLength is not an integer", () => {
+    expect(() => chunkText("abc", 2.5)).toThrowError(
+      "maxLength must be a positive integer"
+    );
+  });
 });

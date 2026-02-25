@@ -30,6 +30,7 @@ export class UsageTracker<T extends NumericRecord> {
   private readonly spendLimits: readonly SpendLimit[];
   private readonly onSpendLimitExceeded?: (status: SpendStatus) => void;
   private readonly maxWindowMs: number;
+  private limitExceededStates: boolean[];
 
   private constructor(
     options: UsageTrackerOptions<T>,
@@ -44,6 +45,9 @@ export class UsageTracker<T extends NumericRecord> {
       this.spendLimits.length > 0
         ? Math.max(...this.spendLimits.map((l) => l.windowMs))
         : 0;
+    this.limitExceededStates = this.spendLimits.map(
+      (limit) => this.statusForLimit(limit).exceeded
+    );
   }
 
   /**
@@ -126,6 +130,7 @@ export class UsageTracker<T extends NumericRecord> {
 
     // Prune stale entries from a prior session
     instance.pruneEntries();
+    instance.syncLimitExceededStates();
 
     return instance;
   }
@@ -298,14 +303,24 @@ export class UsageTracker<T extends NumericRecord> {
 
   /** Fire onSpendLimitExceeded for any newly-exceeded limit. */
   private checkLimits(): void {
-    if (this.onSpendLimitExceeded === undefined) {
-      return;
-    }
-    for (const limit of this.spendLimits) {
+    for (const [index, limit] of this.spendLimits.entries()) {
       const status = this.statusForLimit(limit);
-      if (status.exceeded) {
+      const wasExceeded = this.limitExceededStates[index] ?? false;
+      this.limitExceededStates[index] = status.exceeded;
+
+      if (
+        this.onSpendLimitExceeded !== undefined &&
+        status.exceeded &&
+        !wasExceeded
+      ) {
         this.onSpendLimitExceeded(status);
       }
     }
+  }
+
+  private syncLimitExceededStates(): void {
+    this.limitExceededStates = this.spendLimits.map(
+      (limit) => this.statusForLimit(limit).exceeded
+    );
   }
 }

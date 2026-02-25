@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance } from "axios";
 
-import { HttpError, NetworkError } from "./errors";
-import type { RestClientLogger, RetryConfig } from "./types";
+import { HttpError, NetworkError } from "./errors.js";
+import type { RestClientLogger, RetryConfig } from "./types.js";
 
 const DEFAULT_RETRY: Required<Pick<RetryConfig, "maxAttempts" | "delayMs">> = {
   maxAttempts: 3,

@@ -9,11 +9,15 @@
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
-    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "25.3.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
   },
   "engines": {
     "node": ">=20.19.0"

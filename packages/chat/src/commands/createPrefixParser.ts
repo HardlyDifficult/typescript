@@ -10,7 +10,7 @@
  * `createPrefixParser` handles steps 1–3 and delegates step 4 to `parseArgs`.
  */
 
-import type { ParseResult } from "./types";
+import type { ParseResult } from "./types.js";
 
 /** Escape special regex characters in a string */
 function escapeRegExp(s: string): string {

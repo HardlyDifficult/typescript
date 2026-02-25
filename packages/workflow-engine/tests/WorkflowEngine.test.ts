@@ -734,6 +734,57 @@ describe("WorkflowEngine", () => {
       expect(events[0]!.type).toBe("transition");
       expect(events[1]!.type).toBe("update");
     });
+
+    it("continues notifying listeners when one throws", async () => {
+      const optionEvents: TransitionEvent<Status, Data>[] = [];
+      const regularListener = vi.fn();
+      const engine = createEngine({
+        onTransition: (event) => optionEvents.push(event),
+      });
+      await engine.load();
+
+      engine.on(() => {
+        throw new Error("listener failed");
+      });
+      engine.on(regularListener);
+
+      await expect(engine.transition("running")).rejects.toThrow(
+        AggregateError
+      );
+      expect(regularListener).toHaveBeenCalledOnce();
+      expect(optionEvents).toHaveLength(2);
+      expect(engine.status).toBe("running");
+    });
+  });
+
+  describe("read-only getters are defensive", () => {
+    it("data getter returns a deep copy", async () => {
+      const engine = createEngine({
+        initialData: { count: 1, message: "hello" },
+      });
+      await engine.load();
+
+      const view = engine.data as Data;
+      view.count = 999;
+      view.message = "mutated";
+
+      expect(engine.data).toEqual({ count: 1, message: "hello" });
+    });
+
+    it("event payload data is isolated from engine state", async () => {
+      const events: TransitionEvent<Status, Data>[] = [];
+      const engine = createEngine({ onTransition: (e) => events.push(e) });
+      await engine.load();
+
+      const loadEvent = events.find((e) => e.type === "load");
+      expect(loadEvent).toBeDefined();
+
+      if (loadEvent) {
+        loadEvent.data.count = 123;
+      }
+
+      expect(engine.data.count).toBe(0);
+    });
   });
 
   describe("toSnapshot", () => {
