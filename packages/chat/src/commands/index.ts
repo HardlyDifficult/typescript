@@ -10,7 +10,10 @@ export type {
 
 // Registry & Dispatcher
 export { CommandRegistry, type RegisteredCommand } from "./CommandRegistry.js";
-export { CommandDispatcher, type DispatcherOptions } from "./CommandDispatcher.js";
+export {
+  CommandDispatcher,
+  type DispatcherOptions,
+} from "./CommandDispatcher.js";
 
 // Job Lifecycle
 export {
@@ -22,5 +25,8 @@ export {
 } from "./jobLifecycle.js";
 
 // Helpers
-export { formatWorkerError, RECOVERABLE_WORKER_ERRORS } from "./workerErrors.js";
+export {
+  formatWorkerError,
+  RECOVERABLE_WORKER_ERRORS,
+} from "./workerErrors.js";
 export { createPrefixParser } from "./createPrefixParser.js";

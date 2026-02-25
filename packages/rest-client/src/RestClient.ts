@@ -2,7 +2,11 @@ import { AuthenticationManager } from "./AuthenticationManager.js";
 import { ConfigurationError } from "./errors.js";
 import { HttpClient } from "./HttpClient.js";
 import { type OperationConfig, validateParams } from "./Operation.js";
-import type { HttpMethod, RestClientConfig, RestClientLogger } from "./types.js";
+import type {
+  HttpMethod,
+  RestClientConfig,
+  RestClientLogger,
+} from "./types.js";
 
 /**
  * Opinionated REST client with OAuth2, retries, and declarative operations.
