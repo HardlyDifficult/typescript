@@ -22,12 +22,17 @@ export interface ParsedPipelineStatus {
  * parsePipelineStatus('failed')              // { phase: 'failed', step: undefined }
  */
 export function parsePipelineStatus(status: string): ParsedPipelineStatus {
-  const colonIndex = status.indexOf(":");
+  const normalizedStatus = status.trim();
+  const colonIndex = normalizedStatus.indexOf(":");
   if (colonIndex === -1) {
-    return { phase: status };
+    return { phase: normalizedStatus };
   }
+
+  const phase = normalizedStatus.slice(0, colonIndex).trim();
+  const step = normalizedStatus.slice(colonIndex + 1).trim();
+
   return {
-    phase: status.slice(0, colonIndex),
-    step: status.slice(colonIndex + 1),
+    phase,
+    ...(step.length > 0 ? { step } : {}),
   };
 }
