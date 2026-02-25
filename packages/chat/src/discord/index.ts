@@ -1,1 +1,1 @@
-export { DiscordChatClient } from "./DiscordChatClient";
+export { DiscordChatClient } from "./DiscordChatClient.js";

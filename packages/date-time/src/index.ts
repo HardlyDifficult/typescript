@@ -10,4 +10,4 @@ export {
   toMilliseconds,
   type TimeSpan,
   type TimeUnit,
-} from "./TimeSpan";
+} from "./TimeSpan.js";

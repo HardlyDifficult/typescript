@@ -1,2 +1,2 @@
-export { toDiscordEmbed } from "./discord";
-export { toSlackBlocks } from "./slack";
+export { toDiscordEmbed } from "./discord.js";
+export { toSlackBlocks } from "./slack.js";

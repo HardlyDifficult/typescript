@@ -6,7 +6,7 @@ import type {
   MessageData,
   MessageQueryOptions,
   TimestampInput,
-} from "../types";
+} from "../types.js";
 
 /**
  * Fetch and normalize recent Discord messages with optional filters.

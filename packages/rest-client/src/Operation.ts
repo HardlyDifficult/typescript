@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { ValidationError } from "./errors";
-import type { HttpMethod } from "./types";
+import { ValidationError } from "./errors.js";
+import type { HttpMethod } from "./types.js";
 
 /** Declarative configuration for a REST operation. */
 export interface OperationConfig<Params, Response> {

@@ -1,5 +1,5 @@
 import { MESSAGE_LIMITS } from "./constants.js";
-import type { Platform } from "./types";
+import type { Platform } from "./types.js";
 
 /**
  * Splits text into chunks that fit within a message length limit,

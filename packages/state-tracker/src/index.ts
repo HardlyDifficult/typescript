@@ -8,4 +8,4 @@ export {
   type StateTrackerLoadOrDefaultOptions,
   type StateTrackerMigration,
   type StateTrackerSaveMeta,
-} from "./StateTracker";
+} from "./StateTracker.js";

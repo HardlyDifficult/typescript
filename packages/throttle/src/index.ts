@@ -2,28 +2,28 @@ export {
   Throttle,
   type ThrottleOptions,
   type ThrottleSleepInfo,
-} from "./Throttle";
+} from "./Throttle.js";
 
 export {
   getBackoffDelay,
   sleep,
   getRandomDelay,
   type BackoffOptions,
-} from "./backoff";
+} from "./backoff.js";
 
-export { isConnectionError } from "./isConnectionError";
+export { isConnectionError } from "./isConnectionError.js";
 
-export { isTransientNetworkError } from "./isTransientNetworkError";
+export { isTransientNetworkError } from "./isTransientNetworkError.js";
 
 export {
   createThrottledUpdater,
   type ThrottledUpdater,
-} from "./ThrottledUpdater";
+} from "./ThrottledUpdater.js";
 
 export {
   eventRequest,
   type EventSubscriber,
   type EventRequestOptions,
-} from "./eventRequest";
+} from "./eventRequest.js";
 
-export { retry, type RetryOptions } from "./retry";
+export { retry, type RetryOptions } from "./retry.js";

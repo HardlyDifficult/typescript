@@ -6,7 +6,7 @@
  * ensures unambiguous command resolution.
  */
 
-import type { Command, CoreBotState, ParseResult } from "./types";
+import type { Command, CoreBotState, ParseResult } from "./types.js";
 
 export interface RegisteredCommand<
   TState extends CoreBotState = CoreBotState,

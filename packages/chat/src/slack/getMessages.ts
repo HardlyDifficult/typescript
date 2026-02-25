@@ -5,7 +5,7 @@ import type {
   MessageData,
   MessageQueryOptions,
   TimestampInput,
-} from "../types";
+} from "../types.js";
 
 interface SlackFileAttachment {
   url_private?: string;
