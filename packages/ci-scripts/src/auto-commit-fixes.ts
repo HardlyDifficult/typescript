@@ -14,8 +14,9 @@
  *             (Pushes with the default GITHUB_TOKEN do not trigger workflows.)
  */
 
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 import { execSync } from "child_process";
+
+import { secondsToMilliseconds } from "@hardlydifficult/date-time";
 
 function exec(command: string, ignoreError = false): string {
   console.log(`$ ${command}`);
