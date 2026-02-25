@@ -76,6 +76,7 @@ export function createThrottledUpdater(
         void doUpdate(pendingText);
       }
     }, delay);
+    (timeoutId as NodeJS.Timeout).unref?.();
   };
 
   return {
@@ -118,3 +119,4 @@ export function createThrottledUpdater(
     },
   };
 }
+

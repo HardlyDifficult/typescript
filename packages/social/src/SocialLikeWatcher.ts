@@ -42,6 +42,7 @@ export class SocialLikeWatcher {
       () => void this.poll(),
       this.options.pollIntervalMs
     );
+    (this.timer as NodeJS.Timeout).unref?.();
   }
 
   stop(): void {
@@ -97,3 +98,4 @@ export class SocialLikeWatcher {
     }
   }
 }
+

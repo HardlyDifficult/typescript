@@ -67,6 +67,7 @@ export class Poller<T> {
     this.timer = setInterval(() => {
       void this.poll();
     }, this.intervalMs);
+    (this.timer as NodeJS.Timeout).unref?.();
   }
 
   stop(): void {
@@ -92,6 +93,7 @@ export class Poller<T> {
       this.triggerTimeout = undefined;
       void this.poll();
     }, debounceMs);
+    (this.triggerTimeout as NodeJS.Timeout).unref?.();
   }
 
   private async poll(): Promise<void> {
@@ -139,6 +141,7 @@ export class Poller<T> {
     };
   }
 }
+
 
 function defaultIsEqual<T>(a: T, b: T | undefined): boolean {
   if (Object.is(a, b)) {

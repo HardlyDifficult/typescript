@@ -63,6 +63,7 @@ export class PRWatcher extends PRWatcherBase {
     this.timer = setInterval(() => {
       void this.poll();
     }, this.intervalMs);
+    (this.timer as NodeJS.Timeout).unref?.();
     return [...this.snapshots.values()].map((s) => ({
       pr: s.pr,
       repo: { owner: s.owner, name: s.name },
@@ -354,3 +355,4 @@ export class PRWatcher extends PRWatcherBase {
 function prKey(owner: string, name: string, prNumber: number): string {
   return `${owner}/${name}#${String(prNumber)}`;
 }
+

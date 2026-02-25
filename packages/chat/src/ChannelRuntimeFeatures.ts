@@ -29,6 +29,7 @@ export class TypingController {
         });
       }
     }, TYPING_REFRESH_MS);
+    (this.interval as NodeJS.Timeout).unref?.();
   }
 
   end(): void {
@@ -78,3 +79,4 @@ export async function postDismissableMessage(
   });
   return message;
 }
+

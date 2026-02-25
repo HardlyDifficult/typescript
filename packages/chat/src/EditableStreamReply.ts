@@ -34,6 +34,7 @@ export class EditableStreamReply {
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
+    (this.intervalId as NodeJS.Timeout).unref?.();
 
     if (abortSignal !== undefined) {
       if (abortSignal.aborted) {
@@ -114,3 +115,4 @@ export class EditableStreamReply {
     await this.flush();
   }
 }
+
