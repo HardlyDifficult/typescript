@@ -1,18 +1,23 @@
 import { timingSafeEqual } from "crypto";
 
 /**
- * Timing-safe string comparison to prevent brute-force attacks.
- * Always takes constant time regardless of where strings differ.
+ * Constant-time string comparison to prevent timing attacks.
+ *
+ * Pads both values to the same length before comparing so the timing-safe
+ * compare path is always executed, even for different-length inputs.
  */
 export function safeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
 
-  if (bufA.length !== bufB.length) {
-    // Compare bufA against itself so the timing is consistent
-    timingSafeEqual(bufA, bufA);
-    return false;
-  }
+  const maxLength = Math.max(bufA.length, bufB.length);
+  const paddedA = Buffer.alloc(maxLength);
+  const paddedB = Buffer.alloc(maxLength);
 
-  return timingSafeEqual(bufA, bufB);
+  bufA.copy(paddedA);
+  bufB.copy(paddedB);
+
+  const valuesMatch = timingSafeEqual(paddedA, paddedB);
+
+  return bufA.length === bufB.length && valuesMatch;
 }

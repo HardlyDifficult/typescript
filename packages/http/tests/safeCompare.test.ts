@@ -10,8 +10,9 @@ describe("safeCompare", () => {
     expect(safeCompare("hello", "world")).toBe(false);
   });
 
-  it("returns false for strings of different lengths", () => {
+  it("returns false for strings of different lengths regardless of argument order", () => {
     expect(safeCompare("short", "longer string")).toBe(false);
+    expect(safeCompare("longer string", "short")).toBe(false);
   });
 
   it("returns false for empty vs non-empty", () => {
