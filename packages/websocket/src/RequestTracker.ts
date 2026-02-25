@@ -103,7 +103,7 @@ export class RequestTracker {
     if (errors.length > 0) {
       throw new AggregateError(
         errors,
-        `request tracker listener error: ${String(event)}`
+        `request tracker listener error: ${event}`
       );
     }
   }
