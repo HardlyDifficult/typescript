@@ -355,4 +355,3 @@ export class PRWatcher extends PRWatcherBase {
 function prKey(owner: string, name: string, prNumber: number): string {
   return `${owner}/${name}#${String(prNumber)}`;
 }
-

@@ -142,7 +142,6 @@ export class Poller<T> {
   }
 }
 
-
 function defaultIsEqual<T>(a: T, b: T | undefined): boolean {
   if (Object.is(a, b)) {
     return true;

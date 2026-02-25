@@ -115,4 +115,3 @@ export class EditableStreamReply {
     await this.flush();
   }
 }
-

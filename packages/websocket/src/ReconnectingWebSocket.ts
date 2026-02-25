@@ -324,4 +324,3 @@ export class ReconnectingWebSocket<T> {
     }
   }
 }
-

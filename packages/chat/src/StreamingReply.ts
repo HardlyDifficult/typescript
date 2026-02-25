@@ -129,4 +129,3 @@ export class StreamingReply {
     await this.flush();
   }
 }
-
