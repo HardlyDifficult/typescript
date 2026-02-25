@@ -20,6 +20,8 @@ export interface GlobalNavProps {
   categories: GlobalNavCategory[];
   indicators?: ReactNode;
   onSignOut?: () => void;
+  onToggleTheme?: () => void;
+  theme?: "light" | "dark";
   renderLink?: (props: {
     href: string;
     children: ReactNode;
@@ -60,6 +62,8 @@ export function GlobalNav({
   categories,
   indicators,
   onSignOut,
+  onToggleTheme,
+  theme,
   renderLink,
 }: GlobalNavProps) {
   const [open, setOpen] = useState(false);
@@ -108,6 +112,8 @@ export function GlobalNav({
                 categories={categories}
                 currentPath={currentPath}
                 onSignOut={onSignOut}
+                onToggleTheme={onToggleTheme}
+                theme={theme}
                 onClose={() => { setOpen(false); }}
                 render={render}
               />

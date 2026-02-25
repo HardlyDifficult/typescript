@@ -21,12 +21,16 @@ export function NavDropdown({
   categories,
   currentPath,
   onSignOut,
+  onToggleTheme,
+  theme,
   onClose,
   render,
 }: {
   categories: NavDropdownCategory[];
   currentPath?: string;
   onSignOut?: () => void;
+  onToggleTheme?: () => void;
+  theme?: "light" | "dark";
   onClose: () => void;
   render: RenderLink;
 }) {
@@ -56,16 +60,24 @@ export function NavDropdown({
         );
       })}
 
+      {(onToggleTheme !== undefined || onSignOut !== undefined) && (
+        <div className="h-px bg-[color:var(--color-border)] my-[var(--space-2)]" />
+      )}
+      {onToggleTheme !== undefined && (
+        <button
+          onClick={onToggleTheme}
+          className="block w-full px-[var(--space-3)] py-[0.5rem] rounded-[var(--radius-md)] text-[length:var(--text-sm)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-subtle)] hover:text-[color:var(--color-text)] border-none text-left cursor-pointer font-[family-name:var(--font-sans)] transition-colors"
+        >
+          {theme === "dark" ? "☀ Light mode" : "🌙 Dark mode"}
+        </button>
+      )}
       {onSignOut !== undefined && (
-        <>
-          <div className="h-px bg-[color:var(--color-border)] my-[var(--space-2)]" />
-          <button
-            onClick={() => { onClose(); onSignOut(); }}
-            className="block w-full px-[var(--space-3)] py-[0.5rem] rounded-[var(--radius-md)] text-[length:var(--text-sm)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-subtle)] hover:text-[color:var(--color-text)] border-none text-left cursor-pointer font-[family-name:var(--font-sans)] transition-colors"
-          >
-            Sign out
-          </button>
-        </>
+        <button
+          onClick={() => { onClose(); onSignOut(); }}
+          className="block w-full px-[var(--space-3)] py-[0.5rem] rounded-[var(--radius-md)] text-[length:var(--text-sm)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-subtle)] hover:text-[color:var(--color-text)] border-none text-left cursor-pointer font-[family-name:var(--font-sans)] transition-colors"
+        >
+          Sign out
+        </button>
       )}
     </div>
   );
