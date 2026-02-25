@@ -32,6 +32,18 @@ for (const entry of readdirSync(packagesDir)) {
     errors.push(`${manifestPath}: \`files\` must include \"dist\".`);
   }
 
+  if (
+    typeof manifest.scripts !== "object" ||
+    manifest.scripts === null ||
+    typeof manifest.scripts.clean !== "string"
+  ) {
+    errors.push(`${manifestPath}: \`scripts.clean\` must be defined.`);
+  } else if (manifest.scripts.clean.includes("rm -rf")) {
+    errors.push(
+      `${manifestPath}: \`scripts.clean\` must be cross-platform and cannot use \"rm -rf\".`
+    );
+  }
+
   if (typeof manifest.exports !== "object" || manifest.exports === null || !("." in manifest.exports)) {
     errors.push(`${manifestPath}: \`exports\` must include a root \".\" export.`);
     continue;
