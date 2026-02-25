@@ -248,6 +248,25 @@ describe("UsageTracker", () => {
     });
   });
 
+  describe("read-only getters are defensive", () => {
+    it("session and cumulative cannot be mutated externally", async () => {
+      const tracker = await UsageTracker.create({
+        key: "defensive-getters",
+        default: defaults,
+        stateDirectory: testDir,
+      });
+
+      const sessionView = tracker.session as typeof defaults;
+      sessionView.api.requests = 999;
+
+      const cumulativeView = tracker.cumulative as typeof defaults;
+      cumulativeView.audio.durationSeconds = 123;
+
+      expect(tracker.session.api.requests).toBe(0);
+      expect(tracker.cumulative.audio.durationSeconds).toBe(0);
+    });
+  });
+
   describe("costInWindow", () => {
     it("returns 0 when no cost fields exist", async () => {
       const tracker = await UsageTracker.create({
