@@ -30,7 +30,7 @@ export function readBody(
       } else if (typeof chunk === "string") {
         normalized = Buffer.from(chunk);
       } else {
-        normalized = Buffer.from(chunk as Uint8Array);
+        normalized = Buffer.from(chunk);
       }
 
       totalBytes += normalized.length;
