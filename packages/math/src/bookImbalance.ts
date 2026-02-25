@@ -1,10 +1,12 @@
 export type Level = readonly [price: number, size: number];
 
+/** Top-of-book imbalance: (bidSize - askSize) / (bidSize + askSize). */
 export function bookImbalance(bidSize: number, askSize: number): number {
   const total = bidSize + askSize;
   return total > 0 ? (bidSize - askSize) / total : 0;
 }
 
+/** Depth-weighted imbalance within ±depthPct of mid price. */
 export function depthImbalance(
   bids: readonly Level[],
   asks: readonly Level[],

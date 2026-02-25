@@ -3,6 +3,7 @@ export interface Sample {
   readonly v: number;
 }
 
+/** Least-squares regression slope over time-series samples. */
 export function computeSlope(samples: readonly Sample[]): number {
   if (samples.length < 2) {
     return 0;
