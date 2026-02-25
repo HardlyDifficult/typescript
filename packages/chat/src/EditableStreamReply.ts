@@ -34,7 +34,7 @@ export class EditableStreamReply {
         // via the flush() and stop() return values.
       });
     }, flushIntervalMs);
-    (this.intervalId as NodeJS.Timeout).unref?.();
+    this.intervalId.unref?.();
 
     if (abortSignal !== undefined) {
       if (abortSignal.aborted) {
