@@ -6,6 +6,10 @@ import type { Platform } from "./types";
  * breaking at newlines or spaces when possible.
  */
 function chunkText(text: string, maxLength: number): string[] {
+  if (!Number.isInteger(maxLength) || maxLength <= 0) {
+    throw new RangeError("maxLength must be a positive integer");
+  }
+
   if (text.length <= maxLength) {
     return [text];
   }
