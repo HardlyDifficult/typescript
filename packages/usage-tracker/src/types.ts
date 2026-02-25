@@ -67,6 +67,6 @@ export interface UsageTrackerOptions<T extends NumericRecord> {
   onEvent?: (event: StateTrackerEvent) => void;
   /** Trailing-window spend limits. Requires at least one *CostUsd field in `default`. */
   spendLimits?: readonly SpendLimit[];
-  /** Fires when a spend limit is exceeded after a record() call. */
+  /** Fires when a spend limit transitions from within-budget to exceeded after a record() call. */
   onSpendLimitExceeded?: (status: SpendStatus) => void;
 }

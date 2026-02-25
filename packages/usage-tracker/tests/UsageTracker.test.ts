@@ -392,7 +392,7 @@ describe("UsageTracker", () => {
       expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
     });
 
-    it("fires onSpendLimitExceeded callback", async () => {
+    it("fires onSpendLimitExceeded callback on transition into exceeded", async () => {
       const exceeded = vi.fn();
       const tracker = await UsageTracker.create({
         key: "callback-test",
@@ -409,6 +409,40 @@ describe("UsageTracker", () => {
       expect(exceeded).toHaveBeenCalledOnce();
       expect(exceeded.mock.calls[0]![0]!.exceeded).toBe(true);
       expect(exceeded.mock.calls[0]![0]!.limit.label).toBe("1 minute");
+
+      // Still over the limit, so no new transition should occur.
+      tracker.record({ api: { estimatedCostUsd: 0.1 } });
+      expect(exceeded).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire callback immediately when already exceeded from persisted state", async () => {
+      const firstExceeded = vi.fn();
+      const key = "persisted-over-limit";
+
+      const tracker1 = await UsageTracker.create({
+        key,
+        default: spendDefaults,
+        stateDirectory: testDir,
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
+        onSpendLimitExceeded: firstExceeded,
+      });
+
+      tracker1.record({ api: { estimatedCostUsd: 1.5 } });
+      expect(firstExceeded).toHaveBeenCalledOnce();
+      await tracker1.save();
+
+      const secondExceeded = vi.fn();
+      const tracker2 = await UsageTracker.create({
+        key,
+        default: spendDefaults,
+        stateDirectory: testDir,
+        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
+        onSpendLimitExceeded: secondExceeded,
+      });
+
+      // Still over the limit, but this is not a fresh transition.
+      tracker2.record({ api: { estimatedCostUsd: 0.1 } });
+      expect(secondExceeded).not.toHaveBeenCalled();
     });
 
     it("does not fire callback for records with zero cost", async () => {
