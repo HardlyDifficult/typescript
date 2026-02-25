@@ -24,11 +24,14 @@ export function readBody(
         return;
       }
 
-      const normalized = Buffer.isBuffer(chunk)
-        ? chunk
-        : typeof chunk === "string"
-          ? Buffer.from(chunk)
-          : Buffer.from(chunk as Uint8Array);
+      let normalized: Buffer;
+      if (Buffer.isBuffer(chunk)) {
+        normalized = chunk;
+      } else if (typeof chunk === "string") {
+        normalized = Buffer.from(chunk);
+      } else {
+        normalized = Buffer.from(chunk as Uint8Array);
+      }
 
       totalBytes += normalized.length;
       if (totalBytes > maxBytes) {
