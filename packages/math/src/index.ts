@@ -7,3 +7,9 @@ export { VwapTracker } from "./VwapTracker.js";
 export { RollingVwap } from "./RollingVwap.js";
 export { SlopeTracker } from "./SlopeTracker.js";
 export { WindowedChange } from "./WindowedChange.js";
+export {
+  type FeatureValues,
+  type RegimeLabel,
+  type ClassificationResult,
+  RegimeClassifier,
+} from "./RegimeClassifier.js";
