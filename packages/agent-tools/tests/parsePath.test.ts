@@ -24,7 +24,11 @@ describe("parsePath", () => {
   });
 
   it("treats invalid line values as part of the file path", () => {
-    expect(parsePath("src/index.ts#L0")).toEqual({ filePath: "src/index.ts#L0" });
-    expect(parsePath("src/index.ts#L-1")).toEqual({ filePath: "src/index.ts#L-1" });
+    expect(parsePath("src/index.ts#L0")).toEqual({
+      filePath: "src/index.ts#L0",
+    });
+    expect(parsePath("src/index.ts#L-1")).toEqual({
+      filePath: "src/index.ts#L-1",
+    });
   });
 });
