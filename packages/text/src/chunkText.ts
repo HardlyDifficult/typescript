@@ -11,6 +11,10 @@
  * @returns Array of text chunks
  */
 export function chunkText(text: string, maxLength: number): string[] {
+  if (!Number.isInteger(maxLength) || maxLength <= 0) {
+    throw new RangeError("maxLength must be a positive integer");
+  }
+
   const chunks: string[] = [];
   let remaining = text;
 
