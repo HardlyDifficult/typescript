@@ -90,8 +90,21 @@ export class RequestTracker {
     if (!set) {
       return;
     }
-    for (const listener of set) {
-      (listener as (...a: unknown[]) => void)(...args);
+
+    const errors: unknown[] = [];
+    for (const listener of [...set]) {
+      try {
+        (listener as (...a: unknown[]) => void)(...args);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors,
+        `request tracker listener error: ${String(event)}`
+      );
     }
   }
 }

@@ -74,4 +74,18 @@ describe("RequestTracker", () => {
 
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it("continues notifying listeners when one throws", () => {
+    const tracker = new RequestTracker();
+    const second = vi.fn();
+
+    tracker.on("draining", () => {
+      throw new Error("bad listener");
+    });
+    tracker.on("draining", second);
+
+    expect(() => tracker.startDraining("test")).toThrow(AggregateError);
+    expect(second).toHaveBeenCalledWith("test");
+    expect(tracker.draining).toBe(true);
+  });
 });

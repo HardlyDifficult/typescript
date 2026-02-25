@@ -207,9 +207,26 @@ export class WorkflowEngine<TStatus extends string, TData> {
       data: this.data,
       timestamp: new Date().toISOString(),
     };
-    this.onTransitionCb?.(event);
-    for (const listener of this.listeners) {
-      listener(event);
+
+    const errors: unknown[] = [];
+    if (this.onTransitionCb) {
+      try {
+        this.onTransitionCb(event);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(event);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "workflow event listener error");
     }
   }
 }
