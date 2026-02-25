@@ -50,6 +50,16 @@ for (const entry of readdirSync(packagesDir)) {
   if (!("import" in rootExport)) {
     errors.push(`${manifestPath}: \`exports[\".\"]\` must define \`import\`.`);
   }
+
+  if (!("default" in rootExport)) {
+    errors.push(`${manifestPath}: \`exports[\".\"]\` must define \`default\`.`);
+  }
+
+  if (manifest.type === "commonjs" && !("require" in rootExport)) {
+    errors.push(
+      `${manifestPath}: commonjs packages must define \`exports[\".\"].require\`.`
+    );
+  }
 }
 
 if (errors.length > 0) {
