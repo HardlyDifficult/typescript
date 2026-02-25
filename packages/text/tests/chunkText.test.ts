@@ -42,5 +42,4 @@ describe("chunkText", () => {
       "maxLength must be a positive integer"
     );
   });
-
 });

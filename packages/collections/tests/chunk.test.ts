@@ -50,5 +50,4 @@ describe("chunk", () => {
       "size must be a positive integer"
     );
   });
-
 });
