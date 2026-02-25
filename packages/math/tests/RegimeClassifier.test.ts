@@ -37,7 +37,7 @@ describe("RegimeClassifier", () => {
         cvdSlope1m: 2000,
         btcTrend1m: "up",
         oiChange15m: 0.03,
-      }),
+      })
     );
     expect(result.label).toBe("momentum");
     expect(result.confidence).toBeGreaterThan(0);
@@ -51,7 +51,7 @@ describe("RegimeClassifier", () => {
         cvdSlope1m: -1500,
         nearestLiqClusterDistanceBps: 30,
         oiChange15m: 0.03,
-      }),
+      })
     );
     expect(result.label).toBe("trap");
   });
@@ -68,7 +68,7 @@ describe("RegimeClassifier", () => {
         vwapDevZ: -1,
         cvdSlope1m: 500,
         bookImbalance0p5pct: -0.2,
-      }),
+      })
     );
     expect(result.momentumScore).toBeGreaterThanOrEqual(0);
     expect(result.trapScore).toBeGreaterThanOrEqual(0);

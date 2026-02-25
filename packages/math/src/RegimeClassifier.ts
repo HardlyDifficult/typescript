@@ -38,6 +38,9 @@ function priceDirection(vwapDevZ: number): number {
   return 0;
 }
 
+/**
+ *
+ */
 export class RegimeClassifier {
   classify(f: FeatureValues): ClassificationResult {
     const dir = priceDirection(f.vwapDevZ);
@@ -95,11 +98,7 @@ export class RegimeClassifier {
     const cvdDir = f.cvdSlope1m > 0 ? 1 : -1;
     const cvdContra = dir !== 0 && cvdDir !== dir ? 1.0 : 0.0;
 
-    const liqSig = clamp(
-      1 - f.nearestLiqClusterDistanceBps / 100,
-      0,
-      1,
-    );
+    const liqSig = clamp(1 - f.nearestLiqClusterDistanceBps / 100, 0, 1);
     const oiSig = clamp(Math.abs(f.oiChange15m) / 0.02, 0, 1);
 
     return (
