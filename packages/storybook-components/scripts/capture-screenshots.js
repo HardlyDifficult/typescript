@@ -131,8 +131,11 @@ async function captureStory(browser, port, story, dark = false) {
 
   await executeCommand({ id: "nav", action: "navigate", url, waitUntil: "networkidle" }, browser);
   await executeCommand({ id: "wait", action: "wait", timeout: 300 }, browser);
-  if (dark) await enableDarkMode(browser);
   await freezeAnimations(browser);
+  if (dark) {
+    await enableDarkMode(browser);
+    await executeCommand({ id: "wait-dark", action: "wait", timeout: 200 }, browser);
+  }
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
     browser
@@ -199,13 +202,13 @@ async function captureComposite(browser, port, name, storyIds, dark = false) {
     }
   }, fragments);
 
+  await freezeAnimations(browser);
   if (dark) {
     await page.evaluate(() => {
       document.documentElement.setAttribute("data-theme", "dark");
     });
   }
   await page.waitForTimeout(200);
-  await freezeAnimations(browser);
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
     browser
