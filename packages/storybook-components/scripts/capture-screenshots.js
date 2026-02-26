@@ -132,7 +132,10 @@ async function captureStory(browser, port, story, dark = false) {
   await executeCommand({ id: "nav", action: "navigate", url, waitUntil: "networkidle" }, browser);
   await executeCommand({ id: "wait", action: "wait", timeout: 300 }, browser);
   await freezeAnimations(browser);
-  if (dark) await enableDarkMode(browser);
+  if (dark) {
+    await enableDarkMode(browser);
+    await executeCommand({ id: "wait-dark", action: "wait", timeout: 200 }, browser);
+  }
   await executeCommand(
     { id: "ss", action: "screenshot", path: dest, selector: "#storybook-root" },
     browser
