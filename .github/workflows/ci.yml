@@ -41,7 +41,7 @@ jobs:
       - name: Check for storybook changes
         id: storybook-changes
         run: |
-          if git diff --name-only origin/main...HEAD | grep -q '^packages/storybook-components/'; then
+          if git diff --name-only origin/main...HEAD | grep '^packages/storybook-components/' | grep -qv '\.screenshots/'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
