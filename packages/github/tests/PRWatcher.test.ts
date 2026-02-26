@@ -1999,3 +1999,45 @@ describe("PRWatcher", () => {
     });
   });
 });
+
+describe("repo normalization", () => {
+  it("normalizes repository URLs passed in options", async () => {
+    const pr = makePR();
+    (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [pr],
+    });
+    stubEmptyActivity();
+
+    const localWatcher = new PRWatcher(mockOctokit, "testuser", {
+      repos: ["https://github.com/owner/repo/pull/42"],
+    });
+
+    await localWatcher.start();
+
+    expect(mockOctokit.pulls.list).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: "owner", repo: "repo" })
+    );
+
+    localWatcher.stop();
+  });
+
+  it("normalizes addRepo/removeRepo inputs", async () => {
+    const pr = makePR();
+    (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [pr],
+    });
+    stubEmptyActivity();
+
+    const localWatcher = new PRWatcher(mockOctokit, "testuser", {
+      repos: ["owner/repo"],
+    });
+    localWatcher.addRepo("github.com/owner/repo");
+    localWatcher.removeRepo("https://github.com/owner/repo");
+
+    await localWatcher.start();
+
+    expect(mockOctokit.pulls.list).not.toHaveBeenCalled();
+
+    localWatcher.stop();
+  });
+});

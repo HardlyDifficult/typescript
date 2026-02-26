@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseGitHubFileUrl,
   parseGitHubDirectoryUrl,
+  parseGitHubRepoReference,
 } from "../src/githubUrlParser.js";
 
 describe("parseGitHubFileUrl", () => {
@@ -61,5 +62,36 @@ describe("parseGitHubDirectoryUrl", () => {
 
   it("returns null for an invalid URL", () => {
     expect(parseGitHubDirectoryUrl("not-a-url")).toBeNull();
+  });
+});
+
+
+describe("parseGitHubRepoReference", () => {
+  it("parses owner/repo", () => {
+    expect(parseGitHubRepoReference("owner/repo")).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
+  });
+
+  it("parses github URLs and strips .git", () => {
+    expect(
+      parseGitHubRepoReference("https://github.com/owner/repo.git")
+    ).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
+    expect(parseGitHubRepoReference("github.com/owner/repo/pull/123")).toEqual(
+      {
+        owner: "owner",
+        repo: "repo",
+      }
+    );
+  });
+
+  it("returns null for unsupported values", () => {
+    expect(parseGitHubRepoReference("https://example.com/owner/repo")).toBeNull();
+    expect(parseGitHubRepoReference("owner")).toBeNull();
+    expect(parseGitHubRepoReference("   ")).toBeNull();
   });
 });
