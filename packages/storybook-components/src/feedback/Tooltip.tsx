@@ -13,8 +13,8 @@ export function Tooltip({ content, children }: TooltipProps) {
   return (
     <span
       style={{ position: "relative", display: "inline-block", cursor: "help" }}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
+      onMouseEnter={() => { setVisible(true); }}
+      onMouseLeave={() => { setVisible(false); }}
     >
       {children}
       {visible && (
