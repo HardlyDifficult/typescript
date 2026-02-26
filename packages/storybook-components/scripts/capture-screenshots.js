@@ -228,7 +228,8 @@ async function main() {
   console.log(`Found ${stories.length} stories`);
 
   const browser = new BrowserManager();
-  await browser.launch({ id: "launch", action: "launch", headless: true });
+  const executablePath = process.env.BROWSER_EXECUTABLE_PATH;
+  await browser.launch({ id: "launch", action: "launch", headless: true, ...(executablePath ? { executablePath } : {}) });
 
   try {
     // Light mode: composite screenshots for small components
