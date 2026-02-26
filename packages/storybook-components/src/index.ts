@@ -32,6 +32,7 @@ export { JsonTree } from "./data/JsonTree.js";
 export { Alert } from "./feedback/Alert.js";
 export { EmptyState } from "./feedback/EmptyState.js";
 export { Modal } from "./feedback/Modal.js";
+export { Tooltip } from "./feedback/Tooltip.js";
 
 // navigation
 export { GlobalNav } from "./navigation/GlobalNav.js";
