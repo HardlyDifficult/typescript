@@ -22,7 +22,7 @@ body {
 [data-theme="dark"] {
   color: var(--color-text);
   background:
-    radial-gradient(circle at 5% 0%, #1a1020 0%, transparent 38%),
-    radial-gradient(circle at 95% 0%, #0f1a2a 0%, transparent 42%),
-    linear-gradient(180deg, #1a1410 0%, var(--color-bg-subtle) 100%);
+    radial-gradient(circle at 5% 0%, #180f2e 0%, transparent 38%),
+    radial-gradient(circle at 95% 0%, #0c1a35 0%, transparent 42%),
+    linear-gradient(180deg, #0f172a 0%, var(--color-bg-subtle) 100%);
 }

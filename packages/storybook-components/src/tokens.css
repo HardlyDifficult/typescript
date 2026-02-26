@@ -83,44 +83,52 @@
 }
 
 [data-theme="dark"] {
-  /* Colors — dark warm neutrals */
-  --color-bg:             #1a1410;
-  --color-bg-subtle:      #1f1a14;
-  --color-bg-muted:       #26201a;
-  --color-border:         #3a2f25;
-  --color-border-strong:  #4d3f33;
-  --color-text:           #f5ede5;
-  --color-text-secondary: #c4a890;
-  --color-text-muted:     #8a7060;
+  /* Colors — cool slate neutrals */
+  --color-bg:             #0f172a;
+  --color-bg-subtle:      #1e293b;
+  --color-bg-muted:       #293548;
+  --color-border:         #334155;
+  --color-border-strong:  #475569;
+  --color-text:           #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted:     #64748b;
 
-  /* Accent — lighter indigo for dark backgrounds */
-  --color-accent:        #6366f1;
-  --color-accent-hover:  #818cf8;
+  /* Accent — brighter indigo for dark backgrounds */
+  --color-accent:        #818cf8;
+  --color-accent-hover:  #a5b4fc;
   --color-accent-subtle: #1e1b4b;
   --color-accent-border: #3730a3;
 
   /* Status */
-  --color-success:        #22c55e;
-  --color-success-dark:   #16a34a;
+  --color-success:        #4ade80;
+  --color-success-dark:   #22c55e;
   --color-success-subtle: #052e16;
   --color-success-border: #166534;
-  --color-warning:        #f59e0b;
-  --color-warning-dark:   #d97706;
-  --color-warning-subtle: #1c1200;
+  --color-warning:        #fbbf24;
+  --color-warning-dark:   #f59e0b;
+  --color-warning-subtle: #1c1500;
   --color-warning-border: #92400e;
-  --color-error:          #f87171;
-  --color-error-dark:     #ef4444;
+  --color-error:          #fca5a5;
+  --color-error-dark:     #f87171;
   --color-error-subtle:   #1f0808;
   --color-error-border:   #991b1b;
-  --color-info:           #38bdf8;
-  --color-info-dark:      #0284c7;
-  --color-info-subtle:    #082130;
+  --color-info:           #7dd3fc;
+  --color-info-dark:      #38bdf8;
+  --color-info-subtle:    #082f49;
   --color-info-border:    #0369a1;
 
-  /* Shadows — cooler/darker for dark backgrounds */
-  --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.2);
-  --shadow-md:     0 8px 16px -10px rgba(0, 0, 0, 0.5), 0 3px 8px -4px rgba(0, 0, 0, 0.3);
-  --shadow-lg:     0 16px 30px -16px rgba(0, 0, 0, 0.6), 0 8px 14px -8px rgba(0, 0, 0, 0.3);
-  --shadow-lift:   0 24px 40px -22px rgba(0, 0, 0, 0.7), 0 10px 18px -10px rgba(0, 0, 0, 0.4);
-  --shadow-accent: 0 0 0 1px rgba(99, 102, 241, 0.4), 0 10px 22px -14px rgba(99, 102, 241, 0.5);
+  /* Avatar palette — dark mode */
+  --color-avatar-0-bg: #2e1065; --color-avatar-0-text: #d8b4fe;
+  --color-avatar-1-bg: #4c0519; --color-avatar-1-text: #fda4af;
+  --color-avatar-2-bg: #451a03; --color-avatar-2-text: #fdba74;
+  --color-avatar-3-bg: #052e16; --color-avatar-3-text: #86efac;
+  --color-avatar-4-bg: #172554; --color-avatar-4-text: #93c5fd;
+  --color-avatar-5-bg: #431407; --color-avatar-5-text: #fb923c;
+
+  /* Shadows — deeper on dark slate */
+  --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.25);
+  --shadow-md:     0 8px 16px -10px rgba(0, 0, 0, 0.6), 0 3px 8px -4px rgba(0, 0, 0, 0.35);
+  --shadow-lg:     0 16px 30px -16px rgba(0, 0, 0, 0.7), 0 8px 14px -8px rgba(0, 0, 0, 0.35);
+  --shadow-lift:   0 24px 40px -22px rgba(0, 0, 0, 0.8), 0 10px 18px -10px rgba(0, 0, 0, 0.45);
+  --shadow-accent: 0 0 0 1px rgba(129, 140, 248, 0.4), 0 10px 22px -14px rgba(129, 140, 248, 0.5);
 }
