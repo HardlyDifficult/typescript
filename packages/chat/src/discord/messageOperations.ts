@@ -46,9 +46,7 @@ export async function updateMessage(
   } else {
     const limit = MESSAGE_LIMITS.discord;
     const text =
-      content.length > limit
-        ? `${content.slice(0, limit - 1)}\u2026`
-        : content;
+      content.length > limit ? `${content.slice(0, limit - 1)}\u2026` : content;
     await message.edit({ content: text, embeds: [] });
   }
 }
