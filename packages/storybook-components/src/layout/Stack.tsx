@@ -3,14 +3,12 @@ import type { ReactNode } from "react";
 type StackDirection = "vertical" | "horizontal";
 type StackGap = "xs" | "sm" | "md" | "lg";
 type StackAlign = "start" | "center" | "end" | "baseline" | "stretch";
-type StackColumns = 1 | 2 | 3 | 4;
 
 interface StackProps {
   direction?: StackDirection;
   gap?: StackGap;
   align?: StackAlign;
   wrap?: boolean;
-  columns?: StackColumns;
   children: ReactNode;
 }
 
@@ -29,26 +27,11 @@ const alignStyles: Record<StackAlign, string> = {
   stretch:  "items-stretch",
 };
 
-const columnStyles: Record<StackColumns, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-4",
-};
-
-/** Flex layout primitive for vertical and horizontal stacking. When `columns` is set, renders CSS grid instead. */
-export function Stack({ direction = "vertical", gap = "md", align = "stretch", wrap = false, columns, children }: StackProps) {
-  if (columns !== undefined) {
-    return (
-      <div className={`grid ${columnStyles[columns]} ${gapStyles[gap]}`}>
-        {children}
-      </div>
-    );
-  }
-
+/** Flex layout primitive for vertical and horizontal stacking. */
+export function Stack({ direction = "vertical", gap = "md", align = "stretch", wrap = false, children }: StackProps) {
   const dir = direction === "vertical" ? "flex-col" : "flex-row";
   const classes = [`flex ${dir} ${gapStyles[gap]} ${alignStyles[align]}`];
-  if (wrap) {classes.push("flex-wrap");}
+  if (wrap) { classes.push("flex-wrap"); }
   return (
     <div className={classes.join(" ")}>
       {children}

@@ -6,6 +6,10 @@ import { Button } from "../src/index.js";
 const meta: Meta<typeof Collapsible> = {
   title: "Navigation/Collapsible",
   component: Collapsible,
+  argTypes: {
+    title: { control: "text" },
+    defaultOpen: { control: "boolean" },
+  },
 };
 export default meta;
 
@@ -14,19 +18,27 @@ type Story = StoryObj<typeof Collapsible>;
 export const Default: Story = {
   args: {
     title: "Advanced Settings",
-    children: <Text>Hidden content is revealed when expanded.</Text>,
+    defaultOpen: false,
   },
+  render: (args) => (
+    // key forces remount when defaultOpen changes so the internal state resets
+    <Collapsible key={String(args.defaultOpen)} title={args.title} defaultOpen={args.defaultOpen}>
+      <Text>Hidden content is revealed when expanded.</Text>
+    </Collapsible>
+  ),
 };
 
 export const DefaultOpen: Story = {
-  args: {
-    title: "Build Details",
-    defaultOpen: true,
-    children: <Text>This section starts open.</Text>,
-  },
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Collapsible title="Build Details" defaultOpen>
+      <Text>This section starts open.</Text>
+    </Collapsible>
+  ),
 };
 
 export const WithActions: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Collapsible
       title="Deployment Log"

@@ -9,12 +9,26 @@ import { KeyValue } from "../src/index.js";
 const meta: Meta<typeof Section> = {
   title: "Layout/Section",
   component: Section,
+  argTypes: {
+    title: { control: "text" },
+    subtitle: { control: "text" },
+    children: { control: "text" },
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof Section>;
 
 export const Default: Story = {
+  args: {
+    title: "Recent activity",
+    subtitle: "Last 24 hours",
+    children: "Section content goes here.",
+  },
+};
+
+export const ActivityFeed: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Section title="Recent activity" subtitle="Last 24 hours">
       <Stack direction="vertical" gap="sm">
@@ -39,6 +53,7 @@ export const Default: Story = {
 };
 
 export const WithActions: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Section
       title="Team members"
@@ -60,6 +75,7 @@ export const WithActions: Story = {
 };
 
 export const WithFooter: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Section
       title="Build queue"

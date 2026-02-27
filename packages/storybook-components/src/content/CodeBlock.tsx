@@ -6,7 +6,6 @@ type CodeBlockVariant = "default" | "error";
 
 interface CodeBlockProps {
   children: string;
-  maxHeight?: string;
   variant?: CodeBlockVariant;
   wrap?: boolean;
   language?: string;
@@ -117,7 +116,6 @@ function highlightLine(line: string, language: string | undefined): ReactNode {
 /** Code block with line numbers, copy button, syntax highlighting, and optional language label. */
 export function CodeBlock({
   children,
-  maxHeight,
   variant = "default",
   wrap = false,
   language,
@@ -148,14 +146,13 @@ export function CodeBlock({
         <button
           type="button"
           onClick={handleCopy}
-          className="text-[10px] font-medium text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity duration-150 px-1.5 py-0.5 rounded-[var(--radius-sm)] hover:bg-[color:rgba(255,255,255,0.06)]"
+          className="text-[10px] font-medium text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)] opacity-40 group-hover:opacity-100 transition-opacity duration-150 px-1.5 py-0.5 rounded-[var(--radius-sm)] hover:bg-[color:rgba(255,255,255,0.06)]"
         >
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
       <pre
         className={`px-4 pb-3 pt-2 text-xs font-[family-name:var(--font-mono)] leading-[1.7] overflow-x-auto ${wrap ? "whitespace-pre-wrap" : ""}`}
-        style={maxHeight !== undefined && maxHeight !== "" ? { maxHeight, overflowY: "auto" } : undefined}
       >
         <code className="text-[color:var(--color-text)]">
           {lines.map((line, i) => (

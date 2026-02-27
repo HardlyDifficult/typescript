@@ -54,7 +54,7 @@ export function Collapsible({
 
         {/* Actions */}
         {actions !== undefined && (
-          <div onClick={handleActionsClick}>{actions}</div>
+          <div className="ml-3" onClick={handleActionsClick}>{actions}</div>
         )}
       </div>
 

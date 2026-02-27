@@ -2,22 +2,13 @@ import type { ReactNode } from "react";
 
 type TextVariant = "heading" | "subheading" | "body" | "caption" | "code";
 type TextColor = "default" | "secondary" | "muted" | "success" | "error" | "info" | "accent";
-type TextWeight = "normal" | "medium" | "semibold" | "bold";
-type TextAlign = "left" | "center" | "right";
 
 interface TextProps {
   variant?: TextVariant;
   color?: TextColor;
-  weight?: TextWeight;
-  mono?: boolean;
-  truncate?: boolean;
-  align?: TextAlign;
-  href?: string;
-  external?: boolean;
   children: ReactNode;
 }
 
-/** Layout/sizing classes per variant — no text color here (color prop handles it separately). */
 const variantBase: Record<TextVariant, string> = {
   heading:
     "text-xl font-semibold font-[family-name:var(--font-sans)] leading-[1.22] tracking-[var(--tracking-tighter)]",
@@ -31,7 +22,6 @@ const variantBase: Record<TextVariant, string> = {
     "text-xs font-[family-name:var(--font-mono)] bg-[color:rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded-[var(--radius-sm)]",
 };
 
-/** Default text color per variant (used when no `color` prop is provided). */
 const variantDefaultColor: Record<TextVariant, string> = {
   heading:    "text-[color:var(--color-text)]",
   subheading: "text-[color:var(--color-text-muted)]",
@@ -58,43 +48,9 @@ const colorStyles: Record<TextColor, string> = {
   accent:    "text-[color:var(--color-accent)]",
 };
 
-const weightStyles: Record<TextWeight, string> = {
-  normal:   "font-normal",
-  medium:   "font-medium",
-  semibold: "font-semibold",
-  bold:     "font-bold",
-};
-
-const alignStyles: Record<TextAlign, string> = {
-  left:   "text-left",
-  center: "text-center",
-  right:  "text-right",
-};
-
-/** Typography primitive with heading, body, caption, and code variants. When `href` is set, renders as an anchor. */
-export function Text({ variant = "body", color, weight, mono, truncate, align, href, external, children }: TextProps) {
-  if (href !== undefined) {
-    return (
-      <a
-        href={href}
-        className="text-[color:var(--color-accent)] no-underline hover:underline font-[family-name:var(--font-sans)] text-sm"
-        {...(external === true ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-      >
-        {children}
-      </a>
-    );
-  }
-
+/** Typography primitive with heading, subheading, body, caption, and code variants. */
+export function Text({ variant = "body", color, children }: TextProps) {
   const Element = defaultElements[variant];
-  const classes = [variantBase[variant]];
-
-  // Color prop wins over variant default color — only one text-color class applied.
-  classes.push(color !== undefined ? colorStyles[color] : variantDefaultColor[variant]);
-
-  if (weight !== undefined) {classes.push(weightStyles[weight]);}
-  if (mono === true) {classes.push("font-[family-name:var(--font-mono)]");}
-  if (truncate === true) {classes.push("overflow-hidden text-ellipsis whitespace-nowrap");}
-  if (align !== undefined) {classes.push(alignStyles[align]);}
-
-  return <Element className={classes.join(" ")}>{children}</Element>;
+  const colorClass = color !== undefined ? colorStyles[color] : variantDefaultColor[variant];
+  return <Element className={`${variantBase[variant]} ${colorClass}`}>{children}</Element>;
 }

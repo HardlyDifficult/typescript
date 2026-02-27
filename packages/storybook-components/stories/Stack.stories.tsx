@@ -6,56 +6,60 @@ import { Badge } from "../src/index.js";
 const meta: Meta<typeof Stack> = {
   title: "Layout/Stack",
   component: Stack,
+  argTypes: {
+    direction: {
+      control: "select",
+      options: ["vertical", "horizontal"],
+    },
+    gap: {
+      control: "select",
+      options: ["xs", "sm", "md", "lg"],
+    },
+    align: {
+      control: "select",
+      options: ["start", "center", "end", "baseline", "stretch"],
+    },
+    wrap: { control: "boolean" },
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof Stack>;
 
-export const Vertical: Story = {
+export const Default: Story = {
   args: {
     direction: "vertical",
     gap: "md",
-    children: (
-      <>
-        <Badge variant="success">Build passing</Badge>
-        <Badge variant="info">Tests running</Badge>
-        <Badge variant="warning">Review pending</Badge>
-      </>
-    ),
+    align: "stretch",
+    wrap: false,
+    children: "Stack content",
   },
+};
+
+export const Vertical: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack direction="vertical" gap="md">
+      <Badge variant="success">Build passing</Badge>
+      <Badge variant="info">Tests running</Badge>
+      <Badge variant="warning">Review pending</Badge>
+    </Stack>
+  ),
 };
 
 export const Horizontal: Story = {
-  args: {
-    direction: "horizontal",
-    gap: "sm",
-    children: (
-      <>
-        <Button variant="primary" size="sm">
-          Approve
-        </Button>
-        <Button variant="secondary" size="sm">
-          Request changes
-        </Button>
-        <Button variant="ghost" size="sm">
-          Dismiss
-        </Button>
-      </>
-    ),
-  },
-};
-
-export const GridColumns: Story = {
-  args: {
-    columns: 4,
-    gap: "md",
-    children: (
-      <>
-        <Badge variant="success">Cell 1</Badge>
-        <Badge variant="info">Cell 2</Badge>
-        <Badge variant="warning">Cell 3</Badge>
-        <Badge variant="error">Cell 4</Badge>
-      </>
-    ),
-  },
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack direction="horizontal" gap="sm">
+      <Button variant="primary" size="sm">
+        Approve
+      </Button>
+      <Button variant="secondary" size="sm">
+        Request changes
+      </Button>
+      <Button variant="ghost" size="sm">
+        Dismiss
+      </Button>
+    </Stack>
+  ),
 };

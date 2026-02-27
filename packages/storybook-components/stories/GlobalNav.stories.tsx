@@ -32,6 +32,23 @@ const meta: Meta<typeof GlobalNav> = {
   title: "Navigation/GlobalNav",
   component: GlobalNav,
   parameters: { layout: "fullscreen" },
+  argTypes: {
+    title: { control: "text" },
+    currentPath: {
+      control: "select",
+      options: ["/", "/products", "/orders", "/campaigns", "/analytics", "/team", "/settings"],
+    },
+    theme: {
+      control: "radio",
+      options: ["light", "dark"],
+    },
+    // Not meaningful to control in Storybook
+    categories: { table: { disable: true } },
+    indicators: { table: { disable: true } },
+    renderLink: { table: { disable: true } },
+    onSignOut: { table: { disable: true } },
+    onToggleTheme: { table: { disable: true } },
+  },
   args: {
     title: "Acme Store",
     categories: NAV_CATEGORIES,
@@ -49,6 +66,7 @@ export const Default: Story = {
 };
 
 export const WithIndicators: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     currentPath: "/orders",
     indicators: (
@@ -61,12 +79,14 @@ export const WithIndicators: Story = {
 };
 
 export const ActiveSubpage: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     currentPath: "/campaigns",
   },
 };
 
 export const Minimal: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     title: "Admin",
     categories: [

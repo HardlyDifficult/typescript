@@ -3,6 +3,7 @@
 @import "./tokens.css";
 
 :root {
+  font-size: 125%;
   color: var(--color-text);
   background:
     radial-gradient(circle at 5% 0%, #fff6fb 0%, transparent 38%),
