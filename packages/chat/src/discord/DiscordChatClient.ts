@@ -1,22 +1,13 @@
 import {
   Client,
-  type Message as DiscordMessage,
-  type User as DiscordUser,
   GatewayIntentBits,
-  type MessageReaction,
-  type PartialMessage,
-  type PartialMessageReaction,
-  type PartialUser,
   TextChannel,
   ThreadChannel,
 } from "discord.js";
 
 import { Channel, type ChannelOperations } from "../Channel.js";
 import { ChatClient } from "../ChatClient.js";
-import { MESSAGE_LIMITS } from "../constants.js";
-import { toDiscordEmbed } from "../outputters/discord.js";
 import type {
-  Attachment,
   DeleteMessageOptions,
   DisconnectCallback,
   DiscordConfig,
@@ -26,17 +17,26 @@ import type {
   MessageCallback,
   MessageContent,
   MessageData,
-  MessageEvent,
   MessageQueryOptions,
   ReactionCallback,
-  ReactionEvent,
   ThreadData,
 } from "../types.js";
-import { isDocument } from "../utils.js";
 
-import { buildMessagePayload } from "./buildMessagePayload.js";
+import {
+  setupConnectionResilience,
+  setupMessageListener,
+  setupReactionListener,
+} from "./eventHandlers.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
 import { getMessages as listMessages } from "./getMessages.js";
+import {
+  addReaction as addReactionOp,
+  deleteMessage as deleteMessageOp,
+  postMessage as postMessageOp,
+  removeAllReactions as removeAllReactionsOp,
+  removeReaction as removeReactionOp,
+  updateMessage as updateMessageOp,
+} from "./messageOperations.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
 /** Discord chat client implementation using discord.js. */
@@ -64,124 +64,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       ],
     });
 
-    this.setupReactionListener();
-    this.setupMessageListener();
-    this.setupConnectionResilience();
-  }
-
-  private setupReactionListener(): void {
-    this.client.on(
-      "messageReactionAdd",
-      (
-        reaction: MessageReaction | PartialMessageReaction,
-        user: DiscordUser | PartialUser
-      ): void => {
-        void (async (): Promise<void> => {
-          if (reaction.partial) {
-            try {
-              await reaction.fetch();
-            } catch (error) {
-              console.error("Failed to fetch partial reaction:", error);
-              return;
-            }
-          }
-
-          const { channelId } = reaction.message;
-          const callbacks = this.reactionListeners.get(channelId);
-          if (!callbacks || callbacks.size === 0) {
-            return;
-          }
-
-          const event: ReactionEvent = {
-            emoji: reaction.emoji.name ?? reaction.emoji.id ?? "",
-            user: { id: user.id, username: user.username ?? undefined },
-            messageId: reaction.message.id,
-            channelId,
-            timestamp: new Date(),
-          };
-
-          for (const callback of callbacks) {
-            try {
-              await callback(event);
-            } catch (error) {
-              console.error("Reaction callback error:", error);
-            }
-          }
-        })();
-      }
+    setupReactionListener(this.client, this.reactionListeners);
+    setupMessageListener(this.client, this.messageListeners);
+    setupConnectionResilience(
+      this.client,
+      this.disconnectCallbacks,
+      this.errorCallbacks
     );
-  }
-
-  private setupMessageListener(): void {
-    this.client.on(
-      "messageCreate",
-      (message: DiscordMessage | PartialMessage): void => {
-        void (async (): Promise<void> => {
-          if (message.author?.id === this.client.user?.id) {
-            return;
-          }
-
-          const { channelId } = message;
-          const callbacks = this.messageListeners.get(channelId);
-          if (!callbacks || callbacks.size === 0) {
-            return;
-          }
-
-          const attachments: Attachment[] = [];
-          for (const [, attachment] of message.attachments) {
-            attachments.push({
-              url: attachment.url,
-              name: attachment.name,
-              contentType: attachment.contentType ?? undefined,
-              size: attachment.size,
-            });
-          }
-
-          const event: MessageEvent = {
-            id: message.id,
-            content: message.cleanContent ?? message.content ?? "",
-            author: {
-              id: message.author?.id ?? "",
-              username: message.author?.username ?? undefined,
-            },
-            channelId,
-            timestamp: message.createdAt,
-            attachments,
-          };
-
-          for (const callback of callbacks) {
-            try {
-              await callback(event);
-            } catch (error) {
-              console.error("Message callback error:", error);
-            }
-          }
-        })();
-      }
-    );
-  }
-
-  private setupConnectionResilience(): void {
-    this.client.on("shardDisconnect", (_event, shardId) => {
-      const reason = `Shard ${String(shardId)} disconnected`;
-      for (const callback of this.disconnectCallbacks) {
-        void Promise.resolve(callback(reason)).catch((err: unknown) => {
-          console.error("Disconnect callback error:", err);
-        });
-      }
-    });
-
-    this.client.on("shardError", (error, shardId) => {
-      const wrappedError =
-        error instanceof Error
-          ? error
-          : new Error(`Shard ${String(shardId)} error: ${String(error)}`);
-      for (const callback of this.errorCallbacks) {
-        void Promise.resolve(callback(wrappedError)).catch((err: unknown) => {
-          console.error("Error callback error:", err);
-        });
-      }
-    });
   }
 
   private async fetchTextChannel(
@@ -238,9 +127,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
   ): Promise<MessageData> {
     const channel = await this.fetchTextChannel(channelId);
-    const payload = buildMessagePayload(content, options);
-    const message = await channel.send(payload);
-    return { id: message.id, channelId, platform: "discord" };
+    return postMessageOp(channel, channelId, content, options);
   }
 
   async updateMessage(
@@ -249,19 +136,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     content: MessageContent
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-
-    if (isDocument(content)) {
-      const embed = toDiscordEmbed(content.getBlocks());
-      await message.edit({ embeds: [embed] });
-    } else {
-      const limit = MESSAGE_LIMITS.discord;
-      const text =
-        content.length > limit
-          ? `${content.slice(0, limit - 1)}\u2026`
-          : content;
-      await message.edit({ content: text, embeds: [] });
-    }
+    return updateMessageOp(channel, messageId, content);
   }
 
   async deleteMessage(
@@ -270,11 +145,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     options?: DeleteMessageOptions
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    if (options?.cascadeReplies !== false && message.thread) {
-      await message.thread.delete();
-    }
-    await message.delete();
+    return deleteMessageOp(channel, messageId, options);
   }
 
   async addReaction(
@@ -283,8 +154,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     emoji: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    await message.react(emoji);
+    return addReactionOp(channel, messageId, emoji);
   }
 
   async removeReaction(
@@ -293,11 +163,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     emoji: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    const reaction = message.reactions.resolve(emoji);
-    if (reaction) {
-      await reaction.users.remove();
-    }
+    return removeReactionOp(channel, messageId, emoji);
   }
 
   async removeAllReactions(
@@ -305,8 +171,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    await message.reactions.removeAll();
+    return removeAllReactionsOp(channel, messageId);
   }
 
   subscribeToReactions(
