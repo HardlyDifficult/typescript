@@ -12,24 +12,38 @@ const meta: Meta<typeof Page> = {
   title: "Layout/Page",
   component: Page,
   parameters: { layout: "fullscreen" },
+  argTypes: {
+    maxWidth: {
+      control: "select",
+      options: ["sm", "md", "lg", "full"],
+    },
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof Page>;
 
 export const Default: Story = {
+  args: {
+    maxWidth: "lg",
+    children: "Page content",
+  },
+};
+
+export const Overview: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
-    <Page title="Dashboard">
+    <Page>
       <Stack direction="vertical" gap="md">
         <Text variant="caption" color="muted">
           Page provides the outer shell: a max-width container, consistent padding, and a title bar.
           Everything inside is your content.
         </Text>
-        <Stack columns={3} gap="md">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-4)" }}>
           <StatCard label="Open PRs" value="12" />
           <StatCard label="Merged today" value="5" trend="up" />
           <StatCard label="Failed checks" value="2" trend="down" />
-        </Stack>
+        </div>
         <Section title="Recent activity">
           <Card>
             <Stack direction="vertical" gap="sm">
@@ -50,8 +64,9 @@ export const Default: Story = {
 };
 
 export const WithHeaderActions: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
-    <Page title="Settings" headerActions={
+    <Page headerActions={
       <Stack direction="horizontal" gap="sm">
         <Button variant="secondary" size="sm">Cancel</Button>
         <Button size="sm">Save changes</Button>
@@ -67,8 +82,9 @@ export const WithHeaderActions: Story = {
 };
 
 export const NarrowWidth: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
-    <Page title="Login" maxWidth="sm">
+    <Page maxWidth="sm">
       <Card>
         <Stack direction="vertical" gap="sm">
           <Text variant="body">maxWidth=&quot;sm&quot; constrains the page to 640px, good for focused forms.</Text>

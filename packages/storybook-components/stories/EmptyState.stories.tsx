@@ -4,6 +4,10 @@ import { EmptyState } from "../src/index.js";
 const meta: Meta<typeof EmptyState> = {
   title: "Feedback/EmptyState",
   component: EmptyState,
+  argTypes: {
+    title: { control: "text" },
+    children: { control: "text" },
+  },
 };
 export default meta;
 
@@ -14,4 +18,13 @@ export const Default: Story = {
     title: "No sessions found",
     children: "Start a new session to see activity here.",
   },
+};
+
+export const WithIcon: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <EmptyState icon="📭" title="No messages" >
+      You're all caught up. New messages will appear here.
+    </EmptyState>
+  ),
 };

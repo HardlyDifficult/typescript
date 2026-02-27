@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 type PageMaxWidth = "sm" | "md" | "lg" | "full";
 
 interface PageProps {
-  title: string;
   headerActions?: ReactNode;
   maxWidth?: PageMaxWidth;
   children: ReactNode;
@@ -16,8 +15,8 @@ const maxWidthStyles: Record<PageMaxWidth, string> = {
   full: "max-w-full",
 };
 
-/** Page layout — title is shown in the global nav, not repeated inline. */
-export function Page({ title: _title, headerActions, maxWidth = "lg", children }: PageProps) {
+/** Page layout — provides a max-width container with consistent padding and an optional header action bar. */
+export function Page({ headerActions, maxWidth = "lg", children }: PageProps) {
   return (
     <div className="min-h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)] font-[family-name:var(--font-sans)]">
       <main className={`mx-auto px-6 py-5 ${maxWidthStyles[maxWidth]}`}>

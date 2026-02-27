@@ -4,6 +4,15 @@ import { ActivityItem, Badge, Button } from "../src/index.js";
 const meta: Meta<typeof ActivityItem> = {
   title: "Data/ActivityItem",
   component: ActivityItem,
+  argTypes: {
+    summary: { control: "text" },
+    timestamp: { control: "text" },
+    badge: { control: "text" },
+    variant: {
+      control: "select",
+      options: ["default", "success", "warning", "error", "info"],
+    },
+  },
 };
 export default meta;
 
@@ -113,8 +122,9 @@ export const WithIcon: Story = {
 };
 
 export const Timeline: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 700 }}>
+    <div style={{ maxWidth: 700, border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
       <ActivityItem
         summary="User sent message: check PR status"
         timestamp={new Date(Date.now() - 10 * 60 * 1000).toISOString()}
@@ -132,15 +142,21 @@ export const Timeline: Story = {
         badge="github"
         variant="success"
       >
-        <div style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-          <div>#42 fix-auth-flow - ready for review</div>
-          <div>#43 update-deps - CI failing</div>
-          <div>#44 add-dashboard-chat - draft</div>
+        <div style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <div>#42 fix-auth-flow — ready for review</div>
+          <div>#43 update-deps — CI failing</div>
+          <div>#44 add-dashboard-chat — draft</div>
         </div>
       </ActivityItem>
       <ActivityItem
+        summary="CI pipeline failed on #43"
+        timestamp={new Date(Date.now() - 8 * 60 * 1000).toISOString()}
+        badge="action"
+        variant="error"
+      />
+      <ActivityItem
         summary="Response sent to dashboard"
-        timestamp={new Date(Date.now() - 9 * 60 * 1000).toISOString()}
+        timestamp={new Date(Date.now() - 8 * 60 * 1000).toISOString()}
         badge="chat"
         variant="success"
       />

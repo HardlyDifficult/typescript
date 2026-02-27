@@ -6,6 +6,11 @@ import { Badge } from "../src/index.js";
 const meta: Meta<typeof Card> = {
   title: "Layout/Card",
   component: Card,
+  argTypes: {
+    title: { control: "text" },
+    interactive: { control: "boolean" },
+    children: { control: "text" },
+  },
 };
 export default meta;
 
@@ -13,30 +18,23 @@ type Story = StoryObj<typeof Card>;
 
 export const Default: Story = {
   args: {
-    children: (
-      <>
-        <Text variant="subheading">PR #142</Text>
-        <Text variant="body">Add retry logic to webhook delivery</Text>
-        <Text variant="caption">Opened 3 hours ago</Text>
-      </>
-    ),
+    children: "Card content goes here.",
   },
 };
 
-export const WithHeading: Story = {
-  args: {
-    children: (
-      <>
-        <Text variant="heading">Welcome</Text>
-        <Text variant="body">
-          This card has generous padding for hero-style content blocks.
-        </Text>
-      </>
-    ),
-  },
+export const PullRequest: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Card>
+      <Text variant="subheading">PR #142</Text>
+      <Text variant="body">Add retry logic to webhook delivery</Text>
+      <Text variant="caption">Opened 3 hours ago</Text>
+    </Card>
+  ),
 };
 
 export const WithTitle: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Card title="Team Members">
       <Text variant="body">Three engineers, one designer, and a product lead.</Text>
@@ -45,6 +43,7 @@ export const WithTitle: Story = {
 };
 
 export const WithTitleAndFooter: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Card
       title="Deployment Status"

@@ -1,12 +1,9 @@
-import type { ReactNode } from "react";
-
 type ChatMessageVariant = "user" | "bot";
 
 interface ChatMessageProps {
   content: string;
   timestamp: string;
   variant: ChatMessageVariant;
-  children?: ReactNode;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -37,7 +34,7 @@ const variantStyles: Record<ChatMessageVariant, { row: string; bubble: string; i
 };
 
 /** Chat message row. User messages align right with accent color; bot messages align left and muted. */
-export function ChatMessage({ content, timestamp, variant, children }: ChatMessageProps) {
+export function ChatMessage({ content, timestamp, variant }: ChatMessageProps) {
   const styles = variantStyles[variant];
 
   return (
@@ -58,7 +55,6 @@ export function ChatMessage({ content, timestamp, variant, children }: ChatMessa
         >
           {formatRelativeTime(timestamp)}
         </span>
-        {children !== undefined && <div className="mt-[var(--space-1)]">{children}</div>}
       </div>
     </div>
   );

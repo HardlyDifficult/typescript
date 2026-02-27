@@ -37,7 +37,7 @@ const variantToBadge: Record<ActivityItemVariant, "default" | "success" | "warni
 };
 
 const variantBorderLeft: Record<ActivityItemVariant, string> = {
-  default: "",
+  default: "border-l-2 border-l-[color:var(--color-border)]",
   success: "border-l-2 border-l-[color:var(--color-success)]",
   warning: "border-l-2 border-l-[color:var(--color-warning)]",
   error: "border-l-2 border-l-[color:var(--color-error)]",
@@ -58,7 +58,7 @@ export function ActivityItem({
   const hasDetail = children !== undefined;
 
   return (
-    <div className={`${variantBorderLeft[variant]} rounded-[var(--radius-sm)]`}>
+    <div className={`${variantBorderLeft[variant]} border-b border-b-[color:var(--color-border)] last:border-b-0`}>
       {/* Header row */}
       <div
         className={`flex items-center gap-[var(--space-2)] px-[var(--space-3)] py-[var(--space-2)] ${hasDetail ? "cursor-pointer hover:bg-[color:var(--color-bg-muted)]" : ""} transition-colors select-none rounded-[var(--radius-sm)]`}

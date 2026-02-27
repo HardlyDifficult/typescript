@@ -10,6 +10,8 @@ export { Section } from "./layout/Section.js";
 
 // content
 export { Text } from "./content/Text.js";
+export { Link } from "./content/Link.js";
+export { TextViewer } from "./content/TextViewer.js";
 export { Badge } from "./content/Badge.js";
 export { CodeBlock } from "./content/CodeBlock.js";
 export { ChatMessage } from "./content/ChatMessage.js";

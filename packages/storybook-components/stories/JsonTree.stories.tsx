@@ -5,6 +5,7 @@ const meta: Meta<typeof JsonTree> = {
   title: "Data/JsonTree",
   component: JsonTree,
   argTypes: {
+    label: { control: "text" },
     defaultExpandDepth: { control: { type: "range", min: 0, max: 5, step: 1 } },
   },
 };
@@ -12,7 +13,7 @@ export default meta;
 
 type Story = StoryObj<typeof JsonTree>;
 
-export const SimpleObject: Story = {
+export const Default: Story = {
   args: {
     data: {
       name: "workflow-123",

@@ -4,6 +4,14 @@ import { DataTable } from "../src/index.js";
 const meta: Meta<typeof DataTable> = {
   title: "Data/DataTable",
   component: DataTable,
+  argTypes: {
+    columns: { control: "object" },
+    rows: { control: "object" },
+    rowKey: { control: "text" },
+    selectable: { control: "boolean" },
+    emptyMessage: { control: "text" },
+    onSelectionChange: { action: "onSelectionChange" },
+  },
 };
 export default meta;
 
@@ -28,6 +36,7 @@ export const Default: Story = {
 };
 
 export const Selectable: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     columns: [
       { key: "name", header: "Name" },
@@ -40,6 +49,7 @@ export const Selectable: Story = {
 };
 
 export const Empty: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     columns: [
       { key: "name", header: "Name" },

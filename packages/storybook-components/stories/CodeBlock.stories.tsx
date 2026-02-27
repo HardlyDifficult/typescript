@@ -4,12 +4,31 @@ import { CodeBlock } from "../src/index.js";
 const meta: Meta<typeof CodeBlock> = {
   title: "Content/CodeBlock",
   component: CodeBlock,
+  argTypes: {
+    variant: {
+      control: "select",
+      options: ["default", "error"],
+    },
+    language: { control: "text" },
+    wrap: { control: "boolean" },
+    children: { control: "text" },
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof CodeBlock>;
 
+export const Default: Story = {
+  args: {
+    variant: "default",
+    language: "typescript",
+    wrap: false,
+    children: `function greet(name: string): string {\n  return \`Hello, \${name}!\`;\n}`,
+  },
+};
+
 export const TypeScript: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     language: "typescript",
     children: `import { Stack, Text } from "@hardlydifficult/storybook-components";
@@ -42,23 +61,8 @@ export default App;`,
   },
 };
 
-export const JavaScript: Story = {
-  args: {
-    language: "js",
-    children: `const express = require('express');
-const app = express();
-
-// Start server on port 3000
-app.get('/api/health', async (req, res) => {
-  const status = { ok: true, uptime: 42.5 };
-  res.json(status);
-});
-
-app.listen(3000);`,
-  },
-};
-
 export const PlainText: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     children: `This is plain text without any syntax highlighting.
 It still has line numbers and the copy button.
@@ -66,7 +70,19 @@ No language prop is set.`,
   },
 };
 
+export const ErrorVariant: Story = {
+  parameters: { controls: { disable: true } },
+  args: {
+    variant: "error",
+    language: "typescript",
+    children: `TypeError: Cannot read properties of undefined (reading 'map')
+    at App (App.tsx:12:18)
+    at renderWithHooks (react-dom.development.js:14985:18)`,
+  },
+};
+
 export const WithWrap: Story = {
+  parameters: { controls: { disable: true } },
   args: {
     language: "json",
     wrap: true,
