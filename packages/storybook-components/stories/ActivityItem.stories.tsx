@@ -18,17 +18,20 @@ export default meta;
 
 type Story = StoryObj<typeof ActivityItem>;
 
+// Fixed reference point for deterministic screenshots
+const NOW = new Date("2025-01-01T12:00:00.000Z");
+
 export const Default: Story = {
   args: {
     summary: "Worker started processing request",
-    timestamp: new Date(Date.now() - 30 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 30 * 1000).toISOString(),
   },
 };
 
 export const WithBadge: Story = {
   args: {
     summary: "Claude API call completed",
-    timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 2 * 60 * 1000).toISOString(),
     badge: "claude_api",
     variant: "info",
   },
@@ -37,7 +40,7 @@ export const WithBadge: Story = {
 export const Success: Story = {
   args: {
     summary: "PR #42 merged successfully",
-    timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 5 * 60 * 1000).toISOString(),
     badge: "github",
     variant: "success",
   },
@@ -46,7 +49,7 @@ export const Success: Story = {
 export const Error: Story = {
   args: {
     summary: "CI pipeline failed: 3 tests failing",
-    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 10 * 60 * 1000).toISOString(),
     badge: "action",
     variant: "error",
   },
@@ -55,7 +58,7 @@ export const Error: Story = {
 export const Warning: Story = {
   args: {
     summary: "Rate limit approaching: 80% used",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 15 * 60 * 1000).toISOString(),
     variant: "warning",
   },
 };
@@ -63,7 +66,7 @@ export const Warning: Story = {
 export const WithActions: Story = {
   args: {
     summary: "Running: fix-ci-pipeline",
-    timestamp: new Date(Date.now() - 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 60 * 1000).toISOString(),
     badge: "worker",
     variant: "info",
     actions: (
@@ -77,7 +80,7 @@ export const WithActions: Story = {
 export const Expandable: Story = {
   args: {
     summary: "Claude response received (1,247 tokens)",
-    timestamp: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 3 * 60 * 1000).toISOString(),
     badge: "claude_api",
     variant: "info",
     children: (
@@ -115,7 +118,7 @@ export const WithIcon: Story = {
       </svg>
     ),
     summary: "Push received: feature/add-chat-interface (3 commits)",
-    timestamp: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    timestamp: new Date(NOW.getTime() - 20 * 60 * 1000).toISOString(),
     badge: "github",
     variant: "default",
   },
@@ -127,18 +130,18 @@ export const Timeline: Story = {
     <div style={{ maxWidth: 700, border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
       <ActivityItem
         summary="User sent message: check PR status"
-        timestamp={new Date(Date.now() - 10 * 60 * 1000).toISOString()}
+        timestamp={new Date(NOW.getTime() - 10 * 60 * 1000).toISOString()}
         badge="chat"
         variant="info"
       />
       <ActivityItem
         summary="Fetching open PRs from GitHub..."
-        timestamp={new Date(Date.now() - 9 * 60 * 1000).toISOString()}
+        timestamp={new Date(NOW.getTime() - 9 * 60 * 1000).toISOString()}
         badge="github"
       />
       <ActivityItem
         summary="Found 3 open PRs"
-        timestamp={new Date(Date.now() - 9 * 60 * 1000).toISOString()}
+        timestamp={new Date(NOW.getTime() - 9 * 60 * 1000).toISOString()}
         badge="github"
         variant="success"
       >
@@ -150,13 +153,13 @@ export const Timeline: Story = {
       </ActivityItem>
       <ActivityItem
         summary="CI pipeline failed on #43"
-        timestamp={new Date(Date.now() - 8 * 60 * 1000).toISOString()}
+        timestamp={new Date(NOW.getTime() - 8 * 60 * 1000).toISOString()}
         badge="action"
         variant="error"
       />
       <ActivityItem
         summary="Response sent to dashboard"
-        timestamp={new Date(Date.now() - 8 * 60 * 1000).toISOString()}
+        timestamp={new Date(NOW.getTime() - 8 * 60 * 1000).toISOString()}
         badge="chat"
         variant="success"
       />
