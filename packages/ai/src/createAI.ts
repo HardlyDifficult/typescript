@@ -82,7 +82,7 @@ function createChatCall(
     tracker.record(usage);
 
     logger.debug("AI response", {
-      responseLength: (result.text ?? "").length,
+      responseLength: ((result.text as string | undefined) ?? "").length,
       durationMs,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
