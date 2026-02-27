@@ -15,16 +15,16 @@
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "3.0.46",
+    "@ai-sdk/anthropic": "3.0.49",
     "@hardlydifficult/date-time": "file:../date-time",
     "@hardlydifficult/logger": "file:../logger",
-    "ai": "6.0.97",
+    "ai": "6.0.104",
     "ollama-ai-provider-v2": "3.3.1",
     "undici": "7.22.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@types/node": "25.3.0",
+    "@types/node": "25.3.2",
     "typescript": "5.9.3",
     "vitest": "4.0.18",
     "@vitest/coverage-v8": "4.0.18"
