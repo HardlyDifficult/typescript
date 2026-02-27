@@ -281,16 +281,14 @@ describe("DiscordChatClient", () => {
     // messages.fetch is called two ways:
     //   fetch(messageId: string) → single message (updateMessage, deleteMessage, etc.)
     //   fetch({ limit }) → collection/Map (getMessages, dedup check)
-    mockTextChannelData.messages.fetch.mockImplementation(
-      (arg: unknown) => {
-        if (typeof arg === "object" && arg !== null) {
-          // Collection fetch (getMessages) — return empty Map by default
-          return Promise.resolve(new Map());
-        }
-        // Single message fetch
-        return Promise.resolve(mockDiscordMessage);
+    mockTextChannelData.messages.fetch.mockImplementation((arg: unknown) => {
+      if (typeof arg === "object" && arg !== null) {
+        // Collection fetch (getMessages) — return empty Map by default
+        return Promise.resolve(new Map());
       }
-    );
+      // Single message fetch
+      return Promise.resolve(mockDiscordMessage);
+    });
     mockDiscordMessage.react.mockResolvedValue(undefined);
     mockDiscordMessage.delete.mockResolvedValue(undefined);
     mockDiscordMessage.thread = null;
