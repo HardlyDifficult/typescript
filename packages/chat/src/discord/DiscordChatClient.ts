@@ -38,6 +38,11 @@ import { isDocument } from "../utils.js";
 import { buildMessagePayload } from "./buildMessagePayload.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
 import { getMessages as listMessages } from "./getMessages.js";
+import {
+  addReaction as addReactionOp,
+  removeAllReactions as removeAllReactionsOp,
+  removeReaction as removeReactionOp,
+} from "./reactionOperations.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
 /**
@@ -341,8 +346,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     emoji: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    await message.react(emoji);
+    await addReactionOp(channel, messageId, emoji);
   }
 
   /**
@@ -357,11 +361,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     emoji: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    const reaction = message.reactions.resolve(emoji);
-    if (reaction) {
-      await reaction.users.remove();
-    }
+    await removeReactionOp(channel, messageId, emoji);
   }
 
   /**
@@ -374,8 +374,7 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
-    const message = await channel.messages.fetch(messageId);
-    await message.reactions.removeAll();
+    await removeAllReactionsOp(channel, messageId);
   }
 
   /**
