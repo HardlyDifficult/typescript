@@ -6,6 +6,14 @@ type TextColor = "default" | "secondary" | "muted" | "success" | "error" | "info
 interface TextProps {
   variant?: TextVariant;
   color?: TextColor;
+  weight?: "medium" | "semibold" | "bold";
+  mono?: boolean;
+  truncate?: boolean;
+  align?: "left" | "center" | "right";
+  /** When provided, renders as an anchor tag */
+  href?: string;
+  /** Opens the link in a new tab */
+  external?: boolean;
   children: ReactNode;
 }
 
@@ -48,9 +56,38 @@ const colorStyles: Record<TextColor, string> = {
   accent:    "text-[color:var(--color-accent)]",
 };
 
-/** Typography primitive with heading, subheading, body, caption, and code variants. */
-export function Text({ variant = "body", color, children }: TextProps) {
-  const Element = defaultElements[variant];
+const weightStyles: Record<"medium" | "semibold" | "bold", string> = {
+  medium: "font-medium",
+  semibold: "font-semibold",
+  bold: "font-bold",
+};
+
+const alignStyles: Record<"left" | "center" | "right", string> = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+};
+
+/** Typography primitive with heading, subheading, body, caption, and code variants. Renders as an anchor when `href` is provided. */
+export function Text({ variant = "body", color, weight, mono = false, truncate = false, align, href, external = false, children }: TextProps) {
   const colorClass = color !== undefined ? colorStyles[color] : variantDefaultColor[variant];
-  return <Element className={`${variantBase[variant]} ${colorClass}`}>{children}</Element>;
+  const weightClass = weight !== undefined ? weightStyles[weight] : "";
+  const monoClass = mono ? "font-[family-name:var(--font-mono)]" : "";
+  const truncateClass = truncate ? "truncate" : "";
+  const alignClass = align !== undefined ? alignStyles[align] : "";
+  const cls = `${variantBase[variant]} ${colorClass} ${weightClass} ${monoClass} ${truncateClass} ${alignClass}`;
+  if (href !== undefined) {
+    return (
+      <a
+        className={`${cls} underline`}
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+      >
+        {children}
+      </a>
+    );
+  }
+  const Element = defaultElements[variant];
+  return <Element className={cls}>{children}</Element>;
 }

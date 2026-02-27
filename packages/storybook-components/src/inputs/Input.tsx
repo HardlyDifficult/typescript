@@ -12,6 +12,7 @@ interface InputProps {
   type?: string;
   multiline?: boolean;
   rows?: number;
+  mono?: boolean;
 }
 
 const base =
@@ -32,8 +33,10 @@ export function Input({
   type = "text",
   multiline = false,
   rows = 4,
+  mono = false,
 }: InputProps) {
-  const cls = `${base} ${sizeStyles[size]}`;
+  const monoClass = mono ? "font-[family-name:var(--font-mono)]" : "";
+  const cls = `${base} ${sizeStyles[size]} ${monoClass}`;
 
   if (multiline) {
     return (
