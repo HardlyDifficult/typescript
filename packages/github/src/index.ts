@@ -53,4 +53,6 @@ export {
   parseGitHubDirectoryUrl,
   type GitHubFileInfo,
   type GitHubDirectoryInfo,
+  parseGitHubRepoReference,
+  type GitHubRepoInfo,
 } from "./githubUrlParser.js";

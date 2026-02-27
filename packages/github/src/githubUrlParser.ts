@@ -16,6 +16,62 @@ export interface GitHubDirectoryInfo {
   dirPath: string;
 }
 
+export interface GitHubRepoInfo {
+  owner: string;
+  repo: string;
+}
+
+/**
+ * Parse a GitHub repo reference from one of these formats:
+ * - owner/repo
+ * - github.com/owner/repo
+ * - https://github.com/owner/repo(.git)
+ * - https://github.com/owner/repo/pull/123
+ */
+export function parseGitHubRepoReference(value: string): GitHubRepoInfo | null {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  const direct = /^([^/\s]+)\/([^/\s]+)$/.exec(trimmed);
+  if (direct) {
+    return { owner: direct[1], repo: direct[2] };
+  }
+
+  let normalized: string | null;
+  if (trimmed.startsWith("github.com/")) {
+    normalized = `https://${trimmed}`;
+  } else if (/^https?:\/\//.test(trimmed)) {
+    normalized = trimmed;
+  } else {
+    normalized = null;
+  }
+  if (normalized === null) {
+    return null;
+  }
+
+  try {
+    const url = new URL(normalized);
+    if (url.hostname !== "github.com") {
+      return null;
+    }
+
+    const [owner, rawRepo] = url.pathname
+      .split("/")
+      .filter((segment) => segment !== "")
+      .slice(0, 2);
+    if (!owner || !rawRepo) {
+      return null;
+    }
+
+    const repo = rawRepo.endsWith(".git") ? rawRepo.slice(0, -4) : rawRepo;
+    return repo === "" ? null : { owner, repo };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse a GitHub file URL.
  * Format: https://github.com/owner/repo/blob/branch/path/to/file.ts
