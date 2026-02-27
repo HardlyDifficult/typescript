@@ -16,18 +16,18 @@
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('storybook-static', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
+    "react": ">=19.2.4",
+    "react-dom": ">=19.2.4",
     "react-markdown": "10.1.0"
   },
   "devDependencies": {
-    "@storybook/react-vite": "10.2.11",
+    "@storybook/react-vite": "10.2.13",
     "@tailwindcss/vite": "4.2.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.4",
-    "agent-browser": "0.14.0",
-    "storybook": "10.2.11",
+    "agent-browser": "0.15.1",
+    "storybook": "10.2.13",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vite": "7.3.1"
