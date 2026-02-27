@@ -38,19 +38,12 @@ import { isDocument } from "../utils.js";
 import { buildMessagePayload } from "./buildMessagePayload.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
 import { getMessages as listMessages } from "./getMessages.js";
+import {
+  addReaction as addReactionOp,
+  removeAllReactions as removeAllReactionsOp,
+  removeReaction as removeReactionOp,
+} from "./reactionOperations.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
-
-/** Discord API error code for a message that no longer exists */
-const UNKNOWN_MESSAGE_CODE = 10008;
-
-function isUnknownMessageError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === UNKNOWN_MESSAGE_CODE
-  );
-}
 
 /**
  * Discord chat client implementation using discord.js
@@ -352,16 +345,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     emoji: string
   ): Promise<void> {
-    try {
-      const channel = await this.fetchTextChannel(channelId);
-      const message = await channel.messages.fetch(messageId);
-      await message.react(emoji);
-    } catch (error: unknown) {
-      if (isUnknownMessageError(error)) {
-        return;
-      }
-      throw error;
-    }
+    const channel = await this.fetchTextChannel(channelId);
+    await addReactionOp(channel, messageId, emoji);
   }
 
   /**
@@ -375,19 +360,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     emoji: string
   ): Promise<void> {
-    try {
-      const channel = await this.fetchTextChannel(channelId);
-      const message = await channel.messages.fetch(messageId);
-      const reaction = message.reactions.resolve(emoji);
-      if (reaction) {
-        await reaction.users.remove();
-      }
-    } catch (error: unknown) {
-      if (isUnknownMessageError(error)) {
-        return;
-      }
-      throw error;
-    }
+    const channel = await this.fetchTextChannel(channelId);
+    await removeReactionOp(channel, messageId, emoji);
   }
 
   /**
@@ -399,16 +373,8 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     messageId: string,
     channelId: string
   ): Promise<void> {
-    try {
-      const channel = await this.fetchTextChannel(channelId);
-      const message = await channel.messages.fetch(messageId);
-      await message.reactions.removeAll();
-    } catch (error: unknown) {
-      if (isUnknownMessageError(error)) {
-        return;
-      }
-      throw error;
-    }
+    const channel = await this.fetchTextChannel(channelId);
+    await removeAllReactionsOp(channel, messageId);
   }
 
   /**

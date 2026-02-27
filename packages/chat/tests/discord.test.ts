@@ -735,7 +735,9 @@ describe("DiscordChatClient", () => {
 
     it("should silently ignore Unknown Message errors", async () => {
       await client.connect(channelId);
-      const error = Object.assign(new Error("Unknown Message"), { code: 10008 });
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
 
       await expect(
@@ -1186,7 +1188,9 @@ describe("DiscordChatClient", () => {
 
     it("should silently ignore Unknown Message errors", async () => {
       await client.connect(channelId);
-      const error = Object.assign(new Error("Unknown Message"), { code: 10008 });
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
 
       await expect(
@@ -1230,7 +1234,9 @@ describe("DiscordChatClient", () => {
 
     it("should silently ignore Unknown Message errors", async () => {
       await client.connect(channelId);
-      const error = Object.assign(new Error("Unknown Message"), { code: 10008 });
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
 
       await expect(
