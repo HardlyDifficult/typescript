@@ -217,7 +217,11 @@ describe("Channel.postMessage dedup", () => {
 
     const msg = await channel.postMessage("hello");
 
-    expect(ops.postMessage).toHaveBeenCalledWith("channel-1", "hello", undefined);
+    expect(ops.postMessage).toHaveBeenCalledWith(
+      "channel-1",
+      "hello",
+      undefined
+    );
     expect(ops.updateMessage).not.toHaveBeenCalled();
     expect(msg.id).toBe("new-1");
   });

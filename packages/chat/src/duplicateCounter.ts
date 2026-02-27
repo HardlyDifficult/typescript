@@ -1,4 +1,8 @@
-import type { MessageContent, MessageData, MessageQueryOptions } from "./types.js";
+import type {
+  MessageContent,
+  MessageData,
+  MessageQueryOptions,
+} from "./types.js";
 import { isDocument } from "./utils.js";
 
 const DUPLICATE_SUFFIX_RE = / x(\d+)$/;
@@ -34,9 +38,7 @@ export function parseDuplicateCount(content: string): {
  */
 export async function tryDeduplicateMessage(
   content: MessageContent,
-  getLastBotMessage: (
-    options: MessageQueryOptions
-  ) => Promise<MessageData[]>,
+  getLastBotMessage: (options: MessageQueryOptions) => Promise<MessageData[]>,
   updateMessage: (
     messageId: string,
     channelId: string,

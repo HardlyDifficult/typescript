@@ -357,7 +357,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     autoArchiveDuration?: number
   ): Promise<ThreadData> {
     const channel = await this.fetchTextChannel(channelId);
-    return startThread(channel, messageId, channelId, name, autoArchiveDuration);
+    return startThread(
+      channel,
+      messageId,
+      channelId,
+      name,
+      autoArchiveDuration
+    );
   }
 
   async bulkDelete(channelId: string, count: number): Promise<number> {
