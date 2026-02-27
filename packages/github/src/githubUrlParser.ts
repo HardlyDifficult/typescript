@@ -28,9 +28,7 @@ export interface GitHubRepoInfo {
  * - https://github.com/owner/repo(.git)
  * - https://github.com/owner/repo/pull/123
  */
-export function parseGitHubRepoReference(
-  value: string
-): GitHubRepoInfo | null {
+export function parseGitHubRepoReference(value: string): GitHubRepoInfo | null {
   const trimmed = value.trim();
   if (trimmed === "") {
     return null;
@@ -41,12 +39,14 @@ export function parseGitHubRepoReference(
     return { owner: direct[1], repo: direct[2] };
   }
 
-  const normalized =
-    /^https?:\/\//.test(trimmed) || trimmed.startsWith("github.com/")
-      ? trimmed.startsWith("github.com/")
-        ? `https://${trimmed}`
-        : trimmed
-      : null;
+  let normalized: string | null;
+  if (trimmed.startsWith("github.com/")) {
+    normalized = `https://${trimmed}`;
+  } else if (/^https?:\/\//.test(trimmed)) {
+    normalized = trimmed;
+  } else {
+    normalized = null;
+  }
   if (normalized === null) {
     return null;
   }
