@@ -2001,6 +2001,10 @@ describe("PRWatcher", () => {
 });
 
 describe("repo normalization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("normalizes repository URLs passed in options", async () => {
     const pr = makePR();
     (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
