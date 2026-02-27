@@ -31,7 +31,6 @@ import type {
   ReactionCallback,
   ReactionEvent,
   ThreadData,
-  User,
 } from "../types.js";
 import { isDocument } from "../utils.js";
 
@@ -40,9 +39,7 @@ import { fetchChannelMembers } from "./fetchChannelMembers.js";
 import { getMessages as listMessages } from "./getMessages.js";
 import { deleteThread, getThreads, startThread } from "./threadOperations.js";
 
-/**
- * Discord chat client implementation using discord.js
- */
+/** Discord chat client implementation using discord.js. */
 export class DiscordChatClient extends ChatClient implements ChannelOperations {
   private client: Client;
   private reactionListeners = new Map<string, Set<ReactionCallback>>();
@@ -57,24 +54,21 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     this.token = config.token ?? process.env.DISCORD_TOKEN ?? "";
     this.guildId = config.guildId ?? process.env.DISCORD_GUILD_ID ?? "";
 
-    const intents = [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMembers,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.GuildMessageReactions,
-      GatewayIntentBits.MessageContent,
-    ];
-
-    this.client = new Client({ intents });
+    this.client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent,
+      ],
+    });
 
     this.setupReactionListener();
     this.setupMessageListener();
     this.setupConnectionResilience();
   }
 
-  /**
-   * Set up the global reaction listener that routes events to channel-specific callbacks
-   */
   private setupReactionListener(): void {
     this.client.on(
       "messageReactionAdd",
@@ -83,7 +77,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
         user: DiscordUser | PartialUser
       ): void => {
         void (async (): Promise<void> => {
-          // Handle partial reactions
           if (reaction.partial) {
             try {
               await reaction.fetch();
@@ -95,19 +88,13 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
           const { channelId } = reaction.message;
           const callbacks = this.reactionListeners.get(channelId);
-
           if (!callbacks || callbacks.size === 0) {
             return;
           }
 
-          const reactionUser: User = {
-            id: user.id,
-            username: user.username ?? undefined,
-          };
-
           const event: ReactionEvent = {
             emoji: reaction.emoji.name ?? reaction.emoji.id ?? "",
-            user: reactionUser,
+            user: { id: user.id, username: user.username ?? undefined },
             messageId: reaction.message.id,
             channelId,
             timestamp: new Date(),
@@ -125,30 +112,20 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     );
   }
 
-  /**
-   * Set up the global message listener that routes events to channel-specific callbacks
-   */
   private setupMessageListener(): void {
     this.client.on(
       "messageCreate",
       (message: DiscordMessage | PartialMessage): void => {
         void (async (): Promise<void> => {
-          // Ignore messages from the bot itself
           if (message.author?.id === this.client.user?.id) {
             return;
           }
 
           const { channelId } = message;
           const callbacks = this.messageListeners.get(channelId);
-
           if (!callbacks || callbacks.size === 0) {
             return;
           }
-
-          const author: User = {
-            id: message.author?.id ?? "",
-            username: message.author?.username ?? undefined,
-          };
 
           const attachments: Attachment[] = [];
           for (const [, attachment] of message.attachments) {
@@ -162,11 +139,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
 
           const event: MessageEvent = {
             id: message.id,
-            // Use cleanContent to resolve Discord mentions (e.g. <@170624100316741632>)
-            // to human-readable names (e.g. @hardlydifficult) before forwarding to
-            // command handlers and AI prompts.
             content: message.cleanContent ?? message.content ?? "",
-            author,
+            author: {
+              id: message.author?.id ?? "",
+              username: message.author?.username ?? undefined,
+            },
             channelId,
             timestamp: message.createdAt,
             attachments,
@@ -184,10 +161,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     );
   }
 
-  /**
-   * Set up connection event forwarding.
-   * discord.js handles reconnection internally — these callbacks are for observability.
-   */
   private setupConnectionResilience(): void {
     this.client.on("shardDisconnect", (_event, shardId) => {
       const reason = `Shard ${String(shardId)} disconnected`;
@@ -246,9 +219,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     });
   }
 
-  /**
-   * Disconnect from Discord
-   */
   async disconnect(): Promise<void> {
     this.reactionListeners.clear();
     this.messageListeners.clear();
@@ -258,13 +228,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     await this.client.destroy();
   }
 
-  /**
-   * Post a message to a Discord channel
-   * @param channelId - Channel to post to
-   * @param content - Message content (string or Document)
-   * @param options - Optional options including threadTs for replies
-   * @returns Message data with ID
-   */
   async postMessage(
     channelId: string,
     content: MessageContent,
@@ -280,12 +243,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return { id: message.id, channelId, platform: "discord" };
   }
 
-  /**
-   * Update a message in a Discord channel
-   * @param messageId - ID of the message to update
-   * @param channelId - Channel containing the message
-   * @param content - New message content (string or Document)
-   */
   async updateMessage(
     messageId: string,
     channelId: string,
@@ -298,7 +255,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       const embed = toDiscordEmbed(content.getBlocks());
       await message.edit({ embeds: [embed] });
     } else {
-      // Clear embeds when switching to text; truncate if over limit
       const limit = MESSAGE_LIMITS.discord;
       const text =
         content.length > limit
@@ -308,11 +264,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
   }
 
-  /**
-   * Delete a message and its thread replies from a Discord channel
-   * @param messageId - ID of the message to delete
-   * @param channelId - Channel containing the message
-   */
   async deleteMessage(
     messageId: string,
     channelId: string,
@@ -320,21 +271,12 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   ): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
     const message = await channel.messages.fetch(messageId);
-
-    // Delete the thread (and all its messages) if one exists
     if (options?.cascadeReplies !== false && message.thread) {
       await message.thread.delete();
     }
-
     await message.delete();
   }
 
-  /**
-   * Add a reaction to a message
-   * @param messageId - Message to react to
-   * @param channelId - Channel containing the message
-   * @param emoji - Emoji to add
-   */
   async addReaction(
     messageId: string,
     channelId: string,
@@ -345,12 +287,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     await message.react(emoji);
   }
 
-  /**
-   * Remove the bot's own reaction from a message
-   * @param messageId - Message to remove reaction from
-   * @param channelId - Channel containing the message
-   * @param emoji - Emoji to remove
-   */
   async removeReaction(
     messageId: string,
     channelId: string,
@@ -364,11 +300,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     }
   }
 
-  /**
-   * Remove all reactions from a message
-   * @param messageId - Message to clear reactions from
-   * @param channelId - Channel containing the message
-   */
   async removeAllReactions(
     messageId: string,
     channelId: string
@@ -378,12 +309,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     await message.reactions.removeAll();
   }
 
-  /**
-   * Subscribe to reaction events on a channel
-   * @param channelId - Channel to monitor
-   * @param callback - Function to call when reactions are added
-   * @returns Unsubscribe function
-   */
   subscribeToReactions(
     channelId: string,
     callback: ReactionCallback
@@ -394,7 +319,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.reactionListeners.set(channelId, callbacks);
     }
     callbacks.add(callback);
-
     return () => {
       callbacks.delete(callback);
       if (callbacks.size === 0) {
@@ -403,12 +327,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     };
   }
 
-  /**
-   * Subscribe to incoming message events on a channel
-   * @param channelId - Channel to monitor
-   * @param callback - Function to call when messages are received
-   * @returns Unsubscribe function
-   */
   subscribeToMessages(
     channelId: string,
     callback: MessageCallback
@@ -419,7 +337,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
       this.messageListeners.set(channelId, callbacks);
     }
     callbacks.add(callback);
-
     return () => {
       callbacks.delete(callback);
       if (callbacks.size === 0) {
@@ -428,23 +345,11 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     };
   }
 
-  /**
-   * Send a typing indicator in a Discord channel
-   * @param channelId - Channel to send typing indicator in
-   */
   async sendTyping(channelId: string): Promise<void> {
     const channel = await this.fetchTextChannel(channelId);
     await channel.sendTyping();
   }
 
-  /**
-   * Create a thread from a message
-   * @param messageId - Message to create thread from
-   * @param channelId - Channel containing the message
-   * @param name - Thread name
-   * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
-   * @returns Thread data
-   */
   async startThread(
     messageId: string,
     channelId: string,
@@ -452,21 +357,9 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     autoArchiveDuration?: number
   ): Promise<ThreadData> {
     const channel = await this.fetchTextChannel(channelId);
-    return startThread(
-      channel,
-      messageId,
-      channelId,
-      name,
-      autoArchiveDuration
-    );
+    return startThread(channel, messageId, channelId, name, autoArchiveDuration);
   }
 
-  /**
-   * Bulk delete messages in a Discord channel
-   * @param channelId - Channel to delete messages from
-   * @param count - Number of recent messages to delete (max 100)
-   * @returns Number of messages actually deleted
-   */
   async bulkDelete(channelId: string, count: number): Promise<number> {
     const channel = await this.fetchTextChannel(channelId);
     if (!(channel instanceof TextChannel)) {
@@ -484,11 +377,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return listMessages(channel, channelId, options, this.me?.id);
   }
 
-  /**
-   * Get all threads (active and archived) in a Discord channel
-   * @param channelId - Channel to get threads from
-   * @returns Array of thread data
-   */
   async getThreads(channelId: string): Promise<ThreadData[]> {
     const channel = await this.fetchTextChannel(channelId);
     if (!(channel instanceof TextChannel)) {
@@ -497,18 +385,10 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return getThreads(channel, channelId);
   }
 
-  /**
-   * Delete a thread in a Discord channel
-   * @param threadId - ID of the thread to delete
-   */
   async deleteThread(threadId: string, _channelId: string): Promise<void> {
     await deleteThread(this.client, threadId);
   }
 
-  /**
-   * Get messages from a thread.
-   * In Discord, threads are channels — reuse getMessages with the thread ID.
-   */
   async getThreadMessages(
     threadId: string,
     _channelId: string,
@@ -517,10 +397,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return this.getMessages(threadId, options);
   }
 
-  /**
-   * Post a message to a thread channel
-   * In Discord, the threadId IS the channel to post in (threads are channels)
-   */
   async postToThread(
     threadId: string,
     _channelId: string,
@@ -530,10 +406,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return this.postMessage(threadId, content, { files: options?.files });
   }
 
-  /**
-   * Subscribe to messages in a specific thread
-   * In Discord, threadId IS the thread channel — reuse message subscription
-   */
   subscribeToThread(
     threadId: string,
     _channelId: string,
@@ -550,11 +422,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     return fetchChannelMembers(channel);
   }
 
-  /**
-   * Register a callback for disconnect events
-   * @param callback - Function to call when disconnected
-   * @returns Unsubscribe function
-   */
   onDisconnect(callback: DisconnectCallback): () => void {
     this.disconnectCallbacks.add(callback);
     return () => {
@@ -562,11 +429,6 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
     };
   }
 
-  /**
-   * Register a callback for error events
-   * @param callback - Function to call when an error occurs
-   * @returns Unsubscribe function
-   */
   onError(callback: ErrorCallback): () => void {
     this.errorCallbacks.add(callback);
     return () => {
