@@ -506,6 +506,18 @@ export class DiscordChatClient extends ChatClient implements ChannelOperations {
   }
 
   /**
+   * Get messages from a thread.
+   * In Discord, threads are channels — reuse getMessages with the thread ID.
+   */
+  async getThreadMessages(
+    threadId: string,
+    _channelId: string,
+    options: MessageQueryOptions = {}
+  ): Promise<MessageData[]> {
+    return this.getMessages(threadId, options);
+  }
+
+  /**
    * Post a message to a thread channel
    * In Discord, the threadId IS the channel to post in (threads are channels)
    */

@@ -1,3 +1,4 @@
+import { tryDeduplicateMessage } from "./duplicateCounter.js";
 import { EditableStreamReply } from "./EditableStreamReply.js";
 import { Message, type MessageOperations } from "./Message.js";
 import { StreamingReply } from "./StreamingReply.js";
@@ -7,6 +8,7 @@ import type {
   MessageContent,
   MessageData,
   MessageEvent,
+  MessageQueryOptions,
   Platform,
   ThreadData,
 } from "./types.js";
@@ -21,6 +23,7 @@ export interface ThreadOperations {
     content: MessageContent,
     files?: FileAttachment[]
   ) => Promise<MessageData>;
+  getMessages: (options?: MessageQueryOptions) => Promise<MessageData[]>;
   subscribe: (callback: MessageCallback) => () => void;
   createMessageOps: () => MessageOperations;
 }
@@ -57,7 +60,12 @@ export class Thread {
   }
 
   /**
-   * Post a message in this thread
+   * Post a message in this thread.
+   *
+   * When the new content exactly matches the last bot message in the thread,
+   * the previous message is edited to append a duplicate counter (x2, x3, …)
+   * instead of posting a new message.
+   *
    * @param content - Message content (string or Document)
    * @param files - Optional file attachments
    * @returns Message object for the posted message
@@ -66,6 +74,18 @@ export class Thread {
     content: MessageContent,
     files?: FileAttachment[]
   ): Promise<Message> {
+    const deduped = await tryDeduplicateMessage(
+      content,
+      (queryOpts) => this.ops.getMessages(queryOpts),
+      (messageId, channelId, newContent) => {
+        const msgOps = this.ops.createMessageOps();
+        return msgOps.updateMessage(messageId, channelId, newContent);
+      },
+      files ? { files } : undefined
+    );
+    if (deduped) {
+      return new Message(deduped, this.ops.createMessageOps());
+    }
     const data = await this.ops.post(content, files);
     return new Message(data, this.ops.createMessageOps());
   }

@@ -10,6 +10,7 @@ import {
   postDismissableMessage,
   TypingController,
 } from "./ChannelRuntimeFeatures.js";
+import { tryDeduplicateMessage } from "./duplicateCounter.js";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching.js";
 import { Message, type MessageOperations } from "./Message.js";
 import type { MessageBatch } from "./MessageBatch.js";
@@ -25,6 +26,7 @@ import type {
   Member,
   MessageCallback,
   MessageContent,
+  MessageData,
   MessageEvent,
   MessageQueryOptions,
   Platform,
@@ -77,7 +79,13 @@ export class Channel {
   }
 
   /**
-   * Post a message to this channel
+   * Post a message to this channel.
+   *
+   * When the new content exactly matches the last bot message, the previous
+   * message is edited to append a duplicate counter (x2, x3, …) instead of
+   * posting a new message. The returned Message points at the original so
+   * that thread replies still target the right place.
+   *
    * @param content - Message content (string or Document)
    * @param options - Optional message options (e.g., files for attachments)
    * @returns Message object with chainable reaction methods
@@ -86,11 +94,7 @@ export class Channel {
     content: MessageContent,
     options?: { files?: FileAttachment[]; linkPreviews?: boolean }
   ): Message & PromiseLike<Message> {
-    const messagePromise = this.operations.postMessage(
-      this.id,
-      content,
-      options
-    );
+    const messagePromise = this.deduplicateOrPost(content, options);
 
     // Create a Message that will resolve once the post completes
     return new PendingMessage(
@@ -98,6 +102,23 @@ export class Channel {
       this.createMessageOperations(),
       this.platform
     );
+  }
+
+  private async deduplicateOrPost(
+    content: MessageContent,
+    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+  ): Promise<MessageData> {
+    const deduped = await tryDeduplicateMessage(
+      content,
+      (queryOpts) => this.operations.getMessages(this.id, queryOpts),
+      (messageId, channelId, newContent) =>
+        this.operations.updateMessage(messageId, channelId, newContent),
+      options
+    );
+    if (deduped) {
+      return deduped;
+    }
+    return this.operations.postMessage(this.id, content, options);
   }
 
   /**
@@ -234,6 +255,8 @@ export class Channel {
         this.operations.postToThread(data.id, data.channelId, content, {
           files,
         }),
+      getMessages: (options?: MessageQueryOptions) =>
+        this.operations.getThreadMessages(data.id, data.channelId, options),
       subscribe: (callback: MessageCallback) =>
         this.operations.subscribeToThread(data.id, data.channelId, callback),
       createMessageOps: () => this.createThreadMessageOps(data),
