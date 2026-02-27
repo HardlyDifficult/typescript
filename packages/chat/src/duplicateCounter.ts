@@ -13,7 +13,7 @@ export function parseDuplicateCount(content: string): {
   baseContent: string;
   count: number;
 } {
-  const match = content.match(DUPLICATE_SUFFIX_RE);
+  const match = DUPLICATE_SUFFIX_RE.exec(content);
   if (match) {
     return {
       baseContent: content.slice(0, -match[0].length),
@@ -64,7 +64,7 @@ export async function tryDeduplicateMessage(
     return null;
   }
 
-  const newContent = `${content} x${count + 1}`;
+  const newContent = `${content} x${String(count + 1)}`;
   await updateMessage(lastMsg.id, lastMsg.channelId, newContent);
   return { ...lastMsg, content: newContent };
 }
