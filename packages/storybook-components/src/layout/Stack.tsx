@@ -40,7 +40,7 @@ const gridColsStyles: Record<number, string> = {
 /** Flex layout primitive for vertical and horizontal stacking. Use `columns` for a CSS grid layout. */
 export function Stack({ direction = "vertical", gap = "md", align = "stretch", wrap = false, columns, children }: StackProps) {
   if (columns !== undefined) {
-    const colClass = gridColsStyles[columns] ?? `grid-cols-${columns}`;
+    const colClass = gridColsStyles[columns] ?? `grid-cols-${String(columns)}`;
     return (
       <div className={`grid ${colClass} ${gapStyles[gap]}`}>
         {children}
