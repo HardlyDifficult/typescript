@@ -9,6 +9,7 @@ interface CodeBlockProps {
   variant?: CodeBlockVariant;
   wrap?: boolean;
   language?: string;
+  maxHeight?: string;
 }
 
 const variantStyles: Record<CodeBlockVariant, string> = {
@@ -119,6 +120,7 @@ export function CodeBlock({
   variant = "default",
   wrap = false,
   language,
+  maxHeight,
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
@@ -152,7 +154,8 @@ export function CodeBlock({
         </button>
       </div>
       <pre
-        className={`px-4 pb-3 pt-2 text-xs font-[family-name:var(--font-mono)] leading-[1.7] overflow-x-auto ${wrap ? "whitespace-pre-wrap" : ""}`}
+        className={`px-4 pb-3 pt-2 text-xs font-[family-name:var(--font-mono)] leading-[1.7] overflow-x-auto ${wrap ? "whitespace-pre-wrap" : ""} ${maxHeight !== undefined ? "overflow-y-auto" : ""}`}
+        style={maxHeight !== undefined ? { maxHeight } : undefined}
       >
         <code className="text-[color:var(--color-text)]">
           {lines.map((line, i) => (
