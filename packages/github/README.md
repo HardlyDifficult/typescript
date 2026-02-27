@@ -41,12 +41,14 @@ const client = await GitHubClient.create(); // reads from GH_PAT
 const client2 = await GitHubClient.create("ghp_..."); // explicit token
 ```
 
-### client.repo(owner, name)
+### client.repo(owner, name) / client.repo(repoRef)
 
 Returns a `RepoClient` for repository-specific operations.
 
 ```typescript
 const repo = client.repo("owner", "repo");
+const sameRepo = client.repo("hardlydifficult/typescript");
+const fromUrl = client.repo("https://github.com/hardlydifficult/typescript/pull/123");
 ```
 
 ### client.watch(options)
@@ -55,7 +57,11 @@ Returns a `PRWatcher` instance configured with the specified options.
 
 ```typescript
 const watcher = client.watch({
-  repos: ["hardlydifficult/typescript"],
+  // `repos` accepts either "owner/repo" or GitHub URLs.
+  repos: [
+    "hardlydifficult/typescript",
+    "https://github.com/hardlydifficult/typescript/pull/123"
+  ],
   myPRs: true,
   intervalMs: 60_000
 });

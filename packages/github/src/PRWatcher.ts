@@ -1,6 +1,7 @@
 import { MILLISECONDS_PER_SECOND } from "@hardlydifficult/date-time";
 import type { Octokit } from "@octokit/rest";
 
+import { parseGitHubRepoReference } from "./githubUrlParser.js";
 import { BranchHeadTracker } from "./polling/branchHeadTracker.js";
 import { fetchPRActivitySelective } from "./polling/fetchPRActivity.js";
 import { fetchWatchedPRs, type WatchedPR } from "./polling/fetchWatchedPRs.js";
@@ -49,7 +50,10 @@ export class PRWatcher extends PRWatcherBase {
     super();
     this.octokit = octokit;
     this.username = username;
-    this.repos = [...(options.repos ?? [])];
+    this.repos = [];
+    for (const repo of options.repos ?? []) {
+      this.addRepo(repo);
+    }
     this.myPRs = options.myPRs ?? false;
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.classifyPR = options.classifyPR;
@@ -86,16 +90,24 @@ export class PRWatcher extends PRWatcherBase {
   }
 
   addRepo(repo: string): void {
-    if (!this.repos.includes(repo)) {
-      this.repos.push(repo);
+    const parsed = parseGitHubRepoReference(repo);
+    const normalized = parsed ? `${parsed.owner}/${parsed.repo}` : repo.trim();
+    if (normalized === "") {
+      return;
+    }
+
+    if (!this.repos.includes(normalized)) {
+      this.repos.push(normalized);
     }
   }
 
   removeRepo(repo: string): void {
-    const index = this.repos.indexOf(repo);
+    const parsed = parseGitHubRepoReference(repo);
+    const normalized = parsed ? `${parsed.owner}/${parsed.repo}` : repo.trim();
+    const index = this.repos.indexOf(normalized);
     if (index !== -1) {
       this.repos.splice(index, 1);
-      this.branchTracker.removeRepo(repo);
+      this.branchTracker.removeRepo(normalized);
     }
   }
 

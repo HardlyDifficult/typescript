@@ -101,6 +101,24 @@ describe("GitHubClient", () => {
     });
   });
 
+  describe("repo", () => {
+    it("supports owner/repo shorthand", () => {
+      const repoClient = client.repo("owner/repo");
+      expect(repoClient).toBeDefined();
+    });
+
+    it("supports GitHub URL repo references", () => {
+      const repoClient = client.repo("https://github.com/owner/repo/pull/42");
+      expect(repoClient).toBeDefined();
+    });
+
+    it("throws for invalid repo references", () => {
+      expect(() => client.repo("not-a-repo")).toThrow(
+        "Invalid repository reference"
+      );
+    });
+  });
+
   describe("repo().getOpenPRs", () => {
     it("returns open pull requests", async () => {
       const prs: PullRequest[] = [

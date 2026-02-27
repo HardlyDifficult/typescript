@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 
+import { parseGitHubRepoReference } from "./githubUrlParser.js";
 import { PRWatcher } from "./PRWatcher.js";
 import { RepoClient } from "./RepoClient.js";
 import type { ContributionRepo, PullRequest, WatchOptions } from "./types.js";
@@ -29,8 +30,19 @@ export class GitHubClient {
     return new GitHubClient(octokit, data.login);
   }
 
-  repo(owner: string, name: string): RepoClient {
-    return new RepoClient(this.octokit, owner, name);
+  repo(ownerOrRepoRef: string, name?: string): RepoClient {
+    if (name !== undefined) {
+      return new RepoClient(this.octokit, ownerOrRepoRef, name);
+    }
+
+    const parsed = parseGitHubRepoReference(ownerOrRepoRef);
+    if (parsed === null) {
+      throw new Error(
+        `Invalid repository reference: ${ownerOrRepoRef}. Expected "owner/repo" or a GitHub URL.`
+      );
+    }
+
+    return new RepoClient(this.octokit, parsed.owner, parsed.repo);
   }
 
   watch(options: WatchOptions): PRWatcher {
