@@ -65,7 +65,6 @@ describe("parseGitHubDirectoryUrl", () => {
   });
 });
 
-
 describe("parseGitHubRepoReference", () => {
   it("parses owner/repo", () => {
     expect(parseGitHubRepoReference("owner/repo")).toEqual({
@@ -81,16 +80,16 @@ describe("parseGitHubRepoReference", () => {
       owner: "owner",
       repo: "repo",
     });
-    expect(parseGitHubRepoReference("github.com/owner/repo/pull/123")).toEqual(
-      {
-        owner: "owner",
-        repo: "repo",
-      }
-    );
+    expect(parseGitHubRepoReference("github.com/owner/repo/pull/123")).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
   });
 
   it("returns null for unsupported values", () => {
-    expect(parseGitHubRepoReference("https://example.com/owner/repo")).toBeNull();
+    expect(
+      parseGitHubRepoReference("https://example.com/owner/repo")
+    ).toBeNull();
     expect(parseGitHubRepoReference("owner")).toBeNull();
     expect(parseGitHubRepoReference("   ")).toBeNull();
   });

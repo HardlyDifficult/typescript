@@ -101,7 +101,6 @@ describe("GitHubClient", () => {
     });
   });
 
-
   describe("repo", () => {
     it("supports owner/repo shorthand", () => {
       const repoClient = client.repo("owner/repo");
@@ -109,9 +108,7 @@ describe("GitHubClient", () => {
     });
 
     it("supports GitHub URL repo references", () => {
-      const repoClient = client.repo(
-        "https://github.com/owner/repo/pull/42"
-      );
+      const repoClient = client.repo("https://github.com/owner/repo/pull/42");
       expect(repoClient).toBeDefined();
     });
 
