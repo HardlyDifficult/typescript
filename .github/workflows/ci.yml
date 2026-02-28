@@ -38,23 +38,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Check for storybook changes
-        id: storybook-changes
-        run: |
-          if git diff --name-only origin/main...HEAD | grep '^packages/storybook-components/' | grep -qv '\.screenshots/'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Capture Storybook screenshots
-        if: steps.storybook-changes.outputs.changed == 'true'
-        run: |
-          cd packages/storybook-components
-          npx agent-browser install --with-deps
-          npm run build:storybook
-          node scripts/capture-screenshots.js
-
       - name: Auto-fix lint and format
         run: npm run fix
 
@@ -72,3 +55,20 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Check for storybook changes
+        id: storybook-changes
+        run: |
+          if git diff --name-only origin/main...HEAD | grep '^packages/storybook-components/' | grep -qv '\.screenshots/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture Storybook screenshots
+        if: steps.storybook-changes.outputs.changed == 'true'
+        run: |
+          cd packages/storybook-components
+          npx agent-browser install --with-deps
+          npm run build:storybook
+          node scripts/capture-screenshots.js
