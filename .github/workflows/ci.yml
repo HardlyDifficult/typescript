@@ -24,6 +24,12 @@ jobs:
           node-version: "20"
           package-manager-cache: false
 
+      - name: Check for unpinned dependencies
+        run: node packages/ci-scripts/dist/check-pinned-deps.js
+
+      - name: Validate package metadata
+        run: node packages/ci-scripts/dist/check-package-metadata.js
+
       - name: Cache node_modules
         uses: actions/cache@v5
         id: npm-cache
@@ -34,12 +40,6 @@ jobs:
       - name: Install dependencies
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install
-
-      - name: Check for unpinned dependencies
-        run: node packages/ci-scripts/dist/check-pinned-deps.js
-
-      - name: Validate package metadata
-        run: node packages/ci-scripts/dist/check-package-metadata.js
 
       - name: Build
         run: npm run build
