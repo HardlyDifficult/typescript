@@ -29,6 +29,14 @@ export { StatCard } from "./data/StatCard.js";
 export { KeyValue } from "./data/KeyValue.js";
 export { ActivityItem } from "./data/ActivityItem.js";
 export { JsonTree } from "./data/JsonTree.js";
+export { CandlestickChart } from "./data/CandlestickChart.js";
+export type {
+  CandlestickChartProps,
+  CandlestickChartCandle,
+  CandlestickChartOrder,
+} from "./data/CandlestickChart.js";
+export { EquityCurve } from "./data/EquityCurve.js";
+export type { EquityCurveProps, EquityCurvePoint } from "./data/EquityCurve.js";
 
 // feedback
 export { Alert } from "./feedback/Alert.js";
