@@ -6,8 +6,10 @@
  * and cleanup.
  */
 
-import type { SessionConfig, SessionResult } from "./types.js";
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+
 import { getOrCreateServer } from "./server.js";
+import type { SessionConfig, SessionResult } from "./types.js";
 
 /**
  * Run an agent session through OpenCode.
@@ -26,7 +28,9 @@ import { getOrCreateServer } from "./server.js";
  * });
  * ```
  */
-export async function runSession(config: SessionConfig): Promise<SessionResult> {
+export async function runSession(
+  config: SessionConfig
+): Promise<SessionResult> {
   const startTime = Date.now();
   const textParts: string[] = [];
 
@@ -44,18 +48,23 @@ export async function runSession(config: SessionConfig): Promise<SessionResult> 
 
   // Create a session
   const session = await client.session.create();
-  const sessionId = session.id;
+  const sessionId = session.id as string;
 
   // Set up abort handling
   const abortHandler = config.abortSignal
-    ? () => { client.session.abort(sessionId).catch(() => {}); }
+    ? () => {
+        client.session.abort(sessionId).catch(() => undefined);
+      }
     : undefined;
   if (abortHandler && config.abortSignal) {
     config.abortSignal.addEventListener("abort", abortHandler, { once: true });
   }
 
   // Subscribe to the event stream for real-time updates
-  const eventStream = await client.event.list();
+  const eventStream = (await client.event.list()) as AsyncIterable<{
+    type: string;
+    properties: Record<string, unknown>;
+  }>;
 
   // Track whether we've seen our session complete
   let sessionDone = false;
@@ -68,12 +77,16 @@ export async function runSession(config: SessionConfig): Promise<SessionResult> 
     config,
     textParts,
     () => sessionDone,
-    (done) => { sessionDone = done; },
-    (err) => { sessionError = err; },
+    (done) => {
+      sessionDone = done;
+    },
+    (err) => {
+      sessionError = err;
+    }
   );
 
   // Optionally inject system prompt as a no-reply context message
-  if (config.systemPrompt) {
+  if (config.systemPrompt !== undefined) {
     await client.session.chat(sessionId, {
       providerID,
       modelID,
@@ -93,16 +106,16 @@ export async function runSession(config: SessionConfig): Promise<SessionResult> 
     };
 
     // Apply tool configuration
-    if (config.readOnly) {
+    if (config.readOnly === true) {
       chatParams.tools = { read: true, glob: true, grep: true };
-    } else if (config.tools) {
+    } else if (config.tools !== undefined) {
       chatParams.tools = config.tools;
     }
 
     await client.session.chat(sessionId, chatParams);
   } catch (error) {
     success = false;
-    if (config.abortSignal?.aborted) {
+    if (config.abortSignal?.aborted === true) {
       sessionError = "Cancelled";
     } else {
       sessionError = error instanceof Error ? error.message : String(error);
@@ -115,16 +128,18 @@ export async function runSession(config: SessionConfig): Promise<SessionResult> 
   // Give the event stream a moment to flush remaining events, then stop
   await Promise.race([
     eventProcessing,
-    new Promise((resolve) => setTimeout(resolve, 2000)),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, 2000);
+    }),
   ]);
 
   // Cleanup
-  if (abortHandler && config.abortSignal) {
+  if (abortHandler !== undefined && config.abortSignal !== undefined) {
     config.abortSignal.removeEventListener("abort", abortHandler);
   }
 
   return {
-    success: success && !sessionError,
+    success: success && sessionError === undefined,
     text: textParts.join(""),
     durationMs: Date.now() - startTime,
     sessionId,
@@ -144,19 +159,23 @@ async function processEvents(
   textParts: string[],
   isDone: () => boolean,
   setDone: (done: boolean) => void,
-  setError: (error: string) => void,
+  setError: (error: string) => void
 ): Promise<void> {
   try {
     for await (const event of eventStream) {
-      if (isDone()) break;
+      if (isDone()) {
+        break;
+      }
 
       // Only process events for our session
       const props = event.properties;
 
       switch (event.type) {
         case "message.part.updated": {
-          const part = props as Record<string, unknown>;
-          if (part.sessionID !== sessionId) break;
+          const part = props;
+          if (part.sessionID !== sessionId) {
+            break;
+          }
 
           handlePartUpdate(part, config, textParts);
           break;
@@ -183,6 +202,9 @@ async function processEvents(
           }
           break;
         }
+
+        default:
+          break;
       }
     }
   } catch {
@@ -196,14 +218,14 @@ async function processEvents(
 function handlePartUpdate(
   part: Record<string, unknown>,
   config: SessionConfig,
-  textParts: string[],
+  textParts: string[]
 ): void {
   const partType = part.type as string;
 
   switch (partType) {
     case "text": {
       const text = part.text as string | undefined;
-      if (text) {
+      if (text !== undefined && text !== "") {
         textParts.push(text);
         config.onText?.(text);
       }
@@ -213,21 +235,29 @@ function handlePartUpdate(
     case "tool": {
       const toolName = part.tool as string;
       const state = part.state as Record<string, unknown> | undefined;
-      if (!state) break;
+      if (state === undefined) {
+        break;
+      }
 
       const status = state.status as string;
 
       if (status === "running") {
         config.onToolStart?.(toolName, state.input ?? {});
       } else if (status === "completed") {
-        config.onToolEnd?.(toolName, (state.output as string) ?? "");
+        config.onToolEnd?.(
+          toolName,
+          (state.output as string | undefined) ?? ""
+        );
       } else if (status === "error") {
         config.onToolEnd?.(
           toolName,
-          (state.error as string) ?? "Tool error",
+          (state.error as string | undefined) ?? "Tool error"
         );
       }
       break;
     }
+
+    default:
+      break;
   }
 }

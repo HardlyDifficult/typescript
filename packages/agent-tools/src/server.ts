@@ -9,7 +9,7 @@
  * dynamic import() and untyped handles to avoid moduleResolution issues.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 
 /** Opaque handle to the OpenCode client (typed dynamically at runtime). */
 export type OpencodeClient = any;
@@ -30,17 +30,17 @@ let _starting: Promise<ServerHandle> | undefined;
  *
  * @param cwd - Working directory passed as config to the server.
  */
-export async function getOrCreateServer(
-  cwd?: string,
-): Promise<OpencodeClient> {
-  if (_instance) return _instance.client;
-
-  // Avoid double-starting if called concurrently
-  if (!_starting) {
-    _starting = startServer(cwd);
+export async function getOrCreateServer(cwd?: string): Promise<OpencodeClient> {
+  if (_instance) {
+    return _instance.client;
   }
 
+  // Avoid double-starting if called concurrently
+  _starting ??= startServer(cwd);
+
+  // eslint-disable-next-line require-atomic-updates
   _instance = await _starting;
+  // eslint-disable-next-line require-atomic-updates
   _starting = undefined;
   return _instance.client;
 }
@@ -56,14 +56,14 @@ async function startServer(cwd?: string): Promise<ServerHandle> {
   if (typeof createOpencode !== "function") {
     throw new Error(
       "Could not find createOpencode in @opencode-ai/sdk. " +
-        "Ensure the package is installed and up to date.",
+        "Ensure the package is installed and up to date."
     );
   }
 
   const result = await createOpencode({
     port: 0, // random available port
     timeout: 15_000,
-    ...(cwd ? { config: { cwd } } : {}),
+    ...(cwd !== undefined ? { config: { cwd } } : {}),
   });
 
   return {
