@@ -25,7 +25,10 @@ import {
   type SlackMessagePayload,
 } from "./buildMessageEvent.js";
 import { fetchChannelMembers } from "./fetchChannelMembers.js";
-import { getMessages as listMessages } from "./getMessages.js";
+import {
+  getMessages as listMessages,
+  getThreadMessages as listThreadMessages,
+} from "./getMessages.js";
 import { getThreads } from "./getThreads.js";
 import {
   deleteMessage,
@@ -407,6 +410,17 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
 
   async getMembers(channelId: string): Promise<Member[]> {
     return fetchChannelMembers(this.app, channelId);
+  }
+
+  async getThreadMessages(
+    threadId: string,
+    channelId: string,
+    options: MessageQueryOptions = {}
+  ): Promise<MessageData[]> {
+    return listThreadMessages(this.app, channelId, threadId, options, {
+      meId: this.me?.id,
+      botId: this.slackBotId,
+    });
   }
 
   /**

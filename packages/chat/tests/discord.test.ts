@@ -98,7 +98,14 @@ const {
     id: string;
     send = mockThreadSend;
     sendTyping = vi.fn().mockResolvedValue(undefined);
-    messages = { fetch: vi.fn() };
+    messages = {
+      fetch: vi.fn().mockImplementation((arg: unknown) => {
+        if (typeof arg === "object" && arg !== null) {
+          return Promise.resolve(new Map());
+        }
+        return Promise.resolve(mockDiscordMessage);
+      }),
+    };
     delete = mockThreadChannelDelete;
     constructor(id = "thread-1") {
       this.id = id;
@@ -271,7 +278,17 @@ describe("DiscordChatClient", () => {
       Object.assign(new MockTextChannel(), mockTextChannelData)
     );
     mockTextChannelData.send.mockResolvedValue(mockDiscordMessage);
-    mockTextChannelData.messages.fetch.mockResolvedValue(mockDiscordMessage);
+    // messages.fetch is called two ways:
+    //   fetch(messageId: string) → single message (updateMessage, deleteMessage, etc.)
+    //   fetch({ limit }) → collection/Map (getMessages, dedup check)
+    mockTextChannelData.messages.fetch.mockImplementation((arg: unknown) => {
+      if (typeof arg === "object" && arg !== null) {
+        // Collection fetch (getMessages) — return empty Map by default
+        return Promise.resolve(new Map());
+      }
+      // Single message fetch
+      return Promise.resolve(mockDiscordMessage);
+    });
     mockDiscordMessage.react.mockResolvedValue(undefined);
     mockDiscordMessage.delete.mockResolvedValue(undefined);
     mockDiscordMessage.thread = null;
@@ -732,6 +749,18 @@ describe("DiscordChatClient", () => {
         "Channel channel-456 not found or is not a text channel"
       );
     });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe("Message.onReaction()", () => {
@@ -1173,6 +1202,18 @@ describe("DiscordChatClient", () => {
         "Channel channel-456 not found or is not a text channel"
       );
     });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.addReaction("msg-123", channelId, "thumbsup")
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe("removeReaction() (direct client method)", () => {
@@ -1206,6 +1247,18 @@ describe("DiscordChatClient", () => {
       ).rejects.toThrow(
         "Channel channel-456 not found or is not a text channel"
       );
+    });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.removeReaction("msg-123", channelId, "thumbsup")
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -2503,10 +2556,12 @@ describe("DiscordChatClient", () => {
       const channel = await client.connect(channelId);
       const thread = await channel.createThread("Root", "Session");
 
-      // postToThread calls postMessage(threadId, ...) which fetches the thread channel
-      mockClient.channels.fetch.mockResolvedValueOnce(
-        new MockThreadChannel("thread-001")
-      );
+      // thread.post() triggers two channel fetches:
+      // 1. getThreadMessages (dedup check) fetches the thread channel
+      // 2. postToThread fetches the thread channel again to send
+      mockClient.channels.fetch
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"))
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"));
       const msg = await thread.post("Hello from thread");
 
       expect(mockThreadSend).toHaveBeenCalledWith(
@@ -2658,10 +2713,10 @@ describe("DiscordChatClient", () => {
       const channel = await client.connect(channelId);
       const thread = await channel.createThread("Root", "Session");
 
-      // Post a message in the thread
-      mockClient.channels.fetch.mockResolvedValueOnce(
-        new MockThreadChannel("thread-001")
-      );
+      // Post a message in the thread (dedup check + post = 2 fetches)
+      mockClient.channels.fetch
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"))
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"));
       const threadMsg = await thread.post("First message");
 
       // Reply to that thread message — should go to the same thread
@@ -2708,9 +2763,10 @@ describe("DiscordChatClient", () => {
       const channel = await client.connect(channelId);
       const thread = channel.openThread("thread-001");
 
-      mockClient.channels.fetch.mockResolvedValueOnce(
-        new MockThreadChannel("thread-001")
-      );
+      // thread.post() triggers dedup check + post = 2 channel fetches
+      mockClient.channels.fetch
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"))
+        .mockResolvedValueOnce(new MockThreadChannel("thread-001"));
       const msg = await thread.post("Reconnected message");
 
       expect(mockThreadSend).toHaveBeenCalledWith(

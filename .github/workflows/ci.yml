@@ -38,6 +38,24 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check for unpinned dependencies
+        run: node packages/ci-scripts/dist/check-pinned-deps.js
+
+      - name: Validate package metadata
+        run: node packages/ci-scripts/dist/check-package-metadata.js
+
+      - name: Auto-fix lint and format
+        run: npm run fix
+
+      - name: Commit and push fixes
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: node packages/ci-scripts/dist/auto-commit-fixes.js
+
+      - name: Test
+        run: npm run test
+
       - name: Check for storybook changes
         id: storybook-changes
         run: |
@@ -55,20 +73,9 @@ jobs:
           npm run build:storybook
           node scripts/capture-screenshots.js
 
-      - name: Auto-fix lint and format
-        run: npm run fix
-
-      - name: Commit and push fixes
+      - name: Commit and push screenshots
+        if: steps.storybook-changes.outputs.changed == 'true'
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: node packages/ci-scripts/dist/auto-commit-fixes.js
-
-      - name: Check for unpinned dependencies
-        run: node packages/ci-scripts/dist/check-pinned-deps.js
-
-      - name: Validate package metadata
-        run: node packages/ci-scripts/dist/check-package-metadata.js
-
-      - name: Test
-        run: npm run test
