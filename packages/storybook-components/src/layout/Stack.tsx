@@ -9,6 +9,8 @@ interface StackProps {
   gap?: StackGap;
   align?: StackAlign;
   wrap?: boolean;
+  /** When set, renders as a CSS grid with the given number of columns */
+  columns?: number;
   children: ReactNode;
 }
 
@@ -27,8 +29,24 @@ const alignStyles: Record<StackAlign, string> = {
   stretch:  "items-stretch",
 };
 
-/** Flex layout primitive for vertical and horizontal stacking. */
-export function Stack({ direction = "vertical", gap = "md", align = "stretch", wrap = false, children }: StackProps) {
+const gridColsStyles: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
+};
+
+/** Flex layout primitive for vertical and horizontal stacking. Use `columns` for a CSS grid layout. */
+export function Stack({ direction = "vertical", gap = "md", align = "stretch", wrap = false, columns, children }: StackProps) {
+  if (columns !== undefined) {
+    const colClass = gridColsStyles[columns] ?? `grid-cols-${String(columns)}`;
+    return (
+      <div className={`grid ${colClass} ${gapStyles[gap]}`}>
+        {children}
+      </div>
+    );
+  }
   const dir = direction === "vertical" ? "flex-col" : "flex-row";
   const classes = [`flex ${dir} ${gapStyles[gap]} ${alignStyles[align]}`];
   if (wrap) { classes.push("flex-wrap"); }

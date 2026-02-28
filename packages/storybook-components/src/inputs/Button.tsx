@@ -8,6 +8,8 @@ interface ButtonProps {
   size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
+  fullWidth?: boolean;
+  type?: "button" | "submit" | "reset";
   onClick?: MouseEventHandler<HTMLButtonElement>;
   children: ReactNode;
 }
@@ -39,15 +41,17 @@ export function Button({
   size = "md",
   disabled = false,
   loading = false,
+  fullWidth = false,
+  type = "button",
   onClick,
   children,
 }: ButtonProps) {
   return (
     <button
-      className={[base, variantStyles[variant], sizeStyles[size]].join(" ")}
+      className={[base, variantStyles[variant], sizeStyles[size], fullWidth ? "w-full" : ""].join(" ")}
       disabled={disabled || loading}
       onClick={onClick}
-      type="button"
+      type={type}
     >
       {loading && <span className="animate-pulse">...</span>}
       {children}

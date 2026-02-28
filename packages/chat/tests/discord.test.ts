@@ -749,6 +749,18 @@ describe("DiscordChatClient", () => {
         "Channel channel-456 not found or is not a text channel"
       );
     });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe("Message.onReaction()", () => {
@@ -1190,6 +1202,18 @@ describe("DiscordChatClient", () => {
         "Channel channel-456 not found or is not a text channel"
       );
     });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.addReaction("msg-123", channelId, "thumbsup")
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe("removeReaction() (direct client method)", () => {
@@ -1223,6 +1247,18 @@ describe("DiscordChatClient", () => {
       ).rejects.toThrow(
         "Channel channel-456 not found or is not a text channel"
       );
+    });
+
+    it("should silently ignore Unknown Message errors", async () => {
+      await client.connect(channelId);
+      const error = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(error);
+
+      await expect(
+        client.removeReaction("msg-123", channelId, "thumbsup")
+      ).resolves.toBeUndefined();
     });
   });
 

@@ -9,7 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     {
-      // Copy tokens.css to dist so consumers can import it directly
+      // Copy tokens.css to dist so consumers can import it directly.
+      // index.css is emitted automatically by the tailwindcss vite plugin.
       name: "copy-tokens-css",
       closeBundle() {
         mkdirSync("dist", { recursive: true });
@@ -27,7 +28,7 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: ["react", "react-dom", "react/jsx-runtime", "react-markdown"],
     },
   },
 });
