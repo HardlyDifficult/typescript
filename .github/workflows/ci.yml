@@ -72,3 +72,10 @@ jobs:
           npx agent-browser install --with-deps
           npm run build:storybook
           node scripts/capture-screenshots.js
+
+      - name: Commit and push screenshots
+        if: steps.storybook-changes.outputs.changed == 'true'
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: node packages/ci-scripts/dist/auto-commit-fixes.js
