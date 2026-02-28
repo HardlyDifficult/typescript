@@ -35,6 +35,12 @@ jobs:
         if: steps.npm-cache.outputs.cache-hit != 'true'
         run: npm install
 
+      - name: Check for unpinned dependencies
+        run: node packages/ci-scripts/dist/check-pinned-deps.js
+
+      - name: Validate package metadata
+        run: node packages/ci-scripts/dist/check-package-metadata.js
+
       - name: Build
         run: npm run build
 
@@ -46,12 +52,6 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: node packages/ci-scripts/dist/auto-commit-fixes.js
-
-      - name: Check for unpinned dependencies
-        run: node packages/ci-scripts/dist/check-pinned-deps.js
-
-      - name: Validate package metadata
-        run: node packages/ci-scripts/dist/check-package-metadata.js
 
       - name: Test
         run: npm run test
