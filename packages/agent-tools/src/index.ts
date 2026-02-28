@@ -11,3 +11,8 @@ export {
   executeWithErrorHandling,
   formatArrayResult,
 } from "./utils.js";
+
+// OpenCode session runner
+export { runSession } from "./session.js";
+export { disposeServer } from "./server.js";
+export type { SessionConfig, SessionResult } from "./types.js";
