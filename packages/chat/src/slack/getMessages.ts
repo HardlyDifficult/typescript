@@ -182,6 +182,78 @@ function normalizeAuthorFilter(author: string): string {
   return author.trim().replace(/^@/, "");
 }
 
+/**
+ * Fetch and normalize recent Slack thread messages using conversations.replies.
+ * Returns messages newest-first (matching getMessages convention).
+ */
+export async function getThreadMessages(
+  app: App,
+  channelId: string,
+  threadTs: string,
+  options: MessageQueryOptions = {},
+  context: MessageFilterContext = {}
+): Promise<MessageData[]> {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  const afterDate = toDate(options.after);
+  const beforeDate = toDate(options.before);
+
+  const result = await app.client.conversations.replies({
+    channel: channelId,
+    ts: threadTs,
+    limit: limit + 1, // +1 because parent message is always included
+  });
+
+  const messages: MessageData[] = [];
+  for (const rawMessage of result.messages ?? []) {
+    const message = rawMessage as SlackHistoryMessage;
+    if (message.ts === undefined || message.ts === "") {
+      continue;
+    }
+    // Skip the parent message (first element where ts === thread_ts)
+    if (message.ts === threadTs) {
+      continue;
+    }
+
+    const timestamp = new Date(secondsToMilliseconds(parseFloat(message.ts)));
+    if (!Number.isFinite(timestamp.getTime())) {
+      continue;
+    }
+    if (afterDate !== undefined && timestamp <= afterDate) {
+      continue;
+    }
+    if (beforeDate !== undefined && timestamp >= beforeDate) {
+      continue;
+    }
+    if (!matchesAuthorFilter(message, options.author, context)) {
+      continue;
+    }
+
+    const authorId = message.user ?? message.bot_id;
+    messages.push({
+      id: message.ts,
+      channelId,
+      platform: "slack",
+      content: message.text ?? "",
+      author:
+        authorId !== undefined
+          ? {
+              id: authorId,
+              username:
+                message.username !== undefined && message.username !== ""
+                  ? message.username
+                  : undefined,
+            }
+          : undefined,
+      timestamp,
+      attachments: extractSlackAttachments(message),
+    });
+  }
+
+  // conversations.replies returns oldest-first; reverse to match getMessages convention
+  messages.reverse();
+  return messages;
+}
+
 function extractSlackAttachments(message: SlackHistoryMessage) {
   const attachments: NonNullable<MessageData["attachments"]> = [];
   for (const file of message.files ?? []) {

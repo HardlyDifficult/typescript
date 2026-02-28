@@ -308,6 +308,11 @@ export interface ChannelOperations {
     content: MessageContent,
     options?: { files?: FileAttachment[] }
   ): Promise<MessageData>;
+  getThreadMessages(
+    threadId: string,
+    channelId: string,
+    options?: MessageQueryOptions
+  ): Promise<MessageData[]>;
 }
 
 /** Options for constructing a Channel instance. */

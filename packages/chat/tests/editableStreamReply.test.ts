@@ -494,6 +494,7 @@ describe("Thread.editableStream", () => {
       channelId: "ch-1",
       platform: "discord" as const,
     }),
+    getMessages: vi.fn().mockResolvedValue([]),
     subscribe: vi.fn().mockReturnValue(() => {}),
     createMessageOps: vi.fn().mockReturnValue({
       addReaction: vi.fn(),

@@ -39,6 +39,7 @@ function createMockOperations(): ChannelOperations {
       channelId: "channel-1",
       platform: "slack",
     }),
+    getThreadMessages: vi.fn().mockResolvedValue([]),
   };
 }
 
