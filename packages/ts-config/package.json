@@ -44,7 +44,7 @@
   "devDependencies": {
     "@eslint/compat": "2.0.2",
     "@eslint/js": "10.0.1",
-    "@types/node": "25.3.2",
+    "@types/node": "25.3.3",
     "eslint": "10.0.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import-x": "4.16.1",
