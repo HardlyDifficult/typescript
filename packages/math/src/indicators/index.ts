@@ -2,7 +2,7 @@
  * Indicator framework - auto-registers all built-in indicators on import.
  */
 
-export type { Indicator } from "./types.js";
+export type { Indicator, IndicatorParams } from "./types.js";
 export { registerIndicator, getIndicator, getAvailableIndicators } from "./registry.js";
 
 import { smaIndicator } from "./sma.js";
@@ -28,7 +28,6 @@ registerIndicator(atrIndicator);
 registerIndicator(stochIndicator);
 registerIndicator(obvIndicator);
 
-// Re-export individual indicators for direct access
 export { smaIndicator } from "./sma.js";
 export { emaIndicator } from "./ema.js";
 export { rsiIndicator } from "./rsi.js";

@@ -4,12 +4,12 @@
  */
 
 import type { Candle } from "../candle.js";
-import type { Indicator } from "./types.js";
+import type { Indicator, IndicatorParams } from "./types.js";
 
 export const stochIndicator: Indicator = {
   type: "stoch",
 
-  compute(candles: Candle[], params: Record<string, number>): number[] {
+  compute(candles: Candle[], params: IndicatorParams): number[] {
     const period = Math.max(1, Math.floor(params["period"] ?? 14));
     const out = new Array<number>(candles.length).fill(Number.NaN);
 

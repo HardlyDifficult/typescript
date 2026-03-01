@@ -4,6 +4,9 @@
 
 import type { Candle } from "../candle.js";
 
+/** Parameters for indicator computation. Values may be omitted. */
+export type IndicatorParams = Record<string, number | undefined>;
+
 /**
  * A deterministic technical indicator.
  * Computes a series of values from candle data.
@@ -20,5 +23,5 @@ export interface Indicator {
    * @param candles - OHLCV data sorted by timestamp ascending
    * @param params - Indicator-specific parameters (e.g. { period: 14 })
    */
-  compute(candles: Candle[], params: Record<string, number>): number[];
+  compute(candles: Candle[], params: IndicatorParams): number[];
 }

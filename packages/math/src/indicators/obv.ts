@@ -5,12 +5,12 @@
  */
 
 import type { Candle } from "../candle.js";
-import type { Indicator } from "./types.js";
+import type { Indicator, IndicatorParams } from "./types.js";
 
 export const obvIndicator: Indicator = {
   type: "obv",
 
-  compute(candles: Candle[], _params: Record<string, number>): number[] {
+  compute(candles: Candle[], _params: IndicatorParams): number[] {
     const out = new Array<number>(candles.length).fill(Number.NaN);
     if (candles.length === 0) return out;
     out[0] = 0;

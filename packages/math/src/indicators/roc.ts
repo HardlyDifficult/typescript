@@ -6,14 +6,14 @@
  */
 
 import type { Candle } from "../candle.js";
-import type { Indicator } from "./types.js";
+import type { Indicator, IndicatorParams } from "./types.js";
 
 export const rocIndicator: Indicator = {
   type: "roc",
 
-  compute(candles: Candle[], params: Record<string, number>): number[] {
+  compute(candles: Candle[], params: IndicatorParams): number[] {
     const period = params["period"] ?? 14;
-    const result: number[] = new Array(candles.length);
+    const result = new Array<number>(candles.length);
 
     for (let i = 0; i < candles.length; i++) {
       if (i < period) {

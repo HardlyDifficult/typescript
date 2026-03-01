@@ -12,7 +12,7 @@ export { WindowedChange } from "./WindowedChange.js";
 export type { Candle } from "./candle.js";
 
 // Technical indicators
-export type { Indicator } from "./indicators/types.js";
+export type { Indicator, IndicatorParams } from "./indicators/types.js";
 export {
   registerIndicator,
   getIndicator,

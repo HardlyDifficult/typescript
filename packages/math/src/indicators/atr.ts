@@ -4,12 +4,12 @@
  */
 
 import type { Candle } from "../candle.js";
-import type { Indicator } from "./types.js";
+import type { Indicator, IndicatorParams } from "./types.js";
 
 export const atrIndicator: Indicator = {
   type: "atr",
 
-  compute(candles: Candle[], params: Record<string, number>): number[] {
+  compute(candles: Candle[], params: IndicatorParams): number[] {
     const period = Math.max(1, Math.floor(params["period"] ?? 14));
     if (candles.length === 0) return [];
 
