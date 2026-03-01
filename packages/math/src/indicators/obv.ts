@@ -1,0 +1,28 @@
+/**
+ * OBV (On-Balance Volume) indicator.
+ *
+ * Running total: adds volume when close > prev close, subtracts when close < prev close.
+ */
+
+import type { Candle } from "../candle.js";
+import type { Indicator } from "./types.js";
+
+export const obvIndicator: Indicator = {
+  type: "obv",
+
+  compute(candles: Candle[], _params: Record<string, number>): number[] {
+    const out = new Array<number>(candles.length).fill(Number.NaN);
+    if (candles.length === 0) return out;
+    out[0] = 0;
+    for (let i = 1; i < candles.length; i++) {
+      const curr = candles[i]!;
+      const prev = candles[i - 1]!;
+      const delta =
+        curr.close > prev.close ? curr.volume
+        : curr.close < prev.close ? -curr.volume
+        : 0;
+      out[i] = out[i - 1]! + delta;
+    }
+    return out;
+  },
+};
