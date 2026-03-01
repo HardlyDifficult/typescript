@@ -15,13 +15,17 @@ function computeEMA(values: number[], period: number): number[] {
   const result = new Array<number>(values.length);
 
   for (let i = 0; i < values.length; i++) {
-    const val = values[i];
-    if (val === undefined || isNaN(val)) {
+    const val = values[i]!;
+    if (isNaN(val)) {
       result[i] = NaN;
       continue;
     }
-    const prev = i > 0 ? result[i - 1] : undefined;
-    if (prev === undefined || isNaN(prev)) {
+    if (i === 0) {
+      result[i] = val;
+      continue;
+    }
+    const prev = result[i - 1]!;
+    if (isNaN(prev)) {
       result[i] = val;
       continue;
     }
@@ -30,40 +34,37 @@ function computeEMA(values: number[], period: number): number[] {
   return result;
 }
 
+function computeMacdLines(candles: Candle[], params: IndicatorParams) {
+  const fast = params["fast"] ?? 12;
+  const slow = params["slow"] ?? 26;
+
+  const closes = candles.map((c) => c.close);
+  const fastEMA = computeEMA(closes, fast);
+  const slowEMA = computeEMA(closes, slow);
+
+  const macdLine = new Array<number>(candles.length);
+  for (let i = 0; i < candles.length; i++) {
+    const f = fastEMA[i]!;
+    const s = slowEMA[i]!;
+    macdLine[i] = isNaN(f) || isNaN(s) ? NaN : f - s;
+  }
+
+  return macdLine;
+}
+
 export const macdIndicator: Indicator = {
   type: "macd",
 
   compute(candles: Candle[], params: IndicatorParams): number[] {
-    const fast = params["fast"] ?? 12;
-    const slow = params["slow"] ?? 26;
     const signalPeriod = params["signal"] ?? 9;
-
-    const closes = candles.map((c) => c.close);
-    const fastEMA = computeEMA(closes, fast);
-    const slowEMA = computeEMA(closes, slow);
-
-    const macdLine = new Array<number>(candles.length);
-    for (let i = 0; i < candles.length; i++) {
-      const f = fastEMA[i];
-      const s = slowEMA[i];
-      if (f === undefined || s === undefined || isNaN(f) || isNaN(s)) {
-        macdLine[i] = NaN;
-      } else {
-        macdLine[i] = f - s;
-      }
-    }
-
+    const macdLine = computeMacdLines(candles, params);
     const signalLine = computeEMA(macdLine, signalPeriod);
 
     const result = new Array<number>(candles.length);
     for (let i = 0; i < candles.length; i++) {
-      const m = macdLine[i];
-      const sig = signalLine[i];
-      if (m === undefined || sig === undefined || isNaN(m) || isNaN(sig)) {
-        result[i] = NaN;
-      } else {
-        result[i] = m - sig;
-      }
+      const m = macdLine[i]!;
+      const sig = signalLine[i]!;
+      result[i] = isNaN(m) || isNaN(sig) ? NaN : m - sig;
     }
 
     return result;
@@ -74,25 +75,8 @@ export const macdSignalIndicator: Indicator = {
   type: "macd_signal",
 
   compute(candles: Candle[], params: IndicatorParams): number[] {
-    const fast = params["fast"] ?? 12;
-    const slow = params["slow"] ?? 26;
     const signalPeriod = params["signal"] ?? 9;
-
-    const closes = candles.map((c) => c.close);
-    const fastEMA = computeEMA(closes, fast);
-    const slowEMA = computeEMA(closes, slow);
-
-    const macdLine = new Array<number>(candles.length);
-    for (let i = 0; i < candles.length; i++) {
-      const f = fastEMA[i];
-      const s = slowEMA[i];
-      if (f === undefined || s === undefined || isNaN(f) || isNaN(s)) {
-        macdLine[i] = NaN;
-      } else {
-        macdLine[i] = f - s;
-      }
-    }
-
+    const macdLine = computeMacdLines(candles, params);
     return computeEMA(macdLine, signalPeriod);
   },
 };

@@ -17,10 +17,12 @@ export const obvIndicator: Indicator = {
     for (let i = 1; i < candles.length; i++) {
       const curr = candles[i]!;
       const prev = candles[i - 1]!;
-      const delta =
-        curr.close > prev.close ? curr.volume
-        : curr.close < prev.close ? -curr.volume
-        : 0;
+      let delta = 0;
+      if (curr.close > prev.close) {
+        delta = curr.volume;
+      } else if (curr.close < prev.close) {
+        delta = -curr.volume;
+      }
       out[i] = out[i - 1]! + delta;
     }
     return out;
