@@ -113,8 +113,10 @@ describe("RSI", () => {
   it("returns NaN for insufficient data", () => {
     const candles = makeCandles(10);
     const result = rsiIndicator.compute(candles, { period: 14 });
-    for (let i = 0; i <= 14; i++) {
-      expect(result[i]).toBeNaN();
+    // Array has 10 elements (indices 0-9), all should be NaN
+    expect(result.length).toBe(10);
+    for (const val of result) {
+      expect(val).toBeNaN();
     }
   });
 });
