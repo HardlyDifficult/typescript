@@ -6,13 +6,14 @@
  */
 
 import type { Candle } from "../candle.js";
+
 import type { Indicator, IndicatorParams } from "./types.js";
 
 export const rocIndicator: Indicator = {
   type: "roc",
 
   compute(candles: Candle[], params: IndicatorParams): number[] {
-    const period = params["period"] ?? 14;
+    const period = params.period ?? 14;
     const result = new Array<number>(candles.length);
 
     for (let i = 0; i < candles.length; i++) {
@@ -20,12 +21,12 @@ export const rocIndicator: Indicator = {
         result[i] = NaN;
         continue;
       }
-      const previous = candles[i - period]!.close;
+      const previous = candles[i - period].close;
       if (previous === 0) {
         result[i] = 0;
         continue;
       }
-      result[i] = ((candles[i]!.close - previous) / previous) * 100;
+      result[i] = ((candles[i].close - previous) / previous) * 100;
     }
 
     return result;

@@ -27,4 +27,4 @@ export {
   atrIndicator,
   stochIndicator,
   obvIndicator,
-} from "./indicators/index.js";
+} from "./indicators";

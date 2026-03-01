@@ -7,13 +7,14 @@
  */
 
 import type { Candle } from "../candle.js";
+
 import type { Indicator, IndicatorParams } from "./types.js";
 
 export const rsiIndicator: Indicator = {
   type: "rsi",
 
   compute(candles: Candle[], params: IndicatorParams): number[] {
-    const period = params["period"] ?? 14;
+    const period = params.period ?? 14;
     const result = new Array<number>(candles.length);
 
     if (candles.length < period + 1) {
@@ -23,15 +24,18 @@ export const rsiIndicator: Indicator = {
 
     const changes: number[] = [];
     for (let i = 1; i < candles.length; i++) {
-      changes.push(candles[i]!.close - candles[i - 1]!.close);
+      changes.push(candles[i].close - candles[i - 1].close);
     }
 
     let avgGain = 0;
     let avgLoss = 0;
     for (let i = 0; i < period; i++) {
-      const change = changes[i]!;
-      if (change > 0) avgGain += change;
-      else avgLoss += Math.abs(change);
+      const change = changes[i];
+      if (change > 0) {
+        avgGain += change;
+      } else {
+        avgLoss += Math.abs(change);
+      }
     }
     avgGain /= period;
     avgLoss /= period;
@@ -43,7 +47,7 @@ export const rsiIndicator: Indicator = {
     result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
 
     for (let i = period + 1; i < candles.length; i++) {
-      const change = changes[i - 1]!;
+      const change = changes[i - 1];
       const gain = change > 0 ? change : 0;
       const loss = change < 0 ? Math.abs(change) : 0;
 

@@ -3,19 +3,22 @@
  */
 
 export type { Indicator, IndicatorParams } from "./types.js";
-export { registerIndicator, getIndicator, getAvailableIndicators } from "./registry.js";
+export {
+  registerIndicator,
+  getIndicator,
+  getAvailableIndicators,
+} from "./registry.js";
 
-import { smaIndicator } from "./sma.js";
-import { emaIndicator } from "./ema.js";
-import { rsiIndicator } from "./rsi.js";
-import { macdIndicator, macdSignalIndicator } from "./macd.js";
-import { bollingerIndicator } from "./bollinger.js";
-import { rocIndicator } from "./roc.js";
 import { atrIndicator } from "./atr.js";
-import { stochIndicator } from "./stoch.js";
+import { bollingerIndicator } from "./bollinger.js";
+import { emaIndicator } from "./ema.js";
+import { macdIndicator, macdSignalIndicator } from "./macd.js";
 import { obvIndicator } from "./obv.js";
-
 import { registerIndicator } from "./registry.js";
+import { rocIndicator } from "./roc.js";
+import { rsiIndicator } from "./rsi.js";
+import { smaIndicator } from "./sma.js";
+import { stochIndicator } from "./stoch.js";
 
 registerIndicator(smaIndicator);
 registerIndicator(emaIndicator);

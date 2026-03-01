@@ -15,7 +15,9 @@ export function registerIndicator(indicator: Indicator): void {
 export function getIndicator(type: string): Indicator {
   const indicator = indicatorRegistry.get(type);
   if (!indicator) {
-    throw new Error(`Unknown indicator type: ${type}. Available: ${[...indicatorRegistry.keys()].join(", ")}`);
+    throw new Error(
+      `Unknown indicator type: ${type}. Available: ${[...indicatorRegistry.keys()].join(", ")}`
+    );
   }
   return indicator;
 }
