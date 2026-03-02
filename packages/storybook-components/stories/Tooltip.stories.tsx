@@ -52,3 +52,12 @@ export const OnIcon: Story = {
     </div>
   ),
 };
+
+export const LongContent: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Tooltip content="This tooltip contains a longer description to demonstrate how the component handles wrapping text in a constrained space.">
+      <Button variant="secondary">Hover for details</Button>
+    </Tooltip>
+  ),
+};
