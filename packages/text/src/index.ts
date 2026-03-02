@@ -21,3 +21,4 @@ export {
 } from "./linker.js";
 export { escapeFence } from "./escapeFence.js";
 export { stripAnsi } from "./stripAnsi.js";
+export { isWaitingForInput } from "./questionDetection.js";
