@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-import { formatClockTime, minutesToMilliseconds, secondsToMilliseconds } from "@hardlydifficult/date-time";
+import {
+  formatClockTime,
+  minutesToMilliseconds,
+  secondsToMilliseconds,
+} from "@hardlydifficult/date-time";
 import { ConsolePlugin, Logger } from "@hardlydifficult/logger";
 
 import { buildHelpText, parseCliArgs, resolveCliArgs } from "./cliArgs.js";
@@ -41,11 +45,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
         logger.warn(
-          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`,
+          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`
         );
       } else {
         logger.info(
-          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`,
+          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`
         );
       }
     },
