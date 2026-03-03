@@ -42,3 +42,23 @@ export const States: Story = {
     </div>
   ),
 };
+
+export const Group: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => {
+    const [items, setItems] = useState({
+      email: true,
+      sms: false,
+      push: true,
+    });
+    const toggle = (key: keyof typeof items) =>
+      setItems((prev) => ({ ...prev, [key]: !prev[key] }));
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <Checkbox checked={items.email} onChange={() => toggle("email")} label="Email notifications" />
+        <Checkbox checked={items.sms} onChange={() => toggle("sms")} label="SMS notifications" />
+        <Checkbox checked={items.push} onChange={() => toggle("push")} label="Push notifications" />
+      </div>
+    );
+  },
+};
