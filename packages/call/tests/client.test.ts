@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CallClient } from "../src/client.js";
 
 describe("CallClient", () => {
-  it("fails over to secondary endpoint when primary is down", async () => {
+  it("retries when endpoint is temporarily unavailable", async () => {
     const fetchImpl = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("fetch failed"))
@@ -11,12 +11,12 @@ describe("CallClient", () => {
         new Response(JSON.stringify({ queued: true, position: 1 }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
       );
 
     const client = new CallClient({
-      endpoints: ["https://primary.example", "https://fallback.example"],
-      apiKey: "token",
+      endpoint: "https://api.example.com",
+      apiToken: "token",
       maxRetries: 2,
       requestTimeoutMs: 1000,
       retryBaseMs: 1,
@@ -28,12 +28,11 @@ describe("CallClient", () => {
     const response = await client.submitCall({
       firstMessage: "hello",
       systemPrompt: "be concise",
-      source: "cowork-test",
+      source: "call-test",
     });
 
     expect(response.queued).toBe(true);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("fallback.example");
   });
 
   it("polls through transient errors and returns completed", async () => {
@@ -44,7 +43,7 @@ describe("CallClient", () => {
         new Response(JSON.stringify({ status: "queued" }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
       )
       .mockResolvedValueOnce(
         new Response(
@@ -52,14 +51,14 @@ describe("CallClient", () => {
           {
             status: 200,
             headers: { "Content-Type": "application/json" },
-          }
-        )
+          },
+        ),
       );
 
     const events: string[] = [];
     const client = new CallClient({
-      endpoints: ["https://primary.example"],
-      apiKey: "token",
+      endpoint: "https://api.example.com",
+      apiToken: "token",
       maxRetries: 0,
       requestTimeoutMs: 1000,
       fetchImpl,
@@ -67,7 +66,7 @@ describe("CallClient", () => {
     });
 
     const result = await client.pollStatus({
-      source: "cowork-test",
+      source: "call-test",
       timeoutMs: 5000,
       pollIntervalMs: 1,
       onPoll: (event) => {

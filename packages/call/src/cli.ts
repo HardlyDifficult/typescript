@@ -3,9 +3,8 @@
 import { buildHelpText, parseCliArgs, resolveCliArgs } from "./cliArgs.js";
 import { CallClient } from "./client.js";
 
-function secondsToMilliseconds(seconds: number): number {
-  return seconds * 1000;
-}
+const POLL_TIMEOUT_MS = 600_000;
+const POLL_INTERVAL_MS = 10_000;
 
 function writeLine(message: string): void {
   process.stdout.write(`${message}\n`);
@@ -33,51 +32,31 @@ export async function runCli(argv: readonly string[]): Promise<number> {
 
   const resolved = resolveCliArgs(parsed, process.env);
   const client = new CallClient({
-    endpoints: resolved.endpoints,
-    apiKey: resolved.apiKey,
-    requestTimeoutMs: secondsToMilliseconds(resolved.requestTimeoutSeconds),
-    maxRetries: resolved.maxRetries,
-    retryBaseMs: resolved.retryBaseMs,
-    maxRetryDelayMs: resolved.maxRetryDelayMs,
+    endpoint: resolved.endpoint,
+    apiToken: resolved.apiToken,
   });
 
   writeLine(`SOURCE:${resolved.source}`);
 
-  let submitResponse: unknown;
-  if (!resolved.pollOnly) {
-    submitResponse = await client.submitCall({
-      firstMessage: resolved.firstMessage ?? "",
-      systemPrompt: resolved.systemPrompt,
-      source: resolved.source,
-    });
-    writeLine(`SUBMIT:${JSON.stringify(submitResponse)}`);
-  }
-
-  if (resolved.submitOnly) {
-    if (resolved.json) {
-      writeLine(
-        JSON.stringify({
-          source: resolved.source,
-          submitResponse,
-          finalStatus: "submitted",
-        })
-      );
-    }
-    return 0;
-  }
+  const submitResponse = await client.submitCall({
+    firstMessage: resolved.firstMessage,
+    systemPrompt: resolved.systemPrompt,
+    source: resolved.source,
+  });
+  writeLine(`SUBMIT:${JSON.stringify(submitResponse)}`);
 
   const pollResult = await client.pollStatus({
     source: resolved.source,
-    timeoutMs: secondsToMilliseconds(resolved.timeoutSeconds),
-    pollIntervalMs: secondsToMilliseconds(resolved.pollIntervalSeconds),
+    timeoutMs: POLL_TIMEOUT_MS,
+    pollIntervalMs: POLL_INTERVAL_MS,
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`,
         );
       } else {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`,
         );
       }
     },
@@ -91,16 +70,6 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     writeLine("=== TRANSCRIPT START ===");
     writeLine(transcript);
     writeLine("=== TRANSCRIPT END ===");
-  }
-
-  if (resolved.json) {
-    writeLine(
-      JSON.stringify({
-        source: resolved.source,
-        submitResponse,
-        pollResult,
-      })
-    );
   }
 
   return pollResult.status === "completed" ? 0 : 1;

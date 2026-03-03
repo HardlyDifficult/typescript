@@ -1,7 +1,7 @@
 {
   "name": "@hardlydifficult/call",
   "version": "1.0.0",
-  "description": "CLI and client for triggering and monitoring Cowork phone calls",
+  "description": "CLI and client for triggering and monitoring outbound calls",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [

@@ -10,8 +10,10 @@ import type {
 const TERMINAL_STATUSES = new Set(["completed", "failed", "not-found"]);
 
 export interface CallClientOptions {
-  endpoints: readonly string[];
-  apiKey: string;
+  endpoint: string;
+  apiToken: string;
+  submitPath?: string;
+  statusPathPrefix?: string;
   requestTimeoutMs?: number;
   maxRetries?: number;
   retryBaseMs?: number;
@@ -29,13 +31,14 @@ export interface PollCallOptions {
 
 export interface SubmitAndPollOptions extends PollCallOptions {
   request: CallSubmitRequest;
-  submitOnly?: boolean;
 }
 
-/** Client for Cowork call submission and status polling. */
+/** Client for outbound call submission and status polling. */
 export class CallClient {
-  private readonly endpoints: readonly string[];
-  private readonly apiKey: string;
+  private readonly endpoint: string;
+  private readonly apiToken: string;
+  private readonly submitPath: string;
+  private readonly statusPathPrefix: string;
   private readonly requestTimeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryBaseMs: number;
@@ -44,15 +47,17 @@ export class CallClient {
   private readonly sleepFn?: (ms: number) => Promise<void>;
 
   constructor(options: CallClientOptions) {
-    if (options.endpoints.length === 0) {
-      throw new Error("At least one endpoint is required");
+    if (options.endpoint.trim() === "") {
+      throw new Error("Endpoint is required");
     }
-    if (options.apiKey.trim() === "") {
-      throw new Error("API key is required");
+    if (options.apiToken.trim() === "") {
+      throw new Error("API token is required");
     }
 
-    this.endpoints = options.endpoints;
-    this.apiKey = options.apiKey;
+    this.endpoint = options.endpoint;
+    this.apiToken = options.apiToken;
+    this.submitPath = options.submitPath ?? "/call";
+    this.statusPathPrefix = options.statusPathPrefix ?? "/call/status";
     this.requestTimeoutMs = options.requestTimeoutMs ?? 20_000;
     this.maxRetries = options.maxRetries ?? 6;
     this.retryBaseMs = options.retryBaseMs ?? 500;
@@ -64,7 +69,7 @@ export class CallClient {
   private get headers(): Record<string, string> {
     return {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.apiKey}`,
+      Authorization: `Bearer ${this.apiToken}`,
     };
   }
 
@@ -92,8 +97,8 @@ export class CallClient {
     }
 
     return requestJsonWithRetry<CallSubmitResponse>({
-      endpoints: this.endpoints,
-      path: "/api/cowork-queue/call",
+      endpoints: [this.endpoint],
+      path: this.submitPath,
       method: "POST",
       headers: this.headers,
       body: JSON.stringify({
@@ -117,10 +122,10 @@ export class CallClient {
     }
 
     return requestJsonWithRetry<CallStatusResponse>({
-      endpoints: this.endpoints,
-      path: `/api/cowork-queue/call/status/${encodeURIComponent(source)}`,
+      endpoints: [this.endpoint],
+      path: `${this.statusPathPrefix}/${encodeURIComponent(source)}`,
       method: "GET",
-      headers: { Authorization: `Bearer ${this.apiKey}` },
+      headers: { Authorization: `Bearer ${this.apiToken}` },
       timeoutMs: this.requestTimeoutMs,
       maxRetries: this.maxRetries,
       baseDelayMs: this.retryBaseMs,
@@ -142,11 +147,7 @@ export class CallClient {
       try {
         const payload = await this.getStatus(options.source);
         lastPayload = payload;
-        options.onPoll?.({
-          attempt,
-          atMs,
-          status: payload.status,
-        });
+        options.onPoll?.({ attempt, atMs, status: payload.status });
 
         if (TERMINAL_STATUSES.has(payload.status)) {
           return {
@@ -156,12 +157,7 @@ export class CallClient {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        options.onPoll?.({
-          attempt,
-          atMs,
-          status: "error",
-          error: message,
-        });
+        options.onPoll?.({ attempt, atMs, status: "error", error: message });
       }
 
       if (Date.now() > deadline) {
@@ -170,21 +166,14 @@ export class CallClient {
       await this.sleep(options.pollIntervalMs);
     }
 
-    return {
-      status: "timeout",
-      payload: lastPayload,
-    };
+    return { status: "timeout", payload: lastPayload };
   }
 
-  /** Submit call and optionally poll until terminal status. */
+  /** Submit call and poll until terminal status or timeout. */
   async submitAndPoll(
-    options: SubmitAndPollOptions
-  ): Promise<{ submitResponse: CallSubmitResponse; pollResult?: PollResult }> {
+    options: SubmitAndPollOptions,
+  ): Promise<{ submitResponse: CallSubmitResponse; pollResult: PollResult }> {
     const submitResponse = await this.submitCall(options.request);
-    if (options.submitOnly === true) {
-      return { submitResponse };
-    }
-
     const pollResult = await this.pollStatus(options);
     return { submitResponse, pollResult };
   }
