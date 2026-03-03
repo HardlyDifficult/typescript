@@ -1,32 +1,21 @@
 #!/usr/bin/env node
 
+import { formatClockTime, minutesToMilliseconds, secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { ConsolePlugin, Logger } from "@hardlydifficult/logger";
+
 import { buildHelpText, parseCliArgs, resolveCliArgs } from "./cliArgs.js";
 import { CallClient } from "./client.js";
 
-const POLL_TIMEOUT_MS = 600_000;
-const POLL_INTERVAL_MS = 10_000;
+const POLL_TIMEOUT_MS = minutesToMilliseconds(10);
+const POLL_INTERVAL_MS = secondsToMilliseconds(10);
 
-function writeLine(message: string): void {
-  process.stdout.write(`${message}\n`);
-}
-
-function writeError(message: string): void {
-  process.stderr.write(`${message}\n`);
-}
-
-function formatClock(ms: number): string {
-  const date = new Date(ms);
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const ss = String(date.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
+const logger = new Logger("info").use(new ConsolePlugin());
 
 /** Runs the CLI command and returns process exit code. */
 export async function runCli(argv: readonly string[]): Promise<number> {
   const parsed = parseCliArgs(argv);
   if (parsed.help) {
-    writeLine(buildHelpText());
+    logger.info(buildHelpText());
     return 0;
   }
 
@@ -36,14 +25,14 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     apiToken: resolved.apiToken,
   });
 
-  writeLine(`SOURCE:${resolved.source}`);
+  logger.info(`SOURCE:${resolved.source}`);
 
   const submitResponse = await client.submitCall({
     firstMessage: resolved.firstMessage,
     systemPrompt: resolved.systemPrompt,
     source: resolved.source,
   });
-  writeLine(`SUBMIT:${JSON.stringify(submitResponse)}`);
+  logger.info(`SUBMIT:${JSON.stringify(submitResponse)}`);
 
   const pollResult = await client.pollStatus({
     source: resolved.source,
@@ -51,25 +40,25 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     pollIntervalMs: POLL_INTERVAL_MS,
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
-        writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`
+        logger.warn(
+          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`,
         );
       } else {
-        writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`
+        logger.info(
+          `${formatClockTime(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`,
         );
       }
     },
   });
 
-  writeLine(`FINAL_STATUS:${pollResult.status}`);
-  writeLine(`FINAL_PAYLOAD:${JSON.stringify(pollResult.payload)}`);
+  logger.info(`FINAL_STATUS:${pollResult.status}`);
+  logger.info(`FINAL_PAYLOAD:${JSON.stringify(pollResult.payload)}`);
 
   const { transcript } = pollResult.payload;
   if (typeof transcript === "string" && transcript !== "") {
-    writeLine("=== TRANSCRIPT START ===");
-    writeLine(transcript);
-    writeLine("=== TRANSCRIPT END ===");
+    logger.info("=== TRANSCRIPT START ===");
+    logger.info(transcript);
+    logger.info("=== TRANSCRIPT END ===");
   }
 
   return pollResult.status === "completed" ? 0 : 1;
@@ -81,7 +70,7 @@ async function main(): Promise<void> {
     process.exitCode = exitCode;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    writeError(`ERROR:${message}`);
+    logger.error(`ERROR:${message}`);
     process.exitCode = 1;
   }
 }

@@ -11,3 +11,4 @@ export {
   type TimeSpan,
   type TimeUnit,
 } from "./TimeSpan.js";
+export { formatClockTime } from "./formatClockTime.js";

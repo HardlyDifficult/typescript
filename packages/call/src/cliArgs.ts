@@ -1,10 +1,20 @@
 import { randomBytes } from "node:crypto";
+import { parseArgs } from "node:util";
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a concise phone assistant.",
   "Ask one question at a time.",
   "Do not read URLs, IDs, or file paths out loud unless requested.",
 ].join(" ");
+
+interface ParseResultValues {
+  "first-message"?: string;
+  "system-prompt"?: string;
+  source?: string;
+  "api-token"?: string;
+  endpoint?: string;
+  help?: boolean;
+}
 
 export interface ParsedCliArgs {
   firstMessage?: string;
@@ -23,77 +33,43 @@ export interface ResolvedCliArgs {
   endpoint: string;
 }
 
-function readFlagValue(
-  args: readonly string[],
-  index: number,
-  flag: string
-): string {
-  const value = args.at(index + 1);
-  if (value === undefined || value.startsWith("-")) {
-    throw new Error(`${flag} requires a value`);
-  }
-  return value;
-}
-
 function createDefaultSource(): string {
   return `call-${randomBytes(8).toString("hex")}`;
 }
 
-/** Parse CLI args for the call command. */
+/** Parse CLI args for the call command using Node's built-in parser. */
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
-  const parsed: ParsedCliArgs = { help: false };
-  const positional: string[] = [];
+  const { values, positionals } = parseArgs({
+    args: [...argv],
+    options: {
+      "first-message": { type: "string", short: "m" },
+      "system-prompt": { type: "string", short: "p" },
+      source: { type: "string", short: "s" },
+      "api-token": { type: "string" },
+      endpoint: { type: "string" },
+      help: { type: "boolean", short: "h" },
+    },
+    allowPositionals: true,
+    strict: true,
+  });
 
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    switch (arg) {
-      case "--help":
-      case "-h":
-        parsed.help = true;
-        break;
-      case "--first-message":
-      case "-m":
-        parsed.firstMessage = readFlagValue(argv, i, arg);
-        i += 1;
-        break;
-      case "--system-prompt":
-      case "-p":
-        parsed.systemPrompt = readFlagValue(argv, i, arg);
-        i += 1;
-        break;
-      case "--source":
-      case "-s":
-        parsed.source = readFlagValue(argv, i, arg);
-        i += 1;
-        break;
-      case "--api-token":
-        parsed.apiToken = readFlagValue(argv, i, arg);
-        i += 1;
-        break;
-      case "--endpoint":
-        parsed.endpoint = readFlagValue(argv, i, arg);
-        i += 1;
-        break;
-      default:
-        if (arg.startsWith("-")) {
-          throw new Error(`Unknown option: ${arg}`);
-        }
-        positional.push(arg);
-        break;
-    }
-  }
+  const typedValues = values as ParseResultValues;
+  const positionalMessage = positionals.length > 0 ? positionals.join(" ") : undefined;
 
-  if (parsed.firstMessage === undefined && positional.length > 0) {
-    parsed.firstMessage = positional.join(" ").trim();
-  }
-
-  return parsed;
+  return {
+    firstMessage: typedValues["first-message"] ?? positionalMessage,
+    systemPrompt: typedValues["system-prompt"],
+    source: typedValues.source,
+    apiToken: typedValues["api-token"],
+    endpoint: typedValues.endpoint,
+    help: typedValues.help === true,
+  };
 }
 
 /** Resolve parsed args with environment defaults and validate required values. */
 export function resolveCliArgs(
   parsed: ParsedCliArgs,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
 ): ResolvedCliArgs {
   const firstMessage = parsed.firstMessage ?? env.CALL_FIRST_MESSAGE;
   const systemPrompt =
@@ -104,7 +80,7 @@ export function resolveCliArgs(
 
   if (firstMessage === undefined || firstMessage.trim() === "") {
     throw new Error(
-      "First message is required. Pass a positional message, --first-message, or CALL_FIRST_MESSAGE."
+      "First message is required. Pass a positional message, --first-message, or CALL_FIRST_MESSAGE.",
     );
   }
   if (systemPrompt.trim() === "") {
@@ -114,14 +90,10 @@ export function resolveCliArgs(
     throw new Error("Source cannot be empty");
   }
   if (apiToken === undefined || apiToken.trim() === "") {
-    throw new Error(
-      "API token is required. Set --api-token or CALL_API_TOKEN."
-    );
+    throw new Error("API token is required. Set --api-token or CALL_API_TOKEN.");
   }
   if (endpoint === undefined || endpoint.trim() === "") {
-    throw new Error(
-      "Endpoint is required. Set --endpoint or CALL_API_ENDPOINT."
-    );
+    throw new Error("Endpoint is required. Set --endpoint or CALL_API_ENDPOINT.");
   }
 
   return {
