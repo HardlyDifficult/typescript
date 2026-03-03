@@ -37,11 +37,26 @@ import {
 } from "./messageOperations.js";
 import { removeAllReactions } from "./removeAllReactions.js";
 
+class NoReceiver {
+  init(): void {
+    // no-op
+  }
+
+  async start(): Promise<void> {
+    // no-op
+  }
+
+  async stop(): Promise<void> {
+    // no-op
+  }
+}
+
 /**
  * Slack chat client implementation using @slack/bolt
  */
 export class SlackChatClient extends ChatClient implements ChannelOperations {
   private app: App;
+  private readonly supportsInboundEvents: boolean;
   private slackBotId: string | null = null;
   private reactionCallbacks = new Map<string, Set<ReactionCallback>>();
   private messageCallbacks = new Map<string, Set<MessageCallback>>();
@@ -53,13 +68,40 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     super(config);
 
     const token = config.token ?? process.env.SLACK_BOT_TOKEN;
-    const appToken = config.appToken ?? process.env.SLACK_APP_TOKEN;
+    if (token === undefined || token === "") {
+      throw new Error(
+        "Slack bot token is required. Set SlackConfig.token or SLACK_BOT_TOKEN."
+      );
+    }
 
-    this.app = new App({
+    const socketMode = config.socketMode ?? false;
+    const appToken = config.appToken ?? process.env.SLACK_APP_TOKEN;
+    const signingSecret =
+      config.signingSecret ?? process.env.SLACK_SIGNING_SECRET;
+
+    if (socketMode && (appToken === undefined || appToken === "")) {
+      throw new Error(
+        "Slack app token is required when socketMode is true. Set SlackConfig.appToken or SLACK_APP_TOKEN."
+      );
+    }
+
+    this.supportsInboundEvents =
+      socketMode || (signingSecret !== undefined && signingSecret !== "");
+
+    const appConfig: ConstructorParameters<typeof App>[0] = {
       token,
-      appToken,
-      socketMode: config.socketMode ?? true,
-    });
+      socketMode,
+    };
+    if (socketMode) {
+      appConfig.appToken = appToken;
+    } else if (signingSecret !== undefined && signingSecret !== "") {
+      appConfig.signingSecret = signingSecret;
+    } else {
+      // Outbound-only mode: disable HTTP receiver and websocket receiver.
+      appConfig.receiver = new NoReceiver();
+    }
+
+    this.app = new App(appConfig);
 
     // Forward @slack/bolt errors to registered error callbacks
     this.app.error(async (error) => {
@@ -74,88 +116,94 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
       }
     });
 
-    // Set up global reaction event listener
-    this.app.event("reaction_added", async ({ event }) => {
-      const channelId = event.item.channel;
-      const callbacks = this.reactionCallbacks.get(channelId);
+    if (this.supportsInboundEvents) {
+      // Set up global reaction event listener
+      this.app.event("reaction_added", async ({ event }) => {
+        const channelId = event.item.channel;
+        const callbacks = this.reactionCallbacks.get(channelId);
 
-      if (!callbacks || callbacks.size === 0) {
-        return;
-      }
-
-      const user: User = { id: event.user, username: undefined };
-
-      const reactionEvent: ReactionEvent = {
-        emoji: event.reaction,
-        user,
-        messageId: event.item.ts,
-        channelId,
-        timestamp: new Date(secondsToMilliseconds(parseFloat(event.event_ts))),
-      };
-
-      for (const callback of callbacks) {
-        try {
-          await Promise.resolve(callback(reactionEvent));
-        } catch (err) {
-          console.error("Reaction callback error:", err);
-        }
-      }
-    });
-
-    // Set up global message event listener
-    // @slack/bolt's message event is a complex union — narrow to our typed subset
-    this.app.event("message", async ({ event, context }) => {
-      const payload = event as SlackMessagePayload;
-
-      // Skip bot's own messages
-      if (
-        context.botId !== undefined &&
-        context.botId !== "" &&
-        payload.bot_id === context.botId
-      ) {
-        return;
-      }
-
-      const messageEvent = buildMessageEvent(payload);
-
-      // Determine if this is a thread reply (thread_ts present and differs from ts)
-      const { thread_ts: threadTs } = payload;
-      const isThreadReply = threadTs !== undefined && threadTs !== payload.ts;
-
-      if (isThreadReply) {
-        const callbacks = this.threadCallbacks.get(threadTs);
         if (!callbacks || callbacks.size === 0) {
           return;
         }
-        messageEvent.threadId = threadTs;
+
+        const user: User = { id: event.user, username: undefined };
+
+        const reactionEvent: ReactionEvent = {
+          emoji: event.reaction,
+          user,
+          messageId: event.item.ts,
+          channelId,
+          timestamp: new Date(
+            secondsToMilliseconds(parseFloat(event.event_ts))
+          ),
+        };
+
         for (const callback of callbacks) {
           try {
-            await Promise.resolve(callback(messageEvent));
+            await Promise.resolve(callback(reactionEvent));
           } catch (err) {
-            console.error("Message callback error:", err);
+            console.error("Reaction callback error:", err);
           }
         }
-      } else {
-        const callbacks = this.messageCallbacks.get(payload.channel);
-        if (!callbacks || callbacks.size === 0) {
+      });
+
+      // Set up global message event listener
+      // @slack/bolt's message event is a complex union — narrow to our typed subset
+      this.app.event("message", async ({ event, context }) => {
+        const payload = event as SlackMessagePayload;
+
+        // Skip bot's own messages
+        if (
+          context.botId !== undefined &&
+          context.botId !== "" &&
+          payload.bot_id === context.botId
+        ) {
           return;
         }
-        for (const callback of callbacks) {
-          try {
-            await Promise.resolve(callback(messageEvent));
-          } catch (err) {
-            console.error("Message callback error:", err);
+
+        const messageEvent = buildMessageEvent(payload);
+
+        // Determine if this is a thread reply (thread_ts present and differs from ts)
+        const { thread_ts: threadTs } = payload;
+        const isThreadReply = threadTs !== undefined && threadTs !== payload.ts;
+
+        if (isThreadReply) {
+          const callbacks = this.threadCallbacks.get(threadTs);
+          if (!callbacks || callbacks.size === 0) {
+            return;
+          }
+          messageEvent.threadId = threadTs;
+          for (const callback of callbacks) {
+            try {
+              await Promise.resolve(callback(messageEvent));
+            } catch (err) {
+              console.error("Message callback error:", err);
+            }
+          }
+        } else {
+          const callbacks = this.messageCallbacks.get(payload.channel);
+          if (!callbacks || callbacks.size === 0) {
+            return;
+          }
+          for (const callback of callbacks) {
+            try {
+              await Promise.resolve(callback(messageEvent));
+            } catch (err) {
+              console.error("Message callback error:", err);
+            }
           }
         }
-      }
-    });
+      });
+    }
   }
 
   /**
    * Connect to Slack and return a channel object
    */
   async connect(channelId: string): Promise<Channel> {
-    await this.app.start();
+    if (this.supportsInboundEvents) {
+      await this.app.start();
+    }
     await this.hydrateIdentity();
     return new Channel({ id: channelId, platform: "slack", operations: this });
   }
@@ -183,7 +231,9 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Disconnect from Slack
    */
   async disconnect(): Promise<void> {
-    await this.app.stop();
+    if (this.supportsInboundEvents) {
+      await this.app.stop();
+    }
     this.reactionCallbacks.clear();
     this.messageCallbacks.clear();
     this.threadCallbacks.clear();
@@ -276,6 +326,13 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     await removeAllReactions(this.app, messageId, channelId);
   }
 
+  private assertInboundEventsConfigured(): void {
+    if (this.supportsInboundEvents) return;
+    throw new Error(
+      "Slack inbound events are disabled. Configure socketMode=true with appToken, or set signingSecret for HTTP receiver mode."
+    );
+  }
+
   /**
    * Subscribe to reaction events for a specific channel
    */
@@ -283,6 +340,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: ReactionCallback
   ): () => void {
+    this.assertInboundEventsConfigured();
     let callbacks = this.reactionCallbacks.get(channelId);
     if (!callbacks) {
       callbacks = new Set();
@@ -309,6 +367,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: MessageCallback
   ): () => void {
+    this.assertInboundEventsConfigured();
     let callbacks = this.messageCallbacks.get(channelId);
     if (!callbacks) {
       callbacks = new Set();
@@ -448,6 +507,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     _channelId: string,
     callback: MessageCallback
   ): () => void {
+    this.assertInboundEventsConfigured();
     let callbacks = this.threadCallbacks.get(threadId);
     if (!callbacks) {
       callbacks = new Set();

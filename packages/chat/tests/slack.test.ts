@@ -172,7 +172,9 @@ describe("SlackChatClient", () => {
 
     // Clear environment variables
     delete process.env.SLACK_TOKEN;
+    delete process.env.SLACK_BOT_TOKEN;
     delete process.env.SLACK_APP_TOKEN;
+    delete process.env.SLACK_SIGNING_SECRET;
 
     // Reset mock implementations
     mockStart.mockResolvedValue(undefined);
@@ -220,7 +222,9 @@ describe("SlackChatClient", () => {
     }
     // Clean up environment variables
     delete process.env.SLACK_TOKEN;
+    delete process.env.SLACK_BOT_TOKEN;
     delete process.env.SLACK_APP_TOKEN;
+    delete process.env.SLACK_SIGNING_SECRET;
   });
 
   describe("constructor", () => {
@@ -250,11 +254,10 @@ describe("SlackChatClient", () => {
       expect(mockError).toHaveBeenCalledWith(expect.any(Function));
     });
 
-    it("should default socketMode to true when not specified", async () => {
+    it("should default socketMode to false when not specified", async () => {
       const configWithoutSocketMode: SlackConfig = {
         type: "slack",
         token: "xoxb-test-token",
-        appToken: "xapp-test-app-token",
       };
       const { App } = await import("@slack/bolt");
       vi.mocked(App).mockClear();
@@ -263,9 +266,75 @@ describe("SlackChatClient", () => {
 
       expect(App).toHaveBeenCalledWith({
         token: configWithoutSocketMode.token,
-        appToken: configWithoutSocketMode.appToken,
-        socketMode: true,
+        socketMode: false,
+        receiver: expect.any(Object),
       });
+    });
+
+    it("should pass signingSecret for HTTP receiver mode", async () => {
+      const { App } = await import("@slack/bolt");
+      vi.mocked(App).mockClear();
+
+      new SlackChatClient({
+        type: "slack",
+        token: "xoxb-test-token",
+        signingSecret: "signing-secret",
+      });
+
+      expect(App).toHaveBeenCalledWith({
+        token: "xoxb-test-token",
+        socketMode: false,
+        signingSecret: "signing-secret",
+      });
+    });
+
+    it("should not register inbound event handlers in outbound-only mode", async () => {
+      const { App } = await import("@slack/bolt");
+      vi.mocked(App).mockClear();
+      mockEvent.mockClear();
+
+      const outboundOnlyClient = new SlackChatClient({
+        type: "slack",
+        token: "xoxb-test-token",
+      });
+
+      expect(App).toHaveBeenCalledWith({
+        token: "xoxb-test-token",
+        socketMode: false,
+        receiver: expect.any(Object),
+      });
+      expect(mockEvent).not.toHaveBeenCalledWith(
+        "reaction_added",
+        expect.any(Function)
+      );
+      expect(mockEvent).not.toHaveBeenCalledWith(
+        "message",
+        expect.any(Function)
+      );
+
+      expect(() =>
+        outboundOnlyClient.subscribeToMessages("C123", async () => {})
+      ).toThrow("Slack inbound events are disabled");
+    });
+
+    it("should throw when socket mode is enabled without app token", () => {
+      expect(
+        () =>
+          new SlackChatClient({
+            type: "slack",
+            token: "xoxb-test-token",
+            socketMode: true,
+          })
+      ).toThrow("Slack app token is required when socketMode is true");
+    });
+
+    it("should throw when bot token is missing", () => {
+      expect(
+        () =>
+          new SlackChatClient({
+            type: "slack",
+          })
+      ).toThrow("Slack bot token is required");
     });
   });
 
@@ -307,8 +376,8 @@ describe("SlackChatClient", () => {
 
       expect(App).toHaveBeenCalledWith({
         token: "env-token",
-        appToken: "env-app-token",
-        socketMode: true,
+        socketMode: false,
+        receiver: expect.any(Object),
       });
     });
 
@@ -329,8 +398,8 @@ describe("SlackChatClient", () => {
 
       expect(App).toHaveBeenCalledWith({
         token: "override-token",
-        appToken: "override-app-token",
-        socketMode: true,
+        socketMode: false,
+        receiver: expect.any(Object),
       });
     });
   });
