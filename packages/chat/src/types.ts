@@ -16,6 +16,7 @@ export interface SlackConfig {
   type: "slack";
   token?: string; // defaults to process.env.SLACK_BOT_TOKEN
   appToken?: string; // defaults to process.env.SLACK_APP_TOKEN
+  signingSecret?: string; // defaults to process.env.SLACK_SIGNING_SECRET
   socketMode?: boolean;
 }
 

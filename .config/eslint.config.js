@@ -20,4 +20,10 @@ export default [
     ],
   },
   ...config,
+  {
+    files: ["packages/ai/src/createAgent.ts"],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+    },
+  },
 ];

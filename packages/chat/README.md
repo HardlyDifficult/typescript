@@ -296,8 +296,8 @@ createChatClient({
 createChatClient({
   type: "slack",
   token: process.env.SLACK_BOT_TOKEN,
-  appToken: process.env.SLACK_APP_TOKEN,
   socketMode: true,
+  appToken: process.env.SLACK_APP_TOKEN,
 });
 ```
 
@@ -324,8 +324,15 @@ const client = new SlackChatClient({
   signingSecret: process.env.SLACK_SIGNING_SECRET!,
 });
 
-await client.start();
+const channel = await client.connect("C1234567890");
+await channel.postMessage("Slack HTTP mode connected");
 ```
+
+Slack modes:
+
+- Socket Mode (receives events over WebSocket): `socketMode: true` + `appToken`
+- HTTP Receiver mode (receives events via HTTP): `socketMode: false` + `signingSecret`
+- Outbound-only mode (no event receiver): `socketMode: false` with no `signingSecret`
 
 ## Document Output
 
@@ -658,10 +665,12 @@ console.log(MESSAGE_LIMITS.SLACK_MAX_MESSAGE_LENGTH);   // 4000
 ### Slack
 
 1. Create app at [Slack API](https://api.slack.com/apps)
-2. Enable Socket Mode, generate App Token
-3. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `channels:read`, `files:write`, `users:read`
-4. Subscribe to events: `reaction_added`, `message.channels`
-5. Set `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` env vars
+2. Bot scopes: `chat:write`, `chat:write.public`, `reactions:write`, `reactions:read`, `channels:history`, `channels:read`, `files:write`, `users:read`
+3. Choose mode:
+   - Socket Mode: enable Socket Mode, generate App Token, set `SLACK_APP_TOKEN`
+   - HTTP Receiver mode: set `SLACK_SIGNING_SECRET`
+   - Outbound-only mode: no app token or signing secret required
+4. Set `SLACK_BOT_TOKEN` env var
 
 ## Appendix
 
@@ -737,6 +746,7 @@ const discordClient = new DiscordChatClient({
 // Slack
 const slackClient = new SlackChatClient({
   token: process.env.SLACK_BOT_TOKEN!,
+  socketMode: true,
   appToken: process.env.SLACK_APP_TOKEN!,
 });
 ```

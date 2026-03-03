@@ -42,10 +42,9 @@ function convertTools(
   const result: AnyToolRecord = {};
 
   for (const [name, def] of Object.entries(tools)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK tool() requires explicit generic params for heterogeneous ToolMap
+    /* eslint-disable @typescript-eslint/no-explicit-any -- SDK tool() requires explicit generic params for heterogeneous ToolMap */
     result[name] = sdkTool<any, any>({
       description: def.description,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- ToolMap uses any to support heterogeneous schemas
       inputSchema: def.inputSchema,
       execute: async (args: Record<string, unknown>) => {
         logger.debug("Tool call", { tool: name, input: args });
@@ -62,6 +61,7 @@ function convertTools(
         return output;
       },
     });
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   }
 
   return result;
