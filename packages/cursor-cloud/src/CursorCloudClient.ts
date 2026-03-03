@@ -82,20 +82,27 @@ export class CursorCloudClient {
   }
 
   /** Launch a Cursor remote agent session. */
-  async launch(input: LaunchCursorAgentInput): Promise<LaunchCursorAgentResponse> {
+  async launch(
+    input: LaunchCursorAgentInput
+  ): Promise<LaunchCursorAgentResponse> {
     const request: LaunchCursorAgentRequest = {
       prompt: { text: requireNonEmpty(input.prompt, "prompt") },
       source: {
         repository: requireNonEmpty(input.repository, "repository"),
         branch: requireNonEmpty(input.branch ?? DEFAULT_BRANCH, "branch"),
       },
-      ...(input.model !== undefined && { model: requireNonEmpty(input.model, "model") }),
+      ...(input.model !== undefined && {
+        model: requireNonEmpty(input.model, "model"),
+      }),
     };
 
-    const response = await this.requestJson<Record<string, unknown>>("/v0/agents", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+    const response = await this.requestJson<Record<string, unknown>>(
+      "/v0/agents",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
 
     const idCandidate = response.id ?? response.agentId;
     if (typeof idCandidate !== "string" || idCandidate.trim() === "") {
@@ -138,8 +145,7 @@ export class CursorCloudClient {
     const timeoutMs = options.timeoutMs ?? this.timeoutMs;
     const deadline = Date.now() + timeoutMs;
 
-    // eslint-disable-next-line no-constant-condition -- clear polling loop with terminal break
-    while (true) {
+    for (;;) {
       const status = await this.status(id);
       options.onPoll?.(status);
 
@@ -184,7 +190,7 @@ export class CursorCloudClient {
       } catch {
         if (!response.ok) {
           throw new Error(
-            `Cursor API request failed (${response.status} ${response.statusText}): ${raw}`
+            `Cursor API request failed (${String(response.status)} ${response.statusText}): ${raw}`
           );
         }
         throw new Error("Cursor API returned non-JSON response");
@@ -193,7 +199,7 @@ export class CursorCloudClient {
 
     if (!response.ok) {
       throw new Error(
-        `Cursor API request failed (${response.status} ${response.statusText}): ${JSON.stringify(payload)}`
+        `Cursor API request failed (${String(response.status)} ${response.statusText}): ${JSON.stringify(payload)}`
       );
     }
 

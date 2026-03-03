@@ -29,9 +29,9 @@ describe("CursorCloudClient", () => {
   it("uses CURSOR_API_KEY from env and launches an agent", async () => {
     process.env.CURSOR_API_KEY = "env-key";
 
-    const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
-      jsonResponse({ id: "agent-1", status: "queued" })
-    );
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockResolvedValueOnce(jsonResponse({ id: "agent-1", status: "queued" }));
 
     const client = new CursorCloudClient({ fetchImpl });
     const launch = await client.repo("owner/repo").launch("Fix lint errors");
@@ -60,9 +60,9 @@ describe("CursorCloudClient", () => {
   });
 
   it("supports chainable branch/model overrides", async () => {
-    const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
-      jsonResponse({ id: "agent-2", status: "queued" })
-    );
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockResolvedValueOnce(jsonResponse({ id: "agent-2", status: "queued" }));
 
     const client = new CursorCloudClient({
       apiKey: "test-key",
@@ -92,7 +92,11 @@ describe("CursorCloudClient", () => {
       .mockResolvedValueOnce(jsonResponse({ id: "agent-3", status: "queued" }))
       .mockResolvedValueOnce(jsonResponse({ id: "agent-3", status: "running" }))
       .mockResolvedValueOnce(
-        jsonResponse({ id: "agent-3", status: "completed", pullRequestUrl: "https://example.com/pr/1" })
+        jsonResponse({
+          id: "agent-3",
+          status: "completed",
+          pullRequestUrl: "https://example.com/pr/1",
+        })
       );
 
     const sleepFn = vi.fn(async () => undefined);
