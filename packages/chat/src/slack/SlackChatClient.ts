@@ -20,6 +20,7 @@ import type {
   User,
 } from "../types.js";
 
+import { assertInboundEventsConfigured } from "./assertInboundEventsConfigured.js";
 import {
   buildMessageEvent,
   type SlackMessagePayload,
@@ -313,15 +314,6 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     await removeAllReactions(this.app, messageId, channelId);
   }
 
-  private assertInboundEventsConfigured(): void {
-    if (this.supportsInboundEvents) {
-      return;
-    }
-    throw new Error(
-      "Slack inbound events are disabled. Configure socketMode=true with appToken, or set signingSecret for HTTP receiver mode."
-    );
-  }
-
   /**
    * Subscribe to reaction events for a specific channel
    */
@@ -329,7 +321,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: ReactionCallback
   ): () => void {
-    this.assertInboundEventsConfigured();
+    assertInboundEventsConfigured(this.supportsInboundEvents);
     let callbacks = this.reactionCallbacks.get(channelId);
     if (!callbacks) {
       callbacks = new Set();
@@ -356,7 +348,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     channelId: string,
     callback: MessageCallback
   ): () => void {
-    this.assertInboundEventsConfigured();
+    assertInboundEventsConfigured(this.supportsInboundEvents);
     let callbacks = this.messageCallbacks.get(channelId);
     if (!callbacks) {
       callbacks = new Set();
@@ -496,7 +488,7 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     _channelId: string,
     callback: MessageCallback
   ): () => void {
-    this.assertInboundEventsConfigured();
+    assertInboundEventsConfigured(this.supportsInboundEvents);
     let callbacks = this.threadCallbacks.get(threadId);
     if (!callbacks) {
       callbacks = new Set();
