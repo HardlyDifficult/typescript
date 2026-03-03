@@ -62,7 +62,7 @@ function parsePositiveInteger(value: string, fieldName: string): number {
 function parseIntegerFromEnv(
   value: string | undefined,
   fallback: number,
-  fieldName: string,
+  fieldName: string
 ): number {
   if (value === undefined || value.trim() === "") {
     return fallback;
@@ -147,42 +147,42 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       case "--timeout-seconds":
         parsed.timeoutSeconds = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "timeout-seconds",
+          "timeout-seconds"
         );
         i += 1;
         break;
       case "--poll-interval-seconds":
         parsed.pollIntervalSeconds = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "poll-interval-seconds",
+          "poll-interval-seconds"
         );
         i += 1;
         break;
       case "--request-timeout-seconds":
         parsed.requestTimeoutSeconds = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "request-timeout-seconds",
+          "request-timeout-seconds"
         );
         i += 1;
         break;
       case "--max-retries":
         parsed.maxRetries = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "max-retries",
+          "max-retries"
         );
         i += 1;
         break;
       case "--retry-base-ms":
         parsed.retryBaseMs = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "retry-base-ms",
+          "retry-base-ms"
         );
         i += 1;
         break;
       case "--max-retry-delay-ms":
         parsed.maxRetryDelayMs = parsePositiveInteger(
           readFlagValue(args, i, arg),
-          "max-retry-delay-ms",
+          "max-retry-delay-ms"
         );
         i += 1;
         break;
@@ -214,7 +214,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
 /** Resolve parsed args with environment defaults and validate required values. */
 export function resolveCliArgs(
   parsed: ParsedCliArgs,
-  env: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv
 ): ResolvedCliArgs {
   const source = parsed.source ?? env.COWORK_SOURCE ?? createDefaultSource();
   const systemPrompt =
@@ -241,20 +241,24 @@ export function resolveCliArgs(
 
   const timeoutSeconds =
     parsed.timeoutSeconds ??
-    parseIntegerFromEnv(env.COWORK_TIMEOUT_SECONDS, 600, "COWORK_TIMEOUT_SECONDS");
+    parseIntegerFromEnv(
+      env.COWORK_TIMEOUT_SECONDS,
+      600,
+      "COWORK_TIMEOUT_SECONDS"
+    );
   const pollIntervalSeconds =
     parsed.pollIntervalSeconds ??
     parseIntegerFromEnv(
       env.COWORK_POLL_INTERVAL_SECONDS,
       10,
-      "COWORK_POLL_INTERVAL_SECONDS",
+      "COWORK_POLL_INTERVAL_SECONDS"
     );
   const requestTimeoutSeconds =
     parsed.requestTimeoutSeconds ??
     parseIntegerFromEnv(
       env.COWORK_REQUEST_TIMEOUT_SECONDS,
       20,
-      "COWORK_REQUEST_TIMEOUT_SECONDS",
+      "COWORK_REQUEST_TIMEOUT_SECONDS"
     );
   const maxRetries =
     parsed.maxRetries ??
@@ -267,15 +271,18 @@ export function resolveCliArgs(
     parseIntegerFromEnv(
       env.COWORK_MAX_RETRY_DELAY_MS,
       10_000,
-      "COWORK_MAX_RETRY_DELAY_MS",
+      "COWORK_MAX_RETRY_DELAY_MS"
     );
 
   if (parsed.pollOnly && parsed.submitOnly) {
     throw new Error("--poll-only and --submit-only cannot be combined");
   }
-  if (!parsed.pollOnly && (firstMessage === undefined || firstMessage.trim() === "")) {
+  if (
+    !parsed.pollOnly &&
+    (firstMessage === undefined || firstMessage.trim() === "")
+  ) {
     throw new Error(
-      "First message is required. Pass a positional message, --first-message, or COWORK_FIRST_MESSAGE.",
+      "First message is required. Pass a positional message, --first-message, or COWORK_FIRST_MESSAGE."
     );
   }
 

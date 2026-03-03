@@ -1,4 +1,7 @@
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+export type FetchLike = (
+  input: string,
+  init?: RequestInit
+) => Promise<Response>;
 
 export interface RequestWithRetryOptions {
   endpoints: readonly string[];
@@ -69,7 +72,7 @@ function isRetryableError(error: unknown): boolean {
 function calculateDelayMs(
   baseDelayMs: number,
   maxDelayMs: number,
-  attempt: number,
+  attempt: number
 ): number {
   const rawDelay = Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
   const jitter = Math.floor(rawDelay * Math.random() * 0.4);
@@ -86,7 +89,7 @@ function joinUrl(endpoint: string, path: string): string {
  * Executes an HTTP request with retry, exponential backoff, and endpoint failover.
  */
 export async function requestJsonWithRetry<T>(
-  options: RequestWithRetryOptions,
+  options: RequestWithRetryOptions
 ): Promise<T> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleepFn = options.sleepFn ?? sleep;
@@ -123,8 +126,7 @@ export async function requestJsonWithRetry<T>(
       }
     } catch (error) {
       lastError = error;
-      const shouldRetry =
-        attempt < maxAttempts - 1 && isRetryableError(error);
+      const shouldRetry = attempt < maxAttempts - 1 && isRetryableError(error);
       if (!shouldRetry) {
         throw error;
       }
@@ -132,14 +134,13 @@ export async function requestJsonWithRetry<T>(
       const delayMs = calculateDelayMs(
         options.baseDelayMs,
         options.maxDelayMs,
-        attempt,
+        attempt
       );
       await sleepFn(delayMs);
     }
   }
 
-  throw new Error(
-    `Request failed after ${String(maxAttempts)} attempts`,
-    { cause: lastError },
-  );
+  throw new Error(`Request failed after ${String(maxAttempts)} attempts`, {
+    cause: lastError,
+  });
 }

@@ -57,7 +57,7 @@ describe("resolveCliArgs", () => {
     expect(() =>
       resolveCliArgs(parsed, {
         COWORK_API_KEY: "token",
-      }),
+      })
     ).toThrow("First message is required");
 
     const pollOnly = parseCliArgs(["--poll-only", "--source", "abc"]);

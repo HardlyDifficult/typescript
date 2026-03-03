@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  buildHelpText,
-  parseCliArgs,
-  resolveCliArgs,
-} from "./cliArgs.js";
+import { buildHelpText, parseCliArgs, resolveCliArgs } from "./cliArgs.js";
 import { CallClient } from "./client.js";
 
 function secondsToMilliseconds(seconds: number): number {
@@ -64,7 +60,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
           source: resolved.source,
           submitResponse,
           finalStatus: "submitted",
-        }),
+        })
       );
     }
     return 0;
@@ -77,11 +73,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`,
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`
         );
       } else {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`,
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`
         );
       }
     },
@@ -103,7 +99,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
         source: resolved.source,
         submitResponse,
         pollResult,
-      }),
+      })
     );
   }
 

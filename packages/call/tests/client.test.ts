@@ -11,7 +11,7 @@ describe("CallClient", () => {
         new Response(JSON.stringify({ queued: true, position: 1 }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
+        })
       );
 
     const client = new CallClient({
@@ -44,7 +44,7 @@ describe("CallClient", () => {
         new Response(JSON.stringify({ status: "queued" }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
+        })
       )
       .mockResolvedValueOnce(
         new Response(
@@ -52,8 +52,8 @@ describe("CallClient", () => {
           {
             status: 200,
             headers: { "Content-Type": "application/json" },
-          },
-        ),
+          }
+        )
       );
 
     const events: string[] = [];

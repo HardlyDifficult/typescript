@@ -1,7 +1,4 @@
-import {
-  type FetchLike,
-  requestJsonWithRetry,
-} from "./retry.js";
+import { type FetchLike, requestJsonWithRetry } from "./retry.js";
 import type {
   CallStatusResponse,
   CallSubmitRequest,
@@ -181,7 +178,7 @@ export class CallClient {
 
   /** Submit call and optionally poll until terminal status. */
   async submitAndPoll(
-    options: SubmitAndPollOptions,
+    options: SubmitAndPollOptions
   ): Promise<{ submitResponse: CallSubmitResponse; pollResult?: PollResult }> {
     const submitResponse = await this.submitCall(options.request);
     if (options.submitOnly === true) {
