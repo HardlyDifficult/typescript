@@ -7,6 +7,7 @@ Focused, opinionated, easy-to-use npm packages for building robust TypeScript ap
 | Package | Description |
 |---------|-------------|
 | [ai](./packages/ai) | Core AI/LLM integration: unifies Anthropic & Ollama, streaming, caching, structured outputs (Zod), and tool calling. |
+| [cursor-cloud](./packages/cursor-cloud) | Cursor-only remote session client with opinionated defaults and a chainable launch/wait API. |
 | [agent-tools](./packages/agent-tools) | Infrastructure for deterministic tool execution: config-driven I/O limits, GitHub-style path parsing, and robust error handling. |
 
 ## GitHub & CI
