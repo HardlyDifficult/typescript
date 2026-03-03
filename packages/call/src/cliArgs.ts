@@ -23,7 +23,11 @@ export interface ResolvedCliArgs {
   endpoint: string;
 }
 
-function readFlagValue(args: readonly string[], index: number, flag: string): string {
+function readFlagValue(
+  args: readonly string[],
+  index: number,
+  flag: string
+): string {
   const value = args.at(index + 1);
   if (value === undefined || value.startsWith("-")) {
     throw new Error(`${flag} requires a value`);
@@ -89,7 +93,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
 /** Resolve parsed args with environment defaults and validate required values. */
 export function resolveCliArgs(
   parsed: ParsedCliArgs,
-  env: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv
 ): ResolvedCliArgs {
   const firstMessage = parsed.firstMessage ?? env.CALL_FIRST_MESSAGE;
   const systemPrompt =
@@ -100,7 +104,7 @@ export function resolveCliArgs(
 
   if (firstMessage === undefined || firstMessage.trim() === "") {
     throw new Error(
-      "First message is required. Pass a positional message, --first-message, or CALL_FIRST_MESSAGE.",
+      "First message is required. Pass a positional message, --first-message, or CALL_FIRST_MESSAGE."
     );
   }
   if (systemPrompt.trim() === "") {
@@ -110,10 +114,14 @@ export function resolveCliArgs(
     throw new Error("Source cannot be empty");
   }
   if (apiToken === undefined || apiToken.trim() === "") {
-    throw new Error("API token is required. Set --api-token or CALL_API_TOKEN.");
+    throw new Error(
+      "API token is required. Set --api-token or CALL_API_TOKEN."
+    );
   }
   if (endpoint === undefined || endpoint.trim() === "") {
-    throw new Error("Endpoint is required. Set --endpoint or CALL_API_ENDPOINT.");
+    throw new Error(
+      "Endpoint is required. Set --endpoint or CALL_API_ENDPOINT."
+    );
   }
 
   return {

@@ -52,11 +52,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`,
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: error (${event.error})`
         );
       } else {
         writeLine(
-          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`,
+          `${formatClock(event.atMs)} POLL ${String(event.attempt)}: ${event.status}`
         );
       }
     },

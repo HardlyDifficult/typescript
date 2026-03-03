@@ -36,7 +36,11 @@ describe("resolveCliArgs", () => {
   });
 
   it("requires API token", () => {
-    const parsed = parseCliArgs(["call me", "--endpoint", "https://api.example.com"]);
+    const parsed = parseCliArgs([
+      "call me",
+      "--endpoint",
+      "https://api.example.com",
+    ]);
     expect(() => resolveCliArgs(parsed, {})).toThrow("API token is required");
   });
 
@@ -46,7 +50,14 @@ describe("resolveCliArgs", () => {
   });
 
   it("requires first message", () => {
-    const parsed = parseCliArgs(["--api-token", "token", "--endpoint", "https://api.example.com"]);
-    expect(() => resolveCliArgs(parsed, {})).toThrow("First message is required");
+    const parsed = parseCliArgs([
+      "--api-token",
+      "token",
+      "--endpoint",
+      "https://api.example.com",
+    ]);
+    expect(() => resolveCliArgs(parsed, {})).toThrow(
+      "First message is required"
+    );
   });
 });

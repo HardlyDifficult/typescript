@@ -171,7 +171,7 @@ export class CallClient {
 
   /** Submit call and poll until terminal status or timeout. */
   async submitAndPoll(
-    options: SubmitAndPollOptions,
+    options: SubmitAndPollOptions
   ): Promise<{ submitResponse: CallSubmitResponse; pollResult: PollResult }> {
     const submitResponse = await this.submitCall(options.request);
     const pollResult = await this.pollStatus(options);
