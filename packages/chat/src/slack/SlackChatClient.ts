@@ -188,7 +188,9 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Connect to Slack and return a channel object
    */
   async connect(channelId: string): Promise<Channel> {
-    if (this.supportsInboundEvents) { await this.app.start(); }
+    if (this.supportsInboundEvents) {
+      await this.app.start();
+    }
     await this.hydrateIdentity();
     return new Channel({ id: channelId, platform: "slack", operations: this });
   }
@@ -216,7 +218,9 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
    * Disconnect from Slack
    */
   async disconnect(): Promise<void> {
-    if (this.supportsInboundEvents) { await this.app.stop(); }
+    if (this.supportsInboundEvents) {
+      await this.app.stop();
+    }
     this.reactionCallbacks.clear();
     this.messageCallbacks.clear();
     this.threadCallbacks.clear();
@@ -310,7 +314,9 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
   }
 
   private assertInboundEventsConfigured(): void {
-    if (this.supportsInboundEvents) { return; }
+    if (this.supportsInboundEvents) {
+      return;
+    }
     throw new Error(
       "Slack inbound events are disabled. Configure socketMode=true with appToken, or set signingSecret for HTTP receiver mode."
     );
