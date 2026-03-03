@@ -1,0 +1,43 @@
+{
+  "name": "@hardlydifficult/call",
+  "version": "1.0.0",
+  "description": "CLI and client for triggering and monitoring outbound calls",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "hardlydifficult-call": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
+  },
+  "dependencies": {
+    "@hardlydifficult/date-time": "file:../date-time",
+    "@hardlydifficult/logger": "file:../logger"
+  },
+  "devDependencies": {
+    "@types/node": "25.3.2",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18",
+    "@vitest/coverage-v8": "4.0.18"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  }
+}
