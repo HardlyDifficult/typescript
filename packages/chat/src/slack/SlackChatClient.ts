@@ -37,6 +37,7 @@ import {
   updateMessage,
 } from "./messageOperations.js";
 import { NoReceiver } from "./NoReceiver.js";
+import { addReaction, removeReaction } from "./reactionOperations.js";
 import { removeAllReactions } from "./removeAllReactions.js";
 
 /**
@@ -268,39 +269,20 @@ export class SlackChatClient extends ChatClient implements ChannelOperations {
     await deleteMessage(this.app, messageId, channelId, options);
   }
 
-  /**
-   * Add a reaction to a message
-   */
   async addReaction(
     messageId: string,
     channelId: string,
     emoji: string
   ): Promise<void> {
-    // Strip colons from emoji name (e.g., ":thumbsup:" -> "thumbsup")
-    const emojiName = emoji.replace(/^:|:$/g, "");
-
-    await this.app.client.reactions.add({
-      channel: channelId,
-      timestamp: messageId,
-      name: emojiName,
-    });
+    await addReaction(this.app, messageId, channelId, emoji);
   }
 
-  /**
-   * Remove a reaction from a message
-   */
   async removeReaction(
     messageId: string,
     channelId: string,
     emoji: string
   ): Promise<void> {
-    const emojiName = emoji.replace(/^:|:$/g, "");
-
-    await this.app.client.reactions.remove({
-      channel: channelId,
-      timestamp: messageId,
-      name: emojiName,
-    });
+    await removeReaction(this.app, messageId, channelId, emoji);
   }
 
   /**
