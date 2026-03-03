@@ -13,9 +13,10 @@ npm install @hardlydifficult/cursor-cloud
 ```typescript
 import { createCursorCloud } from "@hardlydifficult/cursor-cloud";
 
-const cursor = createCursorCloud({
-  apiKey: process.env.CURSOR_API_KEY,
-});
+// Reads CURSOR_API_KEY from env by default.
+const cursor = createCursorCloud();
+// Optional override:
+// const cursor = createCursorCloud({ apiKey: process.env.CURSOR_API_KEY });
 
 const result = await cursor
   .repo("owner/repo")
