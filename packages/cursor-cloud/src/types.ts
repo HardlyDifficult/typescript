@@ -1,9 +1,11 @@
+import type { CursorAgentStatus } from "./schemas.js";
+
 // Re-export types from schemas for convenience and backward compatibility
 export type {
+  CursorAgentStatus,
   LaunchCursorAgentInput,
   LaunchCursorAgentRequest,
   LaunchCursorAgentResponse,
-  CursorAgentStatus,
   CursorRunResult,
   ListAgentsQuery,
   ListAgentsResponse,
@@ -36,7 +38,7 @@ export interface CursorCloudClientOptions {
 export interface WaitForAgentOptions {
   pollIntervalMs?: number;
   timeoutMs?: number;
-  onPoll?: (status: import("./schemas.js").CursorAgentStatus) => void;
+  onPoll?: (status: CursorAgentStatus) => void;
 }
 
 export interface RunCursorAgentOptions extends WaitForAgentOptions {

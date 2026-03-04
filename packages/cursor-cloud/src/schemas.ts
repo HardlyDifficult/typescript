@@ -45,7 +45,7 @@ export const LaunchCursorAgentRequestSchema = z.object({
 export const LaunchCursorAgentResponseSchema = z.object({
   id: z.string().min(1),
   status: AgentStatusSchema.optional(),
-}).passthrough(); // Allow additional properties
+}).catchall(z.unknown()); // Allow additional properties
 
 // Agent status schemas
 export const CursorAgentStatusSchema = z.object({
@@ -56,10 +56,10 @@ export const CursorAgentStatusSchema = z.object({
   startedAt: z.string().optional(),
   completedAt: z.string().optional(),
   gitBranch: z.string().optional(),
-  branchUrl: z.string().url().optional(),
+  branchUrl: z.url().optional(),
   repoName: z.string().optional(),
-  pullRequestUrl: z.string().url().optional(),
-}).passthrough(); // Allow additional properties
+  pullRequestUrl: z.url().optional(),
+}).catchall(z.unknown()); // Allow additional properties
 
 // List agents schemas
 export const ListAgentsQuerySchema = z.object({
@@ -86,7 +86,7 @@ export const CancelAgentResponseSchema = z.object({
   id: z.string().min(1),
   status: AgentStatusSchema,
   cancelledAt: z.string().optional(),
-}).passthrough();
+}).catchall(z.unknown());
 
 // Update agent schemas
 export const UpdateAgentRequestSchema = z.object({
@@ -124,7 +124,7 @@ export const DeleteAgentResponseSchema = z.object({
 // Configuration schemas
 export const CursorCloudClientOptionsSchema = z.object({
   apiKey: z.string().optional(),
-  baseUrl: z.string().url().optional(),
+  baseUrl: z.url().optional(),
   defaultModel: ModelSchema.optional(),
   pollIntervalMs: z.number().min(100).optional(),
   timeoutMs: z.number().min(1000).optional(),

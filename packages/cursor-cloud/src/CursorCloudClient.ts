@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type {
   CursorAgentStatus,
   CursorCloudClientOptions,
@@ -63,8 +65,6 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
 
-import { z } from "zod";
-
 /** Validate and parse data using a Zod schema. */
 function validateAndParse<T>(data: unknown, schema: z.ZodType<T>, context: string): T {
   try {
@@ -72,9 +72,9 @@ function validateAndParse<T>(data: unknown, schema: z.ZodType<T>, context: strin
   } catch (error) {
     if (error instanceof z.ZodError) {
       const issues = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", ");
-      throw new Error(`${context} validation failed: ${issues}`);
+      throw new Error(`${context} validation failed: ${issues}`, { cause: error });
     }
-    throw new Error(`${context} validation failed: ${String(error)}`);
+    throw new Error(`${context} validation failed: ${String(error)}`, { cause: error });
   }
 }
 
@@ -83,8 +83,8 @@ function buildQueryString(params: Record<string, unknown>): string {
   const searchParams = new URLSearchParams();
   
   for (const [key, value] of Object.entries(params)) {
-    if (value != null) {
-      searchParams.append(key, String(value));
+    if (value !== null && value !== undefined) {
+      searchParams.append(key, typeof value === "string" ? value : JSON.stringify(value));
     }
   }
   
