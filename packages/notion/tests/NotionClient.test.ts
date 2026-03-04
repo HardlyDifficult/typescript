@@ -83,7 +83,9 @@ describe("NotionClient", () => {
 
     it("uses the provided heading text", () => {
       const blocks = NotionClient.buildSectionBlocks("My Section", "body");
-      const heading = blocks[0] as { heading_2: { rich_text: { text: { content: string } }[] } };
+      const heading = blocks[0] as {
+        heading_2: { rich_text: { text: { content: string } }[] };
+      };
       expect(heading.heading_2.rich_text[0]?.text.content).toBe("My Section");
     });
 
