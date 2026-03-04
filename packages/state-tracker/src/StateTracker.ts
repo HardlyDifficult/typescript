@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
@@ -11,10 +10,16 @@ export interface StateTrackerEvent {
   context?: Record<string, unknown>;
 }
 
+export interface StorageAdapter {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string): Promise<void>;
+}
+
 export interface StateTrackerOptions<T> {
   key: string;
   default: T;
   stateDirectory?: string;
+  storageAdapter?: StorageAdapter;
   autoSaveMs?: number;
   onEvent?: (event: StateTrackerEvent) => void;
 }
@@ -38,9 +43,11 @@ export function defineStateMigration<TCurrent, TLegacy>(
   return migration;
 }
 
-/** Atomic JSON state persistence with file-based storage, auto-save, and graceful degradation to in-memory mode. */
+/** Atomic JSON state persistence with pluggable storage (file or custom adapter), auto-save, and graceful degradation to in-memory mode. */
 export class StateTracker<T> {
-  private readonly filePath: string;
+  private readonly storageKey: string;
+  private readonly storageAdapter?: StorageAdapter;
+  private readonly filePath?: string;
   private readonly defaultValue: T;
   private readonly autoSaveMs: number;
   private readonly onEvent?: (event: StateTrackerEvent) => void;
@@ -73,22 +80,19 @@ export class StateTracker<T> {
 
   constructor(options: StateTrackerOptions<T>) {
     const sanitizedKey = StateTracker.sanitizeKey(options.key);
+    this.storageKey = sanitizedKey;
     this.defaultValue = structuredClone(options.default);
     this._state = structuredClone(options.default);
     this.autoSaveMs = options.autoSaveMs ?? 0;
     this.onEvent = options.onEvent;
-    const stateDirectory =
-      options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
 
-    try {
-      if (!fs.existsSync(stateDirectory)) {
-        fs.mkdirSync(stateDirectory, { recursive: true });
-      }
-    } catch {
-      // Directory creation failed (e.g. EACCES in CI) — loadAsync() will
-      // retry and set _storageAvailable = false on failure.
+    if (options.storageAdapter !== undefined) {
+      this.storageAdapter = options.storageAdapter;
+    } else {
+      const stateDirectory =
+        options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
+      this.filePath = path.join(stateDirectory, `${sanitizedKey}.json`);
     }
-    this.filePath = path.join(stateDirectory, `${sanitizedKey}.json`);
   }
 
   /** Read-only getter for cached in-memory state */
@@ -111,24 +115,11 @@ export class StateTracker<T> {
     }
   }
 
-  private buildEnvelope(
-    value: T,
-    meta?: StateTrackerSaveMeta
-  ): Record<string, unknown> {
-    const envelope: Record<string, unknown> = {
+  private buildEnvelope(value: T): Record<string, unknown> {
+    return {
       value,
       lastUpdated: new Date().toISOString(),
     };
-    if (meta !== undefined) {
-      envelope.meta = structuredClone(meta);
-    }
-    return envelope;
-  }
-
-  private writeEnvelopeSync(envelope: Record<string, unknown>): void {
-    const tempFilePath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tempFilePath, JSON.stringify(envelope, null, 2), "utf-8");
-    fs.renameSync(tempFilePath, this.filePath);
   }
 
   private mergeWithDefaults(value: unknown): T {
@@ -236,57 +227,13 @@ export class StateTracker<T> {
     return structuredClone(this.defaultValue);
   }
 
-  /** Sync load — v1 compatible. Also updates internal state cache. */
-  load(): T {
-    return this.loadSync();
-  }
-
-  /**
-   * Sync load that explicitly falls back to defaults if disk state is missing,
-   * unreadable, or invalid. Supports optional typed legacy migrations.
-   */
-  loadOrDefault(options?: StateTrackerLoadOrDefaultOptions<T>): T {
-    return this.loadSync(options?.migrations);
-  }
-
-  private loadSync(migrations?: readonly StateTrackerMigration<T>[]): T {
-    this._loaded = true;
-    this._storageAvailable = true;
-
-    if (!fs.existsSync(this.filePath)) {
-      this._state = structuredClone(this.defaultValue);
-      return this._state;
-    }
-    try {
-      const data = fs.readFileSync(this.filePath, "utf-8");
-      const parsed: unknown = JSON.parse(data);
-      this._state = this.extractValue(parsed, migrations);
-      return this._state;
-    } catch {
-      this._state = structuredClone(this.defaultValue);
-      return this._state;
-    }
-  }
-
-  /** Sync save — v1 compatible. Also updates internal state cache. */
-  save(value: T): void {
-    this.saveWithMeta(value);
-  }
-
-  /** Sync save with optional metadata in the JSON envelope. */
-  saveWithMeta(value: T, meta?: StateTrackerSaveMeta): void {
-    this.cancelPendingSave();
-    const clonedValue = structuredClone(value);
-    this._state = clonedValue;
-    this.writeEnvelopeSync(this.buildEnvelope(clonedValue, meta));
-  }
-
   /**
    * Async load with graceful degradation.
    * Sets _storageAvailable false on failure instead of throwing.
    * Safe to call multiple times (subsequent calls are no-ops).
+   * Accepts optional migrations to transform legacy state shapes.
    */
-  async loadAsync(): Promise<void> {
+  async loadAsync(options?: StateTrackerLoadOrDefaultOptions<T>): Promise<void> {
     if (this._loaded) {
       return;
     }
@@ -294,37 +241,62 @@ export class StateTracker<T> {
     this._loaded = true;
 
     try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        this.emit("info", "Creating storage directory", { dir });
+      let data: string | null;
+
+      if (this.storageAdapter !== undefined) {
+        data = await this.storageAdapter.read(this.storageKey);
+        if (data === null) {
+          this._storageAvailable = true;
+          this.emit("info", "No existing state in adapter, using defaults", {
+            key: this.storageKey,
+          });
+        }
+      } else {
+        const dir = path.dirname(this.filePath!);
         await fsPromises.mkdir(dir, { recursive: true });
+        try {
+          data = await fsPromises.readFile(this.filePath!, "utf-8");
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+            data = null;
+            this._storageAvailable = true;
+            this.emit("info", "No existing state file, using defaults", {
+              path: this.filePath!,
+            });
+          } else {
+            throw err;
+          }
+        }
       }
 
-      if (fs.existsSync(this.filePath)) {
-        const data = await fsPromises.readFile(this.filePath, "utf-8");
+      if (data !== null) {
         const parsed: unknown = JSON.parse(data);
-        this._state = this.extractValue(parsed);
+        this._state = this.extractValue(parsed, options?.migrations);
         this._storageAvailable = true;
-        this.emit("debug", "Loaded state from disk", { path: this.filePath });
-      } else {
-        this._storageAvailable = true;
-        this.emit("info", "No existing state file, using defaults", {
-          path: this.filePath,
-        });
+        if (this.storageAdapter !== undefined) {
+          this.emit("debug", "Loaded state from adapter", {
+            key: this.storageKey,
+          });
+        } else {
+          this.emit("debug", "Loaded state from disk", {
+            path: this.filePath!,
+          });
+        }
       }
     } catch (err) {
       this._storageAvailable = false;
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.emit("warn", "Storage unavailable, running in-memory", {
         error: errorMessage,
-        path: this.filePath,
+        ...(this.storageAdapter !== undefined
+          ? { key: this.storageKey }
+          : { path: this.filePath! }),
       });
     }
   }
 
   /**
-   * Async atomic save (temp file + rename).
-   * Cancels any pending auto-save before writing.
+   * Async save. Cancels any pending auto-save before writing.
    */
   async saveAsync(): Promise<void> {
     this.cancelPendingSave();
@@ -334,14 +306,17 @@ export class StateTracker<T> {
     }
 
     try {
-      const tempFilePath = `${this.filePath}.tmp`;
-      await fsPromises.writeFile(
-        tempFilePath,
-        JSON.stringify(this.buildEnvelope(this._state), null, 2),
-        "utf-8"
-      );
-      await fsPromises.rename(tempFilePath, this.filePath);
-      this.emit("debug", "Saved state to disk", { path: this.filePath });
+      const json = JSON.stringify(this.buildEnvelope(this._state), null, 2);
+
+      if (this.storageAdapter !== undefined) {
+        await this.storageAdapter.write(this.storageKey, json);
+        this.emit("debug", "Saved state to adapter", { key: this.storageKey });
+      } else {
+        const tempFilePath = `${this.filePath!}.tmp`;
+        await fsPromises.writeFile(tempFilePath, json, "utf-8");
+        await fsPromises.rename(tempFilePath, this.filePath!);
+        this.emit("debug", "Saved state to disk", { path: this.filePath! });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.emit("error", "Failed to save state", {
@@ -380,7 +355,13 @@ export class StateTracker<T> {
     this.scheduleSave();
   }
 
+  /** Returns the file path for file-based storage. Throws when using a storageAdapter. */
   getFilePath(): string {
+    if (this.filePath === undefined) {
+      throw new Error(
+        "getFilePath() is not available when using a storageAdapter"
+      );
+    }
     return this.filePath;
   }
 
@@ -393,18 +374,7 @@ export class StateTracker<T> {
 
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      // Use sync save to avoid issues with untracked promises
-      try {
-        this.writeEnvelopeSync(this.buildEnvelope(this._state));
-        this.emit("debug", "Auto-saved state to disk", {
-          path: this.filePath,
-        });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        this.emit("error", "Failed to auto-save state", {
-          error: errorMessage,
-        });
-      }
+      void this.saveAsync();
     }, this.autoSaveMs);
   }
 
