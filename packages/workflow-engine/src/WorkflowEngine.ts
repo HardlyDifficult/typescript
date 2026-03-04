@@ -50,6 +50,7 @@ export class WorkflowEngine<TStatus extends string, TData> {
         updatedAt: new Date().toISOString(),
       },
       stateDirectory: options.stateDirectory,
+      storageAdapter: options.storageAdapter,
       autoSaveMs: options.autoSaveMs ?? 5000,
     });
   }

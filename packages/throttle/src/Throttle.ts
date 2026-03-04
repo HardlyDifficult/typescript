@@ -1,5 +1,8 @@
 import { secondsToMilliseconds } from "@hardlydifficult/date-time";
-import { StateTracker } from "@hardlydifficult/state-tracker";
+import {
+  StateTracker,
+  type StorageAdapter,
+} from "@hardlydifficult/state-tracker";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -16,6 +19,7 @@ export interface ThrottleOptions {
   unitsPerSecond: number;
   persistKey?: string;
   stateDirectory?: string;
+  storageAdapter?: StorageAdapter;
   onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
 }
 
@@ -25,6 +29,7 @@ export class Throttle {
   private readonly unitsPerSecond: number;
   private readonly stateTracker?: StateTracker<number>;
   private readonly onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
+  private stateLoaded = false;
 
   constructor(options: ThrottleOptions) {
     this.unitsPerSecond = options.unitsPerSecond;
@@ -34,21 +39,30 @@ export class Throttle {
       throw new Error("Throttle requires a positive unitsPerSecond value");
     }
 
-    if (options.persistKey !== undefined) {
+    if (
+      options.persistKey !== undefined ||
+      options.storageAdapter !== undefined
+    ) {
       this.stateTracker = new StateTracker({
-        key: options.persistKey,
+        key: options.persistKey ?? "throttle",
         default: Date.now(),
         stateDirectory: options.stateDirectory,
+        storageAdapter: options.storageAdapter,
       });
-      this.nextAvailableAt = this.stateTracker.load();
-    } else {
-      this.nextAvailableAt = 0;
     }
+
+    this.nextAvailableAt = 0;
   }
 
   async wait(weight = 1): Promise<void> {
     if (!Number.isFinite(weight) || weight <= 0) {
       return;
+    }
+
+    if (this.stateTracker !== undefined && !this.stateLoaded) {
+      await this.stateTracker.loadAsync();
+      this.nextAvailableAt = this.stateTracker.state;
+      this.stateLoaded = true;
     }
 
     const now = Date.now();
@@ -59,7 +73,10 @@ export class Throttle {
     const delayMs = startAt - now;
     const newNextAvailableAt = startAt + processingWindowMs;
 
-    this.stateTracker?.save(newNextAvailableAt);
+    if (this.stateTracker !== undefined) {
+      this.stateTracker.set(newNextAvailableAt);
+      await this.stateTracker.saveAsync();
+    }
     this.nextAvailableAt = newNextAvailableAt;
 
     if (delayMs > 0) {

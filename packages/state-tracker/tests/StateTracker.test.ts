@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -6,6 +6,7 @@ import {
   defineStateMigration,
   StateTracker,
   type StateTrackerEvent,
+  type StorageAdapter,
 } from "../src/StateTracker";
 
 describe("StateTracker", () => {
@@ -22,11 +23,16 @@ describe("StateTracker", () => {
   });
 
   describe("constructor", () => {
-    it("should create state directory if not exists", () => {
+    it("should create state directory when loadAsync is called", async () => {
       const stateDir = path.join(testDir, "nested", "state");
       expect(fs.existsSync(stateDir)).toBe(false);
 
-      new StateTracker({ key: "test", default: 0, stateDirectory: stateDir });
+      const tracker = new StateTracker({
+        key: "test",
+        default: 0,
+        stateDirectory: stateDir,
+      });
+      await tracker.loadAsync();
 
       expect(fs.existsSync(stateDir)).toBe(true);
     });
@@ -85,36 +91,45 @@ describe("StateTracker", () => {
     });
   });
 
-  describe("load", () => {
-    it("should return default value when no state file exists", () => {
+  describe("loadAsync / saveAsync", () => {
+    it("returns default value when no state file exists", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 42,
         stateDirectory: testDir,
       });
-      const value = tracker.load();
-      expect(value).toBe(42);
+      await tracker.loadAsync();
+      expect(tracker.state).toBe(42);
     });
 
-    it("should load saved numeric value", () => {
+    it("loads and returns saved numeric value", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 0,
         stateDirectory: testDir,
       });
-      tracker.save(100);
+      await tracker.loadAsync();
+      tracker.set(100);
+      await tracker.saveAsync();
 
-      const value = tracker.load();
-      expect(value).toBe(100);
+      const tracker2 = new StateTracker({
+        key: "test",
+        default: 0,
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toBe(100);
     });
 
-    it("should always use value property in JSON file", () => {
+    it("stores value in JSON envelope format", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 0,
         stateDirectory: testDir,
       });
-      tracker.save(200);
+      await tracker.loadAsync();
+      tracker.set(200);
+      await tracker.saveAsync();
 
       const filePath = tracker.getFilePath();
       const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
@@ -122,9 +137,10 @@ describe("StateTracker", () => {
         unknown
       >;
       expect(content.value).toBe(200);
+      expect(content.lastUpdated).toBeDefined();
     });
 
-    it("should return default for corrupted JSON", () => {
+    it("returns default for corrupted JSON", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 999,
@@ -133,11 +149,11 @@ describe("StateTracker", () => {
       const filePath = tracker.getFilePath();
       fs.writeFileSync(filePath, "not valid json{{{", "utf-8");
 
-      const value = tracker.load();
-      expect(value).toBe(999);
+      await tracker.loadAsync();
+      expect(tracker.state).toBe(999);
     });
 
-    it("should return default when value property is missing", () => {
+    it("returns default when value property is missing", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 777,
@@ -146,57 +162,186 @@ describe("StateTracker", () => {
       const filePath = tracker.getFilePath();
       fs.writeFileSync(filePath, JSON.stringify({ other: "data" }), "utf-8");
 
-      const value = tracker.load();
-      expect(value).toBe(777);
+      await tracker.loadAsync();
+      expect(tracker.state).toBe(777);
     });
-  });
 
-  describe("save", () => {
-    it("should save numeric value", () => {
+    it("overwrites previous value", async () => {
       const tracker = new StateTracker({
         key: "test",
         default: 0,
         stateDirectory: testDir,
       });
-      tracker.save(500);
+      await tracker.loadAsync();
+      tracker.set(100);
+      await tracker.saveAsync();
+      tracker.set(200);
+      await tracker.saveAsync();
+      tracker.set(300);
+      await tracker.saveAsync();
+
+      const tracker2 = new StateTracker({
+        key: "test",
+        default: 0,
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toBe(300);
+    });
+
+    it("loadAsync returns void and sets state", async () => {
+      const tracker = new StateTracker({
+        key: "async-load",
+        default: { count: 0, name: "default" },
+        stateDirectory: testDir,
+      });
 
       const filePath = tracker.getFilePath();
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify({
+          value: { count: 42, name: "loaded" },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      const result = await tracker.loadAsync();
+      expect(result).toBeUndefined();
+      expect(tracker.state).toEqual({ count: 42, name: "loaded" });
+    });
+
+    it("loadAsync gracefully degrades on unreadable file", async () => {
+      const tracker = new StateTracker({
+        key: "fail-read",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
+      fs.chmodSync(tracker.getFilePath(), 0o000);
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+      expect(tracker.state).toEqual({ x: 1 });
+
+      fs.chmodSync(tracker.getFilePath(), 0o644);
+    });
+
+    it("saveAsync writes atomically via temp file", async () => {
+      const tracker = new StateTracker({
+        key: "atomic-save",
+        default: { value: "hello" },
+        stateDirectory: testDir,
+      });
+      await tracker.loadAsync();
+      tracker.set({ value: "world" });
+
+      await tracker.saveAsync();
+
+      const filePath = tracker.getFilePath();
+      expect(fs.existsSync(filePath)).toBe(true);
+      expect(fs.existsSync(`${filePath}.tmp`)).toBe(false);
+
       const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
         string,
         unknown
       >;
-      expect(content.value).toBe(500);
+      expect(content.value).toEqual({ value: "world" });
       expect(content.lastUpdated).toBeDefined();
     });
 
-    it("should overwrite previous value", () => {
+    it("loadAsync merges v1 envelope value with defaults for missing keys", async () => {
       const tracker = new StateTracker({
-        key: "test",
+        key: "v1-merge",
+        default: { count: 0, name: "default", extra: true },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({
+          value: { count: 42, name: "loaded" },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+
+      expect(tracker.state).toEqual({
+        count: 42,
+        name: "loaded",
+        extra: true,
+      });
+    });
+
+    it("loadAsync is idempotent (calling twice is a no-op)", async () => {
+      const tracker = new StateTracker({
+        key: "idempotent",
+        default: { count: 0 },
+        stateDirectory: testDir,
+      });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ value: { count: 10 }, lastUpdated: "t1" }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ count: 10 });
+
+      fs.writeFileSync(
+        tracker.getFilePath(),
+        JSON.stringify({ value: { count: 99 }, lastUpdated: "t2" }),
+        "utf-8"
+      );
+
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ count: 10 });
+    });
+
+    it("should not corrupt state if stale temp file exists", async () => {
+      const tracker = new StateTracker({
+        key: "durable",
         default: 0,
         stateDirectory: testDir,
       });
-      tracker.save(100);
-      tracker.save(200);
-      tracker.save(300);
+      await tracker.loadAsync();
+      tracker.set(100);
+      await tracker.saveAsync();
 
-      const value = tracker.load();
-      expect(value).toBe(300);
+      const tempFilePath = `${tracker.getFilePath()}.tmp`;
+      fs.writeFileSync(
+        tempFilePath,
+        '{"value": 999, "lastUpdated": "corrupted"}',
+        "utf-8"
+      );
+
+      const tracker2 = new StateTracker({
+        key: "durable",
+        default: 0,
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toBe(100);
     });
   });
 
-  describe("loadOrDefault", () => {
-    it("returns default when file is missing", () => {
+  describe("loadAsync with migrations", () => {
+    it("returns default when file is missing", async () => {
       const tracker = new StateTracker({
         key: "load-or-default",
         default: { cursor: 0, done: [] as string[] },
         stateDirectory: testDir,
       });
 
-      const value = tracker.loadOrDefault();
-      expect(value).toEqual({ cursor: 0, done: [] });
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ cursor: 0, done: [] });
     });
 
-    it("applies typed migration for legacy raw state files", () => {
+    it("applies typed migration for legacy raw state files", async () => {
       interface LegacySyncState {
         offset: number;
         completedIds: string[];
@@ -241,11 +386,11 @@ describe("StateTracker", () => {
         },
       });
 
-      const value = tracker.loadOrDefault({ migrations: [migration] });
-      expect(value).toEqual({ cursor: 7, done: ["a", "b"] });
+      await tracker.loadAsync({ migrations: [migration] });
+      expect(tracker.state).toEqual({ cursor: 7, done: ["a", "b"] });
     });
 
-    it("applies migrations to envelope value payloads", () => {
+    it("applies migrations to envelope value payloads", async () => {
       interface LegacySyncState {
         offset: number;
       }
@@ -285,77 +430,67 @@ describe("StateTracker", () => {
         },
       });
 
-      const value = tracker.loadOrDefault({ migrations: [migration] });
-      expect(value).toEqual({ cursor: 22 });
-    });
-  });
-
-  describe("saveWithMeta", () => {
-    it("persists metadata in the envelope", () => {
-      const tracker = new StateTracker({
-        key: "save-with-meta",
-        default: { cursor: 0 },
-        stateDirectory: testDir,
-      });
-
-      tracker.saveWithMeta(
-        { cursor: 99 },
-        { source: "sync-script", reason: "manual-run" }
-      );
-
-      const file = JSON.parse(
-        fs.readFileSync(tracker.getFilePath(), "utf-8")
-      ) as {
-        value: { cursor: number };
-        lastUpdated: string;
-        meta: Record<string, unknown>;
-      };
-
-      expect(file.value).toEqual({ cursor: 99 });
-      expect(typeof file.lastUpdated).toBe("string");
-      expect(file.meta).toEqual({
-        source: "sync-script",
-        reason: "manual-run",
-      });
-      expect(tracker.load()).toEqual({ cursor: 99 });
+      await tracker.loadAsync({ migrations: [migration] });
+      expect(tracker.state).toEqual({ cursor: 22 });
     });
   });
 
   describe("type inference from default", () => {
-    it("should infer string type from default", () => {
+    it("should infer string type from default", async () => {
       const tracker = new StateTracker({
         key: "string-test",
         default: "default-value",
         stateDirectory: testDir,
       });
-      tracker.save("hello world");
+      await tracker.loadAsync();
+      tracker.set("hello world");
+      await tracker.saveAsync();
 
-      const value = tracker.load();
-      expect(value).toBe("hello world");
+      const tracker2 = new StateTracker({
+        key: "string-test",
+        default: "default-value",
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toBe("hello world");
     });
 
-    it("should infer object type from default", () => {
+    it("should infer object type from default", async () => {
       const tracker = new StateTracker({
         key: "object-test",
         default: { count: 0, name: "" },
         stateDirectory: testDir,
       });
-      tracker.save({ count: 10, name: "test" });
+      await tracker.loadAsync();
+      tracker.set({ count: 10, name: "test" });
+      await tracker.saveAsync();
 
-      const value = tracker.load();
-      expect(value).toEqual({ count: 10, name: "test" });
+      const tracker2 = new StateTracker({
+        key: "object-test",
+        default: { count: 0, name: "" },
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toEqual({ count: 10, name: "test" });
     });
 
-    it("should infer array type from default", () => {
+    it("should infer array type from default", async () => {
       const tracker = new StateTracker({
         key: "array-test",
         default: [] as number[],
         stateDirectory: testDir,
       });
-      tracker.save([1, 2, 3, 4, 5]);
+      await tracker.loadAsync();
+      tracker.set([1, 2, 3, 4, 5]);
+      await tracker.saveAsync();
 
-      const value = tracker.load();
-      expect(value).toEqual([1, 2, 3, 4, 5]);
+      const tracker2 = new StateTracker({
+        key: "array-test",
+        default: [] as number[],
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toEqual([1, 2, 3, 4, 5]);
     });
   });
 
@@ -385,7 +520,7 @@ describe("StateTracker", () => {
   });
 
   describe("getFilePath", () => {
-    it("should return correct file path", () => {
+    it("should return correct file path for file-based storage", () => {
       const tracker = new StateTracker({
         key: "my-key",
         default: 0,
@@ -395,206 +530,41 @@ describe("StateTracker", () => {
 
       expect(filePath).toBe(path.join(testDir, "my-key.json"));
     });
+
+    it("should throw when using a storageAdapter", () => {
+      const adapter: StorageAdapter = {
+        read: async () => null,
+        write: async () => undefined,
+      };
+      const tracker = new StateTracker({
+        key: "my-key",
+        default: 0,
+        storageAdapter: adapter,
+      });
+
+      expect(() => tracker.getFilePath()).toThrow("storageAdapter");
+    });
   });
 
   describe("persistence across instances", () => {
-    it("should persist state across different tracker instances", () => {
+    it("should persist state across different tracker instances", async () => {
       const tracker1 = new StateTracker({
         key: "shared",
         default: 0,
         stateDirectory: testDir,
       });
-      tracker1.save(12345);
+      await tracker1.loadAsync();
+      tracker1.set(12345);
+      await tracker1.saveAsync();
 
       const tracker2 = new StateTracker({
         key: "shared",
         default: 0,
         stateDirectory: testDir,
       });
-      const value = tracker2.load();
+      await tracker2.loadAsync();
 
-      expect(value).toBe(12345);
-    });
-  });
-
-  describe("atomic write durability", () => {
-    it("should not corrupt state file if temp file exists from interrupted write", () => {
-      const tracker = new StateTracker({
-        key: "durable",
-        default: 0,
-        stateDirectory: testDir,
-      });
-
-      tracker.save(100);
-
-      const tempFilePath = `${tracker.getFilePath()}.tmp`;
-      fs.writeFileSync(
-        tempFilePath,
-        '{"value": 999, "lastUpdated": "corrupted"}',
-        "utf-8"
-      );
-
-      const value = tracker.load();
-      expect(value).toBe(100);
-    });
-  });
-
-  // ========== v2 tests below ==========
-
-  describe("loadAsync / saveAsync", () => {
-    it("loadAsync returns void and sets state", async () => {
-      const tracker = new StateTracker({
-        key: "async-load",
-        default: { count: 0, name: "default" },
-        stateDirectory: testDir,
-      });
-
-      // Pre-write a v1 envelope file
-      const filePath = tracker.getFilePath();
-      fs.writeFileSync(
-        filePath,
-        JSON.stringify({
-          value: { count: 42, name: "loaded" },
-          lastUpdated: new Date().toISOString(),
-        }),
-        "utf-8"
-      );
-
-      const result = await tracker.loadAsync();
-      expect(result).toBeUndefined();
-      expect(tracker.state).toEqual({ count: 42, name: "loaded" });
-    });
-
-    it("loadAsync gracefully degrades on unwritable directory", async () => {
-      // Use a directory path that will fail during mkdir
-      // /proc is a read-only filesystem on Linux
-      const badDir = path.join("/proc", "nonexistent-state-tracker-test");
-
-      // We need to construct a tracker whose directory already exists
-      // but whose file read will fail. Simplest: make the file unreadable.
-      const tracker = new StateTracker({
-        key: "fail-read",
-        default: { x: 1 },
-        stateDirectory: testDir,
-      });
-
-      // Write a file then make it unreadable
-      fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
-      fs.chmodSync(tracker.getFilePath(), 0o000);
-
-      await tracker.loadAsync();
-      expect(tracker.isPersistent).toBe(false);
-      expect(tracker.state).toEqual({ x: 1 });
-
-      // Restore permissions so cleanup works
-      fs.chmodSync(tracker.getFilePath(), 0o644);
-    });
-
-    it("saveAsync writes atomically via temp file", async () => {
-      const tracker = new StateTracker({
-        key: "atomic-save",
-        default: { value: "hello" },
-        stateDirectory: testDir,
-      });
-      await tracker.loadAsync();
-      tracker.set({ value: "world" });
-
-      await tracker.saveAsync();
-
-      const filePath = tracker.getFilePath();
-      expect(fs.existsSync(filePath)).toBe(true);
-
-      // Temp file should have been renamed away
-      expect(fs.existsSync(`${filePath}.tmp`)).toBe(false);
-
-      const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
-        string,
-        unknown
-      >;
-      expect(content.value).toEqual({ value: "world" });
-      expect(content.lastUpdated).toBeDefined();
-    });
-
-    it("loadAsync merges v1 envelope value with defaults for missing keys", async () => {
-      const tracker = new StateTracker({
-        key: "v1-merge",
-        default: { count: 0, name: "default", extra: true },
-        stateDirectory: testDir,
-      });
-
-      // Write v1 envelope format missing the "extra" key
-      fs.writeFileSync(
-        tracker.getFilePath(),
-        JSON.stringify({
-          value: { count: 42, name: "loaded" },
-          lastUpdated: new Date().toISOString(),
-        }),
-        "utf-8"
-      );
-
-      await tracker.loadAsync();
-
-      // Missing "extra" key should come from defaults
-      expect(tracker.state).toEqual({
-        count: 42,
-        name: "loaded",
-        extra: true,
-      });
-    });
-
-    it("sync load merges v1 envelope value with defaults for missing keys", () => {
-      const tracker = new StateTracker({
-        key: "v1-merge-sync",
-        default: { count: 0, name: "default", extra: true },
-        stateDirectory: testDir,
-      });
-
-      fs.writeFileSync(
-        tracker.getFilePath(),
-        JSON.stringify({
-          value: { count: 42, name: "loaded" },
-          lastUpdated: new Date().toISOString(),
-        }),
-        "utf-8"
-      );
-
-      const value = tracker.load();
-
-      expect(value).toEqual({
-        count: 42,
-        name: "loaded",
-        extra: true,
-      });
-      expect(tracker.state).toEqual(value);
-    });
-
-    it("loadAsync is idempotent (calling twice is a no-op)", async () => {
-      const tracker = new StateTracker({
-        key: "idempotent",
-        default: { count: 0 },
-        stateDirectory: testDir,
-      });
-
-      // Write initial state
-      fs.writeFileSync(
-        tracker.getFilePath(),
-        JSON.stringify({ value: { count: 10 }, lastUpdated: "t1" }),
-        "utf-8"
-      );
-
-      await tracker.loadAsync();
-      expect(tracker.state).toEqual({ count: 10 });
-
-      // Overwrite file on disk
-      fs.writeFileSync(
-        tracker.getFilePath(),
-        JSON.stringify({ value: { count: 99 }, lastUpdated: "t2" }),
-        "utf-8"
-      );
-
-      // Second loadAsync should be a no-op
-      await tracker.loadAsync();
-      expect(tracker.state).toEqual({ count: 10 });
+      expect(tracker2.state).toBe(12345);
     });
   });
 
@@ -649,19 +619,26 @@ describe("StateTracker", () => {
   });
 
   describe(".state getter", () => {
-    it("returns current in-memory state after load", () => {
+    it("returns current in-memory state after loadAsync", async () => {
       const tracker = new StateTracker({
         key: "state-getter",
         default: { val: "init" },
         stateDirectory: testDir,
       });
 
-      // Before load, state is the default (set in constructor)
       expect(tracker.state).toEqual({ val: "init" });
 
-      tracker.save({ val: "saved" });
-      tracker.load();
-      expect(tracker.state).toEqual({ val: "saved" });
+      await tracker.loadAsync();
+      tracker.set({ val: "saved" });
+      await tracker.saveAsync();
+
+      const tracker2 = new StateTracker({
+        key: "state-getter",
+        default: { val: "init" },
+        stateDirectory: testDir,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toEqual({ val: "saved" });
     });
 
     it("returns current state after set/update", () => {
@@ -698,46 +675,36 @@ describe("StateTracker", () => {
         stateDirectory: testDir,
       });
 
-      // Write a file then make it unreadable to cause failure
       fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
       fs.chmodSync(tracker.getFilePath(), 0o000);
 
       await tracker.loadAsync();
       expect(tracker.isPersistent).toBe(false);
 
-      // Restore permissions for cleanup
       fs.chmodSync(tracker.getFilePath(), 0o644);
     });
   });
 
   describe("auto-save with autoSaveMs", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     it("set() triggers debounced save", async () => {
       const tracker = new StateTracker({
         key: "auto-save-set",
         default: { count: 0 },
         stateDirectory: testDir,
-        autoSaveMs: 500,
+        autoSaveMs: 20,
       });
       await tracker.loadAsync();
 
       tracker.set({ count: 42 });
 
-      // File should not exist yet (debounce pending)
       const filePath = tracker.getFilePath();
       expect(fs.existsSync(filePath)).toBe(false);
 
-      // Advance timers past the debounce and flush async saveAsync
-      await vi.advanceTimersByTimeAsync(600);
+      await wait(100);
 
-      // Now the file should exist with the saved state
       expect(fs.existsSync(filePath)).toBe(true);
       const content = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<
         string,
@@ -751,53 +718,45 @@ describe("StateTracker", () => {
         key: "auto-save-debounce",
         default: { count: 0 },
         stateDirectory: testDir,
-        autoSaveMs: 500,
+        autoSaveMs: 50,
       });
       await tracker.loadAsync();
 
       tracker.set({ count: 1 });
-
-      // Advance time a little, but not past the debounce
-      await vi.advanceTimersByTimeAsync(100);
+      await wait(10);
       expect(fs.existsSync(tracker.getFilePath())).toBe(false);
 
       tracker.set({ count: 2 });
-      await vi.advanceTimersByTimeAsync(100);
+      await wait(10);
       expect(fs.existsSync(tracker.getFilePath())).toBe(false);
 
       tracker.set({ count: 3 });
-      await vi.advanceTimersByTimeAsync(600);
+      await wait(200);
 
-      // Only the final value should be saved
       expect(fs.existsSync(tracker.getFilePath())).toBe(true);
       const content = JSON.parse(
         fs.readFileSync(tracker.getFilePath(), "utf-8")
       ) as Record<string, unknown>;
       expect(content.value).toEqual({ count: 3 });
-
-      // Verify the final saved value
       expect(tracker.state).toEqual({ count: 3 });
     });
 
-    it("cancelPendingSave works via save()", async () => {
+    it("saveAsync cancels pending auto-save and writes immediately", async () => {
       const tracker = new StateTracker({
         key: "cancel-pending",
         default: { count: 0 },
         stateDirectory: testDir,
-        autoSaveMs: 1000,
+        autoSaveMs: 200,
       });
       await tracker.loadAsync();
 
-      // Trigger auto-save via set
       tracker.set({ count: 10 });
+      tracker.set({ count: 20 });
 
-      // Calling save() should cancel pending auto-save and write immediately
-      tracker.save({ count: 20 });
+      await tracker.saveAsync();
 
-      // Advance past the original debounce time
-      await vi.advanceTimersByTimeAsync(1500);
+      await wait(400);
 
-      // The value on disk should be 20 (from save()), not 10 (from auto-save)
       const content = JSON.parse(
         fs.readFileSync(tracker.getFilePath(), "utf-8")
       ) as Record<string, unknown>;
@@ -817,13 +776,11 @@ describe("StateTracker", () => {
 
       await tracker.loadAsync();
 
-      // Should have emitted an info event for "No existing state file"
       expect(events.length).toBeGreaterThanOrEqual(1);
       const loadEvent = events.find((e) => e.message.includes("state"));
       expect(loadEvent).toBeDefined();
       expect(loadEvent!.level).toBe("info");
 
-      // Now save and check for debug event
       tracker.set({ x: 2 });
       await tracker.saveAsync();
 
@@ -841,7 +798,6 @@ describe("StateTracker", () => {
         onEvent: (event) => events.push(event),
       });
 
-      // Write file then make it unreadable to trigger error
       fs.writeFileSync(tracker.getFilePath(), "some data", "utf-8");
       fs.chmodSync(tracker.getFilePath(), 0o000);
 
@@ -851,7 +807,6 @@ describe("StateTracker", () => {
       expect(warnEvent).toBeDefined();
       expect(warnEvent!.message).toContain("unavailable");
 
-      // Restore permissions for cleanup
       fs.chmodSync(tracker.getFilePath(), 0o644);
     });
 
@@ -862,7 +817,6 @@ describe("StateTracker", () => {
         stateDirectory: testDir,
       });
 
-      // This should not throw even though there's no onEvent
       await tracker.loadAsync();
       tracker.set({ x: 2 });
       await tracker.saveAsync();
@@ -877,7 +831,6 @@ describe("StateTracker", () => {
         stateDirectory: testDir,
       });
 
-      // Write raw PersistentStore format (no { value, lastUpdated } envelope)
       fs.writeFileSync(
         tracker.getFilePath(),
         JSON.stringify({ count: 42, name: "migrated" }),
@@ -886,7 +839,6 @@ describe("StateTracker", () => {
 
       await tracker.loadAsync();
 
-      // Should merge with defaults: extra comes from default, count/name from file
       expect(tracker.state).toEqual({
         count: 42,
         name: "migrated",
@@ -901,7 +853,6 @@ describe("StateTracker", () => {
         stateDirectory: testDir,
       });
 
-      // Write raw PersistentStore format
       fs.writeFileSync(
         tracker.getFilePath(),
         JSON.stringify({ count: 99, name: "old" }),
@@ -911,12 +862,125 @@ describe("StateTracker", () => {
       await tracker.loadAsync();
       await tracker.saveAsync();
 
-      // File should now be in v2 envelope format
       const content = JSON.parse(
         fs.readFileSync(tracker.getFilePath(), "utf-8")
       ) as Record<string, unknown>;
       expect(content.value).toEqual({ count: 99, name: "old" });
       expect(content.lastUpdated).toBeDefined();
+    });
+  });
+
+  describe("StorageAdapter", () => {
+    function makeInMemoryAdapter(): StorageAdapter {
+      const store = new Map<string, string>();
+      return {
+        async read(key) {
+          return store.get(key) ?? null;
+        },
+        async write(key, value) {
+          store.set(key, value);
+        },
+      };
+    }
+
+    it("uses adapter for read and write instead of disk", async () => {
+      const adapter = makeInMemoryAdapter();
+      const tracker = new StateTracker({
+        key: "adapter-test",
+        default: { count: 0 },
+        storageAdapter: adapter,
+      });
+
+      await tracker.loadAsync();
+      expect(tracker.state).toEqual({ count: 0 });
+      expect(tracker.isPersistent).toBe(true);
+
+      tracker.set({ count: 42 });
+      await tracker.saveAsync();
+
+      const tracker2 = new StateTracker({
+        key: "adapter-test",
+        default: { count: 0 },
+        storageAdapter: adapter,
+      });
+      await tracker2.loadAsync();
+      expect(tracker2.state).toEqual({ count: 42 });
+    });
+
+    it("uses sanitized key when calling adapter", async () => {
+      const reads: string[] = [];
+      const writes: string[] = [];
+      const adapter: StorageAdapter = {
+        async read(key) {
+          reads.push(key);
+          return null;
+        },
+        async write(key, _value) {
+          writes.push(key);
+        },
+      };
+
+      const tracker = new StateTracker({
+        key: "my-tracker",
+        default: 0,
+        storageAdapter: adapter,
+      });
+      await tracker.loadAsync();
+      tracker.set(1);
+      await tracker.saveAsync();
+
+      expect(reads).toEqual(["my-tracker"]);
+      expect(writes).toEqual(["my-tracker"]);
+    });
+
+    it("gracefully degrades when adapter read throws", async () => {
+      const adapter: StorageAdapter = {
+        async read() {
+          throw new Error("Redis connection failed");
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "adapter-fail",
+        default: { x: 1 },
+        storageAdapter: adapter,
+      });
+      await tracker.loadAsync();
+
+      expect(tracker.isPersistent).toBe(false);
+      expect(tracker.state).toEqual({ x: 1 });
+    });
+
+    it("emits events for adapter load and save", async () => {
+      const events: StateTrackerEvent[] = [];
+      const adapter = makeInMemoryAdapter();
+      const tracker = new StateTracker({
+        key: "adapter-events",
+        default: { x: 1 },
+        storageAdapter: adapter,
+        onEvent: (e) => events.push(e),
+      });
+
+      await tracker.loadAsync();
+      tracker.set({ x: 2 });
+      await tracker.saveAsync();
+
+      const loadEvent = events.find((e) => e.message.includes("defaults"));
+      expect(loadEvent).toBeDefined();
+      const saveEvent = events.find((e) => e.message.includes("adapter"));
+      expect(saveEvent).toBeDefined();
+    });
+
+    it("isPersistent is true with working adapter", async () => {
+      const adapter = makeInMemoryAdapter();
+      const tracker = new StateTracker({
+        key: "persistent-adapter",
+        default: 0,
+        storageAdapter: adapter,
+      });
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(true);
     });
   });
 });

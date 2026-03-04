@@ -98,6 +98,7 @@ export class UsageTracker<T extends NumericRecord> {
         spendEntries: [],
       },
       stateDirectory: options.stateDirectory,
+      storageAdapter: options.storageAdapter,
       autoSaveMs: options.autoSaveMs,
       onEvent: options.onEvent,
     });

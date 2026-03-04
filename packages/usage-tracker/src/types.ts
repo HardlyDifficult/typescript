@@ -1,4 +1,7 @@
-import type { StateTrackerEvent } from "@hardlydifficult/state-tracker";
+import type {
+  StateTrackerEvent,
+  StorageAdapter,
+} from "@hardlydifficult/state-tracker";
 
 /** Constrains T to a nested object where every leaf is a number. */
 export interface NumericRecord {
@@ -61,6 +64,8 @@ export interface UsageTrackerOptions<T extends NumericRecord> {
   default: T;
   /** Directory for state persistence. */
   stateDirectory?: string;
+  /** Custom storage adapter (takes priority over stateDirectory). */
+  storageAdapter?: StorageAdapter;
   /** Auto-save interval in ms (passed through to StateTracker). */
   autoSaveMs?: number;
   /** Event callback for logging (same shape as StateTracker). */

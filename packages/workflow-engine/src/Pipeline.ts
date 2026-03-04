@@ -101,6 +101,7 @@ export class Pipeline<TData extends Record<string, unknown>> {
       },
       transitions,
       stateDirectory: options.stateDirectory,
+      storageAdapter: options.storageAdapter,
       autoSaveMs: options.autoSaveMs,
     });
   }
