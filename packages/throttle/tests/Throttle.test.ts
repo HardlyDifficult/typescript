@@ -196,12 +196,10 @@ describe("Throttle", () => {
 
       await throttle1.wait(10);
 
-      const onSleep = vi.fn();
       const throttle2 = new Throttle({
         unitsPerSecond: 10,
         persistKey: "persist-test",
         stateDirectory: testDir,
-        onSleep,
       });
 
       const startTime = Date.now();
@@ -209,6 +207,33 @@ describe("Throttle", () => {
       const elapsed = Date.now() - startTime;
 
       expect(elapsed).toBeGreaterThanOrEqual(800);
+    });
+
+    it("should use storageAdapter when provided", async () => {
+      const store = new Map<string, string>();
+      const adapter = {
+        async read(key: string) {
+          return store.get(key) ?? null;
+        },
+        async write(key: string, value: string) {
+          store.set(key, value);
+        },
+      };
+
+      const throttle = new Throttle({
+        unitsPerSecond: 100,
+        persistKey: "adapter-throttle",
+        storageAdapter: adapter,
+      });
+
+      await throttle.wait(100);
+
+      expect(store.has("adapter-throttle")).toBe(true);
+      const saved = JSON.parse(store.get("adapter-throttle")!) as Record<
+        string,
+        unknown
+      >;
+      expect(typeof saved.value).toBe("number");
     });
   });
 
