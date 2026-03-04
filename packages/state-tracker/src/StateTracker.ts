@@ -233,7 +233,9 @@ export class StateTracker<T> {
    * Safe to call multiple times (subsequent calls are no-ops).
    * Accepts optional migrations to transform legacy state shapes.
    */
-  async loadAsync(options?: StateTrackerLoadOrDefaultOptions<T>): Promise<void> {
+  async loadAsync(
+    options?: StateTrackerLoadOrDefaultOptions<T>
+  ): Promise<void> {
     if (this._loaded) {
       return;
     }

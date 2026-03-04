@@ -61,7 +61,7 @@ export class Throttle {
 
     if (this.stateTracker !== undefined && !this.stateLoaded) {
       await this.stateTracker.loadAsync();
-      this.nextAvailableAt = this.stateTracker.state as number;
+      this.nextAvailableAt = this.stateTracker.state;
       this.stateLoaded = true;
     }
 
