@@ -1,40 +1,40 @@
 import { z } from "zod";
 
-import type {
-  CursorAgentStatus,
-  CursorCloudClientOptions,
-  CursorRunResult,
-  LaunchCursorAgentInput,
-  LaunchCursorAgentRequest,
-  LaunchCursorAgentResponse,
-  RunCursorAgentOptions,
-  WaitForAgentOptions,
-  ListAgentsQuery,
-  ListAgentsResponse,
-  CancelAgentRequest,
-  CancelAgentResponse,
-  UpdateAgentRequest,
-  UpdateAgentResponse,
-  GetAgentLogsQuery,
-  GetAgentLogsResponse,
-  DeleteAgentResponse,
-} from "./types.js";
 import {
+  AgentIdSchema,
+  CancelAgentRequestSchema,
+  CancelAgentResponseSchema,
+  CursorAgentStatusSchema,
+  DeleteAgentResponseSchema,
+  GetAgentLogsQuerySchema,
+  GetAgentLogsResponseSchema,
   LaunchCursorAgentInputSchema,
   LaunchCursorAgentRequestSchema,
   LaunchCursorAgentResponseSchema,
-  CursorAgentStatusSchema,
   ListAgentsQuerySchema,
   ListAgentsResponseSchema,
-  CancelAgentRequestSchema,
-  CancelAgentResponseSchema,
   UpdateAgentRequestSchema,
   UpdateAgentResponseSchema,
-  GetAgentLogsQuerySchema,
-  GetAgentLogsResponseSchema,
-  DeleteAgentResponseSchema,
-  AgentIdSchema,
 } from "./schemas.js";
+import type {
+  CancelAgentRequest,
+  CancelAgentResponse,
+  CursorAgentStatus,
+  CursorCloudClientOptions,
+  CursorRunResult,
+  DeleteAgentResponse,
+  GetAgentLogsQuery,
+  GetAgentLogsResponse,
+  LaunchCursorAgentInput,
+  LaunchCursorAgentRequest,
+  LaunchCursorAgentResponse,
+  ListAgentsQuery,
+  ListAgentsResponse,
+  RunCursorAgentOptions,
+  UpdateAgentRequest,
+  UpdateAgentResponse,
+  WaitForAgentOptions,
+} from "./types.js";
 
 const DEFAULT_BASE_URL = "https://api.cursor.com";
 const DEFAULT_BRANCH = "main";
@@ -66,28 +66,41 @@ function normalizeBaseUrl(baseUrl: string): string {
 }
 
 /** Validate and parse data using a Zod schema. */
-function validateAndParse<T>(data: unknown, schema: z.ZodType<T>, context: string): T {
+function validateAndParse<T>(
+  data: unknown,
+  schema: z.ZodType<T>,
+  context: string
+): T {
   try {
     return schema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const issues = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", ");
-      throw new Error(`${context} validation failed: ${issues}`, { cause: error });
+      const issues = error.issues
+        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+        .join(", ");
+      throw new Error(`${context} validation failed: ${issues}`, {
+        cause: error,
+      });
     }
-    throw new Error(`${context} validation failed: ${String(error)}`, { cause: error });
+    throw new Error(`${context} validation failed: ${String(error)}`, {
+      cause: error,
+    });
   }
 }
 
 /** Build query string from object. */
 function buildQueryString(params: Record<string, unknown>): string {
   const searchParams = new URLSearchParams();
-  
+
   for (const [key, value] of Object.entries(params)) {
     if (value !== null && value !== undefined) {
-      searchParams.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      searchParams.append(
+        key,
+        typeof value === "string" ? value : JSON.stringify(value)
+      );
     }
   }
-  
+
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : "";
 }
@@ -140,7 +153,11 @@ export class CursorCloudClient {
     input: LaunchCursorAgentInput
   ): Promise<LaunchCursorAgentResponse> {
     // Validate input
-    const validatedInput = validateAndParse(input, LaunchCursorAgentInputSchema, "Launch input");
+    const validatedInput = validateAndParse(
+      input,
+      LaunchCursorAgentInputSchema,
+      "Launch input"
+    );
 
     const request: LaunchCursorAgentRequest = {
       prompt: { text: validatedInput.prompt },
@@ -165,21 +182,29 @@ export class CursorCloudClient {
     );
 
     // Validate and return response
-    return validateAndParse(response, LaunchCursorAgentResponseSchema, "Launch response");
+    return validateAndParse(
+      response,
+      LaunchCursorAgentResponseSchema,
+      "Launch response"
+    );
   }
 
   /** Get latest status for a Cursor remote agent session. */
   async status(agentId: string): Promise<CursorAgentStatus> {
     // Validate agent ID
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    
+
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}`,
       { method: "GET" }
     );
 
     // Validate and return response
-    return validateAndParse(response, CursorAgentStatusSchema, "Status response");
+    return validateAndParse(
+      response,
+      CursorAgentStatusSchema,
+      "Status response"
+    );
   }
 
   /** Poll until terminal status or timeout. */
@@ -218,8 +243,12 @@ export class CursorCloudClient {
   /** List agents with optional filtering. */
   async listAgents(query: ListAgentsQuery = {}): Promise<ListAgentsResponse> {
     // Validate query parameters
-    const validatedQuery = validateAndParse(query, ListAgentsQuerySchema, "List agents query");
-    
+    const validatedQuery = validateAndParse(
+      query,
+      ListAgentsQuerySchema,
+      "List agents query"
+    );
+
     const queryString = buildQueryString(validatedQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents${queryString}`,
@@ -227,14 +256,25 @@ export class CursorCloudClient {
     );
 
     // Validate and return response
-    return validateAndParse(response, ListAgentsResponseSchema, "List agents response");
+    return validateAndParse(
+      response,
+      ListAgentsResponseSchema,
+      "List agents response"
+    );
   }
 
   /** Cancel a running agent. */
-  async cancelAgent(agentId: string, request: CancelAgentRequest = {}): Promise<CancelAgentResponse> {
+  async cancelAgent(
+    agentId: string,
+    request: CancelAgentRequest = {}
+  ): Promise<CancelAgentResponse> {
     // Validate inputs
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedRequest = validateAndParse(request, CancelAgentRequestSchema, "Cancel request");
+    const validatedRequest = validateAndParse(
+      request,
+      CancelAgentRequestSchema,
+      "Cancel request"
+    );
 
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}/cancel`,
@@ -245,14 +285,25 @@ export class CursorCloudClient {
     );
 
     // Validate and return response
-    return validateAndParse(response, CancelAgentResponseSchema, "Cancel response");
+    return validateAndParse(
+      response,
+      CancelAgentResponseSchema,
+      "Cancel response"
+    );
   }
 
   /** Update agent metadata or configuration. */
-  async updateAgent(agentId: string, request: UpdateAgentRequest): Promise<UpdateAgentResponse> {
+  async updateAgent(
+    agentId: string,
+    request: UpdateAgentRequest
+  ): Promise<UpdateAgentResponse> {
     // Validate inputs
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedRequest = validateAndParse(request, UpdateAgentRequestSchema, "Update request");
+    const validatedRequest = validateAndParse(
+      request,
+      UpdateAgentRequestSchema,
+      "Update request"
+    );
 
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}`,
@@ -263,15 +314,26 @@ export class CursorCloudClient {
     );
 
     // Validate and return response
-    return validateAndParse(response, UpdateAgentResponseSchema, "Update response");
+    return validateAndParse(
+      response,
+      UpdateAgentResponseSchema,
+      "Update response"
+    );
   }
 
   /** Get logs for an agent. */
-  async getAgentLogs(agentId: string, query: GetAgentLogsQuery = {}): Promise<GetAgentLogsResponse> {
+  async getAgentLogs(
+    agentId: string,
+    query: GetAgentLogsQuery = {}
+  ): Promise<GetAgentLogsResponse> {
     // Validate inputs
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedQuery = validateAndParse(query, GetAgentLogsQuerySchema, "Logs query");
-    
+    const validatedQuery = validateAndParse(
+      query,
+      GetAgentLogsQuerySchema,
+      "Logs query"
+    );
+
     const queryString = buildQueryString(validatedQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}/logs${queryString}`,
@@ -279,21 +341,29 @@ export class CursorCloudClient {
     );
 
     // Validate and return response
-    return validateAndParse(response, GetAgentLogsResponseSchema, "Logs response");
+    return validateAndParse(
+      response,
+      GetAgentLogsResponseSchema,
+      "Logs response"
+    );
   }
 
   /** Delete an agent. */
   async deleteAgent(agentId: string): Promise<DeleteAgentResponse> {
     // Validate agent ID
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    
+
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}`,
       { method: "DELETE" }
     );
 
     // Validate and return response
-    return validateAndParse(response, DeleteAgentResponseSchema, "Delete response");
+    return validateAndParse(
+      response,
+      DeleteAgentResponseSchema,
+      "Delete response"
+    );
   }
 
   private async requestJson<T>(
@@ -385,7 +455,9 @@ export class CursorCloudRepo {
   }
 
   /** List agents for this repository. */
-  async list(query: Omit<ListAgentsQuery, "repository"> = {}): Promise<ListAgentsResponse> {
+  async list(
+    query: Omit<ListAgentsQuery, "repository"> = {}
+  ): Promise<ListAgentsResponse> {
     return this.client.listAgents({
       ...query,
       repository: this.state.repository,
@@ -393,17 +465,26 @@ export class CursorCloudRepo {
   }
 
   /** Cancel an agent. */
-  async cancel(agentId: string, request: CancelAgentRequest = {}): Promise<CancelAgentResponse> {
+  async cancel(
+    agentId: string,
+    request: CancelAgentRequest = {}
+  ): Promise<CancelAgentResponse> {
     return this.client.cancelAgent(agentId, request);
   }
 
   /** Update an agent. */
-  async update(agentId: string, request: UpdateAgentRequest): Promise<UpdateAgentResponse> {
+  async update(
+    agentId: string,
+    request: UpdateAgentRequest
+  ): Promise<UpdateAgentResponse> {
     return this.client.updateAgent(agentId, request);
   }
 
   /** Get agent logs. */
-  async logs(agentId: string, query: GetAgentLogsQuery = {}): Promise<GetAgentLogsResponse> {
+  async logs(
+    agentId: string,
+    query: GetAgentLogsQuery = {}
+  ): Promise<GetAgentLogsResponse> {
     return this.client.getAgentLogs(agentId, query);
   }
 

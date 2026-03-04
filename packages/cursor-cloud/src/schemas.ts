@@ -14,13 +14,13 @@ export const PromptSchema = z.string().min(1, "Prompt cannot be empty");
 // Agent status enum
 export const AgentStatusSchema = z.enum([
   "queued",
-  "running", 
+  "running",
   "completed",
   "failed",
   "canceled",
   "cancelled",
   "timeout",
-  "unknown"
+  "unknown",
 ]);
 
 // Launch agent schemas
@@ -42,24 +42,28 @@ export const LaunchCursorAgentRequestSchema = z.object({
   model: ModelSchema.optional(),
 });
 
-export const LaunchCursorAgentResponseSchema = z.object({
-  id: z.string().min(1),
-  status: AgentStatusSchema.optional(),
-}).catchall(z.unknown()); // Allow additional properties
+export const LaunchCursorAgentResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema.optional(),
+  })
+  .catchall(z.unknown()); // Allow additional properties
 
 // Agent status schemas
-export const CursorAgentStatusSchema = z.object({
-  id: z.string().min(1),
-  status: AgentStatusSchema,
-  model: ModelSchema.optional(),
-  createdAt: z.string().optional(),
-  startedAt: z.string().optional(),
-  completedAt: z.string().optional(),
-  gitBranch: z.string().optional(),
-  branchUrl: z.url().optional(),
-  repoName: z.string().optional(),
-  pullRequestUrl: z.url().optional(),
-}).catchall(z.unknown()); // Allow additional properties
+export const CursorAgentStatusSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema,
+    model: ModelSchema.optional(),
+    createdAt: z.string().optional(),
+    startedAt: z.string().optional(),
+    completedAt: z.string().optional(),
+    gitBranch: z.string().optional(),
+    branchUrl: z.url().optional(),
+    repoName: z.string().optional(),
+    pullRequestUrl: z.url().optional(),
+  })
+  .catchall(z.unknown()); // Allow additional properties
 
 // List agents schemas
 export const ListAgentsQuerySchema = z.object({
@@ -82,11 +86,13 @@ export const CancelAgentRequestSchema = z.object({
   reason: z.string().optional(),
 });
 
-export const CancelAgentResponseSchema = z.object({
-  id: z.string().min(1),
-  status: AgentStatusSchema,
-  cancelledAt: z.string().optional(),
-}).catchall(z.unknown());
+export const CancelAgentResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema,
+    cancelledAt: z.string().optional(),
+  })
+  .catchall(z.unknown());
 
 // Update agent schemas
 export const UpdateAgentRequestSchema = z.object({
@@ -147,9 +153,15 @@ export const CursorRunResultSchema = z.object({
 });
 
 // Export inferred types
-export type LaunchCursorAgentInput = z.infer<typeof LaunchCursorAgentInputSchema>;
-export type LaunchCursorAgentRequest = z.infer<typeof LaunchCursorAgentRequestSchema>;
-export type LaunchCursorAgentResponse = z.infer<typeof LaunchCursorAgentResponseSchema>;
+export type LaunchCursorAgentInput = z.infer<
+  typeof LaunchCursorAgentInputSchema
+>;
+export type LaunchCursorAgentRequest = z.infer<
+  typeof LaunchCursorAgentRequestSchema
+>;
+export type LaunchCursorAgentResponse = z.infer<
+  typeof LaunchCursorAgentResponseSchema
+>;
 export type CursorAgentStatus = z.infer<typeof CursorAgentStatusSchema>;
 export type ListAgentsQuery = z.infer<typeof ListAgentsQuerySchema>;
 export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>;
@@ -161,7 +173,9 @@ export type AgentLogEntry = z.infer<typeof AgentLogEntrySchema>;
 export type GetAgentLogsQuery = z.infer<typeof GetAgentLogsQuerySchema>;
 export type GetAgentLogsResponse = z.infer<typeof GetAgentLogsResponseSchema>;
 export type DeleteAgentResponse = z.infer<typeof DeleteAgentResponseSchema>;
-export type CursorCloudClientOptions = z.infer<typeof CursorCloudClientOptionsSchema>;
+export type CursorCloudClientOptions = z.infer<
+  typeof CursorCloudClientOptionsSchema
+>;
 export type WaitForAgentOptions = z.infer<typeof WaitForAgentOptionsSchema>;
 export type RunCursorAgentOptions = z.infer<typeof RunCursorAgentOptionsSchema>;
 export type CursorRunResult = z.infer<typeof CursorRunResultSchema>;

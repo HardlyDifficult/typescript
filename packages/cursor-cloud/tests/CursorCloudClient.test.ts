@@ -125,11 +125,15 @@ describe("CursorCloudClient", () => {
 
       await expect(
         client.launch({ prompt: "", repository: "owner/repo" })
-      ).rejects.toThrow("Launch input validation failed: prompt: Prompt cannot be empty");
+      ).rejects.toThrow(
+        "Launch input validation failed: prompt: Prompt cannot be empty"
+      );
 
       await expect(
         client.launch({ prompt: "Fix bugs", repository: "" })
-      ).rejects.toThrow("Launch input validation failed: repository: Repository cannot be empty");
+      ).rejects.toThrow(
+        "Launch input validation failed: repository: Repository cannot be empty"
+      );
     });
 
     it("validates agent ID in status calls", async () => {
@@ -159,18 +163,16 @@ describe("CursorCloudClient", () => {
 
   describe("listAgents", () => {
     it("lists agents with query parameters", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            agents: [
-              { id: "agent-1", status: "running", repository: "owner/repo1" },
-              { id: "agent-2", status: "completed", repository: "owner/repo2" },
-            ],
-            total: 2,
-            hasMore: false,
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          agents: [
+            { id: "agent-1", status: "running", repository: "owner/repo1" },
+            { id: "agent-2", status: "completed", repository: "owner/repo2" },
+          ],
+          total: 2,
+          hasMore: false,
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -193,15 +195,13 @@ describe("CursorCloudClient", () => {
     });
 
     it("handles empty query parameters", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            agents: [],
-            total: 0,
-            hasMore: false,
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          agents: [],
+          total: 0,
+          hasMore: false,
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -220,15 +220,13 @@ describe("CursorCloudClient", () => {
 
   describe("cancelAgent", () => {
     it("cancels an agent with optional reason", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            id: "agent-1",
-            status: "cancelled",
-            cancelledAt: "2026-03-04T01:00:00.000Z",
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          id: "agent-1",
+          status: "cancelled",
+          cancelledAt: "2026-03-04T01:00:00.000Z",
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -251,15 +249,13 @@ describe("CursorCloudClient", () => {
     });
 
     it("cancels agent without reason", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            id: "agent-1",
-            status: "cancelled",
-            cancelledAt: "2026-03-04T01:00:00.000Z",
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          id: "agent-1",
+          status: "cancelled",
+          cancelledAt: "2026-03-04T01:00:00.000Z",
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -282,16 +278,14 @@ describe("CursorCloudClient", () => {
 
   describe("updateAgent", () => {
     it("updates agent metadata and priority", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            id: "agent-1",
-            status: "running",
-            priority: "high",
-            metadata: { project: "important" },
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          id: "agent-1",
+          status: "running",
+          priority: "high",
+          metadata: { project: "important" },
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -320,26 +314,24 @@ describe("CursorCloudClient", () => {
 
   describe("getAgentLogs", () => {
     it("retrieves agent logs with query parameters", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            logs: [
-              {
-                timestamp: "2026-03-04T01:00:00.000Z",
-                level: "info",
-                message: "Agent started",
-              },
-              {
-                timestamp: "2026-03-04T01:01:00.000Z",
-                level: "error",
-                message: "Error occurred",
-                context: { file: "test.js" },
-              },
-            ],
-            hasMore: false,
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          logs: [
+            {
+              timestamp: "2026-03-04T01:00:00.000Z",
+              level: "info",
+              message: "Agent started",
+            },
+            {
+              timestamp: "2026-03-04T01:01:00.000Z",
+              level: "error",
+              message: "Error occurred",
+              context: { file: "test.js" },
+            },
+          ],
+          hasMore: false,
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
@@ -362,14 +354,12 @@ describe("CursorCloudClient", () => {
 
   describe("deleteAgent", () => {
     it("deletes an agent", async () => {
-      const fetchImpl = vi
-        .fn<FetchLike>()
-        .mockResolvedValueOnce(
-          jsonResponse({
-            id: "agent-1",
-            deletedAt: "2026-03-04T01:00:00.000Z",
-          })
-        );
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          id: "agent-1",
+          deletedAt: "2026-03-04T01:00:00.000Z",
+        })
+      );
 
       const client = new CursorCloudClient({
         apiKey: "test-key",
