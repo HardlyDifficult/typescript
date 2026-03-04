@@ -93,7 +93,7 @@ export function GlobalNav({
   }, [open]);
 
   return (
-    <nav className="w-full bg-[color:var(--color-bg)]/90 border-b border-[color:var(--color-border)] shadow-[var(--shadow-sm)] font-[family-name:var(--font-sans)] backdrop-blur-sm">
+    <nav className="relative z-20 w-full bg-[color:var(--color-bg)]/90 border-b border-[color:var(--color-border)] shadow-[var(--shadow-sm)] font-[family-name:var(--font-sans)] backdrop-blur-sm">
       <div className="flex items-center justify-between h-13 px-[var(--space-6)] mx-auto max-w-[1280px]">
         <div className="flex items-center">
           {title !== undefined && title !== "" && (
