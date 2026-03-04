@@ -16,6 +16,7 @@ interface NavDropdownCategory {
 
 /**
  * Render grouped navigation links in a dropdown, plus an optional sign-out action.
+ * Uses z-45 to appear above tooltips (z-40) but below modals (z-50).
  */
 export function NavDropdown({
   categories,
@@ -35,7 +36,7 @@ export function NavDropdown({
   render: RenderLink;
 }) {
   return (
-    <div className="absolute right-0 top-[calc(100%+9px)] min-w-[230px] bg-[color:var(--color-bg)] border border-[color:var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] z-50 overflow-hidden p-[var(--space-2)]">
+    <div className="absolute right-0 top-[calc(100%+9px)] min-w-[230px] bg-[color:var(--color-bg)] border border-[color:var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] z-45 overflow-hidden p-[var(--space-2)]">
       {categories.map((category, i) => {
         const visible = category.items.filter((item) => item.href !== currentPath);
         if (visible.length === 0) {return null;}
