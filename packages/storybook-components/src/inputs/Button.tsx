@@ -35,6 +35,11 @@ const sizeStyles: Record<ButtonSize, string> = {
   md: "text-[length:var(--text-sm)] px-[var(--space-3)] py-[0.375rem] gap-[var(--space-2)]",
 };
 
+const linkSizeStyles: Record<ButtonSize, string> = {
+  sm: "text-[length:var(--text-xs)] gap-[var(--space-1)]",
+  md: "text-[length:var(--text-sm)] gap-[var(--space-2)]",
+};
+
 /** Button with primary, secondary, ghost, danger, and link variants. */
 export function Button({
   variant = "primary",
@@ -46,9 +51,11 @@ export function Button({
   onClick,
   children,
 }: ButtonProps) {
+  const appliedSizeStyles = variant === "link" ? linkSizeStyles[size] : sizeStyles[size];
+
   return (
     <button
-      className={[base, variantStyles[variant], sizeStyles[size], fullWidth ? "w-full" : ""].join(" ")}
+      className={[base, variantStyles[variant], appliedSizeStyles, fullWidth ? "w-full" : ""].join(" ")}
       disabled={disabled || loading}
       onClick={onClick}
       type={type}
