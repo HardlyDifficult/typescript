@@ -1,0 +1,181 @@
+import { z } from "zod";
+
+// Base schemas
+export const AgentIdSchema = z.string().min(1, "Agent ID cannot be empty");
+
+export const RepositorySchema = z.string().min(1, "Repository cannot be empty");
+
+export const BranchSchema = z.string().min(1, "Branch cannot be empty");
+
+export const ModelSchema = z.string().min(1, "Model cannot be empty");
+
+export const PromptSchema = z.string().min(1, "Prompt cannot be empty");
+
+// Agent status enum
+export const AgentStatusSchema = z.enum([
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "canceled",
+  "cancelled",
+  "timeout",
+  "unknown",
+]);
+
+// Launch agent schemas
+export const LaunchCursorAgentInputSchema = z.object({
+  prompt: PromptSchema,
+  repository: RepositorySchema,
+  branch: BranchSchema.optional(),
+  model: ModelSchema.optional(),
+});
+
+export const LaunchCursorAgentRequestSchema = z.object({
+  prompt: z.object({
+    text: PromptSchema,
+  }),
+  source: z.object({
+    repository: RepositorySchema,
+    branch: BranchSchema,
+  }),
+  model: ModelSchema.optional(),
+});
+
+export const LaunchCursorAgentResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema.optional(),
+  })
+  .catchall(z.unknown()); // Allow additional properties
+
+// Agent status schemas
+export const CursorAgentStatusSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema,
+    model: ModelSchema.optional(),
+    createdAt: z.string().optional(),
+    startedAt: z.string().optional(),
+    completedAt: z.string().optional(),
+    gitBranch: z.string().optional(),
+    branchUrl: z.url().optional(),
+    repoName: z.string().optional(),
+    pullRequestUrl: z.url().optional(),
+  })
+  .catchall(z.unknown()); // Allow additional properties
+
+// List agents schemas
+export const ListAgentsQuerySchema = z.object({
+  repository: RepositorySchema.optional(),
+  status: AgentStatusSchema.optional(),
+  limit: z.number().min(1).max(100).optional(),
+  offset: z.number().min(0).optional(),
+  createdAfter: z.string().optional(),
+  createdBefore: z.string().optional(),
+});
+
+export const ListAgentsResponseSchema = z.object({
+  agents: z.array(CursorAgentStatusSchema),
+  total: z.number().min(0),
+  hasMore: z.boolean(),
+});
+
+// Cancel agent schemas
+export const CancelAgentRequestSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export const CancelAgentResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema,
+    cancelledAt: z.string().optional(),
+  })
+  .catchall(z.unknown());
+
+// Update agent schemas
+export const UpdateAgentRequestSchema = z.object({
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const UpdateAgentResponseSchema = CursorAgentStatusSchema;
+
+// Agent logs schemas
+export const AgentLogEntrySchema = z.object({
+  timestamp: z.string(),
+  level: z.enum(["debug", "info", "warn", "error"]),
+  message: z.string(),
+  context: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const GetAgentLogsQuerySchema = z.object({
+  since: z.string().optional(),
+  limit: z.number().min(1).max(1000).optional(),
+  level: z.enum(["debug", "info", "warn", "error"]).optional(),
+});
+
+export const GetAgentLogsResponseSchema = z.object({
+  logs: z.array(AgentLogEntrySchema),
+  hasMore: z.boolean(),
+});
+
+// Delete agent schemas
+export const DeleteAgentResponseSchema = z.object({
+  id: z.string().min(1),
+  deletedAt: z.string(),
+});
+
+// Configuration schemas
+export const CursorCloudClientOptionsSchema = z.object({
+  apiKey: z.string().optional(),
+  baseUrl: z.url().optional(),
+  defaultModel: ModelSchema.optional(),
+  pollIntervalMs: z.number().min(100).optional(),
+  timeoutMs: z.number().min(1000).optional(),
+});
+
+export const WaitForAgentOptionsSchema = z.object({
+  pollIntervalMs: z.number().min(100).optional(),
+  timeoutMs: z.number().min(1000).optional(),
+});
+
+export const RunCursorAgentOptionsSchema = WaitForAgentOptionsSchema.extend({
+  model: ModelSchema.optional(),
+});
+
+// Result schemas
+export const CursorRunResultSchema = z.object({
+  agentId: z.string().min(1),
+  launch: LaunchCursorAgentResponseSchema,
+  final: CursorAgentStatusSchema,
+});
+
+// Export inferred types
+export type LaunchCursorAgentInput = z.infer<
+  typeof LaunchCursorAgentInputSchema
+>;
+export type LaunchCursorAgentRequest = z.infer<
+  typeof LaunchCursorAgentRequestSchema
+>;
+export type LaunchCursorAgentResponse = z.infer<
+  typeof LaunchCursorAgentResponseSchema
+>;
+export type CursorAgentStatus = z.infer<typeof CursorAgentStatusSchema>;
+export type ListAgentsQuery = z.infer<typeof ListAgentsQuerySchema>;
+export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>;
+export type CancelAgentRequest = z.infer<typeof CancelAgentRequestSchema>;
+export type CancelAgentResponse = z.infer<typeof CancelAgentResponseSchema>;
+export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequestSchema>;
+export type UpdateAgentResponse = z.infer<typeof UpdateAgentResponseSchema>;
+export type AgentLogEntry = z.infer<typeof AgentLogEntrySchema>;
+export type GetAgentLogsQuery = z.infer<typeof GetAgentLogsQuerySchema>;
+export type GetAgentLogsResponse = z.infer<typeof GetAgentLogsResponseSchema>;
+export type DeleteAgentResponse = z.infer<typeof DeleteAgentResponseSchema>;
+export type CursorCloudClientOptions = z.infer<
+  typeof CursorCloudClientOptionsSchema
+>;
+export type WaitForAgentOptions = z.infer<typeof WaitForAgentOptionsSchema>;
+export type RunCursorAgentOptions = z.infer<typeof RunCursorAgentOptionsSchema>;
+export type CursorRunResult = z.infer<typeof CursorRunResultSchema>;
