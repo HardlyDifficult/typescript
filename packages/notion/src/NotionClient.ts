@@ -36,7 +36,9 @@ function textToParagraphBlocks(text: string): NotionBlock[] {
   return splitIntoChunks(text, MAX_BLOCK_TEXT_LENGTH).map((chunk) => ({
     object: "block" as const,
     type: "paragraph" as const,
-    paragraph: { rich_text: [{ type: "text" as const, text: { content: chunk } }] },
+    paragraph: {
+      rich_text: [{ type: "text" as const, text: { content: chunk } }],
+    },
   }));
 }
 
@@ -102,7 +104,11 @@ export class NotionClient {
       ...(firstBatch && firstBatch.length > 0 ? { children: firstBatch } : {}),
     };
 
-    const page = await this.request<NotionPageResponse>("POST", "/pages", payload);
+    const page = await this.request<NotionPageResponse>(
+      "POST",
+      "/pages",
+      payload
+    );
 
     // Append remaining blocks if the transcript exceeded the per-request limit
     const remaining = bodyBlocks?.slice(MAX_BLOCKS_PER_REQUEST) ?? [];
@@ -118,7 +124,11 @@ export class NotionClient {
     for (let i = 0; i < blocks.length; i += MAX_BLOCKS_PER_REQUEST) {
       const batch = blocks.slice(i, i + MAX_BLOCKS_PER_REQUEST);
       const payload: AppendBlocksRequest = { children: batch };
-      await this.request<unknown>("PATCH", `/blocks/${pageId}/children`, payload);
+      await this.request<unknown>(
+        "PATCH",
+        `/blocks/${pageId}/children`,
+        payload
+      );
     }
   }
 

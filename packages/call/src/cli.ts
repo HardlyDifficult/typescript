@@ -6,7 +6,10 @@ import {
   secondsToMilliseconds,
 } from "@hardlydifficult/date-time";
 import { ConsolePlugin, Logger } from "@hardlydifficult/logger";
-import { NotionClient, type NotionPropertyValue } from "@hardlydifficult/notion";
+import {
+  NotionClient,
+  type NotionPropertyValue,
+} from "@hardlydifficult/notion";
 
 import { buildHelpText, parseCliArgs, resolveCliArgs } from "./cliArgs.js";
 import { CallClient } from "./client.js";
@@ -115,8 +118,10 @@ async function saveToNotion(options: SaveToNotionOptions): Promise<void> {
     };
 
     if (summary !== undefined && summary !== "") {
-      properties["Summary"] = {
-        rich_text: [{ type: "text", text: { content: summary.slice(0, 2000) } }],
+      properties.Summary = {
+        rich_text: [
+          { type: "text", text: { content: summary.slice(0, 2000) } },
+        ],
       };
     }
 
