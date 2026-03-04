@@ -1,13 +1,16 @@
 import {
   StateTracker,
   type StateTrackerEvent,
+  type StorageAdapter,
 } from "@hardlydifficult/state-tracker";
 
 export interface RepoWatcherConfig<TResult> {
-  /** Key used for persisting state to disk. */
+  /** Key used for persisting state to disk or adapter. */
   stateKey: string;
-  /** Directory where state is persisted. */
-  stateDirectory: string;
+  /** Directory where state is persisted (not needed when storageAdapter is provided). */
+  stateDirectory?: string;
+  /** Custom storage adapter (takes priority over stateDirectory). */
+  storageAdapter?: StorageAdapter;
   /** Auto-save interval in milliseconds. Default 5000. */
   autoSaveMs?: number;
   /** The work to run for a repo. */
@@ -53,6 +56,7 @@ export class RepoWatcher<TResult = void> {
       key: config.stateKey,
       default: { lastProcessedSha: {} },
       stateDirectory: config.stateDirectory,
+      storageAdapter: config.storageAdapter,
       autoSaveMs: config.autoSaveMs ?? 5000,
       onEvent: config.onEvent,
     });
