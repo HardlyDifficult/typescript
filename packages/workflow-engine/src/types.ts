@@ -1,3 +1,5 @@
+import type { StorageAdapter } from "@hardlydifficult/state-tracker";
+
 /**
  * Allowed transitions per status.
  * Each key is a status, its value is the list of statuses it can transition to.
@@ -40,6 +42,8 @@ export interface WorkflowEngineOptions<TStatus extends string, TData> {
   transitions: TransitionMap<TStatus>;
   /** Directory for state persistence */
   stateDirectory?: string;
+  /** Custom storage adapter (takes priority over stateDirectory). */
+  storageAdapter?: StorageAdapter;
   /** Auto-save interval in ms (default 5000) */
   autoSaveMs?: number;
   /** Called on transitions, updates, and loads */

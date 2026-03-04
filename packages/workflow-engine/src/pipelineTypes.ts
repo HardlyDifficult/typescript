@@ -1,4 +1,5 @@
 import type { Logger } from "@hardlydifficult/logger";
+import type { StorageAdapter } from "@hardlydifficult/state-tracker";
 
 /**
  * Step execution context passed to every step's execute function.
@@ -104,6 +105,8 @@ export interface PipelineOptions<TData> {
   logger: Logger;
   /** Directory for state persistence */
   stateDirectory?: string;
+  /** Custom storage adapter (takes priority over stateDirectory). */
+  storageAdapter?: StorageAdapter;
   /** Auto-save interval in ms (default 5000) */
   autoSaveMs?: number;
   /** Lifecycle hooks for external integrations (Discord, dashboard, etc.) */
