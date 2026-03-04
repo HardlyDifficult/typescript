@@ -7,6 +7,7 @@ export {
 export {
   HttpRequestError,
   JsonParseError,
+  joinUrl,
   requestJsonWithRetry,
   type FetchLike,
   type RequestWithRetryOptions,
@@ -17,5 +18,7 @@ export type {
   CallSubmitResponse,
   PollEvent,
   PollResult,
+  SseMessage,
   TerminalCallStatus,
+  WaitStrategy,
 } from "./types.js";

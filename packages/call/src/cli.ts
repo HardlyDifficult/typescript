@@ -42,6 +42,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     source: resolved.source,
     timeoutMs: POLL_TIMEOUT_MS,
     pollIntervalMs: POLL_INTERVAL_MS,
+    strategy: resolved.strategy,
     onPoll: (event) => {
       if (event.error !== undefined && event.error !== "") {
         logger.warn(

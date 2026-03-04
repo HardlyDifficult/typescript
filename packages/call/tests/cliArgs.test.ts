@@ -60,4 +60,44 @@ describe("resolveCliArgs", () => {
       "First message is required"
     );
   });
+
+  it("defaults strategy to poll", () => {
+    const parsed = parseCliArgs(["call me"]);
+    const resolved = resolveCliArgs(parsed, {
+      CALL_API_TOKEN: "token-123",
+      CALL_API_ENDPOINT: "https://api.example.com",
+    });
+    expect(resolved.strategy).toBe("poll");
+  });
+
+  it("accepts strategy flag values", () => {
+    for (const strategy of ["poll", "long-poll", "sse"]) {
+      const parsed = parseCliArgs(["call me", "--strategy", strategy]);
+      const resolved = resolveCliArgs(parsed, {
+        CALL_API_TOKEN: "token-123",
+        CALL_API_ENDPOINT: "https://api.example.com",
+      });
+      expect(resolved.strategy).toBe(strategy);
+    }
+  });
+
+  it("rejects unknown strategy values", () => {
+    const parsed = parseCliArgs(["call me", "--strategy", "websocket"]);
+    expect(() =>
+      resolveCliArgs(parsed, {
+        CALL_API_TOKEN: "token",
+        CALL_API_ENDPOINT: "https://api.example.com",
+      })
+    ).toThrow('Invalid strategy "websocket"');
+  });
+
+  it("reads strategy from CALL_STRATEGY env var", () => {
+    const parsed = parseCliArgs(["call me"]);
+    const resolved = resolveCliArgs(parsed, {
+      CALL_API_TOKEN: "token",
+      CALL_API_ENDPOINT: "https://api.example.com",
+      CALL_STRATEGY: "sse",
+    });
+    expect(resolved.strategy).toBe("sse");
+  });
 });

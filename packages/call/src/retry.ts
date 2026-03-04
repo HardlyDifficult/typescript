@@ -79,7 +79,7 @@ function calculateDelayMs(
   return rawDelay + jitter;
 }
 
-function joinUrl(endpoint: string, path: string): string {
+export function joinUrl(endpoint: string, path: string): string {
   const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint;
   const suffix = path.startsWith("/") ? path : `/${path}`;
   return `${base}${suffix}`;

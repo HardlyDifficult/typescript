@@ -1,11 +1,19 @@
 import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
 
+import type { WaitStrategy } from "./types.js";
+
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a concise phone assistant.",
   "Ask one question at a time.",
   "Do not read URLs, IDs, or file paths out loud unless requested.",
 ].join(" ");
+
+const VALID_STRATEGIES: ReadonlySet<string> = new Set([
+  "poll",
+  "long-poll",
+  "sse",
+]);
 
 interface ParseResultValues {
   "first-message"?: string;
@@ -13,6 +21,7 @@ interface ParseResultValues {
   source?: string;
   "api-token"?: string;
   endpoint?: string;
+  strategy?: string;
   help?: boolean;
 }
 
@@ -22,6 +31,7 @@ export interface ParsedCliArgs {
   source?: string;
   apiToken?: string;
   endpoint?: string;
+  strategy?: string;
   help: boolean;
 }
 
@@ -31,6 +41,7 @@ export interface ResolvedCliArgs {
   source: string;
   apiToken: string;
   endpoint: string;
+  strategy: WaitStrategy;
 }
 
 function createDefaultSource(): string {
@@ -47,6 +58,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
       source: { type: "string", short: "s" },
       "api-token": { type: "string" },
       endpoint: { type: "string" },
+      strategy: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     allowPositionals: true,
@@ -63,6 +75,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
     source: typedValues.source,
     apiToken: typedValues["api-token"],
     endpoint: typedValues.endpoint,
+    strategy: typedValues.strategy,
     help: typedValues.help === true,
   };
 }
@@ -78,6 +91,7 @@ export function resolveCliArgs(
   const source = parsed.source ?? env.CALL_SOURCE ?? createDefaultSource();
   const apiToken = parsed.apiToken ?? env.CALL_API_TOKEN;
   const endpoint = parsed.endpoint ?? env.CALL_API_ENDPOINT;
+  const rawStrategy = parsed.strategy ?? env.CALL_STRATEGY ?? "poll";
 
   if (firstMessage === undefined || firstMessage.trim() === "") {
     throw new Error(
@@ -100,6 +114,11 @@ export function resolveCliArgs(
       "Endpoint is required. Set --endpoint or CALL_API_ENDPOINT."
     );
   }
+  if (!VALID_STRATEGIES.has(rawStrategy)) {
+    throw new Error(
+      `Invalid strategy "${rawStrategy}". Valid values: poll, long-poll, sse.`
+    );
+  }
 
   return {
     firstMessage,
@@ -107,6 +126,7 @@ export function resolveCliArgs(
     source,
     apiToken,
     endpoint,
+    strategy: rawStrategy as WaitStrategy,
   };
 }
 
@@ -124,6 +144,7 @@ export function buildHelpText(): string {
     "  -m, --first-message <text>     First message spoken on the call",
     "  -p, --system-prompt <text>     System prompt for the voice agent",
     "  -s, --source <id>              Stable source ID (default: random)",
+    "      --strategy <name>          How to wait: poll | long-poll | sse (or CALL_STRATEGY, default: poll)",
     "  -h, --help                     Show help",
   ].join("\n");
 }
