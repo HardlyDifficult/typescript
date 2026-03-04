@@ -1,15 +1,12 @@
 {
-  "name": "@hardlydifficult/call",
+  "name": "@hardlydifficult/notion",
   "version": "1.0.0",
-  "description": "CLI and client for triggering and monitoring outbound calls",
+  "description": "Notion API client for creating and managing database pages",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
-  "bin": {
-    "hardlydifficult-call": "./dist/cli.js"
-  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -17,11 +14,6 @@
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
-  },
-  "dependencies": {
-    "@hardlydifficult/date-time": "file:../date-time",
-    "@hardlydifficult/logger": "file:../logger",
-    "@hardlydifficult/notion": "file:../notion"
   },
   "devDependencies": {
     "@types/node": "25.3.2",

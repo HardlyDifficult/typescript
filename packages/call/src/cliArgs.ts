@@ -31,6 +31,8 @@ export interface ResolvedCliArgs {
   source: string;
   apiToken: string;
   endpoint: string;
+  notionApiToken?: string;
+  notionDatabaseId?: string;
 }
 
 function createDefaultSource(): string {
@@ -78,6 +80,8 @@ export function resolveCliArgs(
   const source = parsed.source ?? env.CALL_SOURCE ?? createDefaultSource();
   const apiToken = parsed.apiToken ?? env.CALL_API_TOKEN;
   const endpoint = parsed.endpoint ?? env.CALL_API_ENDPOINT;
+  const notionApiToken = env.NOTION_API_TOKEN;
+  const notionDatabaseId = env.NOTION_DATABASE_ID;
 
   if (firstMessage === undefined || firstMessage.trim() === "") {
     throw new Error(
@@ -107,6 +111,8 @@ export function resolveCliArgs(
     source,
     apiToken,
     endpoint,
+    notionApiToken,
+    notionDatabaseId,
   };
 }
 
@@ -125,5 +131,9 @@ export function buildHelpText(): string {
     "  -p, --system-prompt <text>     System prompt for the voice agent",
     "  -s, --source <id>              Stable source ID (default: random)",
     "  -h, --help                     Show help",
+    "",
+    "Notion (optional env vars):",
+    "      NOTION_API_TOKEN           Notion integration token",
+    "      NOTION_DATABASE_ID         Notion database ID to save call records",
   ].join("\n");
 }
