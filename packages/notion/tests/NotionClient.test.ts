@@ -73,17 +73,23 @@ describe("NotionClient", () => {
     });
   });
 
-  describe("buildTranscriptBlocks", () => {
+  describe("buildSectionBlocks", () => {
     it("returns a heading block and paragraph blocks", () => {
-      const blocks = NotionClient.buildTranscriptBlocks("Hello world");
+      const blocks = NotionClient.buildSectionBlocks("Notes", "Hello world");
       expect(blocks).toHaveLength(2);
       expect(blocks[0]?.type).toBe("heading_2");
       expect(blocks[1]?.type).toBe("paragraph");
     });
 
-    it("splits long transcripts into multiple paragraph blocks", () => {
+    it("uses the provided heading text", () => {
+      const blocks = NotionClient.buildSectionBlocks("My Section", "body");
+      const heading = blocks[0] as { heading_2: { rich_text: { text: { content: string } }[] } };
+      expect(heading.heading_2.rich_text[0]?.text.content).toBe("My Section");
+    });
+
+    it("splits long body text into multiple paragraph blocks", () => {
       const longText = "a".repeat(5000);
-      const blocks = NotionClient.buildTranscriptBlocks(longText);
+      const blocks = NotionClient.buildSectionBlocks("Title", longText);
       // 1 heading + 3 paragraphs (2000 + 2000 + 1000)
       expect(blocks).toHaveLength(4);
       expect(blocks[0]?.type).toBe("heading_2");

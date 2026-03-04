@@ -133,19 +133,19 @@ export class NotionClient {
   }
 
   /**
-   * Builds the page body blocks for a call transcript.
-   * Adds a "Transcript" heading followed by the transcript text split into chunks.
+   * Builds a heading_2 block followed by paragraph blocks for the given text.
+   * Text is automatically split into 2,000-character chunks to satisfy Notion's limit.
    */
-  static buildTranscriptBlocks(transcript: string): NotionBlock[] {
+  static buildSectionBlocks(heading: string, body: string): NotionBlock[] {
     return [
       {
         object: "block",
         type: "heading_2",
         heading_2: {
-          rich_text: [{ type: "text", text: { content: "Transcript" } }],
+          rich_text: [{ type: "text", text: { content: heading } }],
         },
       },
-      ...textToParagraphBlocks(transcript),
+      ...textToParagraphBlocks(body),
     ];
   }
 }

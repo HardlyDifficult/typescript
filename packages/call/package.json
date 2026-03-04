@@ -20,8 +20,7 @@
   },
   "dependencies": {
     "@hardlydifficult/date-time": "file:../date-time",
-    "@hardlydifficult/logger": "file:../logger",
-    "@hardlydifficult/notion": "file:../notion"
+    "@hardlydifficult/logger": "file:../logger"
   },
   "devDependencies": {
     "@types/node": "25.3.2",

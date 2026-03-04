@@ -51,9 +51,9 @@ const page = await notion.createPage(
     Name: { title: [{ type: "text", text: { content: "My page title" } }] },
     Status: { select: { name: "completed" } },
     Date: { date: { start: new Date().toISOString() } },
-    Summary: { rich_text: [{ type: "text", text: { content: "Brief summary" } }] },
+    Notes: { rich_text: [{ type: "text", text: { content: "Some notes" } }] },
   },
-  NotionClient.buildTranscriptBlocks("Full transcript text goes here...")
+  NotionClient.buildSectionBlocks("Details", "Long body text goes here...")
 );
 
 console.log(page.url);
@@ -69,9 +69,9 @@ Creates a client authenticated with the given Notion integration token.
 
 Creates a new page in the specified database. Property keys must match the database schema. Long body content is automatically split and appended in batches to respect Notion's 2,000-character-per-block and 100-blocks-per-request limits.
 
-### `NotionClient.buildTranscriptBlocks(transcript)`
+### `NotionClient.buildSectionBlocks(heading, body)`
 
-Static helper that returns a `heading_2` block ("Transcript") followed by paragraph blocks containing the text, split into 2,000-character chunks.
+Static helper that returns a `heading_2` block followed by paragraph blocks for the body text, split into 2,000-character chunks.
 
 ### `notion.appendBlocks(pageId, blocks)`
 
