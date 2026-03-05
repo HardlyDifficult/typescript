@@ -15,10 +15,10 @@
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "@hardlydifficult/date-time": "file:../date-time",
-    "@hardlydifficult/state-tracker": "file:../state-tracker"
+    "@hardlydifficult/date-time": "file:../date-time"
   },
   "devDependencies": {
+    "@hardlydifficult/state-tracker": "file:../state-tracker",
     "@types/node": "25.3.2",
     "typescript": "5.9.3",
     "vitest": "4.0.18",

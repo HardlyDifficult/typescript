@@ -14,10 +14,9 @@
     "lint": "tsc --noEmit",
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true })\""
   },
-  "dependencies": {
-    "@hardlydifficult/state-tracker": "file:../state-tracker"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@hardlydifficult/state-tracker": "file:../state-tracker",
     "@types/node": "25.3.2",
     "typescript": "5.9.3",
     "vitest": "4.0.18",
