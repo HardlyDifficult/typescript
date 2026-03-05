@@ -1,6 +1,6 @@
 # @hardlydifficult/cursor-cloud
 
-Focused, Cursor-only client for launching and tracking Cursor Cloud remote agent sessions.
+Typed client for the [Cursor Cloud Agent API](https://api.cursor.com).
 
 ## Installation
 
@@ -8,42 +8,142 @@ Focused, Cursor-only client for launching and tracking Cursor Cloud remote agent
 npm install @hardlydifficult/cursor-cloud
 ```
 
-## Quick Start
+## Configuration
 
 ```typescript
 import { createCursorCloud } from "@hardlydifficult/cursor-cloud";
 
 // Reads CURSOR_API_KEY from env by default.
 const cursor = createCursorCloud();
-// Optional override:
-// const cursor = createCursorCloud({ apiKey: process.env.CURSOR_API_KEY });
 
+// Or pass the key explicitly with an optional base URL override:
+const cursor = createCursorCloud({
+  apiKey: "your-api-key",
+  baseUrl: "https://api.cursor.com", // optional
+});
+```
+
+Authentication uses **HTTP Basic auth** — the API key is sent as the username with an empty password.
+
+## Core Methods
+
+### `createAgent(params)` — `POST /v0/agents`
+
+Launch a new agent session.
+
+```typescript
+const agent = await cursor.createAgent({
+  prompt: "Fix the failing CI tests and open a PR",
+  repository: "owner/repo",
+  branch: "main",            // optional, defaults to "main"
+  model: "cursor-small",     // optional
+  webhook: {                 // optional — called when the agent finishes
+    url: "https://example.com/webhook",
+    secret: "shared-secret", // optional HMAC signing secret
+  },
+});
+
+console.log(agent.id); // use this ID for subsequent calls
+```
+
+### `listAgents(options?)` — `GET /v0/agents`
+
+List agents with optional filters and pagination.
+
+```typescript
+const list = await cursor.listAgents({
+  repository: "owner/repo",
+  status: "running",
+  limit: 20,
+  offset: 0,
+});
+
+console.log(list.agents, list.total, list.hasMore);
+```
+
+### `getAgent(id)` — `GET /v0/agents/{id}`
+
+Get current status and metadata for an agent.
+
+```typescript
+const agent = await cursor.getAgent("agent-id");
+console.log(agent.status);       // "queued" | "running" | "completed" | ...
+console.log(agent.pullRequestUrl);
+```
+
+### `getConversation(id)` — `GET /v0/agents/{id}/conversation`
+
+Retrieve the full conversation history for an agent.
+
+```typescript
+const { messages } = await cursor.getConversation("agent-id");
+for (const msg of messages) {
+  console.log(msg.role, msg.content); // "user" | "assistant"
+}
+```
+
+### `followup(id, prompt)` — `POST /v0/agents/{id}/followup`
+
+Send a followup instruction to a running agent.
+
+```typescript
+await cursor.followup("agent-id", "Also add unit tests for the new module");
+```
+
+### `stop(id)` — `POST /v0/agents/{id}/stop`
+
+Stop a running agent.
+
+```typescript
+await cursor.stop("agent-id");
+```
+
+### `interrupt(agentId, prompt)` — composite
+
+Stop the agent and then immediately send a new instruction. Guarantees that `stop` completes before `followup` is called.
+
+```typescript
+await cursor.interrupt("agent-id", "Focus on the auth module instead");
+```
+
+## Repo-Scoped Chain
+
+For repeated operations on the same repository, use the chainable `.repo()` helper:
+
+```typescript
 const result = await cursor
   .repo("owner/repo")
-  .branch("main")
-  .run("Fix the failing CI test and open a PR");
+  .branch("feature/dark-mode") // optional override
+  .model("cursor-small")        // optional override
+  .run("Add dark mode support and open a PR");
 
 console.log(result.final.status);
 console.log(result.final.pullRequestUrl);
 ```
 
-## API
+The repo chain also exposes `.conversation(id)`, `.followup(id, prompt)`, `.stop(id)`, and `.interrupt(id, prompt)`.
 
-### `createCursorCloud(options?)`
+## Polling Helpers
 
-Creates a client with opinionated defaults:
+```typescript
+// Poll until terminal status (completed / failed / cancelled / timeout)
+const final = await cursor.wait("agent-id", {
+  pollIntervalMs: 5_000,  // default 5s
+  timeoutMs: 20 * 60_000, // default 20 min
+  onPoll: (status) => console.log(status.status),
+});
 
-- `baseUrl`: `https://api.cursor.com`
-- `pollIntervalMs`: `5000`
-- `timeoutMs`: `20 minutes`
-- repo branch default: `main`
+// Launch + wait in one call
+const { agentId, final } = await cursor.run({
+  prompt: "Fix the bug",
+  repository: "owner/repo",
+});
+```
 
-### `client.repo(repository)`
+## Zod Schemas
 
-Starts a chain scoped to one repository.
+All request/response shapes are exported as Zod schemas for use in your own validation:
 
-- `.branch(name)` -> returns a new chain with a branch override
-- `.model(name)` -> returns a new chain with a model override
-- `.launch(prompt)` -> creates an agent session
-- `.wait(agentId)` -> polls status until terminal or timeout
-- `.run(prompt)` -> launch + wait convenience method
+```typescript
+import { CreateAgentParamsSchema, GetConversationResponseSchema } from "@hardlydifficult/cursor-cloud";
+```

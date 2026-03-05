@@ -23,12 +23,19 @@ export const AgentStatusSchema = z.enum([
   "unknown",
 ]);
 
+// Webhook schema
+export const WebhookSchema = z.object({
+  url: z.url(),
+  secret: z.string().optional(),
+});
+
 // Launch agent schemas
 export const LaunchCursorAgentInputSchema = z.object({
   prompt: PromptSchema,
   repository: RepositorySchema,
   branch: BranchSchema.optional(),
   model: ModelSchema.optional(),
+  webhook: WebhookSchema.optional(),
 });
 
 export const LaunchCursorAgentRequestSchema = z.object({
@@ -40,6 +47,7 @@ export const LaunchCursorAgentRequestSchema = z.object({
     branch: BranchSchema,
   }),
   model: ModelSchema.optional(),
+  webhook: WebhookSchema.optional(),
 });
 
 export const LaunchCursorAgentResponseSchema = z
@@ -127,6 +135,34 @@ export const DeleteAgentResponseSchema = z.object({
   deletedAt: z.string(),
 });
 
+// Conversation schemas
+export const ConversationMessageSchema = z
+  .object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    createdAt: z.string().optional(),
+  })
+  .catchall(z.unknown());
+
+export const GetConversationResponseSchema = z
+  .object({
+    messages: z.array(ConversationMessageSchema),
+  })
+  .catchall(z.unknown());
+
+// Followup schemas
+export const FollowupRequestSchema = z.object({
+  prompt: PromptSchema,
+});
+
+// Stop agent schemas
+export const StopAgentResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    status: AgentStatusSchema,
+  })
+  .catchall(z.unknown());
+
 // Configuration schemas
 export const CursorCloudClientOptionsSchema = z.object({
   apiKey: z.string().optional(),
@@ -153,6 +189,7 @@ export const CursorRunResultSchema = z.object({
 });
 
 // Export inferred types
+export type Webhook = z.infer<typeof WebhookSchema>;
 export type LaunchCursorAgentInput = z.infer<
   typeof LaunchCursorAgentInputSchema
 >;
@@ -173,6 +210,12 @@ export type AgentLogEntry = z.infer<typeof AgentLogEntrySchema>;
 export type GetAgentLogsQuery = z.infer<typeof GetAgentLogsQuerySchema>;
 export type GetAgentLogsResponse = z.infer<typeof GetAgentLogsResponseSchema>;
 export type DeleteAgentResponse = z.infer<typeof DeleteAgentResponseSchema>;
+export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+export type GetConversationResponse = z.infer<
+  typeof GetConversationResponseSchema
+>;
+export type FollowupRequest = z.infer<typeof FollowupRequestSchema>;
+export type StopAgentResponse = z.infer<typeof StopAgentResponseSchema>;
 export type CursorCloudClientOptions = z.infer<
   typeof CursorCloudClientOptionsSchema
 >;
