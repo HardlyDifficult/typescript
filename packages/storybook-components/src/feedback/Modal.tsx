@@ -18,7 +18,10 @@ const sizeStyles: Record<ModalSize, string> = {
   full: "w-[95vw] h-[95vh]",
 };
 
-/** Modal overlay with backdrop blur and subtle bordered panel. */
+/** 
+ * Modal overlay with backdrop blur and subtle bordered panel.
+ * Uses z-50 (highest in the component hierarchy) to appear above all other elements.
+ */
 export function Modal({ title, size = "md", onClose, children }: ModalProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

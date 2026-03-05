@@ -7,7 +7,10 @@ interface TooltipProps {
   children: ReactNode;
 }
 
-/** Hover tooltip that displays help text above the trigger element. */
+/** 
+ * Hover tooltip that displays help text above the trigger element.
+ * Uses z-index: 40 (lowest in the component hierarchy).
+ */
 export function Tooltip({ content, children }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   return (
@@ -24,7 +27,7 @@ export function Tooltip({ content, children }: TooltipProps) {
             bottom: "calc(100% + 6px)",
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 50,
+            zIndex: 40,
             maxWidth: "280px",
             width: "max-content",
             padding: "6px 10px",
