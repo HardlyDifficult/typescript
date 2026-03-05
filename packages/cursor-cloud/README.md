@@ -50,6 +50,8 @@ console.log(agent.id); // use this ID for subsequent calls
 
 List agents with optional filters and pagination.
 
+By default, archived agents are hidden to match Cursor's browser view. To include archived agents, pass `includeArchived: true` or filter explicitly with `status: "archived"`.
+
 ```typescript
 const list = await cursor.listAgents({
   repository: "owner/repo",
@@ -59,6 +61,14 @@ const list = await cursor.listAgents({
 });
 
 console.log(list.agents, list.total, list.hasMore);
+
+const archived = await cursor.listAgents({
+  status: "archived",
+});
+
+const allIncludingArchived = await cursor.listAgents({
+  includeArchived: true,
+});
 ```
 
 ### `getAgent(id)` — `GET /v0/agents/{id}`

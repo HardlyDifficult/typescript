@@ -49,6 +49,7 @@ const DEFAULT_BASE_URL = "https://api.cursor.com";
 const DEFAULT_BRANCH = "main";
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_TIMEOUT_MS = 20 * 60_000;
+const ARCHIVED_STATUS = "archived";
 const TERMINAL_STATUSES = new Set([
   "completed",
   "failed",
@@ -151,16 +152,31 @@ export class CursorCloudClient {
       ListAgentsQuerySchema,
       "List agents query"
     );
-    const queryString = buildQueryString(validatedQuery);
+    const { includeArchived, ...apiQuery } = validatedQuery;
+    const queryString = buildQueryString(apiQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents${queryString}`,
       { method: "GET" }
     );
-    return validateAndParse(
+    const parsedResponse = validateAndParse(
       response,
       ListAgentsResponseSchema,
       "List agents response"
     );
+
+    const shouldIncludeArchived =
+      includeArchived === true || validatedQuery.status === ARCHIVED_STATUS;
+
+    if (shouldIncludeArchived) {
+      return parsedResponse;
+    }
+
+    return {
+      ...parsedResponse,
+      agents: parsedResponse.agents.filter(
+        (agent) => agent.status !== ARCHIVED_STATUS
+      ),
+    };
   }
 
   /** Cancel a running agent. */
