@@ -419,7 +419,9 @@ describe("CursorCloudClient", () => {
     it("creates an agent and passes through all params", async () => {
       const fetchImpl = vi
         .fn<FetchLike>()
-        .mockResolvedValueOnce(jsonResponse({ id: "agent-5", status: "queued" }));
+        .mockResolvedValueOnce(
+          jsonResponse({ id: "agent-5", status: "queued" })
+        );
 
       const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
 
@@ -446,7 +448,9 @@ describe("CursorCloudClient", () => {
     it("includes webhook in the request when provided", async () => {
       const fetchImpl = vi
         .fn<FetchLike>()
-        .mockResolvedValueOnce(jsonResponse({ id: "agent-6", status: "queued" }));
+        .mockResolvedValueOnce(
+          jsonResponse({ id: "agent-6", status: "queued" })
+        );
 
       const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
 
@@ -467,10 +471,15 @@ describe("CursorCloudClient", () => {
     it("uses Basic auth header", async () => {
       const fetchImpl = vi
         .fn<FetchLike>()
-        .mockResolvedValueOnce(jsonResponse({ id: "agent-7", status: "queued" }));
+        .mockResolvedValueOnce(
+          jsonResponse({ id: "agent-7", status: "queued" })
+        );
 
       const client = new CursorCloudClient({ apiKey: "my-api-key", fetchImpl });
-      await client.createAgent({ prompt: "Do something", repository: "org/repo" });
+      await client.createAgent({
+        prompt: "Do something",
+        repository: "org/repo",
+      });
 
       const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
       const headers = init.headers as Record<string, string>;
@@ -578,7 +587,9 @@ describe("CursorCloudClient", () => {
 
     it("validates agent ID for stop", async () => {
       const client = new CursorCloudClient({ apiKey: "test-key" });
-      await expect(client.stop("")).rejects.toThrow("Agent ID validation failed");
+      await expect(client.stop("")).rejects.toThrow(
+        "Agent ID validation failed"
+      );
     });
   });
 

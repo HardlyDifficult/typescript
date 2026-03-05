@@ -68,7 +68,10 @@ export class CursorCloudRepo {
   async list(
     query: Omit<ListAgentsQuery, "repository"> = {}
   ): Promise<ListAgentsResponse> {
-    return this.client.listAgents({ ...query, repository: this.state.repository });
+    return this.client.listAgents({
+      ...query,
+      repository: this.state.repository,
+    });
   }
 
   async cancel(

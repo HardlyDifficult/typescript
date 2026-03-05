@@ -100,7 +100,9 @@ export class CursorCloudClient {
   }
 
   /** Launch a Cursor remote agent session. Delegates to createAgent(). */
-  async launch(input: LaunchCursorAgentInput): Promise<LaunchCursorAgentResponse> {
+  async launch(
+    input: LaunchCursorAgentInput
+  ): Promise<LaunchCursorAgentResponse> {
     return this.createAgent(input);
   }
 
@@ -110,7 +112,10 @@ export class CursorCloudClient {
   }
 
   /** Poll until terminal status or timeout. */
-  async wait(agentId: string, options: WaitForAgentOptions = {}): Promise<CursorAgentStatus> {
+  async wait(
+    agentId: string,
+    options: WaitForAgentOptions = {}
+  ): Promise<CursorAgentStatus> {
     const id = requireNonEmpty(agentId, "agentId");
     const pollIntervalMs = options.pollIntervalMs ?? this.pollIntervalMs;
     const timeoutMs = options.timeoutMs ?? this.timeoutMs;
@@ -141,47 +146,88 @@ export class CursorCloudClient {
 
   /** List agents with optional filtering. */
   async listAgents(query: ListAgentsQuery = {}): Promise<ListAgentsResponse> {
-    const validatedQuery = validateAndParse(query, ListAgentsQuerySchema, "List agents query");
+    const validatedQuery = validateAndParse(
+      query,
+      ListAgentsQuerySchema,
+      "List agents query"
+    );
     const queryString = buildQueryString(validatedQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents${queryString}`,
       { method: "GET" }
     );
-    return validateAndParse(response, ListAgentsResponseSchema, "List agents response");
+    return validateAndParse(
+      response,
+      ListAgentsResponseSchema,
+      "List agents response"
+    );
   }
 
   /** Cancel a running agent. */
-  async cancelAgent(agentId: string, request: CancelAgentRequest = {}): Promise<CancelAgentResponse> {
+  async cancelAgent(
+    agentId: string,
+    request: CancelAgentRequest = {}
+  ): Promise<CancelAgentResponse> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedRequest = validateAndParse(request, CancelAgentRequestSchema, "Cancel request");
+    const validatedRequest = validateAndParse(
+      request,
+      CancelAgentRequestSchema,
+      "Cancel request"
+    );
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}/cancel`,
       { method: "POST", body: JSON.stringify(validatedRequest) }
     );
-    return validateAndParse(response, CancelAgentResponseSchema, "Cancel response");
+    return validateAndParse(
+      response,
+      CancelAgentResponseSchema,
+      "Cancel response"
+    );
   }
 
   /** Update agent metadata or configuration. */
-  async updateAgent(agentId: string, request: UpdateAgentRequest): Promise<UpdateAgentResponse> {
+  async updateAgent(
+    agentId: string,
+    request: UpdateAgentRequest
+  ): Promise<UpdateAgentResponse> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedRequest = validateAndParse(request, UpdateAgentRequestSchema, "Update request");
+    const validatedRequest = validateAndParse(
+      request,
+      UpdateAgentRequestSchema,
+      "Update request"
+    );
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}`,
       { method: "PATCH", body: JSON.stringify(validatedRequest) }
     );
-    return validateAndParse(response, UpdateAgentResponseSchema, "Update response");
+    return validateAndParse(
+      response,
+      UpdateAgentResponseSchema,
+      "Update response"
+    );
   }
 
   /** Get logs for an agent. */
-  async getAgentLogs(agentId: string, query: GetAgentLogsQuery = {}): Promise<GetAgentLogsResponse> {
+  async getAgentLogs(
+    agentId: string,
+    query: GetAgentLogsQuery = {}
+  ): Promise<GetAgentLogsResponse> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedQuery = validateAndParse(query, GetAgentLogsQuerySchema, "Logs query");
+    const validatedQuery = validateAndParse(
+      query,
+      GetAgentLogsQuerySchema,
+      "Logs query"
+    );
     const queryString = buildQueryString(validatedQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents/${encodeURIComponent(validatedId)}/logs${queryString}`,
       { method: "GET" }
     );
-    return validateAndParse(response, GetAgentLogsResponseSchema, "Logs response");
+    return validateAndParse(
+      response,
+      GetAgentLogsResponseSchema,
+      "Logs response"
+    );
   }
 
   /** Delete an agent. */
@@ -191,12 +237,22 @@ export class CursorCloudClient {
       `/v0/agents/${encodeURIComponent(validatedId)}`,
       { method: "DELETE" }
     );
-    return validateAndParse(response, DeleteAgentResponseSchema, "Delete response");
+    return validateAndParse(
+      response,
+      DeleteAgentResponseSchema,
+      "Delete response"
+    );
   }
 
   /** Create and launch a new agent session. Accepts prompt, repo, branch, model, and an optional webhook. */
-  async createAgent(params: LaunchCursorAgentInput): Promise<LaunchCursorAgentResponse> {
-    const validated = validateAndParse(params, LaunchCursorAgentInputSchema, "Create agent params");
+  async createAgent(
+    params: LaunchCursorAgentInput
+  ): Promise<LaunchCursorAgentResponse> {
+    const validated = validateAndParse(
+      params,
+      LaunchCursorAgentInputSchema,
+      "Create agent params"
+    );
 
     const request: LaunchCursorAgentRequest = {
       prompt: { text: validated.prompt },
@@ -214,7 +270,11 @@ export class CursorCloudClient {
       "/v0/agents",
       { method: "POST", body: JSON.stringify(request) }
     );
-    return validateAndParse(response, LaunchCursorAgentResponseSchema, "Create agent response");
+    return validateAndParse(
+      response,
+      LaunchCursorAgentResponseSchema,
+      "Create agent response"
+    );
   }
 
   /** Get status and metadata for an agent. */
@@ -224,7 +284,11 @@ export class CursorCloudClient {
       `/v0/agents/${encodeURIComponent(validatedId)}`,
       { method: "GET" }
     );
-    return validateAndParse(response, CursorAgentStatusSchema, "Get agent response");
+    return validateAndParse(
+      response,
+      CursorAgentStatusSchema,
+      "Get agent response"
+    );
   }
 
   /** Retrieve the full conversation history for an agent. */
@@ -234,19 +298,31 @@ export class CursorCloudClient {
       `/v0/agents/${encodeURIComponent(validatedId)}/conversation`,
       { method: "GET" }
     );
-    return validateAndParse(response, GetConversationResponseSchema, "Get conversation response");
+    return validateAndParse(
+      response,
+      GetConversationResponseSchema,
+      "Get conversation response"
+    );
   }
 
   /** Send a followup instruction to a running agent. */
   async followup(agentId: string, prompt: string): Promise<void> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-    const validatedPrompt = validateAndParse(prompt, PromptSchema, "Followup prompt");
+    const validatedPrompt = validateAndParse(
+      prompt,
+      PromptSchema,
+      "Followup prompt"
+    );
     await this.requestJson<unknown>(
       `/v0/agents/${encodeURIComponent(validatedId)}/followup`,
       {
         method: "POST",
         body: JSON.stringify(
-          validateAndParse({ prompt: validatedPrompt }, FollowupRequestSchema, "Followup request")
+          validateAndParse(
+            { prompt: validatedPrompt },
+            FollowupRequestSchema,
+            "Followup request"
+          )
         ),
       }
     );
