@@ -37,21 +37,21 @@ export class CursorCloudAgent implements PromiseLike<CursorAgentStatus> {
   }
 
   /** Queue a follow-up instruction and return this agent for chaining. */
-  followUp(message: string): CursorCloudAgent {
+  followUp(message: string): this {
     return this.enqueue(async (agentId) => {
       await this.client.sendFollowUp(agentId, message);
     });
   }
 
   /** Queue stop and return this agent for chaining. */
-  stop(): CursorCloudAgent {
+  stop(): this {
     return this.enqueue(async (agentId) => {
       await this.client.stopAgent(agentId);
     });
   }
 
   /** Queue stop + follow-up and return this agent for chaining. */
-  interrupt(message: string): CursorCloudAgent {
+  interrupt(message: string): this {
     return this.enqueue(async (agentId) => {
       await this.client.interruptAgent(agentId, message);
     });
@@ -107,17 +107,13 @@ export class CursorCloudAgent implements PromiseLike<CursorAgentStatus> {
     onfulfilled?:
       | ((value: CursorAgentStatus) => TResult1 | PromiseLike<TResult1>)
       | null,
-    onrejected?:
-      | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
-      | null
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): PromiseLike<TResult1 | TResult2> {
     return this.wait().then(onfulfilled, onrejected);
   }
 
   catch<TResult = never>(
-    onrejected?:
-      | ((reason: unknown) => TResult | PromiseLike<TResult>)
-      | null
+    onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null
   ): Promise<CursorAgentStatus | TResult> {
     return this.wait().catch(onrejected);
   }
@@ -126,9 +122,7 @@ export class CursorCloudAgent implements PromiseLike<CursorAgentStatus> {
     return this.wait().finally(onfinally);
   }
 
-  private enqueue(
-    operation: (agentId: string) => Promise<void>
-  ): CursorCloudAgent {
+  private enqueue(operation: (agentId: string) => Promise<void>): this {
     this.actions = this.actions.then(async () => {
       const agentId = await this.id;
       await operation(agentId);

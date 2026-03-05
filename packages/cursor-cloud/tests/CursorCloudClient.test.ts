@@ -101,24 +101,28 @@ describe("CursorCloudClient", () => {
 
   it("followUp and interrupt are chainable and ordered", async () => {
     const callOrder: string[] = [];
-    const fetchImpl = vi.fn<FetchLike>().mockImplementation(async (url, init) => {
-      const urlStr = typeof url === "string" ? url : String(url);
-      if (urlStr.endsWith("/v0/agents")) {
-        return jsonResponse({ id: "agent-3", status: "queued" });
-      }
-      if (urlStr.endsWith("/stop")) {
-        callOrder.push("stop");
-        return jsonResponse({});
-      }
-      if (urlStr.endsWith("/followup")) {
-        const body = JSON.parse((init?.body as string | undefined) ?? "{}") as {
-          prompt?: string;
-        };
-        callOrder.push(`followup:${body.prompt ?? ""}`);
-        return jsonResponse({});
-      }
-      return jsonResponse({ id: "agent-3", status: "completed" });
-    });
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockImplementation(async (url, init) => {
+        const urlStr = typeof url === "string" ? url : String(url);
+        if (urlStr.endsWith("/v0/agents")) {
+          return jsonResponse({ id: "agent-3", status: "queued" });
+        }
+        if (urlStr.endsWith("/stop")) {
+          callOrder.push("stop");
+          return jsonResponse({});
+        }
+        if (urlStr.endsWith("/followup")) {
+          const body = JSON.parse(
+            (init?.body as string | undefined) ?? "{}"
+          ) as {
+            prompt?: string;
+          };
+          callOrder.push(`followup:${body.prompt ?? ""}`);
+          return jsonResponse({});
+        }
+        return jsonResponse({ id: "agent-3", status: "completed" });
+      });
 
     const client = new CursorCloudClient({
       apiKey: "test-key",
@@ -143,7 +147,9 @@ describe("CursorCloudClient", () => {
       .mockResolvedValueOnce(jsonResponse({ id: "agent-4", status: "queued" })) // launch
       .mockResolvedValueOnce(jsonResponse({ id: "agent-4", status: "running" })) // status()
       .mockResolvedValueOnce(jsonResponse({})) // stop()
-      .mockResolvedValueOnce(jsonResponse({ id: "agent-4", status: "completed" })); // await agent.stop() thenable resolution
+      .mockResolvedValueOnce(
+        jsonResponse({ id: "agent-4", status: "completed" })
+      ); // await agent.stop() thenable resolution
 
     const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
     const agent = client.launchAgent({ prompt: "Do work", repo: "owner/repo" });
@@ -162,7 +168,9 @@ describe("CursorCloudClient", () => {
   it("listAgents accepts repo filter and maps to repository query", async () => {
     const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
       jsonResponse({
-        agents: [{ id: "agent-5", status: "running", repository: "owner/repo" }],
+        agents: [
+          { id: "agent-5", status: "running", repository: "owner/repo" },
+        ],
         total: 1,
         hasMore: false,
       })
