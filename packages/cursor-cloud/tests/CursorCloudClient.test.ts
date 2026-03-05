@@ -281,7 +281,9 @@ describe("CursorCloudClient", () => {
     it("returns archived agents when status is explicitly set to archived", async () => {
       const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
         jsonResponse({
-          agents: [{ id: "agent-2", status: "archived", repository: "owner/repo1" }],
+          agents: [
+            { id: "agent-2", status: "archived", repository: "owner/repo1" },
+          ],
           total: 1,
           hasMore: false,
         })
