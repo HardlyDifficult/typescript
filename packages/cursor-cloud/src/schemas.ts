@@ -33,7 +33,7 @@ export const WebhookSchema = z.object({
 // Launch agent schemas
 export const LaunchCursorAgentInputSchema = z.object({
   prompt: PromptSchema,
-  repository: RepositorySchema,
+  repo: RepositorySchema,
   branch: BranchSchema.optional(),
   model: ModelSchema.optional(),
   webhook: WebhookSchema.optional(),
@@ -76,7 +76,7 @@ export const CursorAgentStatusSchema = z
 
 // List agents schemas
 export const ListAgentsQuerySchema = z.object({
-  repository: RepositorySchema.optional(),
+  repo: RepositorySchema.optional(),
   status: AgentStatusSchema.optional(),
   includeArchived: z.boolean().optional(),
   limit: z.number().min(1).max(100).optional(),
@@ -179,17 +179,6 @@ export const WaitForAgentOptionsSchema = z.object({
   timeoutMs: z.number().min(1000).optional(),
 });
 
-export const RunCursorAgentOptionsSchema = WaitForAgentOptionsSchema.extend({
-  model: ModelSchema.optional(),
-});
-
-// Result schemas
-export const CursorRunResultSchema = z.object({
-  agentId: z.string().min(1),
-  launch: LaunchCursorAgentResponseSchema,
-  final: CursorAgentStatusSchema,
-});
-
 // Export inferred types
 export type Webhook = z.infer<typeof WebhookSchema>;
 export type LaunchCursorAgentInput = z.infer<
@@ -222,5 +211,3 @@ export type CursorCloudClientOptions = z.infer<
   typeof CursorCloudClientOptionsSchema
 >;
 export type WaitForAgentOptions = z.infer<typeof WaitForAgentOptionsSchema>;
-export type RunCursorAgentOptions = z.infer<typeof RunCursorAgentOptionsSchema>;
-export type CursorRunResult = z.infer<typeof CursorRunResultSchema>;

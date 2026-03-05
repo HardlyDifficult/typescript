@@ -1,4 +1,4 @@
-import { CursorCloudRepo } from "./CursorCloudRepo.js";
+import { CursorCloudAgent } from "./CursorCloudAgent.js";
 import {
   AgentIdSchema,
   CancelAgentRequestSchema,
@@ -23,7 +23,6 @@ import type {
   CancelAgentResponse,
   CursorAgentStatus,
   CursorCloudClientOptions,
-  CursorRunResult,
   DeleteAgentResponse,
   GetAgentLogsQuery,
   GetAgentLogsResponse,
@@ -91,29 +90,17 @@ export class CursorCloudClient {
     this.sleepFn = options.sleepFn ?? sleep;
   }
 
-  /** Start a chain for one repository. */
-  repo(repository: string): CursorCloudRepo {
-    return new CursorCloudRepo(this, {
-      repository: requireNonEmpty(repository, "repository"),
-      branch: DEFAULT_BRANCH,
-      model: this.defaultModel,
-    });
-  }
-
-  /** Launch a Cursor remote agent session. Delegates to createAgent(). */
-  async launch(
-    input: LaunchCursorAgentInput
-  ): Promise<LaunchCursorAgentResponse> {
-    return this.createAgent(input);
-  }
-
-  /** Get latest status for a Cursor remote agent session. Delegates to getAgent(). */
-  async status(agentId: string): Promise<CursorAgentStatus> {
-    return this.getAgent(agentId);
+  /** Launch an agent and return a thenable agent handle. */
+  launchAgent(
+    input: LaunchCursorAgentInput,
+    waitOptions: WaitForAgentOptions = {}
+  ): CursorCloudAgent {
+    const launchPromise = this.createAgent(input);
+    return new CursorCloudAgent(this, launchPromise, waitOptions);
   }
 
   /** Poll until terminal status or timeout. */
-  async wait(
+  async waitForAgent(
     agentId: string,
     options: WaitForAgentOptions = {}
   ): Promise<CursorAgentStatus> {
@@ -123,7 +110,7 @@ export class CursorCloudClient {
     const deadline = Date.now() + timeoutMs;
 
     for (;;) {
-      const status = await this.status(id);
+      const status = await this.getAgent(id);
       options.onPoll?.(status);
 
       if (TERMINAL_STATUSES.has(status.status.toLowerCase())) {
@@ -138,13 +125,6 @@ export class CursorCloudClient {
     }
   }
 
-  /** Convenience: launch a prompt and wait for completion. */
-  async run(input: LaunchCursorAgentInput): Promise<CursorRunResult> {
-    const launch = await this.launch(input);
-    const final = await this.wait(launch.id);
-    return { agentId: launch.id, launch, final };
-  }
-
   /** List agents with optional filtering. */
   async listAgents(query: ListAgentsQuery = {}): Promise<ListAgentsResponse> {
     const validatedQuery = validateAndParse(
@@ -152,7 +132,11 @@ export class CursorCloudClient {
       ListAgentsQuerySchema,
       "List agents query"
     );
-    const { includeArchived, ...apiQuery } = validatedQuery;
+    const { includeArchived, repo, ...restQuery } = validatedQuery;
+    const apiQuery: Record<string, unknown> = {
+      ...restQuery,
+      ...(repo !== undefined && { repository: repo }),
+    };
     const queryString = buildQueryString(apiQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents${queryString}`,
@@ -261,7 +245,7 @@ export class CursorCloudClient {
   }
 
   /** Create and launch a new agent session. Accepts prompt, repo, branch, model, and an optional webhook. */
-  async createAgent(
+  private async createAgent(
     params: LaunchCursorAgentInput
   ): Promise<LaunchCursorAgentResponse> {
     const validated = validateAndParse(
@@ -273,10 +257,12 @@ export class CursorCloudClient {
     const request: LaunchCursorAgentRequest = {
       prompt: { text: validated.prompt },
       source: {
-        repository: validated.repository,
+        repository: validated.repo,
         branch: validated.branch ?? DEFAULT_BRANCH,
       },
-      ...(validated.model !== undefined && { model: validated.model }),
+      ...((validated.model ?? this.defaultModel) !== undefined && {
+        model: validated.model ?? this.defaultModel,
+      }),
       ...(validated.webhook !== undefined && { webhook: validated.webhook }),
     };
 
@@ -322,7 +308,7 @@ export class CursorCloudClient {
   }
 
   /** Send a followup instruction to a running agent. */
-  async followup(agentId: string, prompt: string): Promise<void> {
+  async sendFollowUp(agentId: string, prompt: string): Promise<void> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
     const validatedPrompt = validateAndParse(
       prompt,
@@ -345,7 +331,7 @@ export class CursorCloudClient {
   }
 
   /** Stop a running agent. */
-  async stop(agentId: string): Promise<void> {
+  async stopAgent(agentId: string): Promise<void> {
     const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
     await this.requestJson<unknown>(
       `/v0/agents/${encodeURIComponent(validatedId)}/stop`,
@@ -357,9 +343,9 @@ export class CursorCloudClient {
    * Interrupt a running agent and redirect it with a new instruction.
    * Stops the agent first, then sends the followup prompt.
    */
-  async interrupt(agentId: string, prompt: string): Promise<void> {
-    await this.stop(agentId);
-    await this.followup(agentId, prompt);
+  async interruptAgent(agentId: string, prompt: string): Promise<void> {
+    await this.stopAgent(agentId);
+    await this.sendFollowUp(agentId, prompt);
   }
 
   private basicAuthHeader(): string {

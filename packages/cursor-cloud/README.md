@@ -25,26 +25,44 @@ const cursor = createCursorCloud({
 
 Authentication uses **HTTP Basic auth** — the API key is sent as the username with an empty password.
 
-## Core Methods
+## Agent-first API
 
-### `createAgent(params)` — `POST /v0/agents`
+### `launchAgent(params)` — `POST /v0/agents`
 
-Launch a new agent session.
+Launch returns an **agent object** (not just an ID).
 
 ```typescript
-const agent = await cursor.createAgent({
+const agent = cursor.launchAgent({
   prompt: "Fix the failing CI tests and open a PR",
-  repository: "owner/repo",
-  branch: "main",            // optional, defaults to "main"
-  model: "cursor-small",     // optional
-  webhook: {                 // optional — called when the agent finishes
+  repo: "owner/repo",
+  branch: "main", // optional, defaults to "main"
+  model: "cursor-small", // optional
+  webhook: {
     url: "https://example.com/webhook",
-    secret: "shared-secret", // optional HMAC signing secret
+    secret: "shared-secret",
   },
 });
-
-console.log(agent.id); // use this ID for subsequent calls
 ```
+
+### Agent methods (chainable)
+
+```typescript
+agent.followUp("Also add unit tests");
+agent.stop();
+agent.interrupt("Actually focus on auth first");
+```
+
+### Agent is thenable/promisable
+
+```typescript
+const final = await agent;
+// or
+agent.then((result) => {
+  console.log(result.status);
+});
+```
+
+The awaited value is the final terminal status from polling.
 
 ### `listAgents(options?)` — `GET /v0/agents`
 
@@ -54,7 +72,7 @@ By default, archived agents are hidden to match Cursor's browser view. To includ
 
 ```typescript
 const list = await cursor.listAgents({
-  repository: "owner/repo",
+  repo: "owner/repo",
   status: "running",
   limit: 20,
   offset: 0,
@@ -92,61 +110,16 @@ for (const msg of messages) {
 }
 ```
 
-### `followup(id, prompt)` — `POST /v0/agents/{id}/followup`
-
-Send a followup instruction to a running agent.
-
-```typescript
-await cursor.followup("agent-id", "Also add unit tests for the new module");
-```
-
-### `stop(id)` — `POST /v0/agents/{id}/stop`
-
-Stop a running agent.
-
-```typescript
-await cursor.stop("agent-id");
-```
-
-### `interrupt(agentId, prompt)` — composite
-
-Stop the agent and then immediately send a new instruction. Guarantees that `stop` completes before `followup` is called.
-
-```typescript
-await cursor.interrupt("agent-id", "Focus on the auth module instead");
-```
-
-## Repo-Scoped Chain
-
-For repeated operations on the same repository, use the chainable `.repo()` helper:
-
-```typescript
-const result = await cursor
-  .repo("owner/repo")
-  .branch("feature/dark-mode") // optional override
-  .model("cursor-small")        // optional override
-  .run("Add dark mode support and open a PR");
-
-console.log(result.final.status);
-console.log(result.final.pullRequestUrl);
-```
-
-The repo chain also exposes `.conversation(id)`, `.followup(id, prompt)`, `.stop(id)`, and `.interrupt(id, prompt)`.
+`followup(id, prompt)`, `stop(id)`, and `interrupt(id, prompt)` no longer exist on the client. Use agent methods instead.
 
 ## Polling Helpers
 
 ```typescript
-// Poll until terminal status (completed / failed / cancelled / timeout)
-const final = await cursor.wait("agent-id", {
+// Poll by id when needed (completed / failed / cancelled / timeout)
+const final = await cursor.waitForAgent("agent-id", {
   pollIntervalMs: 5_000,  // default 5s
   timeoutMs: 20 * 60_000, // default 20 min
   onPoll: (status) => console.log(status.status),
-});
-
-// Launch + wait in one call
-const { agentId, final } = await cursor.run({
-  prompt: "Fix the bug",
-  repository: "owner/repo",
 });
 ```
 
@@ -155,5 +128,5 @@ const { agentId, final } = await cursor.run({
 All request/response shapes are exported as Zod schemas for use in your own validation:
 
 ```typescript
-import { CreateAgentParamsSchema, GetConversationResponseSchema } from "@hardlydifficult/cursor-cloud";
+import { LaunchCursorAgentInputSchema, GetConversationResponseSchema } from "@hardlydifficult/cursor-cloud";
 ```
