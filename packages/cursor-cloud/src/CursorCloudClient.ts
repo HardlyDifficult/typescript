@@ -6,13 +6,16 @@ import {
   CancelAgentResponseSchema,
   CursorAgentStatusSchema,
   DeleteAgentResponseSchema,
+  FollowupRequestSchema,
   GetAgentLogsQuerySchema,
   GetAgentLogsResponseSchema,
+  GetConversationResponseSchema,
   LaunchCursorAgentInputSchema,
   LaunchCursorAgentRequestSchema,
   LaunchCursorAgentResponseSchema,
   ListAgentsQuerySchema,
   ListAgentsResponseSchema,
+  PromptSchema,
   UpdateAgentRequestSchema,
   UpdateAgentResponseSchema,
 } from "./schemas.js";
@@ -25,6 +28,7 @@ import type {
   DeleteAgentResponse,
   GetAgentLogsQuery,
   GetAgentLogsResponse,
+  GetConversationResponse,
   LaunchCursorAgentInput,
   LaunchCursorAgentRequest,
   LaunchCursorAgentResponse,
@@ -148,63 +152,16 @@ export class CursorCloudClient {
     });
   }
 
-  /** Launch a Cursor remote agent session. */
+  /** Launch a Cursor remote agent session. Delegates to createAgent(). */
   async launch(
     input: LaunchCursorAgentInput
   ): Promise<LaunchCursorAgentResponse> {
-    // Validate input
-    const validatedInput = validateAndParse(
-      input,
-      LaunchCursorAgentInputSchema,
-      "Launch input"
-    );
-
-    const request: LaunchCursorAgentRequest = {
-      prompt: { text: validatedInput.prompt },
-      source: {
-        repository: validatedInput.repository,
-        branch: validatedInput.branch ?? DEFAULT_BRANCH,
-      },
-      ...(validatedInput.model !== undefined && {
-        model: validatedInput.model,
-      }),
-    };
-
-    // Validate request before sending
-    validateAndParse(request, LaunchCursorAgentRequestSchema, "Launch request");
-
-    const response = await this.requestJson<Record<string, unknown>>(
-      "/v0/agents",
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      }
-    );
-
-    // Validate and return response
-    return validateAndParse(
-      response,
-      LaunchCursorAgentResponseSchema,
-      "Launch response"
-    );
+    return this.createAgent(input);
   }
 
-  /** Get latest status for a Cursor remote agent session. */
+  /** Get latest status for a Cursor remote agent session. Delegates to getAgent(). */
   async status(agentId: string): Promise<CursorAgentStatus> {
-    // Validate agent ID
-    const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
-
-    const response = await this.requestJson<Record<string, unknown>>(
-      `/v0/agents/${encodeURIComponent(validatedId)}`,
-      { method: "GET" }
-    );
-
-    // Validate and return response
-    return validateAndParse(
-      response,
-      CursorAgentStatusSchema,
-      "Status response"
-    );
+    return this.getAgent(agentId);
   }
 
   /** Poll until terminal status or timeout. */
@@ -366,6 +323,123 @@ export class CursorCloudClient {
     );
   }
 
+  /**
+   * Create and launch a new agent session.
+   * Accepts prompt, repo, branch, model, and an optional webhook.
+   */
+  async createAgent(
+    params: LaunchCursorAgentInput
+  ): Promise<LaunchCursorAgentResponse> {
+    const validated = validateAndParse(
+      params,
+      LaunchCursorAgentInputSchema,
+      "Create agent params"
+    );
+
+    const request: LaunchCursorAgentRequest = {
+      prompt: { text: validated.prompt },
+      source: {
+        repository: validated.repository,
+        branch: validated.branch ?? DEFAULT_BRANCH,
+      },
+      ...(validated.model !== undefined && { model: validated.model }),
+      ...(validated.webhook !== undefined && { webhook: validated.webhook }),
+    };
+
+    validateAndParse(request, LaunchCursorAgentRequestSchema, "Agent request");
+
+    const response = await this.requestJson<Record<string, unknown>>(
+      "/v0/agents",
+      { method: "POST", body: JSON.stringify(request) }
+    );
+
+    return validateAndParse(
+      response,
+      LaunchCursorAgentResponseSchema,
+      "Create agent response"
+    );
+  }
+
+  /** Get status and metadata for an agent. Alias: status(). */
+  async getAgent(id: string): Promise<CursorAgentStatus> {
+    const validatedId = validateAndParse(id, AgentIdSchema, "Agent ID");
+
+    const response = await this.requestJson<Record<string, unknown>>(
+      `/v0/agents/${encodeURIComponent(validatedId)}`,
+      { method: "GET" }
+    );
+
+    return validateAndParse(
+      response,
+      CursorAgentStatusSchema,
+      "Get agent response"
+    );
+  }
+
+  /** Retrieve the full conversation history for an agent. */
+  async getConversation(agentId: string): Promise<GetConversationResponse> {
+    const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
+
+    const response = await this.requestJson<Record<string, unknown>>(
+      `/v0/agents/${encodeURIComponent(validatedId)}/conversation`,
+      { method: "GET" }
+    );
+
+    return validateAndParse(
+      response,
+      GetConversationResponseSchema,
+      "Get conversation response"
+    );
+  }
+
+  /** Send a followup instruction to a running agent. */
+  async followup(agentId: string, prompt: string): Promise<void> {
+    const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
+    const validatedPrompt = validateAndParse(
+      prompt,
+      PromptSchema,
+      "Followup prompt"
+    );
+
+    await this.requestJson<unknown>(
+      `/v0/agents/${encodeURIComponent(validatedId)}/followup`,
+      {
+        method: "POST",
+        body: JSON.stringify(
+          validateAndParse(
+            { prompt: validatedPrompt },
+            FollowupRequestSchema,
+            "Followup request"
+          )
+        ),
+      }
+    );
+  }
+
+  /** Stop a running agent. */
+  async stop(agentId: string): Promise<void> {
+    const validatedId = validateAndParse(agentId, AgentIdSchema, "Agent ID");
+
+    await this.requestJson<unknown>(
+      `/v0/agents/${encodeURIComponent(validatedId)}/stop`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+  }
+
+  /**
+   * Interrupt a running agent and redirect it with a new instruction.
+   * Stops the agent first, then sends the followup prompt.
+   */
+  async interrupt(agentId: string, prompt: string): Promise<void> {
+    await this.stop(agentId);
+    await this.followup(agentId, prompt);
+  }
+
+  private basicAuthHeader(): string {
+    const encoded = Buffer.from(`${this.apiKey}:`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+
   private async requestJson<T>(
     path: string,
     init: { method: "GET" | "POST" | "PATCH" | "DELETE"; body?: string }
@@ -373,7 +447,7 @@ export class CursorCloudClient {
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method: init.method,
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: this.basicAuthHeader(),
         "Content-Type": "application/json",
       },
       ...(init.body !== undefined && { body: init.body }),
@@ -491,5 +565,28 @@ export class CursorCloudRepo {
   /** Delete an agent. */
   async delete(agentId: string): Promise<DeleteAgentResponse> {
     return this.client.deleteAgent(agentId);
+  }
+
+  /** Retrieve the full conversation history for an agent. */
+  async conversation(agentId: string): Promise<GetConversationResponse> {
+    return this.client.getConversation(agentId);
+  }
+
+  /** Send a followup instruction to a running agent. */
+  async followup(agentId: string, prompt: string): Promise<void> {
+    return this.client.followup(agentId, prompt);
+  }
+
+  /** Stop a running agent. */
+  async stop(agentId: string): Promise<void> {
+    return this.client.stop(agentId);
+  }
+
+  /**
+   * Interrupt a running agent and redirect it with a new instruction.
+   * Stops the agent first, then sends the followup prompt.
+   */
+  async interrupt(agentId: string, prompt: string): Promise<void> {
+    return this.client.interrupt(agentId, prompt);
   }
 }

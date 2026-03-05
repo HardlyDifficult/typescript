@@ -8,6 +8,7 @@ export type {
   CursorAgentStatus,
   CursorCloudClientOptions,
   CursorRunResult,
+  Webhook,
   LaunchCursorAgentInput,
   LaunchCursorAgentRequest,
   LaunchCursorAgentResponse,
@@ -23,11 +24,16 @@ export type {
   GetAgentLogsQuery,
   GetAgentLogsResponse,
   DeleteAgentResponse,
+  ConversationMessage,
+  GetConversationResponse,
+  FollowupRequest,
+  StopAgentResponse,
   FetchLike,
 } from "./types.js";
 
 // Export all Zod schemas for validation
 export {
+  WebhookSchema,
   LaunchCursorAgentInputSchema,
   LaunchCursorAgentRequestSchema,
   LaunchCursorAgentResponseSchema,
@@ -42,6 +48,10 @@ export {
   GetAgentLogsResponseSchema,
   DeleteAgentResponseSchema,
   AgentLogEntrySchema,
+  ConversationMessageSchema,
+  GetConversationResponseSchema,
+  FollowupRequestSchema,
+  StopAgentResponseSchema,
   CursorCloudClientOptionsSchema,
   WaitForAgentOptionsSchema,
   RunCursorAgentOptionsSchema,

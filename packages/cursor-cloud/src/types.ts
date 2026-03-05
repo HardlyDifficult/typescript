@@ -3,6 +3,7 @@ import type { CursorAgentStatus } from "./schemas.js";
 // Re-export types from schemas for convenience and backward compatibility
 export type {
   CursorAgentStatus,
+  Webhook,
   LaunchCursorAgentInput,
   LaunchCursorAgentRequest,
   LaunchCursorAgentResponse,
@@ -17,6 +18,10 @@ export type {
   GetAgentLogsQuery,
   GetAgentLogsResponse,
   DeleteAgentResponse,
+  ConversationMessage,
+  GetConversationResponse,
+  FollowupRequest,
+  StopAgentResponse,
 } from "./schemas.js";
 
 export type FetchLike = (
