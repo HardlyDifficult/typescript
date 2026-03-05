@@ -151,16 +151,30 @@ export class CursorCloudClient {
       ListAgentsQuerySchema,
       "List agents query"
     );
-    const queryString = buildQueryString(validatedQuery);
+    const { includeArchived = false, ...apiQuery } = validatedQuery;
+    const queryString = buildQueryString(apiQuery);
     const response = await this.requestJson<Record<string, unknown>>(
       `/v0/agents${queryString}`,
       { method: "GET" }
     );
-    return validateAndParse(
+    const parsedResponse = validateAndParse(
       response,
       ListAgentsResponseSchema,
       "List agents response"
     );
+
+    // Match browser defaults by hiding archived sessions unless explicitly requested.
+    if (includeArchived || validatedQuery.status === "archived") {
+      return parsedResponse;
+    }
+
+    const visibleAgents = parsedResponse.agents.filter(
+      (agent) => agent.status !== "archived"
+    );
+    return {
+      ...parsedResponse,
+      agents: visibleAgents,
+    };
   }
 
   /** Cancel a running agent. */

@@ -17,6 +17,7 @@ export const AgentStatusSchema = z.enum([
   "running",
   "completed",
   "failed",
+  "archived",
   "canceled",
   "cancelled",
   "timeout",
@@ -77,6 +78,7 @@ export const CursorAgentStatusSchema = z
 export const ListAgentsQuerySchema = z.object({
   repository: RepositorySchema.optional(),
   status: AgentStatusSchema.optional(),
+  includeArchived: z.boolean().optional(),
   limit: z.number().min(1).max(100).optional(),
   offset: z.number().min(0).optional(),
   createdAfter: z.string().optional(),

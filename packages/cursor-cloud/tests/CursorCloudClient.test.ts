@@ -194,11 +194,15 @@ describe("CursorCloudClient", () => {
       );
     });
 
-    it("handles empty query parameters", async () => {
+    it("hides archived agents by default", async () => {
       const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
         jsonResponse({
-          agents: [],
-          total: 0,
+          agents: [
+            { id: "agent-1", status: "running" },
+            { id: "agent-2", status: "archived" },
+            { id: "agent-3", status: "completed" },
+          ],
+          total: 3,
           hasMore: false,
         })
       );
@@ -210,7 +214,41 @@ describe("CursorCloudClient", () => {
 
       const result = await client.listAgents();
 
-      expect(result.agents).toHaveLength(0);
+      expect(result.agents).toEqual([
+        { id: "agent-1", status: "running" },
+        { id: "agent-3", status: "completed" },
+      ]);
+      expect(result.total).toBe(3);
+      expect(fetchImpl).toHaveBeenCalledWith(
+        "https://api.cursor.com/v0/agents",
+        expect.objectContaining({ method: "GET" })
+      );
+    });
+
+    it("returns archived agents when includeArchived is true", async () => {
+      const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+        jsonResponse({
+          agents: [
+            { id: "agent-1", status: "running" },
+            { id: "agent-2", status: "archived" },
+          ],
+          total: 2,
+          hasMore: false,
+        })
+      );
+
+      const client = new CursorCloudClient({
+        apiKey: "test-key",
+        fetchImpl,
+      });
+
+      const result = await client.listAgents({ includeArchived: true });
+
+      expect(result.agents).toEqual([
+        { id: "agent-1", status: "running" },
+        { id: "agent-2", status: "archived" },
+      ]);
+      expect(result.total).toBe(2);
       expect(fetchImpl).toHaveBeenCalledWith(
         "https://api.cursor.com/v0/agents",
         expect.objectContaining({ method: "GET" })

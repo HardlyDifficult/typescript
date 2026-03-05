@@ -50,10 +50,14 @@ console.log(agent.id); // use this ID for subsequent calls
 
 List agents with optional filters and pagination.
 
+By default, archived sessions are hidden to match Cursor's browser experience.
+Pass `includeArchived: true` to include archived sessions in results.
+
 ```typescript
 const list = await cursor.listAgents({
   repository: "owner/repo",
   status: "running",
+  includeArchived: false, // default
   limit: 20,
   offset: 0,
 });
