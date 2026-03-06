@@ -1,4 +1,5 @@
 import { BaseNotionClient } from "./client/BaseNotionClient.js";
+import { fetchBlockChildren } from "./client/blockChildren.js";
 import {
   buildSectionBlocks,
   LEGACY_NOTION_VERSION,
@@ -147,78 +148,11 @@ export class NotionClient extends BaseNotionClient {
     blockId: string,
     options?: RetrieveBlockChildrenOptions
   ): Promise<NotionBlock[]> {
-    const results: NotionBlock[] = [];
-    let cursor = options?.startCursor;
-    const pageSize = options?.pageSize;
-
-    do {
-      const response = await this.request<{
-        object: "list";
-        results: NotionBlock[];
-        next_cursor: string | null;
-        has_more: boolean;
-      }>("GET", `/blocks/${blockId}/children`, undefined, {
-        query: {
-          page_size: pageSize,
-          start_cursor: cursor,
-        },
-      });
-
-      for (const block of response.results) {
-        const nextBlock = block;
-        if (
-          options?.recursive === true &&
-          block.has_children === true &&
-          block.id !== undefined
-        ) {
-          const children = await this.retrieveBlockChildren(block.id, {
-            ...options,
-            startCursor: undefined,
-          });
-          switch (nextBlock.type) {
-            case "paragraph":
-              nextBlock.paragraph = { ...nextBlock.paragraph, children };
-              break;
-            case "bulleted_list_item":
-              nextBlock.bulleted_list_item = {
-                ...nextBlock.bulleted_list_item,
-                children,
-              };
-              break;
-            case "numbered_list_item":
-              nextBlock.numbered_list_item = {
-                ...nextBlock.numbered_list_item,
-                children,
-              };
-              break;
-            case "to_do":
-              nextBlock.to_do = { ...nextBlock.to_do, children };
-              break;
-            case "toggle":
-              nextBlock.toggle = { ...nextBlock.toggle, children };
-              break;
-            case "quote":
-              nextBlock.quote = { ...nextBlock.quote, children };
-              break;
-            case "callout":
-              nextBlock.callout = { ...nextBlock.callout, children };
-              break;
-            case "synced_block":
-              nextBlock.synced_block = { ...nextBlock.synced_block, children };
-              break;
-            default:
-              break;
-          }
-        }
-        results.push(nextBlock);
-      }
-
-      cursor = response.has_more
-        ? (response.next_cursor ?? undefined)
-        : undefined;
-    } while (cursor !== undefined);
-
-    return results;
+    return fetchBlockChildren(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      blockId,
+      options
+    );
   }
 
   async getPageBlocks(
@@ -414,6 +348,8 @@ export class NotionClient extends BaseNotionClient {
   }): Promise<NotionPageSearchResult[]> {
     const sinceMinutes = options?.sinceMinutesAgo ?? 60;
     const limit = options?.limit ?? 50;
+
+    // Add 1-minute buffer because Notion rounds last_edited_time to the minute
     const cutoff = new Date(Date.now() - (sinceMinutes + 1) * 60 * 1000);
 
     const pages = await this.searchPages("", {
@@ -436,6 +372,7 @@ export class NotionClient extends BaseNotionClient {
 
     return results;
   }
+
   markdownToBlocks(markdown: string): NotionBlock[] {
     return markdownToBlocks(markdown);
   }
