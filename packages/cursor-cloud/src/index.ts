@@ -2,18 +2,17 @@ import { CursorCloudClient } from "./CursorCloudClient.js";
 import type { CursorCloudClientOptions } from "./types.js";
 
 export { CursorCloudClient } from "./CursorCloudClient.js";
-export { CursorCloudRepo } from "./CursorCloudRepo.js";
+export { CursorCloudSelection } from "./CursorCloudSelection.js";
+export { CursorCloudSession } from "./CursorCloudSession.js";
 
 // Export all types from types.js (which includes schema types)
 export type {
   CursorAgentStatus,
   CursorCloudClientOptions,
-  CursorRunResult,
   Webhook,
   LaunchCursorAgentInput,
   LaunchCursorAgentRequest,
   LaunchCursorAgentResponse,
-  RunCursorAgentOptions,
   WaitForAgentOptions,
   ListAgentsQuery,
   ListAgentsResponse,
@@ -55,8 +54,6 @@ export {
   StopAgentResponseSchema,
   CursorCloudClientOptionsSchema,
   WaitForAgentOptionsSchema,
-  RunCursorAgentOptionsSchema,
-  CursorRunResultSchema,
   AgentIdSchema,
   RepositorySchema,
   BranchSchema,
