@@ -11,11 +11,11 @@ import {
   parseHeading,
   parseListBlock,
   parseListMarker,
-  parseMediaBlock,
   parseParagraph,
   parseQuote,
   type ParseResult,
 } from "./blocks.js";
+import { parseMediaBlock } from "./media.js";
 import { richTextFromMarkdown } from "./richText.js";
 import { BLANK_LINE, normalizeMarkdown } from "./shared.js";
 

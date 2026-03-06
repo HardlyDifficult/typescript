@@ -1,3 +1,4 @@
+import { BaseNotionClient } from "./client/BaseNotionClient.js";
 import {
   LEGACY_NOTION_VERSION,
   MARKDOWN_NOTION_VERSION,
@@ -10,7 +11,6 @@ import {
 import type {
   NotionSearchResponse,
   RawMarkdownPageResponse,
-  RequestOptions,
 } from "./client/types.js";
 import {
   blocksToMarkdown,
@@ -36,8 +36,6 @@ import type {
   UpdatePageOptions,
 } from "./types.js";
 
-const NOTION_API_BASE = "https://api.notion.com/v1";
-
 export interface NotionClientOptions {
   apiToken: string;
   fetchImpl?: typeof fetch;
@@ -45,57 +43,12 @@ export interface NotionClientOptions {
 }
 
 /** Client for interacting with the Notion REST API. */
-export class NotionClient {
-  private readonly apiToken: string;
-  private readonly fetchImpl: typeof fetch;
-  private readonly apiVersion: NotionApiVersion;
-
+export class NotionClient extends BaseNotionClient {
   constructor(options: NotionClientOptions) {
-    if (options.apiToken.trim() === "") {
-      throw new Error("Notion API token is required");
-    }
-    this.apiToken = options.apiToken;
-    this.fetchImpl = options.fetchImpl ?? fetch;
-    this.apiVersion = options.apiVersion ?? LEGACY_NOTION_VERSION;
-  }
-
-  private getHeaders(notionVersion: NotionApiVersion): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.apiToken}`,
-      "Content-Type": "application/json",
-      "Notion-Version": notionVersion,
-    };
-  }
-
-  private async request<T>(
-    method: "GET" | "PATCH" | "POST",
-    path: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<T> {
-    const url = new URL(`${NOTION_API_BASE}${path}`);
-    for (const [key, value] of Object.entries(options?.query ?? {})) {
-      if (value !== undefined) {
-        url.searchParams.set(key, String(value));
-      }
-    }
-
-    const response = await this.fetchImpl(url.toString(), {
-      method,
-      headers: this.getHeaders(options?.notionVersion ?? this.apiVersion),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+    super({
+      ...options,
+      apiVersion: options.apiVersion ?? LEGACY_NOTION_VERSION,
     });
-
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Notion API error ${String(response.status)}: ${text}`);
-    }
-
-    if (text.trim().length === 0) {
-      return {} as T;
-    }
-
-    return JSON.parse(text) as T;
   }
 
   /**
