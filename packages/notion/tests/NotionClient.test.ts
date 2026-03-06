@@ -156,7 +156,9 @@ describe("NotionClient", () => {
     it("throws on non-2xx response", async () => {
       const mockFetch = vi
         .fn()
-        .mockResolvedValue(makeJsonResponse({ message: "Invalid database ID" }, 400));
+        .mockResolvedValue(
+          makeJsonResponse({ message: "Invalid database ID" }, 400)
+        );
       const client = new NotionClient({
         apiToken: "test-token",
         fetchImpl: mockFetch as typeof fetch,
@@ -172,7 +174,9 @@ describe("NotionClient", () => {
 
   describe("appendBlocks", () => {
     it("batches append requests in groups of 100 blocks", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ results: [] }));
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(makeJsonResponse({ results: [] }));
       const client = new NotionClient({
         apiToken: "test-token",
         fetchImpl: mockFetch as typeof fetch,
@@ -274,7 +278,9 @@ describe("NotionClient", () => {
                 id: "block-1",
                 type: "paragraph",
                 paragraph: {
-                  rich_text: [{ type: "text", text: { content: "Fallback body" } }],
+                  rich_text: [
+                    { type: "text", text: { content: "Fallback body" } },
+                  ],
                 },
               },
             ],
@@ -285,7 +291,9 @@ describe("NotionClient", () => {
         fetchImpl: mockFetch as typeof fetch,
       });
 
-      const page = await client.readPage("page-123", { fallbackToBlocks: true });
+      const page = await client.readPage("page-123", {
+        fallbackToBlocks: true,
+      });
 
       expect(page.title).toBe("Fallback page");
       expect(page.markdown).toContain("Fallback body");
@@ -426,7 +434,10 @@ describe("NotionClient", () => {
 
       const results = await client.searchPages("page", { limit: 2 });
 
-      expect(results.map((result) => result.title)).toEqual(["First", "Second"]);
+      expect(results.map((result) => result.title)).toEqual([
+        "First",
+        "Second",
+      ]);
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
@@ -462,7 +473,9 @@ describe("NotionClient", () => {
                 id: "para-1",
                 type: "paragraph",
                 paragraph: {
-                  rich_text: [{ type: "text", text: { content: "Nested body" } }],
+                  rich_text: [
+                    { type: "text", text: { content: "Nested body" } },
+                  ],
                 },
               },
             ],
@@ -479,7 +492,9 @@ describe("NotionClient", () => {
 
       expect(blocks).toHaveLength(1);
       expect(blocks[0]?.type).toBe("toggle");
-      expect(blocks[0]?.type === "toggle" && blocks[0].toggle.children).toHaveLength(1);
+      expect(
+        blocks[0]?.type === "toggle" && blocks[0].toggle.children
+      ).toHaveLength(1);
     });
   });
 

@@ -55,7 +55,11 @@ export interface NotionStatusProperty {
 }
 
 export interface NotionDateProperty {
-  date: { start: string; end?: string | null; time_zone?: string | null } | null;
+  date: {
+    start: string;
+    end?: string | null;
+    time_zone?: string | null;
+  } | null;
 }
 
 export interface NotionNumberProperty {
@@ -79,15 +83,15 @@ export interface NotionPhoneNumberProperty {
 }
 
 export interface NotionMultiSelectProperty {
-  multi_select: Array<{ name: string }>;
+  multi_select: { name: string }[];
 }
 
 export interface NotionRelationProperty {
-  relation: Array<{ id: string }>;
+  relation: { id: string }[];
 }
 
 export interface NotionPeopleProperty {
-  people: Array<{ id: string }>;
+  people: { id: string }[];
 }
 
 export type NotionPropertyValue =
@@ -135,32 +139,56 @@ export interface NotionBaseBlock {
 
 export interface NotionParagraphBlock extends NotionBaseBlock {
   type: "paragraph";
-  paragraph: { rich_text: NotionRichText[]; color?: NotionColor; children?: NotionBlock[] };
+  paragraph: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionHeading1Block extends NotionBaseBlock {
   type: "heading_1";
-  heading_1: { rich_text: NotionRichText[]; color?: NotionColor; is_toggleable?: boolean };
+  heading_1: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    is_toggleable?: boolean;
+  };
 }
 
 export interface NotionHeading2Block extends NotionBaseBlock {
   type: "heading_2";
-  heading_2: { rich_text: NotionRichText[]; color?: NotionColor; is_toggleable?: boolean };
+  heading_2: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    is_toggleable?: boolean;
+  };
 }
 
 export interface NotionHeading3Block extends NotionBaseBlock {
   type: "heading_3";
-  heading_3: { rich_text: NotionRichText[]; color?: NotionColor; is_toggleable?: boolean };
+  heading_3: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    is_toggleable?: boolean;
+  };
 }
 
 export interface NotionBulletedListItemBlock extends NotionBaseBlock {
   type: "bulleted_list_item";
-  bulleted_list_item: { rich_text: NotionRichText[]; color?: NotionColor; children?: NotionBlock[] };
+  bulleted_list_item: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionNumberedListItemBlock extends NotionBaseBlock {
   type: "numbered_list_item";
-  numbered_list_item: { rich_text: NotionRichText[]; color?: NotionColor; children?: NotionBlock[] };
+  numbered_list_item: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionToDoBlock extends NotionBaseBlock {
@@ -175,12 +203,20 @@ export interface NotionToDoBlock extends NotionBaseBlock {
 
 export interface NotionToggleBlock extends NotionBaseBlock {
   type: "toggle";
-  toggle: { rich_text: NotionRichText[]; color?: NotionColor; children?: NotionBlock[] };
+  toggle: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionQuoteBlock extends NotionBaseBlock {
   type: "quote";
-  quote: { rich_text: NotionRichText[]; color?: NotionColor; children?: NotionBlock[] };
+  quote: {
+    rich_text: NotionRichText[];
+    color?: NotionColor;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionCalloutBlock extends NotionBaseBlock {
@@ -259,7 +295,10 @@ export interface NotionChildDatabaseBlock extends NotionBaseBlock {
 
 export interface NotionSyncedBlock extends NotionBaseBlock {
   type: "synced_block";
-  synced_block: { synced_from?: { block_id: string } | null; children?: NotionBlock[] };
+  synced_block: {
+    synced_from?: { block_id: string } | null;
+    children?: NotionBlock[];
+  };
 }
 
 export interface NotionTableOfContentsBlock extends NotionBaseBlock {
@@ -327,19 +366,24 @@ export type NotionParent =
   | NotionWorkspaceParent;
 
 export interface CreatePageRequest {
-  parent: NotionParent | { database_id: string } | { page_id: string } | { workspace: true };
+  parent:
+    | NotionParent
+    | { database_id: string }
+    | { page_id: string }
+    | { workspace: true };
   properties?: Record<string, NotionPropertyValue>;
   children?: NotionBlock[];
   markdown?: string;
 }
 
-export interface NotionPagePropertyMap {
-  [key: string]: {
+export type NotionPagePropertyMap = Record<
+  string,
+  {
     id?: string;
     type?: string;
     [key: string]: unknown;
-  };
-}
+  }
+>;
 
 export interface NotionPageResponse {
   object?: "page";

@@ -1,4 +1,9 @@
-import type { NotionBlock, NotionColor, NotionSyncedBlock, NotionTableOfContentsBlock } from "../types.js";
+import type {
+  NotionBlock,
+  NotionColor,
+  NotionSyncedBlock,
+  NotionTableOfContentsBlock,
+} from "../types.js";
 
 import {
   parseCodeFence,
@@ -50,7 +55,8 @@ function parseCallout(lines: string[], startIndex: number): ParseResult {
   const first = children.at(0);
   const rest = children.slice(1);
   const leadParagraph = first?.type === "paragraph" ? first : undefined;
-  const richText = leadParagraph === undefined ? [] : leadParagraph.paragraph.rich_text;
+  const richText =
+    leadParagraph === undefined ? [] : leadParagraph.paragraph.rich_text;
   const nestedChildren = leadParagraph !== undefined ? rest : children;
 
   return {
@@ -73,7 +79,11 @@ function parseCallout(lines: string[], startIndex: number): ParseResult {
   };
 }
 
-function collectUntil(lines: string[], startIndex: number, closingLine: string): string {
+function collectUntil(
+  lines: string[],
+  startIndex: number,
+  closingLine: string
+): string {
   const body: string[] = [];
   let index = startIndex;
   while (index < lines.length && (lines[index]?.trim() ?? "") !== closingLine) {
@@ -83,7 +93,11 @@ function collectUntil(lines: string[], startIndex: number, closingLine: string):
   return body.join("\n");
 }
 
-function consumeUntil(lines: string[], startIndex: number, closingLine: string): number {
+function consumeUntil(
+  lines: string[],
+  startIndex: number,
+  closingLine: string
+): number {
   let index = startIndex;
   while (index < lines.length && (lines[index]?.trim() ?? "") !== closingLine) {
     index += 1;
@@ -136,7 +150,9 @@ function parseBlocks(lines: string[], startIndex = 0): ParseResult {
     }
 
     if (trimmed === "<synced_block>") {
-      const children = markdownToBlocks(collectUntil(lines, index + 1, "</synced_block>"));
+      const children = markdownToBlocks(
+        collectUntil(lines, index + 1, "</synced_block>")
+      );
       blocks.push({
         object: "block",
         type: "synced_block",

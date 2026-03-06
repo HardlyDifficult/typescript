@@ -167,12 +167,12 @@ function parseInline(
       pushText(parts, text.slice(index, token.data.start), annotations);
     }
     if (token.kind === "link") {
-      const richText = parseInline(token.data.label, annotations).map((segment) =>
-        withLink(segment, token.data.url)
+      const richText = parseInline(token.data.label, annotations).map(
+        (segment) => withLink(segment, token.data.url)
       );
       parts.push(...richText);
     } else {
-      const {pattern} = token.data;
+      const { pattern } = token.data;
       const merged = mergeAnnotations(annotations, {
         [pattern.annotation]: true,
       });
@@ -224,7 +224,9 @@ export function richTextFromMarkdown(markdown: string): NotionRichText[] {
 
 /** Converts rich-text segments into plain text. */
 export function richTextToPlainText(richText: NotionRichText[]): string {
-  return richText.map((segment) => segment.plain_text ?? segment.text.content).join("");
+  return richText
+    .map((segment) => segment.plain_text ?? segment.text.content)
+    .join("");
 }
 
 /** Renders rich-text segments back into markdown. */

@@ -3,7 +3,10 @@ import type { NotionBlock } from "../types.js";
 import { renderRichText, richTextToPlainText } from "./richText.js";
 import { INDENT_WIDTH } from "./shared.js";
 
-function renderChildren(children: NotionBlock[] | undefined, depth: number): string {
+function renderChildren(
+  children: NotionBlock[] | undefined,
+  depth: number
+): string {
   if (children === undefined || children.length === 0) {
     return "";
   }
@@ -49,12 +52,18 @@ function renderBlock(block: NotionBlock, depth: number): string {
     case "callout": {
       const calloutChildren = block.callout.children ?? [];
       const icon =
-        block.callout.icon?.type === "emoji" ? ` [icon=${block.callout.icon.emoji}]` : "";
-      const color = block.callout.color !== undefined ? ` {color="${block.callout.color}"}` : "";
+        block.callout.icon?.type === "emoji"
+          ? ` [icon=${block.callout.icon.emoji}]`
+          : "";
+      const color =
+        block.callout.color !== undefined
+          ? ` {color="${block.callout.color}"}`
+          : "";
       const firstLine = renderRichText(block.callout.rich_text);
-      const nested = calloutChildren.length > 0
-        ? `\n${blocksToMarkdown(calloutChildren, depth + 1)}`
-        : "";
+      const nested =
+        calloutChildren.length > 0
+          ? `\n${blocksToMarkdown(calloutChildren, depth + 1)}`
+          : "";
       return `${indent}::: callout${icon}${color}\n${indent}${firstLine}${nested}\n${indent}:::`;
     }
     case "divider":
@@ -67,11 +76,15 @@ function renderBlock(block: NotionBlock, depth: number): string {
       return `${indent}$$ ${block.equation.expression} $$`;
     case "image":
       return `${indent}![${renderRichText(block.image.caption ?? [])}](${
-        block.image.type === "external" ? block.image.external.url : block.image.file.url
+        block.image.type === "external"
+          ? block.image.external.url
+          : block.image.file.url
       })`;
     case "file":
       return `${indent}<file src="${
-        block.file.type === "external" ? block.file.external.url : block.file.file.url
+        block.file.type === "external"
+          ? block.file.external.url
+          : block.file.file.url
       }"${
         block.file.caption !== undefined
           ? ` caption="${renderRichText(block.file.caption)}"`
@@ -79,7 +92,9 @@ function renderBlock(block: NotionBlock, depth: number): string {
       } />`;
     case "video":
       return `${indent}<video src="${
-        block.video.type === "external" ? block.video.external.url : block.video.file.url
+        block.video.type === "external"
+          ? block.video.external.url
+          : block.video.file.url
       }"${
         block.video.caption !== undefined
           ? ` caption="${renderRichText(block.video.caption)}"`
@@ -87,7 +102,9 @@ function renderBlock(block: NotionBlock, depth: number): string {
       } />`;
     case "audio":
       return `${indent}<audio src="${
-        block.audio.type === "external" ? block.audio.external.url : block.audio.file.url
+        block.audio.type === "external"
+          ? block.audio.external.url
+          : block.audio.file.url
       }"${
         block.audio.caption !== undefined
           ? ` caption="${renderRichText(block.audio.caption)}"`
@@ -95,7 +112,9 @@ function renderBlock(block: NotionBlock, depth: number): string {
       } />`;
     case "pdf":
       return `${indent}<pdf src="${
-        block.pdf.type === "external" ? block.pdf.external.url : block.pdf.file.url
+        block.pdf.type === "external"
+          ? block.pdf.external.url
+          : block.pdf.file.url
       }"${
         block.pdf.caption !== undefined
           ? ` caption="${renderRichText(block.pdf.caption)}"`
@@ -115,7 +134,9 @@ function renderBlock(block: NotionBlock, depth: number): string {
       } />`;
     case "child_page":
       return `${indent}<page title="${block.child_page.title}"${
-        block.child_page.url !== undefined ? ` url="${block.child_page.url}"` : ""
+        block.child_page.url !== undefined
+          ? ` url="${block.child_page.url}"`
+          : ""
       } />`;
     case "child_database":
       return `${indent}<database title="${block.child_database.title}"${

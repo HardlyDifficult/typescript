@@ -1,6 +1,22 @@
-import { LEGACY_NOTION_VERSION, MARKDOWN_NOTION_VERSION, MAX_BLOCK_TEXT_LENGTH, MAX_BLOCKS_PER_REQUEST, normalizeParent, splitIntoChunks, toPageMeta } from "./client/shared.js";
-import type { NotionSearchResponse, RawMarkdownPageResponse, RequestOptions } from "./client/types.js";
-import { blocksToMarkdown, markdownToBlocks, selectionFromMarkdown } from "./markdown.js";
+import {
+  LEGACY_NOTION_VERSION,
+  MARKDOWN_NOTION_VERSION,
+  MAX_BLOCK_TEXT_LENGTH,
+  MAX_BLOCKS_PER_REQUEST,
+  normalizeParent,
+  splitIntoChunks,
+  toPageMeta,
+} from "./client/shared.js";
+import type {
+  NotionSearchResponse,
+  RawMarkdownPageResponse,
+  RequestOptions,
+} from "./client/types.js";
+import {
+  blocksToMarkdown,
+  markdownToBlocks,
+  selectionFromMarkdown,
+} from "./markdown.js";
 import type {
   AppendBlocksRequest,
   CreatePageRequest,
@@ -96,7 +112,7 @@ export class NotionClient {
     content?: NotionBlock[] | string
   ): Promise<NotionPageResponse> {
     const normalized = normalizeParent(parentOrDatabaseId);
-    const {parent} = normalized;
+    const { parent } = normalized;
 
     if (
       typeof content === "string" &&
@@ -127,9 +143,14 @@ export class NotionClient {
         : {}),
     };
 
-    const page = await this.request<NotionPageResponse>("POST", "/pages", payload, {
-      notionVersion: normalized.notionVersion,
-    });
+    const page = await this.request<NotionPageResponse>(
+      "POST",
+      "/pages",
+      payload,
+      {
+        notionVersion: normalized.notionVersion,
+      }
+    );
 
     const remaining = bodyBlocks?.slice(MAX_BLOCKS_PER_REQUEST) ?? [];
     if (remaining.length > 0) {
@@ -162,7 +183,11 @@ export class NotionClient {
     for (let i = 0; i < blocks.length; i += MAX_BLOCKS_PER_REQUEST) {
       const batch = blocks.slice(i, i + MAX_BLOCKS_PER_REQUEST);
       const payload: AppendBlocksRequest = { children: batch };
-      await this.request<unknown>("PATCH", `/blocks/${pageId}/children`, payload);
+      await this.request<unknown>(
+        "PATCH",
+        `/blocks/${pageId}/children`,
+        payload
+      );
     }
   }
 
@@ -189,7 +214,11 @@ export class NotionClient {
 
       for (const block of response.results) {
         const nextBlock = block;
-        if (options?.recursive === true && block.has_children === true && block.id !== undefined) {
+        if (
+          options?.recursive === true &&
+          block.has_children === true &&
+          block.id !== undefined
+        ) {
           const children = await this.retrieveBlockChildren(block.id, {
             ...options,
             startCursor: undefined,
@@ -232,7 +261,9 @@ export class NotionClient {
         results.push(nextBlock);
       }
 
-      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+      cursor = response.has_more
+        ? (response.next_cursor ?? undefined)
+        : undefined;
     } while (cursor !== undefined);
 
     return results;
@@ -246,13 +277,21 @@ export class NotionClient {
   }
 
   async getPageMeta(pageId: string): Promise<NotionPageMeta> {
-    const page = await this.request<NotionPageResponse>("GET", `/pages/${pageId}`, undefined, {
-      notionVersion: MARKDOWN_NOTION_VERSION,
-    });
+    const page = await this.request<NotionPageResponse>(
+      "GET",
+      `/pages/${pageId}`,
+      undefined,
+      {
+        notionVersion: MARKDOWN_NOTION_VERSION,
+      }
+    );
     return toPageMeta(page);
   }
 
-  async readPage(pageId: string, options?: ReadPageOptions): Promise<NotionPageContent> {
+  async readPage(
+    pageId: string,
+    options?: ReadPageOptions
+  ): Promise<NotionPageContent> {
     try {
       const page = await this.request<RawMarkdownPageResponse>(
         "GET",
@@ -327,7 +366,9 @@ export class NotionClient {
         }
       }
 
-      cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+      cursor = response.has_more
+        ? (response.next_cursor ?? undefined)
+        : undefined;
     } while (cursor !== undefined);
 
     return results;
@@ -340,7 +381,8 @@ export class NotionClient {
   ): Promise<NotionPageMarkdownResponse> {
     if (options?.replace === true) {
       const contentRange =
-        options.contentRange ?? selectionFromMarkdown((await this.readPage(pageId)).markdown);
+        options.contentRange ??
+        selectionFromMarkdown((await this.readPage(pageId)).markdown);
       if (contentRange === undefined) {
         return this.updatePageMarkdown(pageId, {
           type: "insert_content",
@@ -370,12 +412,11 @@ export class NotionClient {
     pageId: string,
     request: UpdatePageMarkdownRequest
   ): Promise<NotionPageMarkdownResponse> {
-    const response = await this.request<NotionPageMarkdownResponse | RawMarkdownPageResponse>(
-      "PATCH",
-      `/pages/${pageId}/markdown`,
-      request,
-      { notionVersion: MARKDOWN_NOTION_VERSION }
-    );
+    const response = await this.request<
+      NotionPageMarkdownResponse | RawMarkdownPageResponse
+    >("PATCH", `/pages/${pageId}/markdown`, request, {
+      notionVersion: MARKDOWN_NOTION_VERSION,
+    });
 
     if ("object" in response && response.object === "page_markdown") {
       return response;
@@ -402,7 +443,10 @@ export class NotionClient {
     );
   }
 
-  async archivePage(pageId: string, archived = true): Promise<NotionPageResponse> {
+  async archivePage(
+    pageId: string,
+    archived = true
+  ): Promise<NotionPageResponse> {
     return this.request<NotionPageResponse>(
       "PATCH",
       `/pages/${pageId}`,

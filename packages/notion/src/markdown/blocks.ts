@@ -34,11 +34,23 @@ export function parseHeading(
   const richText = richTextFromMarkdown(match[2]);
   switch (match[1].length) {
     case 1:
-      return { object: "block", type: "heading_1", heading_1: { rich_text: richText } };
+      return {
+        object: "block",
+        type: "heading_1",
+        heading_1: { rich_text: richText },
+      };
     case 2:
-      return { object: "block", type: "heading_2", heading_2: { rich_text: richText } };
+      return {
+        object: "block",
+        type: "heading_2",
+        heading_2: { rich_text: richText },
+      };
     default:
-      return { object: "block", type: "heading_3", heading_3: { rich_text: richText } };
+      return {
+        object: "block",
+        type: "heading_3",
+        heading_3: { rich_text: richText },
+      };
   }
 }
 
@@ -76,7 +88,10 @@ export function parseListMarker(line: string): ListMarker | null {
 }
 
 /** Parses a markdown paragraph block. */
-export function parseParagraph(lines: string[], startIndex: number): ParseResult {
+export function parseParagraph(
+  lines: string[],
+  startIndex: number
+): ParseResult {
   const collected: string[] = [];
   let index = startIndex;
 
@@ -117,13 +132,19 @@ export function parseParagraph(lines: string[], startIndex: number): ParseResult
 }
 
 /** Parses a fenced code block. */
-export function parseCodeFence(lines: string[], startIndex: number): ParseResult {
+export function parseCodeFence(
+  lines: string[],
+  startIndex: number
+): ParseResult {
   const opening = lines[startIndex]?.trim() ?? "";
   const language = opening.replace(/^```/, "").trim();
   const body: string[] = [];
   let index = startIndex + 1;
 
-  while (index < lines.length && !(lines[index]?.trim() ?? "").startsWith("```")) {
+  while (
+    index < lines.length &&
+    !(lines[index]?.trim() ?? "").startsWith("```")
+  ) {
     body.push(lines[index] ?? "");
     index += 1;
   }
@@ -168,7 +189,10 @@ export function parseQuote(lines: string[], startIndex: number): ParseResult {
 }
 
 /** Parses a math equation block. */
-export function parseEquation(lines: string[], startIndex: number): ParseResult {
+export function parseEquation(
+  lines: string[],
+  startIndex: number
+): ParseResult {
   const firstLine = lines[startIndex]?.trim() ?? "";
   if (firstLine.endsWith("$$") && firstLine.length > 4) {
     return {
@@ -213,7 +237,9 @@ export function parseMediaBlock(line: string): NotionBlock | null {
         type: "external",
         external: { url: imageMatch[2] },
         caption:
-          imageMatch[1].length > 0 ? richTextFromMarkdown(imageMatch[1]) : undefined,
+          imageMatch[1].length > 0
+            ? richTextFromMarkdown(imageMatch[1])
+            : undefined,
       },
     };
   }
@@ -231,19 +257,31 @@ export function parseMediaBlock(line: string): NotionBlock | null {
         return {
           object: "block",
           type: "file",
-          file: { type: "external", external: { url: taggedMedia[2] }, caption },
+          file: {
+            type: "external",
+            external: { url: taggedMedia[2] },
+            caption,
+          },
         };
       case "video":
         return {
           object: "block",
           type: "video",
-          video: { type: "external", external: { url: taggedMedia[2] }, caption },
+          video: {
+            type: "external",
+            external: { url: taggedMedia[2] },
+            caption,
+          },
         };
       case "audio":
         return {
           object: "block",
           type: "audio",
-          audio: { type: "external", external: { url: taggedMedia[2] }, caption },
+          audio: {
+            type: "external",
+            external: { url: taggedMedia[2] },
+            caption,
+          },
         };
       case "pdf":
         return {
@@ -281,7 +319,9 @@ export function parseMediaBlock(line: string): NotionBlock | null {
   }
 
   const childDatabase =
-    /^<database\s+title="([^"]+)"(?:\s+url="([^"]+)")?\s*\/>$/.exec(line.trim());
+    /^<database\s+title="([^"]+)"(?:\s+url="([^"]+)")?\s*\/>$/.exec(
+      line.trim()
+    );
   if (childDatabase !== null) {
     return {
       object: "block",
@@ -297,13 +337,19 @@ export function parseMediaBlock(line: string): NotionBlock | null {
 }
 
 /** Attaches recursively parsed child blocks to the given container block. */
-export function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
+export function attachChildren(
+  block: NotionBlock,
+  children: NotionBlock[]
+): void {
   if (children.length === 0) {
     return;
   }
   switch (block.type) {
     case "paragraph":
-      block.paragraph.children = [...(block.paragraph.children ?? []), ...children];
+      block.paragraph.children = [
+        ...(block.paragraph.children ?? []),
+        ...children,
+      ];
       break;
     case "bulleted_list_item":
       block.bulleted_list_item.children = [
@@ -330,7 +376,10 @@ export function attachChildren(block: NotionBlock, children: NotionBlock[]): voi
       block.callout.children = [...(block.callout.children ?? []), ...children];
       break;
     case "synced_block":
-      block.synced_block.children = [...(block.synced_block.children ?? []), ...children];
+      block.synced_block.children = [
+        ...(block.synced_block.children ?? []),
+        ...children,
+      ];
       break;
     default:
       break;
