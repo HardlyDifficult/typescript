@@ -3,6 +3,7 @@ import type {
   NotionParagraphBlock,
   NotionRichText,
 } from "../types.js";
+
 import { normalizeMarkdown } from "./shared.js";
 
 interface DelimiterPattern {
@@ -53,6 +54,7 @@ function mergeAnnotations(
   return { ...(base ?? {}), ...next };
 }
 
+/** Creates a plain text rich-text segment with optional annotations. */
 export function makeTextRichText(
   content: string,
   annotations?: NotionAnnotations
@@ -142,7 +144,10 @@ function findNextToken(text: string, start: number): InlineToken | null {
   if (link !== null && (delimiter === null || link.start <= delimiter.start)) {
     return { kind: "link", data: link };
   }
-  return { kind: "delimiter", data: delimiter! };
+  if (delimiter === null) {
+    throw new Error("Expected a delimiter token when no link token matched");
+  }
+  return { kind: "delimiter", data: delimiter };
 }
 
 function parseInline(
@@ -167,11 +172,11 @@ function parseInline(
       );
       parts.push(...richText);
     } else {
-      const pattern = token.data.pattern;
+      const {pattern} = token.data;
       const merged = mergeAnnotations(annotations, {
         [pattern.annotation]: true,
       });
-      if (pattern.literal) {
+      if (pattern.literal === true) {
         pushText(parts, token.data.content, merged);
       } else {
         parts.push(...parseInline(token.data.content, merged));
@@ -184,26 +189,26 @@ function parseInline(
 }
 
 function escapeMarkdown(text: string): string {
-  return text.replace(/([\\`*_{}\[\]()#+\-.!~])/g, "\\$1");
+  return text.replace(/([\\`*_{}[\]()#+\-.!~])/g, "\\$1");
 }
 
 function renderInline(segment: NotionRichText): string {
   let output = escapeMarkdown(segment.plain_text ?? segment.text.content);
   const annotations = segment.annotations ?? {};
 
-  if (annotations.code) {
+  if (annotations.code === true) {
     output = `\`${output}\``;
   }
-  if (annotations.bold) {
+  if (annotations.bold === true) {
     output = `**${output}**`;
   }
-  if (annotations.italic) {
+  if (annotations.italic === true) {
     output = `*${output}*`;
   }
-  if (annotations.strikethrough) {
+  if (annotations.strikethrough === true) {
     output = `~~${output}~~`;
   }
-  if (annotations.underline) {
+  if (annotations.underline === true) {
     output = `<u>${output}</u>`;
   }
   if (segment.text.link?.url !== undefined) {
@@ -212,18 +217,22 @@ function renderInline(segment: NotionRichText): string {
   return output;
 }
 
+/** Parses inline markdown into Notion rich-text segments. */
 export function richTextFromMarkdown(markdown: string): NotionRichText[] {
   return parseInline(markdown);
 }
 
+/** Converts rich-text segments into plain text. */
 export function richTextToPlainText(richText: NotionRichText[]): string {
   return richText.map((segment) => segment.plain_text ?? segment.text.content).join("");
 }
 
+/** Renders rich-text segments back into markdown. */
 export function renderRichText(richText: NotionRichText[]): string {
   return richText.map(renderInline).join("");
 }
 
+/** Splits plain text into paragraph blocks. */
 export function textToParagraphBlocks(text: string): NotionParagraphBlock[] {
   const normalized = normalizeMarkdown(text);
   if (normalized.length === 0) {

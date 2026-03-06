@@ -1,9 +1,6 @@
-import {
-  blocksToMarkdown,
-  markdownToBlocks,
-  richTextToPlainText,
-  selectionFromMarkdown,
-} from "./markdown.js";
+import { LEGACY_NOTION_VERSION, MARKDOWN_NOTION_VERSION, MAX_BLOCK_TEXT_LENGTH, MAX_BLOCKS_PER_REQUEST, normalizeParent, splitIntoChunks, toPageMeta } from "./client/shared.js";
+import type { NotionSearchResponse, RawMarkdownPageResponse, RequestOptions } from "./client/types.js";
+import { blocksToMarkdown, markdownToBlocks, selectionFromMarkdown } from "./markdown.js";
 import type {
   AppendBlocksRequest,
   CreatePageRequest,
@@ -12,7 +9,6 @@ import type {
   NotionPageContent,
   NotionPageMarkdownResponse,
   NotionPageMeta,
-  NotionPagePropertyMap,
   NotionPageResponse,
   NotionPageSearchResult,
   NotionParent,
@@ -25,121 +21,11 @@ import type {
 } from "./types.js";
 
 const NOTION_API_BASE = "https://api.notion.com/v1";
-const LEGACY_NOTION_VERSION = "2022-06-28";
-const MARKDOWN_NOTION_VERSION = "2025-09-03";
-
-/** Maximum characters per Notion rich text block. */
-const MAX_BLOCK_TEXT_LENGTH = 2000;
-
-/** Maximum blocks per API request (Notion limit). */
-const MAX_BLOCKS_PER_REQUEST = 100;
-
-interface RequestOptions {
-  notionVersion?: NotionApiVersion;
-  query?: Record<string, boolean | number | string | undefined>;
-}
-
-interface NotionSearchResponse {
-  object: "list";
-  results: NotionPageResponse[];
-  next_cursor: string | null;
-  has_more: boolean;
-}
-
-interface RawMarkdownPageResponse extends NotionPageResponse {
-  markdown?: string;
-  content?: string;
-  truncated?: boolean;
-  unknown_block_ids?: string[];
-}
 
 export interface NotionClientOptions {
   apiToken: string;
   fetchImpl?: typeof fetch;
   apiVersion?: NotionApiVersion;
-}
-
-/** Splits long text into chunks fitting within Notion's block size limit. */
-function splitIntoChunks(text: string, maxLength: number): string[] {
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    chunks.push(remaining.slice(0, maxLength));
-    remaining = remaining.slice(maxLength);
-  }
-  return chunks;
-}
-
-function buildLegacyParent(databaseId: string): { database_id: string } {
-  return { database_id: databaseId };
-}
-
-function normalizeParent(parent: NotionParent | string): {
-  parent: CreatePageRequest["parent"];
-  notionVersion: NotionApiVersion;
-} {
-  if (typeof parent === "string") {
-    return {
-      parent: buildLegacyParent(parent),
-      notionVersion: LEGACY_NOTION_VERSION,
-    };
-  }
-
-  if (parent.type === "data_source_id") {
-    return {
-      parent,
-      notionVersion: MARKDOWN_NOTION_VERSION,
-    };
-  }
-
-  if (parent.type === "database_id") {
-    return {
-      parent: buildLegacyParent(parent.database_id),
-      notionVersion: LEGACY_NOTION_VERSION,
-    };
-  }
-
-  if (parent.type === "page_id") {
-    return {
-      parent: { page_id: parent.page_id },
-      notionVersion: LEGACY_NOTION_VERSION,
-    };
-  }
-
-  return {
-    parent: { workspace: true },
-    notionVersion: LEGACY_NOTION_VERSION,
-  };
-}
-
-function extractPageTitle(properties?: NotionPagePropertyMap): string {
-  if (properties === undefined) {
-    return "";
-  }
-
-  for (const property of Object.values(properties)) {
-    if (property.type === "title" && Array.isArray(property.title)) {
-      return richTextToPlainText(property.title);
-    }
-  }
-
-  return "";
-}
-
-function toPageMeta(page: NotionPageResponse): NotionPageMeta {
-  return {
-    id: page.id,
-    title: extractPageTitle(page.properties),
-    url: page.url,
-    lastEdited: page.last_edited_time ?? null,
-    createdTime: page.created_time ?? null,
-    archived: page.archived ?? false,
-    inTrash: page.in_trash ?? false,
-    parent: page.parent,
-    properties: page.properties ?? {},
-    icon: page.icon ?? null,
-    cover: page.cover ?? null,
-  };
 }
 
 /** Client for interacting with the Notion REST API. */
@@ -210,7 +96,7 @@ export class NotionClient {
     content?: NotionBlock[] | string
   ): Promise<NotionPageResponse> {
     const normalized = normalizeParent(parentOrDatabaseId);
-    const parent = normalized.parent;
+    const {parent} = normalized;
 
     if (
       typeof content === "string" &&
@@ -432,9 +318,6 @@ export class NotionClient {
       );
 
       for (const page of response.results) {
-        if (page.object !== undefined && page.object !== "page") {
-          continue;
-        }
         results.push({
           ...toPageMeta(page),
           object: page.object,

@@ -1,6 +1,7 @@
 import type { NotionBlock } from "../types.js";
-import { INDENT_WIDTH } from "./shared.js";
+
 import { renderRichText, richTextToPlainText } from "./richText.js";
+import { INDENT_WIDTH } from "./shared.js";
 
 function renderChildren(children: NotionBlock[] | undefined, depth: number): string {
   if (children === undefined || children.length === 0) {
@@ -46,12 +47,13 @@ function renderBlock(block: NotionBlock, depth: number): string {
         .map((line) => `${indent}> ${line}`)
         .join("\n");
     case "callout": {
+      const calloutChildren = block.callout.children ?? [];
       const icon =
         block.callout.icon?.type === "emoji" ? ` [icon=${block.callout.icon.emoji}]` : "";
       const color = block.callout.color !== undefined ? ` {color="${block.callout.color}"}` : "";
       const firstLine = renderRichText(block.callout.rich_text);
-      const nested = block.callout.children?.length
-        ? `\n${blocksToMarkdown(block.callout.children, depth + 1)}`
+      const nested = calloutChildren.length > 0
+        ? `\n${blocksToMarkdown(calloutChildren, depth + 1)}`
         : "";
       return `${indent}::: callout${icon}${color}\n${indent}${firstLine}${nested}\n${indent}:::`;
     }
@@ -135,6 +137,7 @@ function renderBlock(block: NotionBlock, depth: number): string {
   }
 }
 
+/** Converts supported Notion blocks into markdown. */
 export function blocksToMarkdown(blocks: NotionBlock[], depth = 0): string {
   return blocks
     .map((block) => renderBlock(block, depth))
