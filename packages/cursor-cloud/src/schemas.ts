@@ -169,7 +169,7 @@ export const StopAgentResponseSchema = z
 export const CursorCloudClientOptionsSchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.url().optional(),
-  defaultModel: ModelSchema.optional(),
+  webhook: WebhookSchema.optional(),
   pollIntervalMs: z.number().min(100).optional(),
   timeoutMs: z.number().min(1000).optional(),
 });

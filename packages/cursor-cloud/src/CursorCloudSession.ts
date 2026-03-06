@@ -14,10 +14,10 @@ import type {
 } from "./types.js";
 
 /**
- * Thenable handle for one launched Cursor Cloud agent.
+ * Thenable handle for one launched Cursor Cloud session.
  * Awaiting this object resolves to the final terminal status.
  */
-export class CursorCloudAgent implements PromiseLike<CursorAgentStatus> {
+export class CursorCloudSession implements PromiseLike<CursorAgentStatus> {
   private actions: Promise<void> = Promise.resolve();
 
   constructor(
@@ -26,44 +26,37 @@ export class CursorCloudAgent implements PromiseLike<CursorAgentStatus> {
     private readonly defaultWaitOptions: WaitForAgentOptions = {}
   ) {}
 
-  /** Resolve to the launched agent id. */
   get id(): Promise<string> {
     return this.launchPromise.then((launch) => launch.id);
   }
 
-  /** Resolve to the raw launch response. */
   launched(): Promise<LaunchCursorAgentResponse> {
     return this.launchPromise;
   }
 
-  /** Queue a follow-up instruction and return this agent for chaining. */
-  followUp(message: string): this {
+  reply(message: string): this {
     return this.enqueue(async (agentId) => {
       await this.client.sendFollowUp(agentId, message);
     });
   }
 
-  /** Queue stop and return this agent for chaining. */
   stop(): this {
     return this.enqueue(async (agentId) => {
       await this.client.stopAgent(agentId);
     });
   }
 
-  /** Queue stop + follow-up and return this agent for chaining. */
   interrupt(message: string): this {
     return this.enqueue(async (agentId) => {
       await this.client.interruptAgent(agentId, message);
     });
   }
 
-  /** Get latest status. */
   async status(): Promise<CursorAgentStatus> {
     const agentId = await this.id;
     return this.client.getAgent(agentId);
   }
 
-  /** Poll until terminal status or timeout. */
   async wait(options: WaitForAgentOptions = {}): Promise<CursorAgentStatus> {
     await this.actions;
     const agentId = await this.id;

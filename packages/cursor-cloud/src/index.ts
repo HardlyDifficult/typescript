@@ -1,8 +1,9 @@
 import { CursorCloudClient } from "./CursorCloudClient.js";
 import type { CursorCloudClientOptions } from "./types.js";
 
-export { CursorCloudAgent } from "./CursorCloudAgent.js";
 export { CursorCloudClient } from "./CursorCloudClient.js";
+export { CursorCloudSelection } from "./CursorCloudSelection.js";
+export { CursorCloudSession } from "./CursorCloudSession.js";
 
 // Export all types from types.js (which includes schema types)
 export type {

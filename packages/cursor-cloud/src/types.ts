@@ -1,4 +1,4 @@
-import type { CursorAgentStatus } from "./schemas.js";
+import type { CursorAgentStatus, Webhook } from "./schemas.js";
 
 // Re-export schema-derived types for convenience.
 export type {
@@ -32,7 +32,7 @@ export type FetchLike = (
 export interface CursorCloudClientOptions {
   apiKey?: string;
   baseUrl?: string;
-  defaultModel?: string;
+  webhook?: Webhook;
   pollIntervalMs?: number;
   timeoutMs?: number;
   fetchImpl?: FetchLike;

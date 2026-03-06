@@ -16,53 +16,32 @@ import { createCursorCloud } from "@hardlydifficult/cursor-cloud";
 // Reads CURSOR_API_KEY from env by default.
 const cursor = createCursorCloud();
 
-// Or pass the key explicitly with an optional base URL override:
+// Or pass options explicitly:
 const cursor = createCursorCloud({
   apiKey: "your-api-key",
   baseUrl: "https://api.cursor.com", // optional
+  webhook: {
+    url: "https://example.com/webhook", // optional default for all sessions
+    secret: "shared-secret", // optional
+  },
 });
 ```
 
 Authentication uses **HTTP Basic auth** — the API key is sent as the username with an empty password.
 
-## Agent-first API
-
-### `launchAgent(params)` — `POST /v0/agents`
-
-Launch returns an **agent object** (not just an ID).
+## Fluent API
 
 ```typescript
-const agent = cursor.launchAgent({
-  prompt: "Fix the failing CI tests and open a PR",
-  repo: "owner/repo",
-  branch: "main", // optional, defaults to "main"
-  model: "cursor-small", // optional
-  webhook: {
-    url: "https://example.com/webhook",
-    secret: "shared-secret",
-  },
-});
+const agent = cursor.select("owner/repo", "main", "cursor-small");
+const session = agent.prompt("hi");
+session.reply("tell me more").reply("keep going");
+const final = await session;
 ```
 
-### Agent methods (chainable)
-
-```typescript
-agent.followUp("Also add unit tests");
-agent.stop();
-agent.interrupt("Actually focus on auth first");
-```
-
-### Agent is thenable/promisable
-
-```typescript
-const final = await agent;
-// or
-agent.then((result) => {
-  console.log(result.status);
-});
-```
-
-The awaited value is the final terminal status from polling.
+- `select(repo, branch?, model?)` scopes repo/branch/model.
+- `prompt(message)` launches a session.
+- `reply(message)` is chainable and sends followups.
+- `session` is thenable/promisable (`await session` or `session.then(...)`).
 
 ### `listAgents(options?)` — `GET /v0/agents`
 
@@ -110,7 +89,7 @@ for (const msg of messages) {
 }
 ```
 
-`followup(id, prompt)`, `stop(id)`, and `interrupt(id, prompt)` no longer exist on the client. Use agent methods instead.
+`session.stop()` and `session.interrupt(message)` are also available when needed.
 
 ## Polling Helpers
 

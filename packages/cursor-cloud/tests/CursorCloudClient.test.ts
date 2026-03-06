@@ -31,7 +31,7 @@ describe("CursorCloudClient", () => {
     expect(() => new CursorCloudClient()).toThrow("Cursor API key is required");
   });
 
-  it("launchAgent uses CURSOR_API_KEY and sends expected payload", async () => {
+  it("select().prompt() uses CURSOR_API_KEY and sends expected payload", async () => {
     process.env.CURSOR_API_KEY = "env-key";
     const fetchImpl = vi
       .fn<FetchLike>()
@@ -41,10 +41,7 @@ describe("CursorCloudClient", () => {
       );
 
     const client = new CursorCloudClient({ fetchImpl });
-    const final = await client.launchAgent({
-      prompt: "Fix lint errors",
-      repo: "owner/repo",
-    });
+    const final = await client.select("owner/repo").prompt("Fix lint errors");
 
     expect(final.id).toBe("agent-1");
     expect(fetchImpl).toHaveBeenNthCalledWith(
@@ -69,7 +66,7 @@ describe("CursorCloudClient", () => {
     expect(body.source.branch).toBe("main");
   });
 
-  it("agent is thenable and can be awaited", async () => {
+  it("session is thenable and can be awaited", async () => {
     const fetchImpl = vi
       .fn<FetchLike>()
       .mockResolvedValueOnce(jsonResponse({ id: "agent-2", status: "queued" }))
@@ -87,19 +84,16 @@ describe("CursorCloudClient", () => {
       timeoutMs: 5_000,
     });
 
-    const agent = client.launchAgent({
-      prompt: "Fix failing tests",
-      repo: "owner/repo",
-    });
+    const session = client.select("owner/repo").prompt("Fix failing tests");
 
-    const resultViaThen = await agent.then((result) => result);
+    const resultViaThen = await session.then((result) => result);
     expect(resultViaThen.status).toBe("completed");
 
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(sleepFn).toHaveBeenCalledTimes(1);
   });
 
-  it("followUp and interrupt are chainable and ordered", async () => {
+  it("reply is chainable and sends followups in order", async () => {
     const callOrder: string[] = [];
     const fetchImpl = vi
       .fn<FetchLike>()
@@ -130,18 +124,15 @@ describe("CursorCloudClient", () => {
     });
 
     await client
-      .launchAgent({ prompt: "Initial", repo: "owner/repo" })
-      .followUp("Message A")
-      .interrupt("Message B");
+      .select("owner/repo")
+      .prompt("Initial")
+      .reply("Message A")
+      .reply("Message B");
 
-    expect(callOrder).toEqual([
-      "followup:Message A",
-      "stop",
-      "followup:Message B",
-    ]);
+    expect(callOrder).toEqual(["followup:Message A", "followup:Message B"]);
   });
 
-  it("agent methods use launch id", async () => {
+  it("session methods use launch id", async () => {
     const fetchImpl = vi
       .fn<FetchLike>()
       .mockResolvedValueOnce(jsonResponse({ id: "agent-4", status: "queued" })) // launch
@@ -152,17 +143,39 @@ describe("CursorCloudClient", () => {
       ); // await agent.stop() thenable resolution
 
     const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
-    const agent = client.launchAgent({ prompt: "Do work", repo: "owner/repo" });
+    const session = client.select("owner/repo").prompt("Do work");
 
-    const status = await agent.status();
+    const status = await session.status();
     expect(status.id).toBe("agent-4");
 
-    await agent.stop();
+    await session.stop();
     expect(fetchImpl).toHaveBeenNthCalledWith(
       3,
       "https://api.cursor.com/v0/agents/agent-4/stop",
       expect.objectContaining({ method: "POST" })
     );
+  });
+
+  it("uses default webhook from createCursorCloud options", async () => {
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockResolvedValueOnce(jsonResponse({ id: "agent-8", status: "queued" }))
+      .mockResolvedValueOnce(jsonResponse({ id: "agent-8", status: "completed" }));
+
+    const client = new CursorCloudClient({
+      apiKey: "test-key",
+      fetchImpl,
+      webhook: { url: "https://example.com/hook", secret: "abc123" },
+    });
+
+    await client.select("owner/repo").prompt("Run pipeline");
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      webhook: { url: string; secret: string };
+    };
+    expect(body.webhook.url).toBe("https://example.com/hook");
+    expect(body.webhook.secret).toBe("abc123");
   });
 
   it("listAgents accepts repo filter and maps to repository query", async () => {

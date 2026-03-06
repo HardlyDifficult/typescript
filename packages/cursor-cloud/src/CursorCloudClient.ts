@@ -1,4 +1,5 @@
-import { CursorCloudAgent } from "./CursorCloudAgent.js";
+import { CursorCloudSelection } from "./CursorCloudSelection.js";
+import { CursorCloudSession } from "./CursorCloudSession.js";
 import {
   AgentIdSchema,
   CancelAgentRequestSchema,
@@ -67,7 +68,9 @@ const TERMINAL_STATUSES = new Set([
 export class CursorCloudClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly defaultModel: string | undefined;
+  private readonly defaultWebhook:
+    | { url: string; secret?: string }
+    | undefined;
   private readonly pollIntervalMs: number;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
@@ -83,20 +86,29 @@ export class CursorCloudClient {
 
     this.apiKey = apiKey;
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
-    this.defaultModel = options.defaultModel;
+    this.defaultWebhook = options.webhook;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleepFn = options.sleepFn ?? sleep;
   }
 
-  /** Launch an agent and return a thenable agent handle. */
-  launchAgent(
+  /** Select repo/branch/model and start with prompt(). */
+  select(repo: string, branch = DEFAULT_BRANCH, model?: string): CursorCloudSelection {
+    return new CursorCloudSelection(this, {
+      repo: requireNonEmpty(repo, "repo"),
+      branch: requireNonEmpty(branch, "branch"),
+      ...(model !== undefined && { model: requireNonEmpty(model, "model") }),
+    });
+  }
+
+  /** Start a thenable, chainable session directly. */
+  startSession(
     input: LaunchCursorAgentInput,
     waitOptions: WaitForAgentOptions = {}
-  ): CursorCloudAgent {
+  ): CursorCloudSession {
     const launchPromise = this.createAgent(input);
-    return new CursorCloudAgent(this, launchPromise, waitOptions);
+    return new CursorCloudSession(this, launchPromise, waitOptions);
   }
 
   /** Poll until terminal status or timeout. */
@@ -260,10 +272,10 @@ export class CursorCloudClient {
         repository: validated.repo,
         branch: validated.branch ?? DEFAULT_BRANCH,
       },
-      ...((validated.model ?? this.defaultModel) !== undefined && {
-        model: validated.model ?? this.defaultModel,
+      ...(validated.model !== undefined && { model: validated.model }),
+      ...((validated.webhook ?? this.defaultWebhook) !== undefined && {
+        webhook: validated.webhook ?? this.defaultWebhook,
       }),
-      ...(validated.webhook !== undefined && { webhook: validated.webhook }),
     };
 
     validateAndParse(request, LaunchCursorAgentRequestSchema, "Agent request");
