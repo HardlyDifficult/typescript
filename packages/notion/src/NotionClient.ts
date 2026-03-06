@@ -1,11 +1,10 @@
 import { BaseNotionClient } from "./client/BaseNotionClient.js";
 import {
+  buildSectionBlocks,
   LEGACY_NOTION_VERSION,
   MARKDOWN_NOTION_VERSION,
-  MAX_BLOCK_TEXT_LENGTH,
   MAX_BLOCKS_PER_REQUEST,
   normalizeParent,
-  splitIntoChunks,
   toPageMeta,
 } from "./client/shared.js";
 import type {
@@ -408,26 +407,14 @@ export class NotionClient extends BaseNotionClient {
     );
   }
 
-  /**
-   * Returns pages modified within a recent time window, sorted by most
-   * recently edited first.
-   *
-   * Notion's search API does not support a `last_edited_time` filter directly,
-   * so this fetches pages sorted by `last_edited_time` descending and filters
-   * client-side. A 1-minute overlap buffer is added because Notion rounds
-   * `last_edited_time` to the nearest minute.
-   */
+  /** Returns recently edited pages (search-sorted then client-filtered). */
   async getRecentlyModified(options?: {
     sinceMinutesAgo?: number;
     limit?: number;
   }): Promise<NotionPageSearchResult[]> {
     const sinceMinutes = options?.sinceMinutesAgo ?? 60;
     const limit = options?.limit ?? 50;
-
-    // Add 1-minute buffer because Notion rounds last_edited_time to the minute
-    const cutoff = new Date(
-      Date.now() - (sinceMinutes + 1) * 60 * 1000
-    );
+    const cutoff = new Date(Date.now() - (sinceMinutes + 1) * 60 * 1000);
 
     const pages = await this.searchPages("", {
       sort: { direction: "descending", timestamp: "last_edited_time" },
@@ -435,15 +422,20 @@ export class NotionClient extends BaseNotionClient {
 
     const results: NotionPageSearchResult[] = [];
     for (const page of pages) {
-      if (page.lastEdited == null) continue;
-      if (new Date(page.lastEdited) < cutoff) break;
+      if (page.lastEdited === null) {
+        continue;
+      }
+      if (new Date(page.lastEdited) < cutoff) {
+        break;
+      }
       results.push(page);
-      if (results.length >= limit) break;
+      if (results.length >= limit) {
+        break;
+      }
     }
 
     return results;
   }
-
   markdownToBlocks(markdown: string): NotionBlock[] {
     return markdownToBlocks(markdown);
   }
@@ -457,21 +449,6 @@ export class NotionClient extends BaseNotionClient {
    * Text is automatically split into 2,000-character chunks to satisfy Notion's limit.
    */
   static buildSectionBlocks(heading: string, body: string): NotionBlock[] {
-    return [
-      {
-        object: "block",
-        type: "heading_2",
-        heading_2: {
-          rich_text: [{ type: "text", text: { content: heading } }],
-        },
-      },
-      ...splitIntoChunks(body, MAX_BLOCK_TEXT_LENGTH).map((chunk) => ({
-        object: "block" as const,
-        type: "paragraph" as const,
-        paragraph: {
-          rich_text: [{ type: "text" as const, text: { content: chunk } }],
-        },
-      })),
-    ];
+    return buildSectionBlocks(heading, body);
   }
 }

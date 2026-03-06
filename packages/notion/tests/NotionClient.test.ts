@@ -614,7 +614,6 @@ describe("NotionClient", () => {
       expect(results).toHaveLength(0);
     });
   });
-
   describe("markdown conversion", () => {
     it("parses markdown into richer block types", () => {
       const blocks = markdownToBlocks(
