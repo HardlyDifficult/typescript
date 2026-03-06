@@ -38,23 +38,6 @@ export class Project {
   private readonly context: TaskContext;
   private readonly defaultStatusId: string;
 
-  private static isReadyLikeStatus(name: string): boolean {
-    return name.trim().toLowerCase().includes("ready");
-  }
-
-  private static selectDefaultStatusId(
-    statuses: readonly { id: string; name: string }[]
-  ): string {
-    if (statuses.length === 0) {
-      return "";
-    }
-
-    const preferred = statuses.find((status) => {
-      return !Project.isReadyLikeStatus(status.name);
-    });
-    return preferred?.id ?? statuses[0]!.id;
-  }
-
   constructor(
     info: { id: string; name: string; url: string },
     statusEntries: readonly { id: string; name: string }[],
@@ -73,7 +56,7 @@ export class Project {
     }));
     this.tasks = tasks;
     this.context = context;
-    this.defaultStatusId = Project.selectDefaultStatusId(statusEntries);
+    this.defaultStatusId = statusEntries[0]?.id ?? "";
   }
 
   /**

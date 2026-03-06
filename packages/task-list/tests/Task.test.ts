@@ -282,28 +282,6 @@ describe("Project", () => {
     expect(task).toBeInstanceOf(Task);
   });
 
-  it("createTask() default status skips Ready-like states", async () => {
-    const ctx = createMockContext({
-      createTask: vi.fn().mockResolvedValue(baseTaskData),
-    });
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [
-        { id: "ready", name: "Ready" },
-        { id: "triage", name: "Triage" },
-      ],
-      [],
-      [],
-      ctx
-    );
-
-    await project.createTask("Needs review");
-
-    expect(ctx.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ statusId: "triage" })
-    );
-  });
-
   it("createTask() with status and labels resolves names", async () => {
     const ctx = createMockContext({
       createTask: vi.fn().mockResolvedValue(baseTaskData),

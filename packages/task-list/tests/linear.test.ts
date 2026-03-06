@@ -479,47 +479,6 @@ describe("LinearTaskListClient", () => {
       ) as { variables: { input: Record<string, unknown> } };
       expect(body.variables.input.stateId).toBe("ws1");
     });
-
-    it("createTask default status avoids Ready-like states", async () => {
-      const readyFirstTeamData = {
-        states: {
-          nodes: [
-            { id: "ws-ready", name: "Ready" },
-            { id: "ws-triage", name: "Triage" },
-            { id: "ws-done", name: "Done" },
-          ],
-        },
-        labels: { nodes: [linearLabel1, linearLabel2] },
-      };
-
-      mockFetch.mockResolvedValueOnce(
-        graphqlResponse({
-          organization: { urlKey: "myorg" },
-          project: {
-            ...linearProject,
-            issues: { nodes: [] },
-          },
-          team: readyFirstTeamData,
-        })
-      );
-      const project = await client.getProject("proj-1");
-
-      mockFetch.mockResolvedValueOnce(
-        graphqlResponse({
-          issueCreate: {
-            issue: { ...linearIssue, state: { id: "ws-triage" } },
-          },
-        })
-      );
-      const createPromise = project.createTask("Off-topic extracted item");
-      await vi.runAllTimersAsync();
-      await createPromise;
-
-      const body = JSON.parse(
-        (mockFetch.mock.calls[1]![1] as RequestInit).body as string
-      ) as { variables: { input: Record<string, unknown> } };
-      expect(body.variables.input.stateId).toBe("ws-triage");
-    });
   });
 
   describe("getProjects", () => {
