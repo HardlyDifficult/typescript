@@ -498,6 +498,122 @@ describe("NotionClient", () => {
     });
   });
 
+  describe("getRecentlyModified", () => {
+    it("returns only pages edited within the time window", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 30 * 60 * 1000).toISOString();
+      const oldTime = new Date(now - 120 * 60 * 1000).toISOString();
+
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              object: "page",
+              id: "recent-page",
+              url: "https://notion.so/recent-page",
+              last_edited_time: recentTime,
+              created_time: recentTime,
+              properties: {
+                Name: {
+                  type: "title",
+                  title: [{ type: "text", text: { content: "Recent" } }],
+                },
+              },
+            },
+            {
+              object: "page",
+              id: "old-page",
+              url: "https://notion.so/old-page",
+              last_edited_time: oldTime,
+              created_time: oldTime,
+              properties: {
+                Name: {
+                  type: "title",
+                  title: [{ type: "text", text: { content: "Old" } }],
+                },
+              },
+            },
+          ],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified({
+        sinceMinutesAgo: 60,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.title).toBe("Recent");
+
+      const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+      expect(body.sort).toEqual({
+        direction: "descending",
+        timestamp: "last_edited_time",
+      });
+    });
+
+    it("respects the limit option", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 5 * 60 * 1000).toISOString();
+
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: Array.from({ length: 10 }, (_, i) => ({
+            object: "page",
+            id: `page-${String(i)}`,
+            url: `https://notion.so/page-${String(i)}`,
+            last_edited_time: recentTime,
+            created_time: recentTime,
+            properties: {
+              Name: {
+                type: "title",
+                title: [
+                  { type: "text", text: { content: `Page ${String(i)}` } },
+                ],
+              },
+            },
+          })),
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified({ limit: 3 });
+
+      expect(results).toHaveLength(3);
+    });
+
+    it("uses defaults of 60 minutes and limit 50", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: [],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified();
+
+      expect(results).toHaveLength(0);
+    });
+  });
+
   describe("markdown conversion", () => {
     it("parses markdown into richer block types", () => {
       const blocks = markdownToBlocks(

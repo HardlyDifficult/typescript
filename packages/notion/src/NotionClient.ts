@@ -1,11 +1,11 @@
 import { BaseNotionClient } from "./client/BaseNotionClient.js";
+import { fetchBlockChildren } from "./client/blockChildren.js";
 import {
+  buildSectionBlocks,
   LEGACY_NOTION_VERSION,
   MARKDOWN_NOTION_VERSION,
-  MAX_BLOCK_TEXT_LENGTH,
   MAX_BLOCKS_PER_REQUEST,
   normalizeParent,
-  splitIntoChunks,
   toPageMeta,
 } from "./client/shared.js";
 import type {
@@ -148,78 +148,7 @@ export class NotionClient extends BaseNotionClient {
     blockId: string,
     options?: RetrieveBlockChildrenOptions
   ): Promise<NotionBlock[]> {
-    const results: NotionBlock[] = [];
-    let cursor = options?.startCursor;
-    const pageSize = options?.pageSize;
-
-    do {
-      const response = await this.request<{
-        object: "list";
-        results: NotionBlock[];
-        next_cursor: string | null;
-        has_more: boolean;
-      }>("GET", `/blocks/${blockId}/children`, undefined, {
-        query: {
-          page_size: pageSize,
-          start_cursor: cursor,
-        },
-      });
-
-      for (const block of response.results) {
-        const nextBlock = block;
-        if (
-          options?.recursive === true &&
-          block.has_children === true &&
-          block.id !== undefined
-        ) {
-          const children = await this.retrieveBlockChildren(block.id, {
-            ...options,
-            startCursor: undefined,
-          });
-          switch (nextBlock.type) {
-            case "paragraph":
-              nextBlock.paragraph = { ...nextBlock.paragraph, children };
-              break;
-            case "bulleted_list_item":
-              nextBlock.bulleted_list_item = {
-                ...nextBlock.bulleted_list_item,
-                children,
-              };
-              break;
-            case "numbered_list_item":
-              nextBlock.numbered_list_item = {
-                ...nextBlock.numbered_list_item,
-                children,
-              };
-              break;
-            case "to_do":
-              nextBlock.to_do = { ...nextBlock.to_do, children };
-              break;
-            case "toggle":
-              nextBlock.toggle = { ...nextBlock.toggle, children };
-              break;
-            case "quote":
-              nextBlock.quote = { ...nextBlock.quote, children };
-              break;
-            case "callout":
-              nextBlock.callout = { ...nextBlock.callout, children };
-              break;
-            case "synced_block":
-              nextBlock.synced_block = { ...nextBlock.synced_block, children };
-              break;
-            default:
-              break;
-          }
-        }
-        results.push(nextBlock);
-      }
-
-      cursor = response.has_more
-        ? (response.next_cursor ?? undefined)
-        : undefined;
-    } while (cursor !== undefined);
-
-    return results;
+    return fetchBlockChildren(this.request.bind(this), blockId, options);
   }
 
   async getPageBlocks(
@@ -408,6 +337,46 @@ export class NotionClient extends BaseNotionClient {
     );
   }
 
+  /**
+   * Returns pages modified within a recent time window, sorted by most
+   * recently edited first.
+   *
+   * Notion's search API does not support a `last_edited_time` filter directly,
+   * so this fetches pages sorted by `last_edited_time` descending and filters
+   * client-side. A 1-minute overlap buffer is added because Notion rounds
+   * `last_edited_time` to the nearest minute.
+   */
+  async getRecentlyModified(options?: {
+    sinceMinutesAgo?: number;
+    limit?: number;
+  }): Promise<NotionPageSearchResult[]> {
+    const sinceMinutes = options?.sinceMinutesAgo ?? 60;
+    const limit = options?.limit ?? 50;
+
+    // Add 1-minute buffer because Notion rounds last_edited_time to the minute
+    const cutoff = new Date(Date.now() - (sinceMinutes + 1) * 60 * 1000);
+
+    const pages = await this.searchPages("", {
+      sort: { direction: "descending", timestamp: "last_edited_time" },
+    });
+
+    const results: NotionPageSearchResult[] = [];
+    for (const page of pages) {
+      if (page.lastEdited === null) {
+        continue;
+      }
+      if (new Date(page.lastEdited) < cutoff) {
+        break;
+      }
+      results.push(page);
+      if (results.length >= limit) {
+        break;
+      }
+    }
+
+    return results;
+  }
+
   markdownToBlocks(markdown: string): NotionBlock[] {
     return markdownToBlocks(markdown);
   }
@@ -421,21 +390,6 @@ export class NotionClient extends BaseNotionClient {
    * Text is automatically split into 2,000-character chunks to satisfy Notion's limit.
    */
   static buildSectionBlocks(heading: string, body: string): NotionBlock[] {
-    return [
-      {
-        object: "block",
-        type: "heading_2",
-        heading_2: {
-          rich_text: [{ type: "text", text: { content: heading } }],
-        },
-      },
-      ...splitIntoChunks(body, MAX_BLOCK_TEXT_LENGTH).map((chunk) => ({
-        object: "block" as const,
-        type: "paragraph" as const,
-        paragraph: {
-          rich_text: [{ type: "text" as const, text: { content: chunk } }],
-        },
-      })),
-    ];
+    return buildSectionBlocks(heading, body);
   }
 }

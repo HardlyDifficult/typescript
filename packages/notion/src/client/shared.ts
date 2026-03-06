@@ -2,6 +2,7 @@ import { richTextToPlainText } from "../markdown.js";
 import type {
   CreatePageRequest,
   NotionApiVersion,
+  NotionBlock,
   NotionPageMeta,
   NotionPagePropertyMap,
   NotionPageResponse,
@@ -95,6 +96,29 @@ export function extractPageTitle(properties?: NotionPagePropertyMap): string {
   }
 
   return "";
+}
+
+/** Builds a heading_2 block followed by paragraph blocks for the given text. */
+export function buildSectionBlocks(
+  heading: string,
+  body: string
+): NotionBlock[] {
+  return [
+    {
+      object: "block",
+      type: "heading_2",
+      heading_2: {
+        rich_text: [{ type: "text", text: { content: heading } }],
+      },
+    },
+    ...splitIntoChunks(body, MAX_BLOCK_TEXT_LENGTH).map((chunk) => ({
+      object: "block" as const,
+      type: "paragraph" as const,
+      paragraph: {
+        rich_text: [{ type: "text" as const, text: { content: chunk } }],
+      },
+    })),
+  ];
 }
 
 /** Converts a raw page response into the package's normalized metadata shape. */
