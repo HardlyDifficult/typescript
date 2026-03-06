@@ -160,7 +160,9 @@ describe("CursorCloudClient", () => {
     const fetchImpl = vi
       .fn<FetchLike>()
       .mockResolvedValueOnce(jsonResponse({ id: "agent-8", status: "queued" }))
-      .mockResolvedValueOnce(jsonResponse({ id: "agent-8", status: "completed" }));
+      .mockResolvedValueOnce(
+        jsonResponse({ id: "agent-8", status: "completed" })
+      );
 
     const client = new CursorCloudClient({
       apiKey: "test-key",

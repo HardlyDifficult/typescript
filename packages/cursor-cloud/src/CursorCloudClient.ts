@@ -68,9 +68,7 @@ const TERMINAL_STATUSES = new Set([
 export class CursorCloudClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly defaultWebhook:
-    | { url: string; secret?: string }
-    | undefined;
+  private readonly defaultWebhook: { url: string; secret?: string } | undefined;
   private readonly pollIntervalMs: number;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
@@ -94,7 +92,11 @@ export class CursorCloudClient {
   }
 
   /** Select repo/branch/model and start with prompt(). */
-  select(repo: string, branch = DEFAULT_BRANCH, model?: string): CursorCloudSelection {
+  select(
+    repo: string,
+    branch = DEFAULT_BRANCH,
+    model?: string
+  ): CursorCloudSelection {
     return new CursorCloudSelection(this, {
       repo: requireNonEmpty(repo, "repo"),
       branch: requireNonEmpty(branch, "branch"),
