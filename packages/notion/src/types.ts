@@ -1,55 +1,79 @@
-export interface NotionRichText {
-  type: "text";
-  text: { content: string; link?: { url: string } | null };
-}
-
-export interface NotionTitleProperty {
-  title: NotionRichText[];
-}
-
-export interface NotionRichTextProperty {
-  rich_text: NotionRichText[];
-}
-
-export interface NotionSelectProperty {
-  select: { name: string };
-}
-
-export interface NotionDateProperty {
-  date: { start: string };
-}
-
-export type NotionPropertyValue =
-  | NotionTitleProperty
-  | NotionRichTextProperty
-  | NotionSelectProperty
-  | NotionDateProperty;
-
-export interface NotionParagraphBlock {
-  object: "block";
-  type: "paragraph";
-  paragraph: { rich_text: NotionRichText[] };
-}
-
-export interface NotionHeading2Block {
-  object: "block";
-  type: "heading_2";
-  heading_2: { rich_text: NotionRichText[] };
-}
-
-export type NotionBlock = NotionParagraphBlock | NotionHeading2Block;
-
-export interface CreatePageRequest {
-  parent: { database_id: string };
-  properties: Record<string, NotionPropertyValue>;
-  children?: NotionBlock[];
-}
-
-export interface NotionPageResponse {
-  id: string;
-  url: string;
-}
-
-export interface AppendBlocksRequest {
-  children: NotionBlock[];
-}
+export type { NotionApiVersion, NotionColor } from "./types/common.js";
+export type {
+  NotionAnnotations,
+  NotionCheckboxProperty,
+  NotionDateProperty,
+  NotionEmailProperty,
+  NotionEmojiIcon,
+  NotionExternalFileRef,
+  NotionFileRef,
+  NotionHostedFileRef,
+  NotionIcon,
+  NotionMultiSelectProperty,
+  NotionNumberProperty,
+  NotionPeopleProperty,
+  NotionPhoneNumberProperty,
+  NotionPropertyValue,
+  NotionRelationProperty,
+  NotionRichText,
+  NotionRichTextProperty,
+  NotionSelectProperty,
+  NotionStatusProperty,
+  NotionTitleProperty,
+  NotionUrlProperty,
+} from "./types/properties.js";
+export type {
+  NotionAudioBlock,
+  NotionBaseBlock,
+  NotionBlock,
+  NotionBookmarkBlock,
+  NotionBulletedListItemBlock,
+  NotionCalloutBlock,
+  NotionChildDatabaseBlock,
+  NotionChildPageBlock,
+  NotionCodeBlock,
+  NotionDividerBlock,
+  NotionEmbedBlock,
+  NotionEquationBlock,
+  NotionFileBlock,
+  NotionHeading1Block,
+  NotionHeading2Block,
+  NotionHeading3Block,
+  NotionImageBlock,
+  NotionNumberedListItemBlock,
+  NotionParagraphBlock,
+  NotionPdfBlock,
+  NotionQuoteBlock,
+  NotionSyncedBlock,
+  NotionTableOfContentsBlock,
+  NotionToDoBlock,
+  NotionToggleBlock,
+  NotionUnsupportedBlock,
+  NotionVideoBlock,
+} from "./types/blocks.js";
+export type {
+  AppendBlocksRequest,
+  CreatePageRequest,
+  InsertContentMarkdownRequest,
+  NotionClientOptions,
+  NotionDatabaseParent,
+  NotionDataSourceParent,
+  NotionListResponse,
+  NotionPageContent,
+  NotionPageMarkdownResponse,
+  NotionPageMeta,
+  NotionPageParent,
+  NotionPagePropertyMap,
+  NotionPageResponse,
+  NotionPageSearchResult,
+  NotionParent,
+  NotionSearchFilter,
+  NotionSearchSort,
+  NotionWorkspaceParent,
+  ReadPageOptions,
+  ReplaceContentRangeMarkdownRequest,
+  RetrieveBlockChildrenOptions,
+  SearchPagesOptions,
+  UpdatePageMarkdownRequest,
+  UpdatePageOptions,
+} from "./types/pages.js";

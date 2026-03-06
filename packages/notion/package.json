@@ -1,7 +1,7 @@
 {
   "name": "@hardlydifficult/notion",
   "version": "1.0.0",
-  "description": "Notion API client for creating and managing database pages",
+  "description": "Notion API client with page read/search/update, markdown conversion, and block utilities",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
