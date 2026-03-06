@@ -408,6 +408,42 @@ export class NotionClient extends BaseNotionClient {
     );
   }
 
+  /**
+   * Returns pages modified within a recent time window, sorted by most
+   * recently edited first.
+   *
+   * Notion's search API does not support a `last_edited_time` filter directly,
+   * so this fetches pages sorted by `last_edited_time` descending and filters
+   * client-side. A 1-minute overlap buffer is added because Notion rounds
+   * `last_edited_time` to the nearest minute.
+   */
+  async getRecentlyModified(options?: {
+    sinceMinutesAgo?: number;
+    limit?: number;
+  }): Promise<NotionPageSearchResult[]> {
+    const sinceMinutes = options?.sinceMinutesAgo ?? 60;
+    const limit = options?.limit ?? 50;
+
+    // Add 1-minute buffer because Notion rounds last_edited_time to the minute
+    const cutoff = new Date(
+      Date.now() - (sinceMinutes + 1) * 60 * 1000
+    );
+
+    const pages = await this.searchPages("", {
+      sort: { direction: "descending", timestamp: "last_edited_time" },
+    });
+
+    const results: NotionPageSearchResult[] = [];
+    for (const page of pages) {
+      if (page.lastEdited == null) continue;
+      if (new Date(page.lastEdited) < cutoff) break;
+      results.push(page);
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
   markdownToBlocks(markdown: string): NotionBlock[] {
     return markdownToBlocks(markdown);
   }
