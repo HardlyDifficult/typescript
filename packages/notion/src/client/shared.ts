@@ -2,6 +2,7 @@ import { richTextToPlainText } from "../markdown.js";
 import type {
   CreatePageRequest,
   NotionApiVersion,
+  NotionBlock,
   NotionPageMeta,
   NotionPagePropertyMap,
   NotionPageResponse,
@@ -41,6 +42,27 @@ export function splitIntoChunks(text: string, maxLength: number): string[] {
     remaining = remaining.slice(maxLength);
   }
   return chunks;
+}
+
+/** Builds heading + paragraph blocks while chunking body text to Notion limits. */
+export function buildSectionBlocks(
+  heading: string,
+  body: string
+): NotionBlock[] {
+  return [
+    {
+      object: "block",
+      type: "heading_2",
+      heading_2: { rich_text: [{ type: "text", text: { content: heading } }] },
+    },
+    ...splitIntoChunks(body, MAX_BLOCK_TEXT_LENGTH).map((chunk) => ({
+      object: "block" as const,
+      type: "paragraph" as const,
+      paragraph: {
+        rich_text: [{ type: "text" as const, text: { content: chunk } }],
+      },
+    })),
+  ];
 }
 
 /** Normalizes a caller-provided parent into the REST payload shape. */
