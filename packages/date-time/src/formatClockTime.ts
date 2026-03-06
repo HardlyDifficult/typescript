@@ -14,6 +14,7 @@ export function formatClockTime(
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
+    hourCycle: "h23",
     timeZone,
   }).format(new Date(timestampMs));
 }
