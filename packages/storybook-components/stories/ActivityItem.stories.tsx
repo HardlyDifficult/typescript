@@ -25,6 +25,7 @@ export const Default: Story = {
   args: {
     summary: "Worker started processing request",
     timestamp: new Date(NOW.getTime() - 30 * 1000).toISOString(),
+    now: NOW,
   },
 };
 
@@ -34,6 +35,7 @@ export const WithBadge: Story = {
     timestamp: new Date(NOW.getTime() - 2 * 60 * 1000).toISOString(),
     badge: "claude_api",
     variant: "info",
+    now: NOW,
   },
 };
 
@@ -43,6 +45,7 @@ export const Success: Story = {
     timestamp: new Date(NOW.getTime() - 5 * 60 * 1000).toISOString(),
     badge: "github",
     variant: "success",
+    now: NOW,
   },
 };
 
@@ -52,6 +55,7 @@ export const Error: Story = {
     timestamp: new Date(NOW.getTime() - 10 * 60 * 1000).toISOString(),
     badge: "action",
     variant: "error",
+    now: NOW,
   },
 };
 
@@ -60,6 +64,7 @@ export const Warning: Story = {
     summary: "Rate limit approaching: 80% used",
     timestamp: new Date(NOW.getTime() - 15 * 60 * 1000).toISOString(),
     variant: "warning",
+    now: NOW,
   },
 };
 
@@ -69,6 +74,7 @@ export const WithActions: Story = {
     timestamp: new Date(NOW.getTime() - 60 * 1000).toISOString(),
     badge: "worker",
     variant: "info",
+    now: NOW,
     actions: (
       <Button variant="ghost" size="sm" onClick={() => { console.log("cancel"); }}>
         Cancel
@@ -83,6 +89,7 @@ export const Expandable: Story = {
     timestamp: new Date(NOW.getTime() - 3 * 60 * 1000).toISOString(),
     badge: "claude_api",
     variant: "info",
+    now: NOW,
     children: (
       <pre
         style={{
@@ -121,6 +128,7 @@ export const WithIcon: Story = {
     timestamp: new Date(NOW.getTime() - 20 * 60 * 1000).toISOString(),
     badge: "github",
     variant: "default",
+    now: NOW,
   },
 };
 
@@ -133,17 +141,20 @@ export const Timeline: Story = {
         timestamp={new Date(NOW.getTime() - 10 * 60 * 1000).toISOString()}
         badge="chat"
         variant="info"
+        now={NOW}
       />
       <ActivityItem
         summary="Fetching open PRs from GitHub..."
         timestamp={new Date(NOW.getTime() - 9 * 60 * 1000).toISOString()}
         badge="github"
+        now={NOW}
       />
       <ActivityItem
         summary="Found 3 open PRs"
         timestamp={new Date(NOW.getTime() - 9 * 60 * 1000).toISOString()}
         badge="github"
         variant="success"
+        now={NOW}
       >
         <div style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
           <div>#42 fix-auth-flow — ready for review</div>
@@ -156,12 +167,14 @@ export const Timeline: Story = {
         timestamp={new Date(NOW.getTime() - 8 * 60 * 1000).toISOString()}
         badge="action"
         variant="error"
+        now={NOW}
       />
       <ActivityItem
         summary="Response sent to dashboard"
         timestamp={new Date(NOW.getTime() - 8 * 60 * 1000).toISOString()}
         badge="chat"
         variant="success"
+        now={NOW}
       />
     </div>
   ),

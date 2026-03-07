@@ -14,10 +14,12 @@ interface ActivityItemProps {
   variant?: ActivityItemVariant;
   actions?: ReactNode;
   children?: ReactNode;
+  /** Override the current time for deterministic rendering (e.g. in tests/stories). */
+  now?: Date;
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+function formatRelativeTime(iso: string, now: Date = new Date()): string {
+  const diff = now.getTime() - new Date(iso).getTime();
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) {return "just now";}
   const minutes = Math.floor(seconds / 60);
@@ -53,6 +55,7 @@ export function ActivityItem({
   variant = "default",
   actions,
   children,
+  now,
 }: ActivityItemProps) {
   const [open, setOpen] = useState(false);
   const hasDetail = children !== undefined;
@@ -106,7 +109,7 @@ export function ActivityItem({
           className="flex-shrink-0 text-[length:var(--text-xs)] text-[color:var(--color-text-muted)] font-[family-name:var(--font-sans)]"
           title={timestamp}
         >
-          {formatRelativeTime(timestamp)}
+          {formatRelativeTime(timestamp, now)}
         </span>
 
         {/* Actions */}
