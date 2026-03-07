@@ -73,6 +73,10 @@ jobs:
           npm run build:storybook
           node scripts/capture-screenshots.js
 
+      - name: Clean storybook build output
+        if: steps.storybook-changes.outputs.changed == 'true'
+        run: rm -rf packages/storybook-components/storybook-static
+
       - name: Commit and push screenshots
         if: steps.storybook-changes.outputs.changed == 'true'
         env:
