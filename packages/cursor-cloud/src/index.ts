@@ -28,6 +28,14 @@ export type {
   GetConversationResponse,
   FollowupRequest,
   StopAgentResponse,
+  GetMeResponse,
+  ListModelsResponse,
+  RepositoryInfo,
+  ListRepositoriesResponse,
+  Artifact,
+  ListArtifactsResponse,
+  DownloadArtifactQuery,
+  DownloadArtifactResponse,
   FetchLike,
 } from "./types.js";
 
@@ -60,6 +68,14 @@ export {
   ModelSchema,
   PromptSchema,
   AgentStatusSchema,
+  GetMeResponseSchema,
+  ListModelsResponseSchema,
+  RepositoryInfoSchema,
+  ListRepositoriesResponseSchema,
+  ArtifactSchema,
+  ListArtifactsResponseSchema,
+  DownloadArtifactQuerySchema,
+  DownloadArtifactResponseSchema,
 } from "./schemas.js";
 
 /** Create a Cursor Cloud client with opinionated defaults. */

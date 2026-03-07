@@ -165,6 +165,51 @@ export const StopAgentResponseSchema = z
   })
   .catchall(z.unknown());
 
+// Me (API key info) schemas
+export const GetMeResponseSchema = z
+  .object({
+    apiKeyName: z.string(),
+    createdAt: z.string(),
+    userEmail: z.string().email(),
+  })
+  .catchall(z.unknown());
+
+// Models schemas
+export const ListModelsResponseSchema = z.object({
+  models: z.array(z.string()),
+});
+
+// Repositories schemas
+export const RepositoryInfoSchema = z.object({
+  owner: z.string(),
+  name: z.string(),
+  repository: z.string(),
+});
+
+export const ListRepositoriesResponseSchema = z.object({
+  repositories: z.array(RepositoryInfoSchema),
+});
+
+// Artifacts schemas
+export const ArtifactSchema = z.object({
+  absolutePath: z.string(),
+  sizeBytes: z.number(),
+  updatedAt: z.string(),
+});
+
+export const ListArtifactsResponseSchema = z.object({
+  artifacts: z.array(ArtifactSchema),
+});
+
+export const DownloadArtifactQuerySchema = z.object({
+  path: z.string().min(1, "Artifact path cannot be empty"),
+});
+
+export const DownloadArtifactResponseSchema = z.object({
+  url: z.string().url(),
+  expiresAt: z.string(),
+});
+
 // Configuration schemas
 export const CursorCloudClientOptionsSchema = z.object({
   apiKey: z.string().optional(),
@@ -207,6 +252,18 @@ export type GetConversationResponse = z.infer<
 >;
 export type FollowupRequest = z.infer<typeof FollowupRequestSchema>;
 export type StopAgentResponse = z.infer<typeof StopAgentResponseSchema>;
+export type GetMeResponse = z.infer<typeof GetMeResponseSchema>;
+export type ListModelsResponse = z.infer<typeof ListModelsResponseSchema>;
+export type RepositoryInfo = z.infer<typeof RepositoryInfoSchema>;
+export type ListRepositoriesResponse = z.infer<
+  typeof ListRepositoriesResponseSchema
+>;
+export type Artifact = z.infer<typeof ArtifactSchema>;
+export type ListArtifactsResponse = z.infer<typeof ListArtifactsResponseSchema>;
+export type DownloadArtifactQuery = z.infer<typeof DownloadArtifactQuerySchema>;
+export type DownloadArtifactResponse = z.infer<
+  typeof DownloadArtifactResponseSchema
+>;
 export type CursorCloudClientOptions = z.infer<
   typeof CursorCloudClientOptionsSchema
 >;
