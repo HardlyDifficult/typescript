@@ -4,11 +4,7 @@ export class CursorCloudHttp {
   protected readonly baseUrl: string;
   protected readonly fetchImpl: typeof fetch;
 
-  constructor(
-    apiKey: string,
-    baseUrl: string,
-    fetchImpl: typeof fetch
-  ) {
+  constructor(apiKey: string, baseUrl: string, fetchImpl: typeof fetch) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
