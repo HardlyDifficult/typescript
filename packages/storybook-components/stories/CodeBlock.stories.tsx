@@ -61,15 +61,6 @@ export default App;`,
   },
 };
 
-export const PlainText: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    children: `This is plain text without any syntax highlighting.
-It still has line numbers and the copy button.
-No language prop is set.`,
-  },
-};
-
 export const ErrorVariant: Story = {
   parameters: { controls: { disable: true } },
   args: {
@@ -81,11 +72,3 @@ export const ErrorVariant: Story = {
   },
 };
 
-export const WithWrap: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    language: "json",
-    wrap: true,
-    children: `{"name":"@hardlydifficult/storybook-components","version":"0.0.1","description":"A long description that might wrap around when the container is narrow enough to cause wrapping behavior in the code block"}`,
-  },
-};

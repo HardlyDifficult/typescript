@@ -20,13 +20,6 @@ export default meta;
 
 type Story = StoryObj<typeof Text>;
 
-export const Default: Story = {
-  args: {
-    variant: "body",
-    children: "The quick brown fox jumps over the lazy dog.",
-  },
-};
-
 export const Document: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

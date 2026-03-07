@@ -89,13 +89,3 @@ export const Losing: Story = {
   ),
 };
 
-export const WithBaseline: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <EquityCurve
-      snapshots={snapshotsBaseline}
-      height={200}
-      baselineLabel="Starting Capital"
-    />
-  ),
-};

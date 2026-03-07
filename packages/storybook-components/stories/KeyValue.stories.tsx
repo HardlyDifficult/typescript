@@ -25,18 +25,3 @@ export const Default: Story = {
   },
 };
 
-export const Horizontal: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <KeyValue label="Repository">hardlydifficult/storybook-components</KeyValue>
-  ),
-};
-
-export const Vertical: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <KeyValue label="Description" direction="vertical">
-      A React component library with Tailwind CSS tokens.
-    </KeyValue>
-  ),
-};

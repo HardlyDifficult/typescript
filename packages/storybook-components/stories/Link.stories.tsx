@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Link, Text, Stack } from "../src/index.js";
+import { Link, Text } from "../src/index.js";
 
 const meta: Meta<typeof Link> = {
   title: "Content/Link",
@@ -21,14 +21,6 @@ export const Default: Story = {
   },
 };
 
-export const External: Story = {
-  args: {
-    href: "https://example.com",
-    external: true,
-    children: "Opens in new tab",
-  },
-};
-
 export const InContext: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
@@ -43,14 +35,3 @@ export const InContext: Story = {
   ),
 };
 
-export const Variants: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Stack direction="vertical" gap="sm">
-      <Link href="https://example.com">Internal link</Link>
-      <Link href="https://example.com" external>
-        External link (new tab)
-      </Link>
-    </Stack>
-  ),
-};

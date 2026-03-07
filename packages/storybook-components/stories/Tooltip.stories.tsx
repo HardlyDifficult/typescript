@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Tooltip, Button, Text } from "../src/index.js";
+import { Tooltip, Button } from "../src/index.js";
 
 const meta: Meta<typeof Tooltip> = {
   title: "Feedback/Tooltip",
@@ -23,19 +23,6 @@ export const Default: Story = {
   ),
 };
 
-export const OnText: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Text>
-      Hover over the{" "}
-      <Tooltip content="This field is required and must be unique across your organization.">
-        <span style={{ borderBottom: "1px dashed currentColor", cursor: "help" }}>project name</span>
-      </Tooltip>{" "}
-      to learn more.
-    </Text>
-  ),
-};
-
 export const OnIcon: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
@@ -53,11 +40,3 @@ export const OnIcon: Story = {
   ),
 };
 
-export const LongContent: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Tooltip content="This tooltip contains a longer description to demonstrate how the component handles wrapping text in a constrained space.">
-      <Button variant="secondary">Hover for details</Button>
-    </Tooltip>
-  ),
-};

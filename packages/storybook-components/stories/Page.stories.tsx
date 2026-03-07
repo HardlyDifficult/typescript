@@ -23,13 +23,6 @@ export default meta;
 
 type Story = StoryObj<typeof Page>;
 
-export const Default: Story = {
-  args: {
-    maxWidth: "lg",
-    children: "Page content",
-  },
-};
-
 export const Overview: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
@@ -81,16 +74,3 @@ export const WithHeaderActions: Story = {
   ),
 };
 
-export const NarrowWidth: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Page maxWidth="sm">
-      <Card>
-        <Stack direction="vertical" gap="sm">
-          <Text variant="body">maxWidth=&quot;sm&quot; constrains the page to 640px, good for focused forms.</Text>
-          <Button fullWidth>Sign in with Google</Button>
-        </Stack>
-      </Card>
-    </Page>
-  ),
-};

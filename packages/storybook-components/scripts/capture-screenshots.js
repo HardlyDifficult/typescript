@@ -38,30 +38,7 @@ const MIME_TYPES = {
  * Small components are combined into a single composite screenshot.
  * Key = output filename (under .screenshots/), value = story IDs to combine.
  */
-const COMPOSITES = {
-  "inputs/button-all": [
-    "inputs-button--primary",
-    "inputs-button--secondary",
-    "inputs-button--ghost",
-    "inputs-button--danger",
-    "inputs-button--small",
-    "inputs-button--loading",
-    "inputs-button--with-icon",
-  ],
-  "content/badge-all": [
-    "content-badge--default",
-    "content-badge--success",
-    "content-badge--warning",
-    "content-badge--error",
-    "content-badge--info",
-  ],
-  "data/statcard-all": [
-    "data-statcard--revenue",
-    "data-statcard--active-users",
-    "data-statcard--error-rate",
-    "data-statcard--no-trend",
-  ],
-};
+const COMPOSITES = {};
 
 const compositeStoryIds = new Set(Object.values(COMPOSITES).flat());
 

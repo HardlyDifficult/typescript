@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Stack } from "../src/index.js";
 import { Button } from "../src/index.js";
-import { Badge } from "../src/index.js";
 
 const meta: Meta<typeof Stack> = {
   title: "Layout/Stack",
@@ -34,17 +33,6 @@ export const Default: Story = {
     wrap: false,
     children: "Stack content",
   },
-};
-
-export const Vertical: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Stack direction="vertical" gap="md">
-      <Badge variant="success">Build passing</Badge>
-      <Badge variant="info">Tests running</Badge>
-      <Badge variant="warning">Review pending</Badge>
-    </Stack>
-  ),
 };
 
 export const Horizontal: Story = {

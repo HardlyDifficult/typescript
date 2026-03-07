@@ -41,18 +41,6 @@ export const BotMessage: Story = {
   ),
 };
 
-export const MultilineMessage: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <ChatMessage
-      content={"Here's what I found:\n\n1. Test `auth.login` fails due to missing env var\n2. Test `auth.signup` times out\n3. Test `auth.reset` has a type error"}
-      timestamp={new Date(NOW.getTime() - 5 * 60 * 1000).toISOString()}
-      variant="bot"
-      now={NOW}
-    />
-  ),
-};
-
 export const Conversation: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

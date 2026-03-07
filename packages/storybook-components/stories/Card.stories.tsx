@@ -22,26 +22,6 @@ export const Default: Story = {
   },
 };
 
-export const PullRequest: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Card>
-      <Text variant="subheading">PR #142</Text>
-      <Text variant="body">Add retry logic to webhook delivery</Text>
-      <Text variant="caption">Opened 3 hours ago</Text>
-    </Card>
-  ),
-};
-
-export const WithTitle: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Card title="Team Members">
-      <Text variant="body">Three engineers, one designer, and a product lead.</Text>
-    </Card>
-  ),
-};
-
 export const WithTitleAndFooter: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "../src/index.js";
-import { Text } from "../src/index.js";
 import { Stack } from "../src/index.js";
 
 const meta: Meta<typeof Button> = {
@@ -66,22 +65,3 @@ export const States: Story = {
   ),
 };
 
-export const InContext: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Stack direction="horizontal" gap="sm" align="center">
-      <Text variant="body">Unsaved changes</Text>
-      <Button variant="secondary">Cancel</Button>
-      <Button>Save</Button>
-    </Stack>
-  ),
-};
-
-export const LinkVariant: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Text variant="body">
-      See the <Button variant="link">documentation</Button> for details.
-    </Text>
-  ),
-};

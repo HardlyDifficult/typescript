@@ -78,26 +78,3 @@ export const WithIndicators: Story = {
   },
 };
 
-export const ActiveSubpage: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    currentPath: "/campaigns",
-  },
-};
-
-export const Minimal: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    title: "Admin",
-    categories: [
-      {
-        label: "Pages",
-        items: [
-          { href: "/", label: "Dashboard" },
-          { href: "/users", label: "Users" },
-        ],
-      },
-    ],
-    currentPath: "/users",
-  },
-};
