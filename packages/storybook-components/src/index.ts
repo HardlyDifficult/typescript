@@ -34,6 +34,7 @@ export type {
   CandlestickChartProps,
   CandlestickChartCandle,
   CandlestickChartOrder,
+  CandlestickChartType,
 } from "./data/CandlestickChart.js";
 export { EquityCurve } from "./data/EquityCurve.js";
 export type { EquityCurveProps, EquityCurvePoint } from "./data/EquityCurve.js";
