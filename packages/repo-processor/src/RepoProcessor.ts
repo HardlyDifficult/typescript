@@ -67,6 +67,7 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
       options.githubToken ?? process.env.GH_PAT ?? process.env.GITHUB_TOKEN;
     const github = new GitHubClient({ token: githubToken });
     const sourceRepo = github.repo(repo.fullName);
+    const processDirectory = options.processDirectory;
     const store = new GitYamlStore({
       sourceRepo: repo,
       resultsRepo,
@@ -94,9 +95,9 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
         include: options.include ?? (() => true),
         processFile: (input) => options.processFile(input),
         processDirectory:
-          options.processDirectory === undefined
+          processDirectory === undefined
             ? undefined
-            : (input) => options.processDirectory(input),
+            : (input) => processDirectory(input),
       })
     );
   }
@@ -133,11 +134,12 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
     this.ref = internals.ref;
     this.concurrency = internals.concurrency;
     this.include = internals.include;
+    const processDirectory = internals.processDirectory;
     this.processFileHandler = (input) => internals.processFile(input);
     this.processDirectoryHandler =
-      internals.processDirectory === undefined
+      processDirectory === undefined
         ? undefined
-        : (input) => internals.processDirectory(input);
+        : (input) => processDirectory(input);
   }
 
   get repo(): string {

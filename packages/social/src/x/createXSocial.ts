@@ -255,20 +255,21 @@ function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
     });
   }
 
+  const abortSignal = signal;
   return new Promise((resolve) => {
     const timer = setTimeout(onTimeout, ms);
     timer.unref();
 
-    signal.addEventListener("abort", onAbort, { once: true });
+    abortSignal.addEventListener("abort", onAbort, { once: true });
 
     function onTimeout(): void {
-      signal.removeEventListener("abort", onAbort);
+      abortSignal.removeEventListener("abort", onAbort);
       resolve(true);
     }
 
     function onAbort(): void {
       clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
+      abortSignal.removeEventListener("abort", onAbort);
       resolve(false);
     }
   });
