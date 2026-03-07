@@ -53,10 +53,8 @@ function buildBatch(
     throw new Error(`Batch ${batchId} was not found for this channel`);
   }
   return new MessageBatch(snapshot, {
-    postMessage: (
-      content: MessageContent,
-      options?: ChannelMessageOptions
-    ) => adapter.postMessage(content, options),
+    postMessage: (content: MessageContent, options?: ChannelMessageOptions) =>
+      adapter.postMessage(content, options),
     appendMessage: (id, message) => {
       batchStore.appendMessage(adapter.id, adapter.platform, id, {
         id: message.id,
