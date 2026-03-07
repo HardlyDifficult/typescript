@@ -1,6 +1,14 @@
 # @hardlydifficult/notion
 
-Notion API client for page creation, reading, search, markdown updates, and block conversion.
+Opinionated Notion client for markdown-first page workflows.
+
+The default path is intentionally narrow:
+
+- Create pages with a single draft object
+- Pass normal JavaScript values for most properties
+- Write content as markdown
+- Hand the client anything with `toMarkdown()` when you use a document builder
+- Reach for `notionProperty` only when Notion needs a more specific value shape
 
 ## Install
 
@@ -10,69 +18,60 @@ npm install @hardlydifficult/notion
 
 ## Setup
 
-### 1. Create a Notion integration
+1. Create a Notion integration at [notion.so/profile/integrations](https://www.notion.so/profile/integrations)
+2. Copy the internal integration token
+3. Share the relevant pages, databases, or data sources with that integration
 
-1. Go to [https://www.notion.so/profile/integrations](https://www.notion.so/profile/integrations) and click **New integration**
-2. Give it a name, select your workspace, and click **Save**
-3. Copy the **Internal Integration Token**
+## Recommended Usage
 
-### 2. Share the integration with the content you want to access
-
-For databases, pages, and data sources, open the item in Notion and connect the integration from the share or connection menu.
-
-### 3. Find the relevant IDs
-
-- Database IDs and page IDs are the 32-character hex strings in Notion URLs
-- Data source IDs are available from the Notion API when using newer multi-source databases
-
-## Features
-
-- Create pages in databases, data sources, pages, or the workspace root
-- Read page metadata and markdown content
-- Search pages by query
-- Build a recent activity timeline for page/comment updates by timestamp window
-- Update page markdown content or properties
-- Append blocks with automatic batching
-- Retrieve page blocks recursively
-- Convert markdown to Notion blocks and blocks back to markdown
-- Work with richer block types such as headings, lists, to-dos, quotes, toggles, callouts, code blocks, dividers, media blocks, bookmarks, embeds, equations, synced blocks, and table of contents blocks
-
-## Usage
-
-### Create a database page
+### Create a page
 
 ```typescript
-import { NotionClient } from "@hardlydifficult/notion";
+import { Document } from "@hardlydifficult/document-generator";
+import {
+  NotionClient,
+  notionParent,
+  notionProperty,
+} from "@hardlydifficult/notion";
 
-const notion = new NotionClient({ apiToken: process.env.NOTION_API_TOKEN! });
+const notion = new NotionClient({
+  apiToken: process.env.NOTION_API_TOKEN!,
+});
 
-const page = await notion.createPage(
-  "52aca6445f5c4e70b758324f99014fcd",
-  {
-    Name: { title: [{ type: "text", text: { content: "My page title" } }] },
-    Status: { status: { name: "Done" } },
-    Score: { number: 42 },
-    Notes: {
-      rich_text: [{ type: "text", text: { content: "Created from the SDK" } }],
-    },
+const doc = new Document()
+  .section("Goals", ["Lock scope", "Finalize launch date", "Ship cleanly"])
+  .section("Notes", "Keep the process boring and obvious.");
+
+const page = await notion.createPage({
+  parent: notionParent.database("52aca6445f5c4e70b758324f99014fcd"),
+  title: "Q2 Launch Plan",
+  properties: {
+    Status: notionProperty.status("In Progress"),
+    Score: 42,
+    Notes: "Created from the SDK",
+    Tags: ["launch", "marketing"],
+    DueDate: new Date("2026-03-20T00:00:00.000Z"),
   },
-  "## Details\n\nLong body text goes here."
-);
+  content: doc,
+});
 
 console.log(page.url);
 ```
 
-### Create a child page from markdown
+### Create a child page
+
+No placeholder properties object is needed.
 
 ```typescript
-const childPage = await notion.createPage(
-  { type: "page_id", page_id: "01234567-89ab-cdef-0123-456789abcdef" },
-  {},
+await notion.createPage(
+  notionParent.page("01234567-89ab-cdef-0123-456789abcdef"),
   "# Planning Notes\n\n- Draft agenda\n- Review action items"
 );
 ```
 
 ### Read a page
+
+`readPage()` tries markdown first and falls back to block traversal automatically when Notion does not support markdown retrieval for that page/version combination.
 
 ```typescript
 const page = await notion.readPage("01234567-89ab-cdef-0123-456789abcdef");
@@ -81,42 +80,17 @@ console.log(page.title);
 console.log(page.markdown);
 ```
 
-### Search pages
+### Append or replace page markdown
 
 ```typescript
-const results = await notion.searchPages("planning", { limit: 10 });
-
-for (const result of results) {
-  console.log(result.title, result.url);
-}
-```
-
-### Build an activity timeline (pages + comments)
-
-```typescript
-const activity = await notion.getActivityFeed({
-  since: new Date(Date.now() - 15 * 60 * 1000),
-  overlapMinutes: 1,
-  limit: 100,
-});
-
-for (const event of activity) {
-  console.log(event.kind, event.timestamp, event.eventId);
-}
-```
-
-### Append or replace page content
-
-```typescript
-await notion.updatePage(
+await notion.appendPageMarkdown(
   "01234567-89ab-cdef-0123-456789abcdef",
   "## Follow-up\n\nAdded from the API."
 );
 
-await notion.updatePage(
+await notion.replacePageMarkdown(
   "01234567-89ab-cdef-0123-456789abcdef",
-  "# Rewritten page\n\nFresh content.",
-  { replace: true }
+  doc
 );
 ```
 
@@ -124,105 +98,120 @@ await notion.updatePage(
 
 ```typescript
 await notion.updatePageProperties("01234567-89ab-cdef-0123-456789abcdef", {
-  Status: { status: { name: "In Progress" } },
-  Estimate: { number: 5 },
+  Status: notionProperty.status("Done"),
+  Estimate: 5,
+  Notes: "Ready for handoff",
+  Tags: ["launch", "closed"],
+  Published: true,
 });
 ```
 
-### Convert markdown and blocks
+## Plain Property Rules
+
+These are the defaults the client applies when you pass plain values:
+
+- `string` -> `rich_text`
+- `number` -> `number`
+- `boolean` -> `checkbox`
+- `Date` -> `date`
+- `string[]` -> `multi_select`
+
+Use `notionProperty` when you need a Notion-specific type:
+
+- `notionProperty.title("Page title")`
+- `notionProperty.select("Planned")`
+- `notionProperty.status("In Progress")`
+- `notionProperty.date("2026-03-20")`
+- `notionProperty.url("https://example.com")`
+- `notionProperty.email("team@example.com")`
+- `notionProperty.phoneNumber("+1-555-555-5555")`
+- `notionProperty.relation("page-id-1", "page-id-2")`
+- `notionProperty.people("user-id-1", "user-id-2")`
+
+Use `null` with `select`, `status`, `date`, `number`, `url`, `email`, or `phoneNumber` to clear those values.
+
+## Title Default
+
+When you call `createPage({ title: "..." })`, the client writes that title to a property named `Name`.
+
+If your database uses a different title property, set it explicitly:
 
 ```typescript
-import { blocksToMarkdown, markdownToBlocks } from "@hardlydifficult/notion";
-
-const blocks = markdownToBlocks("## Title\n\n- one\n- two");
-const markdown = blocksToMarkdown(blocks);
+await notion.createPage({
+  parent: notionParent.database("database-id"),
+  titleProperty: "Task",
+  title: "Ship launch plan",
+  content: "# Context\n\n...",
+});
 ```
+
+## Document Builder Integration
+
+Any value with a `toMarkdown(): string` method is accepted anywhere the client expects markdown.
+
+That means `@hardlydifficult/document-generator` documents work directly without extra adapters:
+
+```typescript
+await notion.appendPageMarkdown(pageId, doc);
+await notion.replacePageMarkdown(pageId, doc);
+await notion.createPage({
+  parent: notionParent.page(parentPageId),
+  title: "Daily Report",
+  content: doc,
+});
+```
+
+## Strong Defaults
+
+- Markdown-first reads and writes
+- Automatic markdown-read fallback to blocks when the failure is markdown-specific
+- Automatic 100-block batching for block appends and oversized page creation
+- Clean page creation without raw Notion transport payloads in client code
 
 ## API
 
 ### `new NotionClient({ apiToken, fetchImpl?, apiVersion? })`
 
-Creates a client authenticated with the given integration token. `apiVersion` defaults to `2022-06-28` for legacy compatibility, while markdown-specific operations automatically use `2025-09-03`.
+Creates an authenticated client. `apiVersion` defaults to `2022-06-28` for legacy compatibility. Markdown-specific operations automatically use `2025-09-03`.
 
-### `notion.createPage(parentOrDatabaseId, properties?, content?)`
+### `notion.createPage({ parent, title?, titleProperty?, properties?, content?, blocks? })`
 
-Creates a page in a database, data source, page, or workspace.
+Recommended page creation API.
 
-- Backward compatible: passing a string still treats it as a legacy `database_id`
-- `content` may be a markdown string or a list of blocks
-- Markdown content for modern parent types uses Notion's markdown endpoint directly
+- `title` writes to `Name` by default
+- `content` accepts markdown or any `toMarkdown()` object
+- `blocks` is the escape hatch when you need to send raw Notion blocks
 
-### `notion.createPageMarkdown(parent, markdown, properties?)`
+### `notion.createPage(parent, content)` and `notion.createPage(parent, properties, content?)`
 
-Creates a page with markdown content using Notion's markdown endpoint. Use this for `page_id`, `workspace`, or `data_source_id` parents.
+Compatibility overloads for shorter calls and existing clients.
 
 ### `notion.readPage(pageId, options?)`
 
-Reads a page and returns metadata plus markdown content. Supports block-based fallback when markdown retrieval is unavailable.
+Returns normalized page metadata plus markdown content.
 
-### `notion.getPageMeta(pageId)`
+### `notion.appendPageMarkdown(pageId, markdown, options?)`
 
-Returns page metadata including title, URL, timestamps, and properties.
+Appends markdown content to a page.
 
-### `notion.searchPages(query, options?)`
+### `notion.replacePageMarkdown(pageId, markdown, options?)`
 
-Searches for pages and returns normalized page metadata results.
-
-### `notion.listComments(blockId, options?)`
-
-Lists comments for a specific page/block and returns normalized metadata.
-
-### `notion.getActivityFeed(options?)`
-
-Returns a merged timeline of page edits and page-level comment updates between `since` and `until`, with optional overlap buffering.
-
-> Note: Notion does not currently provide a single global timestamp-filtered activity/audit feed in the standard content API. This helper composes `/search` and per-page `/comments` requests, then filters and sorts results client-side.
-
-### `notion.updatePage(pageId, content, options?)`
-
-Appends markdown content by default. With `{ replace: true }`, replaces existing content using Notion's markdown update endpoint.
-
-### `notion.updatePageMarkdown(pageId, request)`
-
-Low-level wrapper over the markdown update endpoint. Supports:
-
-- `insert_content`
-- `replace_content_range`
+Replaces existing page content. The client derives a content range automatically unless you pass one explicitly.
 
 ### `notion.updatePageProperties(pageId, properties)`
 
-Updates page properties via the standard page update endpoint.
+Updates one or more properties on a page. Plain JS values are normalized automatically.
 
-### `notion.archivePage(pageId, archived?)`
+### `notion.searchPages(query, options?)`
 
-Archives or unarchives a page.
+Searches for pages and returns normalized results.
 
-### `notion.appendBlocks(pageId, blocks)`
+### `notion.getActivityFeed(options?)`
 
-Appends blocks to an existing page, batching automatically in groups of 100.
+Builds a recent activity timeline from page edits and page-level comments.
 
-### `notion.retrieveBlockChildren(blockId, options?)`
+## Advanced Compatibility
 
-Retrieves block children, optionally recursively.
+The package still accepts raw Notion property payloads and still exposes lower-level methods like `createPageMarkdown()`, `updatePage()`, and `updatePageMarkdown()` for compatibility.
 
-### `notion.getPageBlocks(pageId, options?)`
-
-Convenience wrapper for retrieving a page's block tree.
-
-### `notion.markdownToBlocks(markdown)` and `markdownToBlocks(markdown)`
-
-Converts common markdown structures into Notion block payloads.
-
-### `notion.blocksToMarkdown(blocks)` and `blocksToMarkdown(blocks)`
-
-Converts supported Notion block payloads back to markdown.
-
-### `NotionClient.buildSectionBlocks(heading, body)`
-
-Static helper that returns a `heading_2` block followed by paragraph blocks for the body text, split into 2,000-character chunks.
-
-## Notes
-
-- The conversion helpers cover common writing and planning content well, but Notion's full content model is larger than the subset wrapped here.
-- Legacy database creation remains supported for compatibility.
-- Markdown create and update flows use the newer Notion API version automatically.
+Use them only when you intentionally need raw Notion API control. For normal client code, prefer the page-draft path above.

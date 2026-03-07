@@ -1,10 +1,11 @@
+import { safeJsonStringify } from "../serialize.js";
 import type { LogEntry, LoggerPlugin } from "../types.js";
 
 /** Formats a log entry into a human-readable string with timestamp, level, message, and optional context. */
 export function formatEntry(entry: LogEntry): string {
   const base = `[${entry.timestamp}] ${entry.level.toUpperCase()}: ${entry.message}`;
   if (entry.context && Object.keys(entry.context).length > 0) {
-    return `${base} ${JSON.stringify(entry.context)}`;
+    return `${base} ${safeJsonStringify(entry.context)}`;
   }
   return base;
 }

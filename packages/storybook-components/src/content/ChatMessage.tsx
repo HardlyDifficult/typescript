@@ -4,10 +4,12 @@ interface ChatMessageProps {
   content: string;
   timestamp: string;
   variant: ChatMessageVariant;
+  /** Override the current time for deterministic rendering (e.g. in tests/stories). */
+  now?: Date;
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+function formatRelativeTime(iso: string, now: Date = new Date()): string {
+  const diff = now.getTime() - new Date(iso).getTime();
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) {return "just now";}
   const minutes = Math.floor(seconds / 60);
@@ -34,7 +36,7 @@ const variantStyles: Record<ChatMessageVariant, { row: string; bubble: string; i
 };
 
 /** Chat message row. User messages align right with accent color; bot messages align left and muted. */
-export function ChatMessage({ content, timestamp, variant }: ChatMessageProps) {
+export function ChatMessage({ content, timestamp, variant, now }: ChatMessageProps) {
   const styles = variantStyles[variant];
 
   return (
@@ -53,7 +55,7 @@ export function ChatMessage({ content, timestamp, variant }: ChatMessageProps) {
         <span
           className={`text-[length:var(--text-xs)] text-[color:var(--color-text-muted)] font-[family-name:var(--font-sans)] ${variant === "user" ? "text-right" : "text-left"}`}
         >
-          {formatRelativeTime(timestamp)}
+          {formatRelativeTime(timestamp, now)}
         </span>
       </div>
     </div>

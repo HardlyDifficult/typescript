@@ -15,10 +15,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.2.15"
+    "@opencode-ai/sdk": "1.2.20"
   },
   "devDependencies": {
-    "@types/node": "25.3.2",
+    "@types/node": "25.3.5",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   },

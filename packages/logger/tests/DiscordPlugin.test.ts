@@ -87,6 +87,18 @@ describe("DiscordPlugin", () => {
       expect(msg).toContain("```");
     });
 
+    it("serializes errors and circular values in context", () => {
+      const error = new Error("boom");
+      const circular: Record<string, unknown> = { name: "loop" };
+      circular.self = circular;
+
+      plugin.log(makeEntry("error", "with rich context", { error, circular }));
+
+      const msg = sender.mock.calls[0][0] as string;
+      expect(msg).toContain('"message": "boom"');
+      expect(msg).toContain('"self": "[Circular]"');
+    });
+
     it("does not include code block when context is empty", () => {
       plugin.log(makeEntry("warn", "no context", {}));
       const msg = sender.mock.calls[0][0] as string;

@@ -29,7 +29,7 @@ npm install @hardlydifficult/logger
 
 ```typescript
 import { Pipeline } from "@hardlydifficult/workflow-engine";
-import { Logger } from "@hardlydifficult/logger";
+import { createLogger } from "@hardlydifficult/logger";
 
 // Define steps
 const steps = [
@@ -55,7 +55,7 @@ const pipeline = new Pipeline({
   key: "my-pipeline-123",
   steps,
   initialData: {},
-  logger: new Logger("info"),
+  logger: createLogger({ name: "pipeline" }),
   stateDirectory: "./pipeline-state",
 });
 

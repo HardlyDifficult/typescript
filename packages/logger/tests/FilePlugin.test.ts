@@ -82,6 +82,27 @@ describe("FilePlugin", () => {
     expect(parsed.context).toBeUndefined();
   });
 
+  it("serializes rich context values without throwing", () => {
+    const filePath = join(tempDir, "test.jsonl");
+    const plugin = new FilePlugin(filePath);
+    const error = new Error("boom");
+    const circular: Record<string, unknown> = { name: "loop" };
+    circular.self = circular;
+
+    plugin.log(
+      makeEntry("error", "serialize", {
+        error,
+        attempts: 2n,
+        circular,
+      })
+    );
+
+    const parsed = JSON.parse(readFileSync(filePath, "utf-8").trim());
+    expect(parsed.context.error.message).toBe("boom");
+    expect(parsed.context.attempts).toBe("2");
+    expect(parsed.context.circular.self).toBe("[Circular]");
+  });
+
   it("swallows write errors", () => {
     const filePath = join(tempDir, "test.jsonl");
     const plugin = new FilePlugin(filePath);

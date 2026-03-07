@@ -2,6 +2,14 @@ import * as fsPromises from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
+function getDefaultStateDirectory(): string {
+  const envDir = process.env.STATE_TRACKER_DIR;
+  if (envDir !== undefined && envDir !== "") {
+    return envDir;
+  }
+  return path.join(os.homedir(), ".app-state");
+}
+
 export type StateTrackerEventLevel = "debug" | "info" | "warn" | "error";
 
 export interface StateTrackerEvent {
@@ -10,14 +18,72 @@ export interface StateTrackerEvent {
   context?: Record<string, unknown>;
 }
 
-export interface StorageAdapter {
+export interface StateStorage {
   read(key: string): Promise<string | null>;
   write(key: string, value: string): Promise<void>;
+}
+
+export type StorageAdapter = StateStorage;
+
+export interface FileStateStorageOptions {
+  directory?: string;
+}
+
+interface FileStateStorage extends StateStorage {
+  readonly kind: "file";
+  getFilePath(key: string): string;
+}
+
+function isFileStateStorage(
+  storage: StateStorage
+): storage is FileStateStorage {
+  return (
+    (storage as { kind?: string }).kind === "file" &&
+    typeof (storage as { getFilePath?: unknown }).getFilePath === "function"
+  );
+}
+
+/** File-based storage for local development, scripts, and single-host services. */
+export function createFileStorage(
+  options: FileStateStorageOptions = {}
+): StateStorage {
+  const directory = options.directory ?? getDefaultStateDirectory();
+
+  const storage: FileStateStorage = {
+    kind: "file",
+    async read(key) {
+      const filePath = path.join(directory, `${key}.json`);
+      await fsPromises.mkdir(directory, { recursive: true });
+
+      try {
+        return await fsPromises.readFile(filePath, "utf-8");
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          return null;
+        }
+        throw err;
+      }
+    },
+    async write(key, value) {
+      const filePath = path.join(directory, `${key}.json`);
+      const tempFilePath = `${filePath}.tmp`;
+
+      await fsPromises.mkdir(directory, { recursive: true });
+      await fsPromises.writeFile(tempFilePath, value, "utf-8");
+      await fsPromises.rename(tempFilePath, filePath);
+    },
+    getFilePath(key) {
+      return path.join(directory, `${key}.json`);
+    },
+  };
+
+  return storage;
 }
 
 export interface StateTrackerOptions<T> {
   key: string;
   default: T;
+  storage?: StateStorage;
   stateDirectory?: string;
   storageAdapter?: StorageAdapter;
   autoSaveMs?: number;
@@ -34,6 +100,9 @@ export interface StateTrackerLoadOrDefaultOptions<T> {
   migrations?: readonly StateTrackerMigration<T>[];
 }
 
+export interface StateTrackerOpenOptions<T>
+  extends StateTrackerOptions<T>, StateTrackerLoadOrDefaultOptions<T> {}
+
 export type StateTrackerSaveMeta = Record<string, unknown>;
 
 /** Defines a state migration with type-safe legacy-to-current conversion. */
@@ -43,11 +112,11 @@ export function defineStateMigration<TCurrent, TLegacy>(
   return migration;
 }
 
-/** Atomic JSON state persistence with pluggable storage (file or custom adapter), auto-save, and graceful degradation to in-memory mode. */
+/** Atomic JSON state persistence with pluggable storage, auto-save, and graceful degradation to in-memory mode. */
 export class StateTracker<T> {
   private readonly storageKey: string;
-  private readonly storageAdapter?: StorageAdapter;
-  private readonly filePath?: string;
+  private readonly storage: StateStorage;
+  private readonly fileStorage?: FileStateStorage;
   private readonly defaultValue: T;
   private readonly autoSaveMs: number;
   private readonly onEvent?: (event: StateTrackerEvent) => void;
@@ -70,12 +139,28 @@ export class StateTracker<T> {
     return trimmed;
   }
 
-  private static getDefaultStateDirectory(): string {
-    const envDir = process.env.STATE_TRACKER_DIR;
-    if (envDir !== undefined && envDir !== "") {
-      return envDir;
+  private static resolveStorage<T>(
+    options: StateTrackerOptions<T>
+  ): StateStorage {
+    if (options.storage !== undefined) {
+      return options.storage;
     }
-    return path.join(os.homedir(), ".app-state");
+
+    if (options.storageAdapter !== undefined) {
+      return options.storageAdapter;
+    }
+
+    return createFileStorage({ directory: options.stateDirectory });
+  }
+
+  /** Create, load, and return a ready-to-use tracker in one call. */
+  static async open<T>(
+    options: StateTrackerOpenOptions<T>
+  ): Promise<StateTracker<T>> {
+    const { migrations, ...trackerOptions } = options;
+    const tracker = new StateTracker<T>(trackerOptions);
+    await tracker.loadAsync({ migrations });
+    return tracker;
   }
 
   constructor(options: StateTrackerOptions<T>) {
@@ -86,12 +171,9 @@ export class StateTracker<T> {
     this.autoSaveMs = options.autoSaveMs ?? 0;
     this.onEvent = options.onEvent;
 
-    if (options.storageAdapter !== undefined) {
-      this.storageAdapter = options.storageAdapter;
-    } else {
-      const stateDirectory =
-        options.stateDirectory ?? StateTracker.getDefaultStateDirectory();
-      this.filePath = path.join(stateDirectory, `${sanitizedKey}.json`);
+    this.storage = StateTracker.resolveStorage(options);
+    if (isFileStateStorage(this.storage)) {
+      this.fileStorage = this.storage;
     }
   }
 
@@ -103,6 +185,21 @@ export class StateTracker<T> {
   /** Whether storage is working */
   get isPersistent(): boolean {
     return this._storageAvailable;
+  }
+
+  private storageContext(): Record<string, unknown> {
+    if (this.fileStorage !== undefined) {
+      return {
+        key: this.storageKey,
+        storage: "file",
+        path: this.fileStorage.getFilePath(this.storageKey),
+      };
+    }
+
+    return {
+      key: this.storageKey,
+      storage: "custom",
+    };
   }
 
   private emit(
@@ -235,109 +332,81 @@ export class StateTracker<T> {
    */
   async loadAsync(
     options?: StateTrackerLoadOrDefaultOptions<T>
-  ): Promise<void> {
+  ): Promise<Readonly<T>> {
     if (this._loaded) {
-      return;
+      return this.state;
     }
 
     this._loaded = true;
 
     try {
-      let data: string | null;
+      const data = await this.storage.read(this.storageKey);
+      this._storageAvailable = true;
 
-      if (this.storageAdapter !== undefined) {
-        data = await this.storageAdapter.read(this.storageKey);
-        if (data === null) {
-          this._storageAvailable = true;
-          this.emit("info", "No existing state in adapter, using defaults", {
-            key: this.storageKey,
-          });
-        }
-      } else {
-        const dir = path.dirname(this.filePath!);
-        await fsPromises.mkdir(dir, { recursive: true });
-        try {
-          data = await fsPromises.readFile(this.filePath!, "utf-8");
-        } catch (err) {
-          if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-            data = null;
-            this._storageAvailable = true;
-            this.emit("info", "No existing state file, using defaults", {
-              path: this.filePath!,
-            });
-          } else {
-            throw err;
-          }
-        }
+      if (data === null) {
+        this.emit("info", "No persisted state found, using defaults", {
+          ...this.storageContext(),
+        });
+        return this.state;
       }
 
-      if (data !== null) {
-        const parsed: unknown = JSON.parse(data);
-        this._state = this.extractValue(parsed, options?.migrations);
-        this._storageAvailable = true;
-        if (this.storageAdapter !== undefined) {
-          this.emit("debug", "Loaded state from adapter", {
-            key: this.storageKey,
-          });
-        } else {
-          this.emit("debug", "Loaded state from disk", {
-            path: this.filePath!,
-          });
-        }
-      }
+      const parsed: unknown = JSON.parse(data);
+      this._state = this.extractValue(parsed, options?.migrations);
+      this.emit("debug", "Loaded state", {
+        ...this.storageContext(),
+      });
     } catch (err) {
       this._storageAvailable = false;
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.emit("warn", "Storage unavailable, running in-memory", {
         error: errorMessage,
-        ...(this.storageAdapter !== undefined
-          ? { key: this.storageKey }
-          : { path: this.filePath! }),
+        ...this.storageContext(),
       });
     }
+
+    return this.state;
   }
 
   /**
    * Async save. Cancels any pending auto-save before writing.
    */
-  async saveAsync(): Promise<void> {
+  async saveAsync(): Promise<Readonly<T>> {
     this.cancelPendingSave();
 
     if (!this._storageAvailable) {
-      return;
+      return this.state;
     }
 
     try {
       const json = JSON.stringify(this.buildEnvelope(this._state), null, 2);
-
-      if (this.storageAdapter !== undefined) {
-        await this.storageAdapter.write(this.storageKey, json);
-        this.emit("debug", "Saved state to adapter", { key: this.storageKey });
-      } else {
-        const tempFilePath = `${this.filePath!}.tmp`;
-        await fsPromises.writeFile(tempFilePath, json, "utf-8");
-        await fsPromises.rename(tempFilePath, this.filePath!);
-        this.emit("debug", "Saved state to disk", { path: this.filePath! });
-      }
+      await this.storage.write(this.storageKey, json);
+      this.emit("debug", "Saved state", {
+        ...this.storageContext(),
+      });
     } catch (err) {
+      this._storageAvailable = false;
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.emit("error", "Failed to save state", {
+      this.emit("error", "Failed to save state; persistence disabled", {
         error: errorMessage,
+        ...this.storageContext(),
       });
     }
+
+    return this.state;
   }
 
   /** Replace entire state, schedules auto-save. */
-  set(newState: T): void {
+  set(newState: T): Readonly<T> {
     this._state = structuredClone(newState);
     this.scheduleSave();
+    return this.state;
   }
 
   /**
    * Shallow merge for object types, schedules auto-save.
    * Throws at runtime if T is not an object.
    */
-  update(changes: Partial<T>): void {
+  update(changes: Partial<T>): Readonly<T> {
     if (
       this._state === null ||
       typeof this._state !== "object" ||
@@ -349,22 +418,40 @@ export class StateTracker<T> {
     }
     this._state = { ...this._state, ...changes };
     this.scheduleSave();
+    return this.state;
+  }
+
+  /**
+   * Mutate a cloned draft, then commit the result as the next state.
+   * Throws when the current state is a primitive.
+   */
+  mutate(mutator: (draft: T) => void): Readonly<T> {
+    if (this._state === null || typeof this._state !== "object") {
+      throw new Error(
+        "mutate() can only be used when state is an object or array"
+      );
+    }
+
+    const draft = structuredClone(this._state);
+    mutator(draft);
+    this._state = draft;
+    this.scheduleSave();
+    return this.state;
   }
 
   /** Restore to defaults, schedules auto-save. */
-  reset(): void {
+  reset(): Readonly<T> {
     this._state = structuredClone(this.defaultValue);
     this.scheduleSave();
+    return this.state;
   }
 
-  /** Returns the file path for file-based storage. Throws when using a storageAdapter. */
+  /** Returns the file path for file storage. Throws when using custom storage. */
   getFilePath(): string {
-    if (this.filePath === undefined) {
-      throw new Error(
-        "getFilePath() is not available when using a storageAdapter"
-      );
+    if (this.fileStorage === undefined) {
+      throw new Error("getFilePath() is only available with file storage");
     }
-    return this.filePath;
+    return this.fileStorage.getFilePath(this.storageKey);
   }
 
   private scheduleSave(): void {

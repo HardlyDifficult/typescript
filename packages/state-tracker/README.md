@@ -1,6 +1,12 @@
 # @hardlydifficult/state-tracker
 
-Persistent state management with atomic JSON persistence, debounced auto-save, typed migrations, and graceful fallback to in-memory mode.
+Typed persisted state with one opinionated workflow:
+
+1. Open a tracker.
+2. Mutate business state.
+3. Let storage persistence happen in the background.
+
+Storage is first-class. File storage is built in, but Redis and future backends use the same `StateStorage` interface.
 
 ## Installation
 
@@ -8,89 +14,117 @@ Persistent state management with atomic JSON persistence, debounced auto-save, t
 npm install @hardlydifficult/state-tracker
 ```
 
-## Quick Start
+## Recommended Usage
+
+Prefer `StateTracker.open()` plus `mutate()`. That gives clients a loaded tracker, a single storage abstraction, and business-focused updates without object spread boilerplate.
 
 ```typescript
-import { StateTracker } from "@hardlydifficult/state-tracker";
+import { StateTracker, createFileStorage } from "@hardlydifficult/state-tracker";
 
-const tracker = new StateTracker({
-  key: "my-app",
-  default: { cursor: 0, done: [] as string[] },
-});
-
-tracker.set({ cursor: 5, done: ["task1", "task2"] });
-console.log(tracker.state); // { cursor: 5, done: ['task1', 'task2'] }
-```
-
-## Core Features
-
-### State Persistence
-
-Sync and async loading and saving with atomic writes using temp file + rename.
-
-```typescript
-import { StateTracker } from "@hardlydifficult/state-tracker";
-
-const tracker = new StateTracker({
-  key: "config",
-  default: { theme: "dark" },
-});
-
-// Sync operations
-tracker.save({ theme: "light" });
-const value = tracker.load(); // => { theme: "light" }
-
-// Async operations
-await tracker.loadAsync(); // loads from disk
-tracker.set({ theme: "system" });
-await tracker.saveAsync(); // atomic async save
-```
-
-### State Access and Mutation
-
-Access cached state and mutate with `set`, `update`, and `reset`.
-
-```typescript
-const tracker = new StateTracker({
-  key: "settings",
-  default: { volume: 50, muted: false },
-});
-
-tracker.set({ volume: 75, muted: true });
-tracker.update({ volume: 60 }); // shallow merge => { volume: 60, muted: true }
-tracker.reset(); // => { volume: 50, muted: false }
-```
-
-### Auto-Save with Debounce
-
-Configure auto-save with a debounce delay to batch rapid updates.
-
-```typescript
-const tracker = new StateTracker({
-  key: "editor",
-  default: { content: "" },
+const tracker = await StateTracker.open({
+  key: "sync-jobs",
+  default: { cursor: 0, processedIds: [] as string[] },
+  storage: createFileStorage({ directory: ".state" }),
   autoSaveMs: 1000,
 });
 
-tracker.set({ content: "Draft 1" });
-// File saved after 1 second of inactivity
+tracker.mutate((state) => {
+  state.cursor = 42;
+  state.processedIds.push("job_123");
+});
 
-tracker.set({ content: "Draft 2" }); // resets debounce timer
+console.log(tracker.state);
 ```
 
-### Typed Migrations
+Why this is the preferred path:
 
-Support legacy state formats with type-safe migration definitions.
+- `open()` gives you a ready tracker in one call.
+- `storage` keeps file storage optional instead of assumed.
+- `mutate()` keeps update logic about the domain, not object copying.
+- `autoSaveMs` removes most manual persistence calls.
+
+## Storage
+
+### File Storage
+
+Use `createFileStorage()` when local disk is the right backing store.
 
 ```typescript
-interface LegacyState { offset: number; completedIds: string[] }
-interface CurrentState { cursor: number; done: string[] }
+import { StateTracker, createFileStorage } from "@hardlydifficult/state-tracker";
 
-const migration = defineStateMigration<CurrentState, LegacyState>({
+const tracker = await StateTracker.open({
+  key: "worker-state",
+  default: { lastRunAt: "" },
+  storage: createFileStorage({ directory: "/var/app/state" }),
+  autoSaveMs: 1000,
+});
+
+tracker.mutate((state) => {
+  state.lastRunAt = new Date().toISOString();
+});
+```
+
+### Redis Or Any Custom Backend
+
+Any backend that can read and write a JSON string by key can implement `StateStorage`.
+
+```typescript
+import {
+  StateTracker,
+  type StateStorage,
+} from "@hardlydifficult/state-tracker";
+
+const storage: StateStorage = {
+  async read(key) {
+    return redis.get(`app:state:${key}`);
+  },
+  async write(key, value) {
+    await redis.set(`app:state:${key}`, value);
+  },
+};
+
+const tracker = await StateTracker.open({
+  key: "billing",
+  default: { lastInvoiceId: 0 },
+  storage,
+  autoSaveMs: 1000,
+});
+
+tracker.mutate((state) => {
+  state.lastInvoiceId += 1;
+});
+```
+
+That same shape works for Redis, DynamoDB, Postgres, KV stores, or any future backend.
+
+## Migrations
+
+Use migrations when an old persisted payload needs to be reshaped into the current state.
+
+```typescript
+import {
+  StateTracker,
+  defineStateMigration,
+  createFileStorage,
+} from "@hardlydifficult/state-tracker";
+
+interface LegacyState {
+  offset: number;
+  completedIds: string[];
+}
+
+const migration = defineStateMigration<
+  { cursor: number; done: string[] },
+  LegacyState
+>({
   name: "sync-state-v0",
   isLegacy(input): input is LegacyState {
-    return input !== null && typeof input === "object" &&
-      typeof (input as Record<string, unknown>).offset === "number";
+    return (
+      input !== null &&
+      typeof input === "object" &&
+      typeof (input as Record<string, unknown>).offset === "number" &&
+      Array.isArray((input as Record<string, unknown>).completedIds)
+    );
   },
   migrate(legacy) {
     return {
@@ -100,155 +134,66 @@ const migration = defineStateMigration<CurrentState, LegacyState>({
   },
 });
 
-const tracker = new StateTracker({
-  key: "legacy-store",
-  default: { cursor: 0, done: [] },
+const tracker = await StateTracker.open({
+  key: "sync-state",
+  default: { cursor: 0, done: [] as string[] },
+  storage: createFileStorage({ directory: ".state" }),
+  migrations: [migration],
 });
-
-tracker.loadOrDefault({ migrations: [migration] });
 ```
 
-### Event Logging
+## API
 
-Subscribe to debug, info, warn, and error events.
+### Main Entry Points
 
-```typescript
-const tracker = new StateTracker({
-  key: "logger",
-  default: {},
-  onEvent: (event) => {
-    console.log(`[${event.level}] ${event.message}`, event.context);
-  },
-});
+| API | Purpose |
+| --- | --- |
+| `StateTracker.open(options)` | Preferred way to create and load a tracker |
+| `new StateTracker(options)` | Low-level constructor when you want manual lifecycle control |
+| `createFileStorage(options?)` | Built-in file storage implementation |
+| `type StateStorage` | Minimal interface for Redis and other backends |
 
-await tracker.loadAsync();
-// Example output: [info] No existing state file, using defaults { path: "/path/to/logger.json" }
-```
+### StateTracker
 
-### Storage Availability
+| API | Notes |
+| --- | --- |
+| `await tracker.loadAsync(options?)` | Loads persisted state and returns the current snapshot |
+| `await tracker.saveAsync()` | Persists current state and returns the current snapshot |
+| `tracker.mutate((draft) => { ... })` | Preferred for object and array state |
+| `tracker.set(nextState)` | Replace the full state |
+| `tracker.reset()` | Restore defaults |
+| `tracker.update(partial)` | Legacy shallow merge for flat object state only |
+| `tracker.state` | Defensive cloned snapshot of current state |
+| `tracker.isPersistent` | `true` only when the configured storage is currently usable |
+| `tracker.getFilePath()` | Available only when using file storage |
 
-Check `isPersistent` to determine whether disk operations succeeded.
+## Persistence Format
 
-```typescript
-const tracker = new StateTracker({
-  key: "status",
-  default: {},
-});
-
-await tracker.loadAsync();
-console.log(tracker.isPersistent); // true if file operations working
-```
-
-### Envelope Format
-
-State files use a JSON envelope format:
+The stored payload is wrapped in a small envelope:
 
 ```json
 {
-  "value": <your state>,
-  "lastUpdated": "2024-01-01T00:00:00.000Z",
-  "meta": { "source": "script", "reason": "manual-run" }
+  "value": { "cursor": 42 },
+  "lastUpdated": "2026-03-07T12:00:00.000Z"
 }
 ```
 
-The `meta` field is optional and can include arbitrary metadata.
-
-### PersistentStore Compatibility
-
-The `StateTracker` v2 gracefully loads legacy state stored in the raw PersistentStore format (plain JSON without envelope). It automatically migrates to the v2 envelope format on first save.
-
-```typescript
-// Legacy format (no envelope):
-fs.writeFileSync(filePath, JSON.stringify({ count: 42 }));
-
-const tracker = new StateTracker({
-  key: "legacy",
-  default: { count: 0, name: "default" }
-});
-
-await tracker.loadAsync(); // { count: 42, name: "default" }
-await tracker.saveAsync(); // Saves envelope format
-```
-
-## API Reference
-
-### StateTracker Class
-
-| Method | Description |
-|--------|-----------|
-| `load(): T` | Sync load from disk, falls back to defaults |
-| `loadOrDefault(options?: StateTrackerLoadOrDefaultOptions<T>): T` | Sync load with optional migrations |
-| `save(value: T): void` | Sync save with value only |
-| `saveWithMeta(value: T, meta?: StateTrackerSaveMeta): void` | Sync save with optional metadata |
-| `loadAsync(): Promise<void>` | Async load with graceful fallback |
-| `saveAsync(): Promise<void>` | Atomic async save |
-| `set(newState: T): void` | Replace state, schedules auto-save |
-| `update(changes: Partial<T>): void` | Shallow merge (object state only) |
-| `reset(): void` | Restore defaults, schedules auto-save |
-| `get state(): Readonly<T>` | Current in-memory state |
-| `get isPersistent(): boolean` | Whether disk operations are available |
-| `getFilePath(): string` | Full path to state file |
-
-### Options
-
-| Option | Type | Default |
-|--------|------|---------|
-| `key` | `string` | — |
-| `default` | `T` | — |
-| `stateDirectory` | `string` | `STATE_TRACKER_DIR` env or `~/.app-state` |
-| `autoSaveMs` | `number` | `0` (disabled) |
-| `onEvent` | `(event: StateTrackerEvent) => void` | — |
-
-### Event Types
-
-```typescript
-type StateTrackerEventLevel = "debug" | "info" | "warn" | "error";
-
-interface StateTrackerEvent {
-  level: StateTrackerEventLevel;
-  message: string;
-  context?: Record<string, unknown>;
-}
-
-interface StateTrackerSaveMeta {
-  [key: string]: unknown;
-}
-```
-
-### Migration Type
-
-```typescript
-interface StateTrackerMigration<TCurrent, TLegacy = unknown> {
-  readonly name?: string;
-  isLegacy(input: unknown): input is TLegacy;
-  migrate(legacy: TLegacy): TCurrent;
-}
-```
-
-### defineStateMigration
-
-Helper for typed migration definitions.
-
-```typescript
-const migration = defineStateMigration<{ count: number }, { offset: number }>({
-  name: "v1-to-v2",
-  isLegacy(input): input is { offset: number } {
-    return typeof (input as any).offset === "number";
-  },
-  migrate(legacy) {
-    return { count: legacy.offset };
-  },
-});
-```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `STATE_TRACKER_DIR` | Override default state directory (`~/.app-state`) |
+Raw legacy JSON is still read for backward compatibility and gets rewritten into the envelope on the next save.
 
 ## Error Handling
 
-- Invalid `key` values (empty, invalid characters) throw `Error` during construction
-- Corrupted JSON files or unreadable files fall back to defaults instead of throwing
-- Write failures emit `error` events (not thrown) and disable persistence (`isPersistent = false`)
+- Invalid keys throw during construction.
+- Read failures fall back to defaults and keep the tracker in memory-only mode.
+- Write failures emit an `error` event and disable persistence for that tracker instance.
+
+## Compatibility
+
+`storage` is the preferred option for new code.
+
+`stateDirectory` and `storageAdapter` are still supported for existing callers, but they are compatibility shims around the storage-first API.
+
+## Environment Variable
+
+| Variable | Purpose |
+| --- | --- |
+| `STATE_TRACKER_DIR` | Default directory used by `createFileStorage()` when no directory is provided |

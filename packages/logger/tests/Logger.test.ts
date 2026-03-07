@@ -82,6 +82,60 @@ describe("Logger", () => {
       const entry: LogEntry = plugin.log.mock.calls[0][0];
       expect(entry.context).toBeUndefined();
     });
+
+    it("normalizes errors, bigint values, and circular references", () => {
+      const error = new Error("boom");
+      const circular: Record<string, unknown> = { name: "loop" };
+      circular.self = circular;
+
+      logger.error("failed", {
+        error,
+        attempts: 2n,
+        circular,
+      });
+
+      const entry: LogEntry = plugin.log.mock.calls[0][0];
+      expect(entry.context).toMatchObject({
+        attempts: "2",
+        circular: {
+          name: "loop",
+          self: "[Circular]",
+        },
+        error: {
+          message: "boom",
+          name: "Error",
+        },
+      });
+    });
+  });
+
+  describe("withContext", () => {
+    it("merges bound context with per-call context", () => {
+      const scoped = logger.withContext({
+        service: "billing",
+        region: "us-east-1",
+      });
+      scoped.info("charged", { orderId: "ord-123" });
+
+      const entry: LogEntry = plugin.log.mock.calls[0][0];
+      expect(entry.context).toEqual({
+        service: "billing",
+        region: "us-east-1",
+        orderId: "ord-123",
+      });
+    });
+
+    it("does not mutate the parent logger context", () => {
+      const scoped = logger.withContext({ service: "billing" });
+      scoped.info("scoped");
+      logger.info("plain");
+
+      const scopedEntry: LogEntry = plugin.log.mock.calls[0][0];
+      const plainEntry: LogEntry = plugin.log.mock.calls[1][0];
+
+      expect(scopedEntry.context).toEqual({ service: "billing" });
+      expect(plainEntry.context).toBeUndefined();
+    });
   });
 
   describe("multiple plugins", () => {

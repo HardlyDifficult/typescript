@@ -47,6 +47,27 @@ describe("formatEntry", () => {
     };
     expect(formatEntry(entry)).toContain("DEBUG:");
   });
+
+  it("safely formats non-JSON-native values", () => {
+    const error = new Error("boom");
+    const circular: Record<string, unknown> = { name: "loop" };
+    circular.self = circular;
+    const entry: LogEntry = {
+      level: "error",
+      message: "serialization test",
+      timestamp: "2025-01-15T10:30:00.000Z",
+      context: {
+        error,
+        attempts: 3n,
+        circular,
+      },
+    };
+
+    const result = formatEntry(entry);
+    expect(result).toContain('"message":"boom"');
+    expect(result).toContain('"attempts":"3"');
+    expect(result).toContain('"self":"[Circular]"');
+  });
 });
 
 describe("ConsolePlugin", () => {

@@ -4,6 +4,8 @@ import {
   NotionClient,
   blocksToMarkdown,
   markdownToBlocks,
+  notionParent,
+  notionProperty,
   selectionFromMarkdown,
 } from "../src/index.js";
 
@@ -15,7 +17,54 @@ function makeJsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+function makeMarkdownDoc(markdown: string) {
+  return {
+    toMarkdown: () => markdown,
+  };
+}
+
 describe("NotionClient", () => {
+  describe("builders", () => {
+    it("builds clean parent and property payloads", () => {
+      const createdAt = new Date("2026-03-04T12:00:00.000Z");
+
+      expect(notionParent.database("db-123")).toEqual({
+        type: "database_id",
+        database_id: "db-123",
+      });
+      expect(notionParent.page("page-123")).toEqual({
+        type: "page_id",
+        page_id: "page-123",
+      });
+      expect(notionParent.workspace()).toEqual({
+        type: "workspace",
+        workspace: true,
+      });
+
+      expect(notionProperty.title("My page")).toEqual({
+        title: [{ type: "text", text: { content: "My page" } }],
+      });
+      expect(notionProperty.status("Done")).toEqual({
+        status: { name: "Done" },
+      });
+      expect(notionProperty.date(createdAt)).toEqual({
+        date: { start: "2026-03-04T12:00:00.000Z" },
+      });
+      expect(notionProperty.multiSelect("alpha", "beta")).toEqual({
+        multi_select: [{ name: "alpha" }, { name: "beta" }],
+      });
+    });
+
+    it("rejects blank required builder inputs", () => {
+      expect(() => notionParent.database("   ")).toThrow(
+        "databaseId is required"
+      );
+      expect(() => notionProperty.status("   ")).toThrow(
+        "status name is required"
+      );
+    });
+  });
+
   describe("constructor", () => {
     it("throws when apiToken is empty", () => {
       expect(() => new NotionClient({ apiToken: "" })).toThrow(
@@ -29,6 +78,88 @@ describe("NotionClient", () => {
   });
 
   describe("createPage", () => {
+    it("accepts a page draft with plain property values and markdown renderables", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          id: "page-draft",
+          url: "https://notion.so/page-draft",
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      await client.createPage({
+        parent: notionParent.page("parent-123"),
+        title: "Q2 Launch Plan",
+        properties: {
+          Status: notionProperty.status("In Progress"),
+          Score: 42,
+          Notes: "Created from the SDK",
+          Tags: ["launch", "marketing"],
+          DueDate: new Date("2026-03-20T00:00:00.000Z"),
+        },
+        content: makeMarkdownDoc("# Goals\n\n- Lock scope\n- Launch cleanly"),
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.notion.com/v1/pages",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Notion-Version": "2025-09-03",
+          }),
+          body: JSON.stringify({
+            parent: { page_id: "parent-123" },
+            properties: {
+              Name: {
+                title: [{ type: "text", text: { content: "Q2 Launch Plan" } }],
+              },
+              Status: { status: { name: "In Progress" } },
+              Score: { number: 42 },
+              Notes: {
+                rich_text: [
+                  { type: "text", text: { content: "Created from the SDK" } },
+                ],
+              },
+              Tags: {
+                multi_select: [{ name: "launch" }, { name: "marketing" }],
+              },
+              DueDate: {
+                date: { start: "2026-03-20T00:00:00.000Z" },
+              },
+            },
+            markdown: "# Goals\n\n- Lock scope\n- Launch cleanly",
+          }),
+        })
+      );
+    });
+
+    it("accepts content as the second argument when no properties are needed", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          id: "page-content-only",
+          url: "https://notion.so/page-content-only",
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      await client.createPage(
+        notionParent.page("parent-123"),
+        "# Planning Notes\n\n- Draft agenda"
+      );
+
+      expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toEqual({
+        parent: { page_id: "parent-123" },
+        properties: {},
+        markdown: "# Planning Notes\n\n- Draft agenda",
+      });
+    });
+
     it("sends correct request and returns page ID and URL for a legacy database parent", async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         makeJsonResponse({
@@ -41,10 +172,10 @@ describe("NotionClient", () => {
         fetchImpl: mockFetch as typeof fetch,
       });
 
-      const page = await client.createPage("db-123", {
-        Name: { title: [{ type: "text", text: { content: "my-source" } }] },
-        Status: { select: { name: "completed" } },
-        Date: { date: { start: "2026-03-04T00:00:00Z" } },
+      const page = await client.createPage(notionParent.database("db-123"), {
+        Name: notionProperty.title("my-source"),
+        Status: notionProperty.select("completed"),
+        Date: notionProperty.date("2026-03-04T00:00:00Z"),
       });
 
       expect(page.id).toBe("page-abc");
@@ -75,7 +206,7 @@ describe("NotionClient", () => {
       });
 
       await client.createPage(
-        { type: "page_id", page_id: "parent-123" },
+        notionParent.page("parent-123"),
         {},
         "# Title\n\nBody"
       );
@@ -127,9 +258,9 @@ describe("NotionClient", () => {
       }));
 
       await client.createPage(
-        "db-123",
+        notionParent.database("db-123"),
         {
-          Name: { title: [{ type: "text", text: { content: "my-source" } }] },
+          Name: notionProperty.title("my-source"),
         },
         bodyBlocks
       );
@@ -165,10 +296,24 @@ describe("NotionClient", () => {
       });
 
       await expect(
-        client.createPage("bad-db", {
-          Name: { title: [{ type: "text", text: { content: "src" } }] },
+        client.createPage(notionParent.database("bad-db"), {
+          Name: notionProperty.title("src"),
         })
       ).rejects.toThrow("Notion API error 400");
+    });
+
+    it("rejects page drafts that set the title twice", async () => {
+      const client = new NotionClient({ apiToken: "test-token" });
+
+      await expect(
+        client.createPage({
+          parent: notionParent.database("db-123"),
+          title: "Launch Plan",
+          properties: {
+            Name: notionProperty.title("Duplicate title"),
+          },
+        })
+      ).rejects.toThrow("Notion page draft sets title twice");
     });
   });
 
@@ -248,7 +393,7 @@ describe("NotionClient", () => {
       });
     });
 
-    it("falls back to block retrieval when markdown retrieval fails", async () => {
+    it("falls back to block retrieval by default when markdown retrieval is unsupported", async () => {
       const mockFetch = vi
         .fn()
         .mockResolvedValueOnce(
@@ -291,15 +436,28 @@ describe("NotionClient", () => {
         fetchImpl: mockFetch as typeof fetch,
       });
 
-      const page = await client.readPage("page-123", {
-        fallbackToBlocks: true,
-      });
+      const page = await client.readPage("page-123");
 
       expect(page.title).toBe("Fallback page");
       expect(page.markdown).toContain("Fallback body");
     });
 
-    it("updates page content in replace mode by deriving a content range", async () => {
+    it("does not hide non-markdown read failures behind block fallback", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(makeJsonResponse({ message: "Unauthorized" }, 401));
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      await expect(client.readPage("page-123")).rejects.toThrow(
+        "Notion API error 401"
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("replaces page content in replace mode by deriving a content range", async () => {
       const mockFetch = vi
         .fn()
         .mockResolvedValueOnce(
@@ -331,9 +489,10 @@ describe("NotionClient", () => {
         fetchImpl: mockFetch as typeof fetch,
       });
 
-      await client.updatePage("page-123", "# New title\n\nReplacement body", {
-        replace: true,
-      });
+      await client.replacePageMarkdown(
+        "page-123",
+        "# New title\n\nReplacement body"
+      );
 
       const patchCall = mockFetch.mock.calls[1];
       expect(patchCall?.[0]).toBe(
@@ -346,6 +505,62 @@ describe("NotionClient", () => {
           content_range: selectionFromMarkdown(
             "# Replace me\n\nThis is the body we want to fully replace."
           ),
+        },
+      });
+    });
+
+    it("appends page markdown without requiring update flags", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "page_markdown",
+          id: "page-123",
+          markdown: "## Follow-up\n\nAdded from the API.",
+          truncated: false,
+          unknown_block_ids: [],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      await client.appendPageMarkdown(
+        "page-123",
+        "## Follow-up\n\nAdded from the API."
+      );
+
+      expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toEqual({
+        type: "insert_content",
+        insert_content: {
+          content: "## Follow-up\n\nAdded from the API.",
+        },
+      });
+    });
+
+    it("accepts markdown renderables when appending page markdown", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "page_markdown",
+          id: "page-123",
+          markdown: "## Follow-up\n\nAdded from a document builder.",
+          truncated: false,
+          unknown_block_ids: [],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      await client.appendPageMarkdown(
+        "page-123",
+        makeMarkdownDoc("## Follow-up\n\nAdded from a document builder.")
+      );
+
+      expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toEqual({
+        type: "insert_content",
+        insert_content: {
+          content: "## Follow-up\n\nAdded from a document builder.",
         },
       });
     });
@@ -364,8 +579,10 @@ describe("NotionClient", () => {
       });
 
       await client.updatePageProperties("page-123", {
-        Status: { status: { name: "Done" } },
-        Score: { number: 42 },
+        Status: notionProperty.status("Done"),
+        Score: 42,
+        Notes: "Clear owner handoff",
+        Tags: ["ops", "launch"],
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -376,6 +593,12 @@ describe("NotionClient", () => {
             properties: {
               Status: { status: { name: "Done" } },
               Score: { number: 42 },
+              Notes: {
+                rich_text: [
+                  { type: "text", text: { content: "Clear owner handoff" } },
+                ],
+              },
+              Tags: { multi_select: [{ name: "ops" }, { name: "launch" }] },
             },
           }),
         })

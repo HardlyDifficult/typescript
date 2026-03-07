@@ -88,6 +88,101 @@ export type NotionPropertyValue =
   | NotionRelationProperty
   | NotionPeopleProperty;
 
+export interface NotionDateInput {
+  start: string | Date;
+  end?: string | Date | null;
+  timeZone?: string | null;
+}
+
+export interface NotionTitleInput {
+  type: "title";
+  value: string;
+}
+
+export interface NotionTextInput {
+  type: "text";
+  value: string | null;
+}
+
+export interface NotionSelectInput {
+  type: "select";
+  value: string | null;
+}
+
+export interface NotionStatusInput {
+  type: "status";
+  value: string | null;
+}
+
+export interface NotionDatePropertyInput {
+  type: "date";
+  value: string | Date | NotionDateInput | null;
+}
+
+export interface NotionNumberInput {
+  type: "number";
+  value: number | null;
+}
+
+export interface NotionCheckboxInput {
+  type: "checkbox";
+  value: boolean;
+}
+
+export interface NotionUrlInput {
+  type: "url";
+  value: string | null;
+}
+
+export interface NotionEmailInput {
+  type: "email";
+  value: string | null;
+}
+
+export interface NotionPhoneNumberInput {
+  type: "phone_number";
+  value: string | null;
+}
+
+export interface NotionMultiSelectInput {
+  type: "multi_select";
+  value: string[];
+}
+
+export interface NotionRelationInput {
+  type: "relation";
+  value: string[];
+}
+
+export interface NotionPeopleInput {
+  type: "people";
+  value: string[];
+}
+
+export type NotionStructuredPropertyInput =
+  | NotionTitleInput
+  | NotionTextInput
+  | NotionSelectInput
+  | NotionStatusInput
+  | NotionDatePropertyInput
+  | NotionNumberInput
+  | NotionCheckboxInput
+  | NotionUrlInput
+  | NotionEmailInput
+  | NotionPhoneNumberInput
+  | NotionMultiSelectInput
+  | NotionRelationInput
+  | NotionPeopleInput;
+
+export type NotionPropertyInput =
+  | NotionPropertyValue
+  | NotionStructuredPropertyInput
+  | string
+  | number
+  | boolean
+  | string[]
+  | Date;
+
 export interface NotionEmojiIcon {
   type: "emoji";
   emoji: string;

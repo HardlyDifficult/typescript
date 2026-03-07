@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { MILLISECONDS_PER_DAY } from "@hardlydifficult/date-time";
 
+import { safeJsonStringify } from "./serialize.js";
 import type { SessionEntry, SessionEntryType, SessionInfo } from "./types.js";
 
 export interface SessionTrackerOptions {
@@ -61,7 +62,7 @@ export class SessionTracker {
       timestamp: new Date().toISOString(),
       data: entry.data,
     };
-    const line = `${JSON.stringify(fullEntry)}\n`;
+    const line = `${safeJsonStringify(fullEntry)}\n`;
     try {
       appendFileSync(this.filePath(sessionId), line);
     } catch {
@@ -80,7 +81,13 @@ export class SessionTracker {
       return content
         .split("\n")
         .filter((line) => line.length > 0)
-        .map((line) => JSON.parse(line) as SessionEntry);
+        .flatMap((line) => {
+          try {
+            return [JSON.parse(line) as SessionEntry];
+          } catch {
+            return [];
+          }
+        });
     } catch {
       return [];
     }
@@ -102,24 +109,28 @@ export class SessionTracker {
         try {
           const stat = statSync(fp);
           const content = readFileSync(fp, "utf-8");
-          const lines = content.split("\n").filter((l) => l.length > 0);
+          const entries = content
+            .split("\n")
+            .filter((line) => line.length > 0)
+            .flatMap((line) => {
+              try {
+                return [JSON.parse(line) as SessionEntry];
+              } catch {
+                return [];
+              }
+            });
 
           let startedAt = stat.birthtime.toISOString();
-          if (lines.length > 0) {
-            try {
-              const first = JSON.parse(lines[0]) as SessionEntry;
-              startedAt = first.timestamp;
-            } catch {
-              /* use birthtime */
-            }
+          if (entries.length > 0) {
+            startedAt = entries[0].timestamp;
           }
 
           sessions.push({
-            sessionId: file.slice(0, -JSONL_EXTENSION.length),
+            sessionId: decodeSessionId(file.slice(0, -JSONL_EXTENSION.length)),
             sizeBytes: stat.size,
             startedAt,
             lastModifiedAt: stat.mtime.toISOString(),
-            entryCount: lines.length,
+            entryCount: entries.length,
           });
         } catch {
           /* skip unreadable files */
@@ -186,6 +197,21 @@ export class SessionTracker {
   }
 
   private filePath(sessionId: string): string {
-    return join(this.directory, `${sessionId}${JSONL_EXTENSION}`);
+    return join(
+      this.directory,
+      `${encodeSessionId(sessionId)}${JSONL_EXTENSION}`
+    );
+  }
+}
+
+function encodeSessionId(sessionId: string): string {
+  return encodeURIComponent(sessionId);
+}
+
+function decodeSessionId(encodedSessionId: string): string {
+  try {
+    return decodeURIComponent(encodedSessionId);
+  } catch {
+    return encodedSessionId;
   }
 }
