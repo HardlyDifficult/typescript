@@ -156,7 +156,9 @@ describe("NotionClient", () => {
     it("throws on non-2xx response", async () => {
       const mockFetch = vi
         .fn()
-        .mockResolvedValue(makeJsonResponse({ message: "Invalid database ID" }, 400));
+        .mockResolvedValue(
+          makeJsonResponse({ message: "Invalid database ID" }, 400)
+        );
       const client = new NotionClient({
         apiToken: "test-token",
         fetchImpl: mockFetch as typeof fetch,
@@ -172,7 +174,9 @@ describe("NotionClient", () => {
 
   describe("appendBlocks", () => {
     it("batches append requests in groups of 100 blocks", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ results: [] }));
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(makeJsonResponse({ results: [] }));
       const client = new NotionClient({
         apiToken: "test-token",
         fetchImpl: mockFetch as typeof fetch,
@@ -274,7 +278,9 @@ describe("NotionClient", () => {
                 id: "block-1",
                 type: "paragraph",
                 paragraph: {
-                  rich_text: [{ type: "text", text: { content: "Fallback body" } }],
+                  rich_text: [
+                    { type: "text", text: { content: "Fallback body" } },
+                  ],
                 },
               },
             ],
@@ -285,7 +291,9 @@ describe("NotionClient", () => {
         fetchImpl: mockFetch as typeof fetch,
       });
 
-      const page = await client.readPage("page-123", { fallbackToBlocks: true });
+      const page = await client.readPage("page-123", {
+        fallbackToBlocks: true,
+      });
 
       expect(page.title).toBe("Fallback page");
       expect(page.markdown).toContain("Fallback body");
@@ -426,7 +434,10 @@ describe("NotionClient", () => {
 
       const results = await client.searchPages("page", { limit: 2 });
 
-      expect(results.map((result) => result.title)).toEqual(["First", "Second"]);
+      expect(results.map((result) => result.title)).toEqual([
+        "First",
+        "Second",
+      ]);
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
@@ -462,7 +473,9 @@ describe("NotionClient", () => {
                 id: "para-1",
                 type: "paragraph",
                 paragraph: {
-                  rich_text: [{ type: "text", text: { content: "Nested body" } }],
+                  rich_text: [
+                    { type: "text", text: { content: "Nested body" } },
+                  ],
                 },
               },
             ],
@@ -479,10 +492,311 @@ describe("NotionClient", () => {
 
       expect(blocks).toHaveLength(1);
       expect(blocks[0]?.type).toBe("toggle");
-      expect(blocks[0]?.type === "toggle" && blocks[0].toggle.children).toHaveLength(1);
+      expect(
+        blocks[0]?.type === "toggle" && blocks[0].toggle.children
+      ).toHaveLength(1);
     });
   });
 
+  describe("getRecentlyModified", () => {
+    it("returns only pages edited within the time window", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 30 * 60 * 1000).toISOString(); // 30 min ago
+      const oldTime = new Date(now - 120 * 60 * 1000).toISOString(); // 2 hours ago
+
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              object: "page",
+              id: "recent-page",
+              url: "https://notion.so/recent-page",
+              last_edited_time: recentTime,
+              created_time: recentTime,
+              properties: {
+                Name: {
+                  type: "title",
+                  title: [{ type: "text", text: { content: "Recent" } }],
+                },
+              },
+            },
+            {
+              object: "page",
+              id: "old-page",
+              url: "https://notion.so/old-page",
+              last_edited_time: oldTime,
+              created_time: oldTime,
+              properties: {
+                Name: {
+                  type: "title",
+                  title: [{ type: "text", text: { content: "Old" } }],
+                },
+              },
+            },
+          ],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified({
+        sinceMinutesAgo: 60,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.title).toBe("Recent");
+
+      // Verify sort was requested
+      const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+      expect(body.sort).toEqual({
+        direction: "descending",
+        timestamp: "last_edited_time",
+      });
+    });
+
+    it("respects the limit option", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 5 * 60 * 1000).toISOString();
+
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: Array.from({ length: 10 }, (_, i) => ({
+            object: "page",
+            id: `page-${String(i)}`,
+            url: `https://notion.so/page-${String(i)}`,
+            last_edited_time: recentTime,
+            created_time: recentTime,
+            properties: {
+              Name: {
+                type: "title",
+                title: [
+                  { type: "text", text: { content: `Page ${String(i)}` } },
+                ],
+              },
+            },
+          })),
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified({ limit: 3 });
+
+      expect(results).toHaveLength(3);
+    });
+
+    it("uses defaults of 60 minutes and limit 50", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: [],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getRecentlyModified();
+
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("activity feed", () => {
+    it("lists comments for a block with pagination", async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            object: "list",
+            has_more: true,
+            next_cursor: "cursor-2",
+            results: [
+              {
+                object: "comment",
+                id: "comment-1",
+                parent: { type: "page_id", page_id: "page-1" },
+                discussion_id: "discussion-1",
+                created_time: "2026-03-07T00:00:00.000Z",
+                last_edited_time: "2026-03-07T00:05:00.000Z",
+              },
+            ],
+          })
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            object: "list",
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                object: "comment",
+                id: "comment-2",
+                parent: { type: "page_id", page_id: "page-1" },
+                created_time: "2026-03-07T00:10:00.000Z",
+                last_edited_time: "2026-03-07T00:11:00.000Z",
+              },
+            ],
+          })
+        );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const comments = await client.listComments("page-1");
+
+      expect(comments).toHaveLength(2);
+      expect(comments[0]).toMatchObject({
+        id: "comment-1",
+        pageId: "page-1",
+        discussionId: "discussion-1",
+      });
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
+        "https://api.notion.com/v1/comments?block_id=page-1"
+      );
+      expect(mockFetch.mock.calls[1]?.[0]).toBe(
+        "https://api.notion.com/v1/comments?block_id=page-1&start_cursor=cursor-2"
+      );
+    });
+
+    it("builds a page and comment activity timeline with overlap", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 40 * 1000).toISOString();
+      const overlapTime = new Date(now - 75 * 1000).toISOString();
+      const oldTime = new Date(now - 10 * 60 * 1000).toISOString();
+
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            object: "list",
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                object: "page",
+                id: "page-1",
+                url: "https://notion.so/page-1",
+                last_edited_time: recentTime,
+                created_time: recentTime,
+                properties: {
+                  Name: {
+                    type: "title",
+                    title: [{ type: "text", text: { content: "Recent page" } }],
+                  },
+                },
+              },
+              {
+                object: "page",
+                id: "page-2",
+                url: "https://notion.so/page-2",
+                last_edited_time: oldTime,
+                created_time: oldTime,
+                properties: {
+                  Name: {
+                    type: "title",
+                    title: [{ type: "text", text: { content: "Old page" } }],
+                  },
+                },
+              },
+            ],
+          })
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            object: "list",
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                object: "comment",
+                id: "comment-overlap",
+                parent: { type: "page_id", page_id: "page-1" },
+                created_time: overlapTime,
+                last_edited_time: overlapTime,
+              },
+              {
+                object: "comment",
+                id: "comment-old",
+                parent: { type: "page_id", page_id: "page-1" },
+                created_time: oldTime,
+                last_edited_time: oldTime,
+              },
+            ],
+          })
+        );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getActivityFeed({
+        since: new Date(now - 30 * 1000),
+        overlapMinutes: 1,
+      });
+
+      expect(results).toHaveLength(2);
+      expect(results[0]?.kind).toBe("page");
+      expect(results[1]).toMatchObject({
+        kind: "comment",
+        comment: { id: "comment-overlap" },
+      });
+    });
+
+    it("can return only page events", async () => {
+      const now = Date.now();
+      const recentTime = new Date(now - 20 * 1000).toISOString();
+
+      const mockFetch = vi.fn().mockResolvedValue(
+        makeJsonResponse({
+          object: "list",
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              object: "page",
+              id: "page-1",
+              url: "https://notion.so/page-1",
+              last_edited_time: recentTime,
+              created_time: recentTime,
+              properties: {
+                Name: {
+                  type: "title",
+                  title: [{ type: "text", text: { content: "Recent page" } }],
+                },
+              },
+            },
+          ],
+        })
+      );
+      const client = new NotionClient({
+        apiToken: "test-token",
+        fetchImpl: mockFetch as typeof fetch,
+      });
+
+      const results = await client.getActivityFeed({
+        includeComments: false,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.kind).toBe("page");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
   describe("markdown conversion", () => {
     it("parses markdown into richer block types", () => {
       const blocks = markdownToBlocks(
