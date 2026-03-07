@@ -85,7 +85,9 @@ export async function listComments(
       }
     }
 
-    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+    cursor = response.has_more
+      ? (response.next_cursor ?? undefined)
+      : undefined;
   } while (cursor !== undefined);
 
   return comments;
@@ -198,7 +200,8 @@ export async function getActivityFeed(
   }
 
   events.sort((a, b) => {
-    const delta = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    const delta =
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     if (delta !== 0) {
       return delta;
     }

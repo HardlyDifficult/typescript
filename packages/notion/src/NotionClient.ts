@@ -21,10 +21,7 @@ import {
   getRecentlyModified as getRecentlyModifiedImpl,
   searchPages as searchPagesImpl,
 } from "./client/pageSearch.js";
-import {
-  buildSectionBlocks,
-  LEGACY_NOTION_VERSION,
-} from "./client/shared.js";
+import { buildSectionBlocks, LEGACY_NOTION_VERSION } from "./client/shared.js";
 import { blocksToMarkdown, markdownToBlocks } from "./markdown.js";
 import type {
   GetActivityFeedOptions,
@@ -139,7 +136,8 @@ export class NotionClient extends BaseNotionClient {
     return readPageImpl(
       (method, path, body, opts) => this.request(method, path, body, opts),
       (targetPageId) => this.getPageMeta(targetPageId),
-      (targetPageId, blockOptions) => this.getPageBlocks(targetPageId, blockOptions),
+      (targetPageId, blockOptions) =>
+        this.getPageBlocks(targetPageId, blockOptions),
       (blocks) => this.blocksToMarkdown(blocks),
       pageId,
       options

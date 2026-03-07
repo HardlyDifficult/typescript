@@ -43,7 +43,8 @@ export async function createPage(
     );
   }
 
-  const bodyBlocks = typeof content === "string" ? markdownToBlocks(content) : content;
+  const bodyBlocks =
+    typeof content === "string" ? markdownToBlocks(content) : content;
   const firstBatch = bodyBlocks?.slice(0, MAX_BLOCKS_PER_REQUEST);
 
   const payload: CreatePageRequest = {
