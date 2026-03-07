@@ -24,19 +24,3 @@ export const Default: Story = {
   },
 };
 
-export const WithContext: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    onSend: (content) => { console.log("Send:", content); },
-    contextLabel: "workflow: fix-ci-pipeline",
-  },
-};
-
-export const Disabled: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    onSend: (content) => { console.log("Send:", content); },
-    disabled: true,
-    placeholder: "Connecting...",
-  },
-};

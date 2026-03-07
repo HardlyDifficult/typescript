@@ -29,22 +29,3 @@ export const Default: Story = {
   },
 };
 
-export const ManyTabs: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => {
-    const [value, setValue] = useState("overview");
-    return (
-      <Tabs
-        tabs={[
-          { value: "overview", label: "Overview" },
-          { value: "activity", label: "Activity" },
-          { value: "settings", label: "Settings" },
-          { value: "logs", label: "Logs" },
-          { value: "metrics", label: "Metrics" },
-        ]}
-        value={value}
-        onChange={setValue}
-      />
-    );
-  },
-};

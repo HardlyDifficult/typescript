@@ -35,19 +35,6 @@ export const Default: Story = {
   },
 };
 
-export const Selectable: Story = {
-  parameters: { controls: { disable: true } },
-  args: {
-    columns: [
-      { key: "name", header: "Name" },
-      { key: "role", header: "Role" },
-    ],
-    rows: sampleRows,
-    rowKey: "id",
-    selectable: true,
-  },
-};
-
 export const Empty: Story = {
   parameters: { controls: { disable: true } },
   args: {

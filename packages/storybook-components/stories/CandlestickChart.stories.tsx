@@ -109,23 +109,3 @@ export const WithOrders: Story = {
   ),
 };
 
-export const ZoomedIn: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <CandlestickChart
-      candles={candles200}
-      visibleCandles={30}
-      height={300}
-    />
-  ),
-};
-
-export const FewCandles: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <CandlestickChart
-      candles={candles15}
-      height={300}
-    />
-  ),
-};

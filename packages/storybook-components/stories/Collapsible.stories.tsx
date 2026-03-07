@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Collapsible } from "../src/index.js";
 import { Text } from "../src/index.js";
-import { Button } from "../src/index.js";
 
 const meta: Meta<typeof Collapsible> = {
   title: "Navigation/Collapsible",
@@ -37,14 +36,3 @@ export const DefaultOpen: Story = {
   ),
 };
 
-export const WithActions: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <Collapsible
-      title="Deployment Log"
-      actions={<Button variant="ghost" size="sm">Clear</Button>}
-    >
-      <Text>Log entries would appear here.</Text>
-    </Collapsible>
-  ),
-};

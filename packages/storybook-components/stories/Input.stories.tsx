@@ -38,20 +38,6 @@ export const Default: Story = {
   },
 };
 
-export const Sizes: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => {
-    const [sm, setSm] = useState("");
-    const [md, setMd] = useState("");
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "320px" }}>
-        <Input value={sm} onChange={setSm} placeholder="Small input" size="sm" />
-        <Input value={md} onChange={setMd} placeholder="Medium input" size="md" />
-      </div>
-    );
-  },
-};
-
 export const Multiline: Story = {
   parameters: { controls: { disable: true } },
   render: () => {
@@ -64,30 +50,3 @@ export const Multiline: Story = {
   },
 };
 
-export const Mono: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => {
-    const [value, setValue] = useState("const x = 42;");
-    return (
-      <div style={{ maxWidth: "320px" }}>
-        <Input value={value} onChange={setValue} placeholder="Enter code..." mono />
-      </div>
-    );
-  },
-};
-
-export const Types: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => {
-    const [text, setText] = useState("");
-    const [pass, setPass] = useState("");
-    const [email, setEmail] = useState("");
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "320px" }}>
-        <Input value={text} onChange={setText} placeholder="Text input" type="text" />
-        <Input value={pass} onChange={setPass} placeholder="Password input" type="password" />
-        <Input value={email} onChange={setEmail} placeholder="Email input" type="email" />
-      </div>
-    );
-  },
-};

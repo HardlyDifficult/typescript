@@ -16,10 +16,6 @@ export default meta;
 
 type Story = StoryObj<typeof Alert>;
 
-export const Default: Story = {
-  args: { variant: "error", children: "Build failed. Check the logs for details." },
-};
-
 export const Variants: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

@@ -26,16 +26,6 @@ export const Default: Story = {
   args: { variant: "success", children: "Merged", size: "md", dot: false, pulse: false },
 };
 
-export const DotWithText: Story = {
-  parameters: { controls: { disable: true } },
-  args: { variant: "error", children: "Live", dot: true, pulse: true, size: "md" },
-};
-
-export const DotOnly: Story = {
-  parameters: { controls: { disable: true } },
-  args: { variant: "success", dot: true, pulse: false, size: "md" },
-};
-
 export const AllVariants: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
