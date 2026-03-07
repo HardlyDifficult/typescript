@@ -1,4 +1,7 @@
-function serializeError(error: Error, seen: WeakSet<object>): Record<string, unknown> | string {
+function serializeError(
+  error: Error,
+  seen: WeakSet<object>
+): Record<string, unknown> | string {
   if (seen.has(error)) {
     return "[Circular]";
   }
@@ -104,7 +107,10 @@ function serializeSet(
 
   seen.add(value);
   try {
-    return Array.from(value.values(), (item) => serializeValue(item, seen) ?? null);
+    return Array.from(
+      value.values(),
+      (item) => serializeValue(item, seen) ?? null
+    );
   } finally {
     seen.delete(value);
   }

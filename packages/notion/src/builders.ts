@@ -145,13 +145,15 @@ export const notionProperty = {
 
   select(name: string | null): NotionSelectProperty {
     return {
-      select: name === null ? null : { name: requireValue(name, "select name") },
+      select:
+        name === null ? null : { name: requireValue(name, "select name") },
     };
   },
 
   status(name: string | null): NotionStatusProperty {
     return {
-      status: name === null ? null : { name: requireValue(name, "status name") },
+      status:
+        name === null ? null : { name: requireValue(name, "status name") },
     };
   },
 

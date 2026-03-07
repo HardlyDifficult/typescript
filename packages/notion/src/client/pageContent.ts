@@ -22,8 +22,9 @@ function shouldFallbackToBlocks(error: unknown): boolean {
 
   const body = error.body.toLowerCase();
   return (
-    body.includes("unsupported version") && body.includes("markdown")
-  ) || body.includes("content_format");
+    (body.includes("unsupported version") && body.includes("markdown")) ||
+    body.includes("content_format")
+  );
 }
 
 /** Retrieves normalized metadata for a page ID. */

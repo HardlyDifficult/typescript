@@ -111,7 +111,10 @@ describe("Logger", () => {
 
   describe("withContext", () => {
     it("merges bound context with per-call context", () => {
-      const scoped = logger.withContext({ service: "billing", region: "us-east-1" });
+      const scoped = logger.withContext({
+        service: "billing",
+        region: "us-east-1",
+      });
       scoped.info("charged", { orderId: "ord-123" });
 
       const entry: LogEntry = plugin.log.mock.calls[0][0];

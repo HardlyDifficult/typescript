@@ -313,7 +313,7 @@ describe("NotionClient", () => {
             Name: notionProperty.title("Duplicate title"),
           },
         })
-      ).rejects.toThrow('Notion page draft sets title twice');
+      ).rejects.toThrow("Notion page draft sets title twice");
     });
   });
 
@@ -443,9 +443,9 @@ describe("NotionClient", () => {
     });
 
     it("does not hide non-markdown read failures behind block fallback", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        makeJsonResponse({ message: "Unauthorized" }, 401)
-      );
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(makeJsonResponse({ message: "Unauthorized" }, 401));
       const client = new NotionClient({
         apiToken: "test-token",
         fetchImpl: mockFetch as typeof fetch,

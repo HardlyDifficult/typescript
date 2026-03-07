@@ -34,7 +34,9 @@ interface FileStateStorage extends StateStorage {
   getFilePath(key: string): string;
 }
 
-function isFileStateStorage(storage: StateStorage): storage is FileStateStorage {
+function isFileStateStorage(
+  storage: StateStorage
+): storage is FileStateStorage {
   return (
     (storage as { kind?: string }).kind === "file" &&
     typeof (storage as { getFilePath?: unknown }).getFilePath === "function"
@@ -99,8 +101,7 @@ export interface StateTrackerLoadOrDefaultOptions<T> {
 }
 
 export interface StateTrackerOpenOptions<T>
-  extends StateTrackerOptions<T>,
-    StateTrackerLoadOrDefaultOptions<T> {}
+  extends StateTrackerOptions<T>, StateTrackerLoadOrDefaultOptions<T> {}
 
 export type StateTrackerSaveMeta = Record<string, unknown>;
 
@@ -138,7 +139,9 @@ export class StateTracker<T> {
     return trimmed;
   }
 
-  private static resolveStorage<T>(options: StateTrackerOptions<T>): StateStorage {
+  private static resolveStorage<T>(
+    options: StateTrackerOptions<T>
+  ): StateStorage {
     if (options.storage !== undefined) {
       return options.storage;
     }

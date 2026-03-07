@@ -92,11 +92,16 @@ export class NotionClient extends BaseNotionClient {
   ): Promise<NotionPageResponse>;
   async createPage(
     parentOrDraft: NotionPageDraft | NotionParent | string,
-    propertiesOrContent: Record<string, NotionPropertyInput> | NotionPageBody = {},
+    propertiesOrContent:
+      | Record<string, NotionPropertyInput>
+      | NotionPageBody = {},
     content?: NotionPageBody
   ): Promise<NotionPageResponse> {
     if (isPageDraft(parentOrDraft)) {
-      if (parentOrDraft.content !== undefined && parentOrDraft.blocks !== undefined) {
+      if (
+        parentOrDraft.content !== undefined &&
+        parentOrDraft.blocks !== undefined
+      ) {
         throw new Error(
           "Provide either content or blocks when creating a Notion page, not both"
         );

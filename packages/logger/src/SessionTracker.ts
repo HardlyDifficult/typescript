@@ -197,7 +197,10 @@ export class SessionTracker {
   }
 
   private filePath(sessionId: string): string {
-    return join(this.directory, `${encodeSessionId(sessionId)}${JSONL_EXTENSION}`);
+    return join(
+      this.directory,
+      `${encodeSessionId(sessionId)}${JSONL_EXTENSION}`
+    );
   }
 }
 

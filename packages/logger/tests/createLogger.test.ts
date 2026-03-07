@@ -74,7 +74,9 @@ describe("createLogger", () => {
     logger.warn("disk nearly full", { freePercent: 8 });
 
     expect(existsSync(filePath)).toBe(true);
-    const entry = JSON.parse(readFileSync(filePath, "utf-8").trim()) as LogEntry;
+    const entry = JSON.parse(
+      readFileSync(filePath, "utf-8").trim()
+    ) as LogEntry;
     expect(entry.level).toBe("warn");
     expect(entry.context).toEqual({ freePercent: 8 });
   });
@@ -87,6 +89,8 @@ describe("createLogger", () => {
     logger.error("database unavailable");
 
     expect(sender).toHaveBeenCalledOnce();
-    expect(sender.mock.calls[0]![0]).toContain("**ERROR**: database unavailable");
+    expect(sender.mock.calls[0]![0]).toContain(
+      "**ERROR**: database unavailable"
+    );
   });
 });

@@ -243,8 +243,7 @@ export type UpdatePageMarkdownRequest =
   | ReplaceContentRangeMarkdownRequest;
 
 export interface UpdatePageOptions
-  extends AppendPageMarkdownOptions,
-    ReplacePageMarkdownOptions {
+  extends AppendPageMarkdownOptions, ReplacePageMarkdownOptions {
   replace?: boolean;
 }
 
