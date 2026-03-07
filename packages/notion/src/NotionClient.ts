@@ -1,27 +1,35 @@
+import {
+  getActivityFeed as getActivityFeedImpl,
+  listComments as listCommentsImpl,
+} from "./client/activityFeed.js";
 import { BaseNotionClient } from "./client/BaseNotionClient.js";
 import { fetchBlockChildren } from "./client/blockChildren.js";
 import {
-  buildSectionBlocks,
-  LEGACY_NOTION_VERSION,
-  MARKDOWN_NOTION_VERSION,
-  MAX_BLOCKS_PER_REQUEST,
-  normalizeParent,
-  toPageMeta,
-} from "./client/shared.js";
-import type {
-  NotionSearchResponse,
-  RawMarkdownPageResponse,
-} from "./client/types.js";
+  getPageMeta as getPageMetaImpl,
+  readPage as readPageImpl,
+  updatePage as updatePageImpl,
+  updatePageMarkdown as updatePageMarkdownImpl,
+} from "./client/pageContent.js";
 import {
-  blocksToMarkdown,
-  markdownToBlocks,
-  selectionFromMarkdown,
-} from "./markdown.js";
+  appendBlocks as appendBlocksImpl,
+  archivePage as archivePageImpl,
+  createPage as createPageImpl,
+  createPageMarkdown as createPageMarkdownImpl,
+  updatePageProperties as updatePagePropertiesImpl,
+} from "./client/pageCrud.js";
+import {
+  getRecentlyModified as getRecentlyModifiedImpl,
+  searchPages as searchPagesImpl,
+} from "./client/pageSearch.js";
+import { buildSectionBlocks, LEGACY_NOTION_VERSION } from "./client/shared.js";
+import { blocksToMarkdown, markdownToBlocks } from "./markdown.js";
 import type {
-  AppendBlocksRequest,
-  CreatePageRequest,
+  GetActivityFeedOptions,
+  ListCommentsOptions,
+  NotionActivityEvent,
   NotionApiVersion,
   NotionBlock,
+  NotionCommentMeta,
   NotionPageContent,
   NotionPageMarkdownResponse,
   NotionPageMeta,
@@ -64,53 +72,14 @@ export class NotionClient extends BaseNotionClient {
     properties: Record<string, NotionPropertyValue> = {},
     content?: NotionBlock[] | string
   ): Promise<NotionPageResponse> {
-    const normalized = normalizeParent(parentOrDatabaseId);
-    const { parent } = normalized;
-
-    if (
-      typeof content === "string" &&
-      typeof parentOrDatabaseId !== "string" &&
-      parentOrDatabaseId.type !== "database_id"
-    ) {
-      return this.request<NotionPageResponse>(
-        "POST",
-        "/pages",
-        {
-          parent,
-          properties,
-          markdown: content,
-        } satisfies CreatePageRequest,
-        { notionVersion: MARKDOWN_NOTION_VERSION }
-      );
-    }
-
-    const bodyBlocks =
-      typeof content === "string" ? this.markdownToBlocks(content) : content;
-    const firstBatch = bodyBlocks?.slice(0, MAX_BLOCKS_PER_REQUEST);
-
-    const payload: CreatePageRequest = {
-      parent,
+    return createPageImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      (markdown) => this.markdownToBlocks(markdown),
+      (pageId, blocks) => this.appendBlocks(pageId, blocks),
+      parentOrDatabaseId,
       properties,
-      ...(firstBatch !== undefined && firstBatch.length > 0
-        ? { children: firstBatch }
-        : {}),
-    };
-
-    const page = await this.request<NotionPageResponse>(
-      "POST",
-      "/pages",
-      payload,
-      {
-        notionVersion: normalized.notionVersion,
-      }
+      content
     );
-
-    const remaining = bodyBlocks?.slice(MAX_BLOCKS_PER_REQUEST) ?? [];
-    if (remaining.length > 0) {
-      await this.appendBlocks(page.id, remaining);
-    }
-
-    return page;
   }
 
   async createPageMarkdown(
@@ -118,30 +87,21 @@ export class NotionClient extends BaseNotionClient {
     markdown: string,
     properties: Record<string, NotionPropertyValue> = {}
   ): Promise<NotionPageResponse> {
-    const normalized = normalizeParent(parent);
-    return this.request<NotionPageResponse>(
-      "POST",
-      "/pages",
-      {
-        parent: normalized.parent,
-        properties,
-        markdown,
-      } satisfies CreatePageRequest,
-      { notionVersion: MARKDOWN_NOTION_VERSION }
+    return createPageMarkdownImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      parent,
+      markdown,
+      properties
     );
   }
 
   /** Appends blocks to an existing page, batching to respect the 100-block limit. */
   async appendBlocks(pageId: string, blocks: NotionBlock[]): Promise<void> {
-    for (let i = 0; i < blocks.length; i += MAX_BLOCKS_PER_REQUEST) {
-      const batch = blocks.slice(i, i + MAX_BLOCKS_PER_REQUEST);
-      const payload: AppendBlocksRequest = { children: batch };
-      await this.request<unknown>(
-        "PATCH",
-        `/blocks/${pageId}/children`,
-        payload
-      );
-    }
+    return appendBlocksImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      pageId,
+      blocks
+    );
   }
 
   async retrieveBlockChildren(
@@ -163,101 +123,36 @@ export class NotionClient extends BaseNotionClient {
   }
 
   async getPageMeta(pageId: string): Promise<NotionPageMeta> {
-    const page = await this.request<NotionPageResponse>(
-      "GET",
-      `/pages/${pageId}`,
-      undefined,
-      {
-        notionVersion: MARKDOWN_NOTION_VERSION,
-      }
+    return getPageMetaImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      pageId
     );
-    return toPageMeta(page);
   }
 
   async readPage(
     pageId: string,
     options?: ReadPageOptions
   ): Promise<NotionPageContent> {
-    try {
-      const page = await this.request<RawMarkdownPageResponse>(
-        "GET",
-        `/pages/${pageId}`,
-        undefined,
-        {
-          notionVersion: MARKDOWN_NOTION_VERSION,
-          query: {
-            content_format: "markdown",
-            include_transcript: options?.includeTranscript,
-          },
-        }
-      );
-      const meta = toPageMeta(page);
-      return {
-        ...meta,
-        markdown: page.markdown ?? page.content ?? "",
-        truncated: page.truncated ?? false,
-        unknownBlockIds: page.unknown_block_ids ?? [],
-      };
-    } catch (error) {
-      if (options?.fallbackToBlocks !== true) {
-        throw error;
-      }
-
-      const [meta, blocks] = await Promise.all([
-        this.getPageMeta(pageId),
-        this.getPageBlocks(pageId, { recursive: true }),
-      ]);
-
-      return {
-        ...meta,
-        markdown: this.blocksToMarkdown(blocks),
-        truncated: false,
-        unknownBlockIds: [],
-      };
-    }
+    return readPageImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      (targetPageId) => this.getPageMeta(targetPageId),
+      (targetPageId, blockOptions) =>
+        this.getPageBlocks(targetPageId, blockOptions),
+      (blocks) => this.blocksToMarkdown(blocks),
+      pageId,
+      options
+    );
   }
 
   async searchPages(
     query: string,
     options?: SearchPagesOptions
   ): Promise<NotionPageSearchResult[]> {
-    const results: NotionPageSearchResult[] = [];
-    let cursor = options?.startCursor;
-    const pageSize = options?.pageSize;
-    const limit = options?.limit;
-
-    do {
-      const response = await this.request<NotionSearchResponse>(
-        "POST",
-        "/search",
-        {
-          query,
-          filter: options?.filter ?? { property: "object", value: "page" },
-          sort: options?.sort,
-          start_cursor: cursor,
-          page_size: pageSize,
-        },
-        {
-          notionVersion: MARKDOWN_NOTION_VERSION,
-        }
-      );
-
-      for (const page of response.results) {
-        results.push({
-          ...toPageMeta(page),
-          object: page.object,
-        });
-        if (limit !== undefined && results.length >= limit) {
-          return results.slice(0, limit);
-        }
-      }
-
-      cursor = response.has_more
-        ? (response.next_cursor ?? undefined)
-        : undefined;
-    } while (cursor !== undefined);
-
-    return results;
+    return searchPagesImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      query,
+      options
+    );
   }
 
   async updatePage(
@@ -265,67 +160,34 @@ export class NotionClient extends BaseNotionClient {
     content: string,
     options?: UpdatePageOptions
   ): Promise<NotionPageMarkdownResponse> {
-    if (options?.replace === true) {
-      const contentRange =
-        options.contentRange ??
-        selectionFromMarkdown((await this.readPage(pageId)).markdown);
-      if (contentRange === undefined) {
-        return this.updatePageMarkdown(pageId, {
-          type: "insert_content",
-          insert_content: { content, after: options.after },
-        });
-      }
-      return this.updatePageMarkdown(pageId, {
-        type: "replace_content_range",
-        replace_content_range: {
-          content,
-          content_range: contentRange,
-          allow_deleting_content: options.allowDeletingContent,
-        },
-      });
-    }
-
-    return this.updatePageMarkdown(pageId, {
-      type: "insert_content",
-      insert_content: {
-        content,
-        after: options?.after,
-      },
-    });
+    return updatePageImpl(
+      (targetPageId) => this.readPage(targetPageId),
+      (targetPageId, request) => this.updatePageMarkdown(targetPageId, request),
+      pageId,
+      content,
+      options
+    );
   }
 
   async updatePageMarkdown(
     pageId: string,
     request: UpdatePageMarkdownRequest
   ): Promise<NotionPageMarkdownResponse> {
-    const response = await this.request<
-      NotionPageMarkdownResponse | RawMarkdownPageResponse
-    >("PATCH", `/pages/${pageId}/markdown`, request, {
-      notionVersion: MARKDOWN_NOTION_VERSION,
-    });
-
-    if ("object" in response && response.object === "page_markdown") {
-      return response;
-    }
-
-    return {
-      object: "page_markdown",
-      id: response.id,
-      markdown: response.markdown ?? response.content ?? "",
-      truncated: response.truncated ?? false,
-      unknown_block_ids: response.unknown_block_ids ?? [],
-    };
+    return updatePageMarkdownImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      pageId,
+      request
+    );
   }
 
   async updatePageProperties(
     pageId: string,
     properties: Record<string, NotionPropertyValue>
   ): Promise<NotionPageResponse> {
-    return this.request<NotionPageResponse>(
-      "PATCH",
-      `/pages/${pageId}`,
-      { properties },
-      { notionVersion: MARKDOWN_NOTION_VERSION }
+    return updatePagePropertiesImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      pageId,
+      properties
     );
   }
 
@@ -333,11 +195,39 @@ export class NotionClient extends BaseNotionClient {
     pageId: string,
     archived = true
   ): Promise<NotionPageResponse> {
-    return this.request<NotionPageResponse>(
-      "PATCH",
-      `/pages/${pageId}`,
-      { archived },
-      { notionVersion: MARKDOWN_NOTION_VERSION }
+    return archivePageImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      pageId,
+      archived
+    );
+  }
+
+  /** Lists comments attached to a specific block or page ID. */
+  async listComments(
+    blockId: string,
+    options?: ListCommentsOptions
+  ): Promise<NotionCommentMeta[]> {
+    return listCommentsImpl(
+      (method, path, body, opts) => this.request(method, path, body, opts),
+      blockId,
+      options
+    );
+  }
+
+  /**
+   * Returns an activity timeline of recently changed pages and comments.
+   *
+   * Notion does not currently expose a global timestamp-filtered activity feed,
+   * so this method composes search + per-page comment listing and applies
+   * client-side time filtering with an optional overlap window.
+   */
+  async getActivityFeed(
+    options?: GetActivityFeedOptions
+  ): Promise<NotionActivityEvent[]> {
+    return getActivityFeedImpl(
+      (query, searchOptions) => this.searchPages(query, searchOptions),
+      (blockId, commentOptions) => this.listComments(blockId, commentOptions),
+      options
     );
   }
 
@@ -346,31 +236,10 @@ export class NotionClient extends BaseNotionClient {
     sinceMinutesAgo?: number;
     limit?: number;
   }): Promise<NotionPageSearchResult[]> {
-    const sinceMinutes = options?.sinceMinutesAgo ?? 60;
-    const limit = options?.limit ?? 50;
-
-    // Add 1-minute buffer because Notion rounds last_edited_time to the minute
-    const cutoff = new Date(Date.now() - (sinceMinutes + 1) * 60 * 1000);
-
-    const pages = await this.searchPages("", {
-      sort: { direction: "descending", timestamp: "last_edited_time" },
-    });
-
-    const results: NotionPageSearchResult[] = [];
-    for (const page of pages) {
-      if (page.lastEdited === null) {
-        continue;
-      }
-      if (new Date(page.lastEdited) < cutoff) {
-        break;
-      }
-      results.push(page);
-      if (results.length >= limit) {
-        break;
-      }
-    }
-
-    return results;
+    return getRecentlyModifiedImpl(
+      (query, searchOptions) => this.searchPages(query, searchOptions),
+      options
+    );
   }
 
   markdownToBlocks(markdown: string): NotionBlock[] {
