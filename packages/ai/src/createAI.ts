@@ -8,11 +8,11 @@ import type {
   AgentOptions,
   AgentResult,
   AI,
-  CreateAIConfig,
   AIOptions,
   AITracker,
   ChatCall,
   ChatMessage,
+  CreateAIConfig,
   LoggerLike,
   Message,
   PromptInput,
@@ -27,11 +27,12 @@ interface CoreMessage {
 }
 
 const DEFAULT_MAX_TOKENS = 4096;
+const NOOP = (): void => undefined;
 const NOOP_LOGGER: LoggerLike = {
-  debug() {},
-  info() {},
-  warn() {},
-  error() {},
+  debug: NOOP,
+  info: NOOP,
+  warn: NOOP,
+  error: NOOP,
 };
 
 function resolveSystemPrompt(
@@ -70,20 +71,19 @@ function getTrackedPrompt(messages: Message[]): string {
     .reverse()
     .find((message) => message.role === "user");
 
-  return (
-    lastUserMessage?.content ?? messages[messages.length - 1]?.content ?? ""
-  );
+  if (lastUserMessage !== undefined) {
+    return lastUserMessage.content;
+  }
+  if (messages.length > 0) {
+    return messages[messages.length - 1].content;
+  }
+  return "";
 }
 
 function isCreateAIConfig(
   value: LanguageModel | CreateAIConfig
 ): value is CreateAIConfig {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "model" in value &&
-    "tracker" in value
-  );
+  return typeof value === "object" && "model" in value && "tracker" in value;
 }
 
 function createChatCall(
@@ -266,8 +266,8 @@ export function createAI(
   const modelInstance = config.model;
   const trackerInstance = config.tracker;
   const loggerInstance = config.logger ?? NOOP_LOGGER;
-  const maxTokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
-  const temperature = config.temperature;
+  const { maxTokens: configuredMaxTokens, temperature } = config;
+  const maxTokens = configuredMaxTokens ?? DEFAULT_MAX_TOKENS;
   const defaultSystemPrompt = config.systemPrompt;
   const chat = (
     prompt: string,

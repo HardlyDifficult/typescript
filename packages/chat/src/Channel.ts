@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   beginChannelBatch,
   type ChannelBatchAdapter,
@@ -11,14 +12,14 @@ import {
   TypingController,
 } from "./ChannelRuntimeFeatures.js";
 import { tryDeduplicateMessage } from "./duplicateCounter.js";
+import { extractMentionId, findBestMemberMatch } from "./memberMatching.js";
+import { Message, type MessageOperations } from "./Message.js";
+import type { MessageBatch } from "./MessageBatch.js";
 import {
   applyMessageSendOptions,
   resolveThreadStartOptions,
   toTransportMessageOptions,
 } from "./messageOptions.js";
-import { extractMentionId, findBestMemberMatch } from "./memberMatching.js";
-import { Message, type MessageOperations } from "./Message.js";
-import type { MessageBatch } from "./MessageBatch.js";
 import { PendingMessage } from "./PendingMessage.js";
 import { Thread, type ThreadOperations } from "./Thread.js";
 import type {
@@ -37,8 +38,8 @@ import type {
   MessageQueryOptions,
   Platform,
   ReactionCallback,
-  ThreadStartOptions,
   ThreadData,
+  ThreadStartOptions,
 } from "./types.js";
 
 export type { ChannelOperations, ChannelOptions } from "./types.js";

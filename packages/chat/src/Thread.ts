@@ -1,10 +1,10 @@
 import { tryDeduplicateMessage } from "./duplicateCounter.js";
 import { EditableStreamReply } from "./EditableStreamReply.js";
+import { Message, type MessageOperations } from "./Message.js";
 import {
   applyMessageSendOptions,
   resolveMessageSendOptions,
 } from "./messageOptions.js";
-import { Message, type MessageOperations } from "./Message.js";
 import { StreamingReply } from "./StreamingReply.js";
 import type {
   FileAttachment,
@@ -75,8 +75,6 @@ export class Thread {
    * @param files - Optional file attachments
    * @returns Message object for the posted message
    */
-  post(content: MessageContent, files?: FileAttachment[]): Promise<Message>;
-  post(content: MessageContent, options?: MessageSendOptions): Promise<Message>;
   async post(
     content: MessageContent,
     optionsOrFiles?: MessageSendOptions | FileAttachment[]

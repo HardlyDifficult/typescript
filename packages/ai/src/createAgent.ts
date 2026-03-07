@@ -58,9 +58,13 @@ function getTrackedPrompt(messages: Message[]): string {
     .reverse()
     .find((message) => message.role === "user");
 
-  return (
-    lastUserMessage?.content ?? messages[messages.length - 1]?.content ?? ""
-  );
+  if (lastUserMessage !== undefined) {
+    return lastUserMessage.content;
+  }
+  if (messages.length > 0) {
+    return messages[messages.length - 1].content;
+  }
+  return "";
 }
 
 type AnyToolRecord = Record<string, Tool>;
@@ -86,12 +90,15 @@ function convertTools(
 
         logger.debug("Tool result", {
           tool: name,
-          outputType:
-            output === null
-              ? "null"
-              : Array.isArray(output)
-                ? "array"
-                : typeof output,
+          outputType: (() => {
+            if (output === null) {
+              return "null";
+            }
+            if (Array.isArray(output)) {
+              return "array";
+            }
+            return typeof output;
+          })(),
           ...(typeof output === "string" && { outputLength: output.length }),
         });
         callbacks?.onToolResult?.(name, output);

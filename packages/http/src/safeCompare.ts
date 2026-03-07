@@ -10,7 +10,7 @@ export function safeCompare(
   a: string | null | undefined,
   b: string | null | undefined
 ): boolean {
-  if (a == null || b == null) {
+  if (a === null || a === undefined || b === null || b === undefined) {
     return false;
   }
 

@@ -11,14 +11,14 @@ import { isDocument } from "./utils.js";
 const DEFAULT_THREAD_NAME = "Thread";
 const MAX_INFERRED_THREAD_NAME_LENGTH = 80;
 
-type ReactionCapable = {
+interface ReactionCapable {
   addReactions(emojis: string[]): unknown;
   onReaction(callback: ReactionCallback): unknown;
-};
+}
 
 function normalizeThreadName(name?: string): string | null {
   const trimmed = name?.trim();
-  return trimmed ? trimmed : null;
+  return trimmed === undefined || trimmed === "" ? null : trimmed;
 }
 
 function toThreadNameSource(content?: MessageContent): string {
@@ -28,11 +28,12 @@ function toThreadNameSource(content?: MessageContent): string {
   return isDocument(content) ? content.toPlainText() : content;
 }
 
+/** Apply declarative send options (reactions and reaction handler) to a message. */
 export function applyMessageSendOptions<T extends ReactionCapable>(
   message: T,
   options?: MessageSendOptions
 ): T {
-  if (options?.reactions?.length) {
+  if ((options?.reactions?.length ?? 0) > 0) {
     message.addReactions(options.reactions);
   }
   if (options?.onReaction) {
@@ -41,6 +42,7 @@ export function applyMessageSendOptions<T extends ReactionCapable>(
   return message;
 }
 
+/** Normalize either a file list or options object into `MessageSendOptions`. */
 export function resolveMessageSendOptions(
   optionsOrFiles?: MessageSendOptions | FileAttachment[]
 ): MessageSendOptions | undefined {
@@ -52,6 +54,7 @@ export function resolveMessageSendOptions(
     : optionsOrFiles;
 }
 
+/** Extract transport-level options used by platform adapters. */
 export function toTransportMessageOptions(
   options?: ChannelMessageOptions
 ): { files?: FileAttachment[]; linkPreviews?: boolean } | undefined {
@@ -69,6 +72,7 @@ export function toTransportMessageOptions(
   };
 }
 
+/** Infer a reasonable default thread name from message content. */
 export function inferThreadName(content?: MessageContent): string {
   const source = toThreadNameSource(content);
   const firstMeaningfulLine =
@@ -89,6 +93,7 @@ export function inferThreadName(content?: MessageContent): string {
   return `${collapsed.slice(0, MAX_INFERRED_THREAD_NAME_LENGTH - 3).trimEnd()}...`;
 }
 
+/** Resolve thread creation options from either a name string or options object. */
 export function resolveThreadStartOptions(
   content: MessageContent | undefined,
   nameOrOptions?: string | ThreadStartOptions,

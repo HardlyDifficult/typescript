@@ -5,7 +5,7 @@ import type { HttpMethod } from "./types.js";
 
 /** Declarative configuration for a REST operation. */
 export interface OperationConfig<
-  Params = void,
+  Params = undefined,
   Response = unknown,
   RawResponse = Response,
 > {
@@ -21,12 +21,12 @@ export interface OperationConfig<
 }
 
 export type OperationOptions<
-  Params = void,
+  Params = undefined,
   Response = unknown,
   RawResponse = Response,
 > = Omit<OperationConfig<Params, Response, RawResponse>, "method">;
 
-export type BoundOperation<Params, Response> = [Params] extends [void]
+export type BoundOperation<Params, Response> = [Params] extends [undefined]
   ? () => Promise<Response>
   : (params: Params) => Promise<Response>;
 
@@ -41,7 +41,7 @@ export type BoundOperation<Params, Response> = [Params] extends [void]
  *   });
  */
 export function defineOperation<
-  Params = void,
+  Params = undefined,
   Response = unknown,
   RawResponse = Response,
 >(
@@ -67,7 +67,11 @@ export function validateParams<T>(params: T, schema: z.ZodType<T>): T {
   }
 }
 
-function defineMethodOperation<Response, Params = void, RawResponse = Response>(
+function defineMethodOperation<
+  Response,
+  Params = undefined,
+  RawResponse = Response,
+>(
   method: HttpMethod,
   config: OperationOptions<Params, Response, RawResponse>
 ): OperationConfig<Params, Response, RawResponse> {
@@ -75,27 +79,27 @@ function defineMethodOperation<Response, Params = void, RawResponse = Response>(
 }
 
 export const operation = {
-  get<Response, Params = void, RawResponse = Response>(
+  get<Response, Params = undefined, RawResponse = Response>(
     config: OperationOptions<Params, Response, RawResponse>
   ): OperationConfig<Params, Response, RawResponse> {
     return defineMethodOperation("GET", config);
   },
-  post<Response, Params = void, RawResponse = Response>(
+  post<Response, Params = undefined, RawResponse = Response>(
     config: OperationOptions<Params, Response, RawResponse>
   ): OperationConfig<Params, Response, RawResponse> {
     return defineMethodOperation("POST", config);
   },
-  delete<Response, Params = void, RawResponse = Response>(
+  delete<Response, Params = undefined, RawResponse = Response>(
     config: OperationOptions<Params, Response, RawResponse>
   ): OperationConfig<Params, Response, RawResponse> {
     return defineMethodOperation("DELETE", config);
   },
-  patch<Response, Params = void, RawResponse = Response>(
+  patch<Response, Params = undefined, RawResponse = Response>(
     config: OperationOptions<Params, Response, RawResponse>
   ): OperationConfig<Params, Response, RawResponse> {
     return defineMethodOperation("PATCH", config);
   },
-  put<Response, Params = void, RawResponse = Response>(
+  put<Response, Params = undefined, RawResponse = Response>(
     config: OperationOptions<Params, Response, RawResponse>
   ): OperationConfig<Params, Response, RawResponse> {
     return defineMethodOperation("PUT", config);

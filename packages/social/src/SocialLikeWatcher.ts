@@ -31,7 +31,7 @@ export class SocialLikeWatcher {
     });
   }
 
-  start(): SocialLikeWatcher {
+  start(): this {
     if (this.timer !== null) {
       return this;
     }

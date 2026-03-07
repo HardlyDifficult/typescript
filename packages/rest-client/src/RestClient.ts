@@ -17,7 +17,7 @@ import type {
 const NO_PARAMS_SCHEMA = z.void();
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
-export type AnyOperationConfig = OperationConfig<any, any, any>;
+export type AnyOperationConfig = OperationConfig<unknown, unknown, unknown>;
 export type OperationMap = Record<string, AnyOperationConfig>;
 
 export type BoundOperations<TOperations extends OperationMap> = {
@@ -91,7 +91,7 @@ export class RestClient {
    *     getUser = this.bind(GetUser);
    *   }
    */
-  bind<Params = void, Response = unknown, RawResponse = Response>(
+  bind<Params = undefined, Response = unknown, RawResponse = Response>(
     config: OperationConfig<Params, Response, RawResponse>
   ): BoundOperation<Params, Response> {
     const bound = async (params?: Params): Promise<Response> => {
@@ -194,15 +194,17 @@ export class RestClient {
   }
 }
 
+/** Create a RestClient instance with operation configs bound as typed methods. */
 export function createRestClient<TOperations extends OperationMap>(
   config: RestClientConfig,
   operations: TOperations
 ): RestClientApi<TOperations> {
   const client = new RestClient(config) as RestClientApi<TOperations>;
 
-  for (const [name, operation] of Object.entries(operations) as Array<
-    [keyof TOperations & string, TOperations[keyof TOperations]]
-  >) {
+  for (const [name, operation] of Object.entries(operations) as [
+    keyof TOperations & string,
+    TOperations[keyof TOperations],
+  ][]) {
     if (name in client) {
       throw new ConfigurationError(
         `Operation name "${name}" conflicts with an existing RestClient property`
@@ -221,7 +223,7 @@ export function createRestClient<TOperations extends OperationMap>(
 }
 
 function getParamsSchema<Params>(
-  schema?: OperationConfig<Params, any, any>["params"]
+  schema?: OperationConfig<Params, unknown, unknown>["params"]
 ): z.ZodType<Params> {
   return (schema ?? NO_PARAMS_SCHEMA) as z.ZodType<Params>;
 }

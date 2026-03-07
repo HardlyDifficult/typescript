@@ -65,7 +65,7 @@ export type PromptInput = string | Message[];
 export interface ToolDefinition<TInput extends z.ZodType = z.ZodType> {
   description: string;
   inputSchema: TInput;
-  execute: (input: z.infer<TInput>) => unknown | Promise<unknown>;
+  execute: (input: z.infer<TInput>) => unknown;
 }
 
 /** Named set of tools. Each tool may have a different input schema. */

@@ -11,6 +11,7 @@ function getPathDepth(path: string): number {
   return path.split("/").filter((segment) => segment.length > 0).length;
 }
 
+/** Group paths by depth, sorted from deepest to shallowest. */
 export function collectPathDepthGroups(
   paths: readonly string[]
 ): PathDepthGroup[] {

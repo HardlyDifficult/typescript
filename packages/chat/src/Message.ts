@@ -1,9 +1,9 @@
-import { StreamingReply } from "./StreamingReply.js";
 import {
   applyMessageSendOptions,
   resolveMessageSendOptions,
   resolveThreadStartOptions,
 } from "./messageOptions.js";
+import { StreamingReply } from "./StreamingReply.js";
 import type { Thread } from "./Thread.js";
 import type {
   Attachment,
@@ -217,11 +217,7 @@ export class Message {
    */
   reply(
     content: MessageContent,
-    files?: FileAttachment[]
-  ): Message & PromiseLike<Message>;
-  reply(
-    content: MessageContent,
-    options?: MessageSendOptions
+    optionsOrFiles?: MessageSendOptions | FileAttachment[]
   ): Message & PromiseLike<Message>;
   reply(
     content: MessageContent,

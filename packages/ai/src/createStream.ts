@@ -50,7 +50,9 @@ export async function runStream(
     inputTokens: resultUsage.inputTokens ?? 0,
     outputTokens: resultUsage.outputTokens ?? 0,
     durationMs,
-    prompt: promptOverride ?? messages[messages.length - 1]?.content ?? "",
+    prompt:
+      promptOverride ??
+      (messages.length > 0 ? messages[messages.length - 1].content : ""),
     response: accumulated,
     systemPrompt,
     cacheCreationTokens:
