@@ -33,8 +33,9 @@ export function applyMessageSendOptions<T extends ReactionCapable>(
   message: T,
   options?: MessageSendOptions
 ): T {
-  if ((options?.reactions?.length ?? 0) > 0) {
-    message.addReactions(options.reactions);
+  const reactions = options?.reactions;
+  if (reactions !== undefined && reactions.length > 0) {
+    message.addReactions(reactions);
   }
   if (options?.onReaction) {
     message.onReaction(options.onReaction);
