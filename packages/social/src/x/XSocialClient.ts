@@ -1,5 +1,5 @@
 import type { SocialProviderClient } from "../SocialProviderClient.js";
-import type { SocialPost, XConfig } from "../types.js";
+import type { SocialListOptions, SocialPost, XConfig } from "../types.js";
 
 interface XTweet {
   id: string;
@@ -31,18 +31,18 @@ interface XResponse {
  */
 export class XSocialClient implements SocialProviderClient {
   private readonly bearerToken: string;
-  private readonly maxResults: number;
+  private readonly limit: number;
 
   constructor(config: XConfig) {
     this.bearerToken = config.bearerToken ?? process.env.X_BEARER_TOKEN ?? "";
-    this.maxResults = config.maxResults ?? 25;
+    this.limit = config.limit ?? config.maxResults ?? 25;
 
     if (this.bearerToken.length === 0) {
       throw new Error("X bearer token is required. Set X_BEARER_TOKEN.");
     }
   }
 
-  async getPost(postId: string): Promise<SocialPost | null> {
+  async post(postId: string): Promise<SocialPost | null> {
     const response = await this.request(
       `/tweets/${postId}${this.buildQuery()}`
     );
@@ -54,11 +54,13 @@ export class XSocialClient implements SocialProviderClient {
     return this.normalizeTweet(tweet, response.includes?.users ?? []);
   }
 
-  async getTimeline(options?: {
-    maxResults?: number;
-  }): Promise<readonly SocialPost[]> {
+  getPost(postId: string): Promise<SocialPost | null> {
+    return this.post(postId);
+  }
+
+  async timeline(options?: SocialListOptions): Promise<readonly SocialPost[]> {
     const response = await this.request(
-      `/users/me/timelines/reverse_chronological${this.buildQuery(options?.maxResults)}`
+      `/users/me/timelines/reverse_chronological${this.buildQuery(options?.limit)}`
     );
 
     return this.readTweetList(response.data).map((tweet) =>
@@ -66,11 +68,13 @@ export class XSocialClient implements SocialProviderClient {
     );
   }
 
-  async getLikedPosts(options?: {
-    maxResults?: number;
-  }): Promise<readonly SocialPost[]> {
+  getTimeline(options?: SocialListOptions): Promise<readonly SocialPost[]> {
+    return this.timeline(options);
+  }
+
+  async likes(options?: SocialListOptions): Promise<readonly SocialPost[]> {
     const response = await this.request(
-      `/users/me/liked_tweets${this.buildQuery(options?.maxResults)}`
+      `/users/me/liked_tweets${this.buildQuery(options?.limit)}`
     );
 
     return this.readTweetList(response.data).map((tweet) =>
@@ -78,12 +82,16 @@ export class XSocialClient implements SocialProviderClient {
     );
   }
 
-  private buildQuery(maxResults?: number): string {
+  getLikedPosts(options?: SocialListOptions): Promise<readonly SocialPost[]> {
+    return this.likes(options);
+  }
+
+  private buildQuery(limit?: number): string {
     const params = new URLSearchParams({
       expansions: "author_id",
       "tweet.fields": "created_at,public_metrics",
       "user.fields": "name,username",
-      max_results: String(maxResults ?? this.maxResults),
+      max_results: String(limit ?? this.limit),
     });
 
     return `?${params.toString()}`;

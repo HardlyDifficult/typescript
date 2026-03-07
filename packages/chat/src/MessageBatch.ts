@@ -4,8 +4,8 @@ import type {
   BatchDeleteSummary,
   BatchKeepLatestSummary,
   BatchMessageRef,
+  ChannelMessageOptions,
   DeleteMessageOptions,
-  FileAttachment,
   MessageContent,
   MessageData,
   Platform,
@@ -14,7 +14,7 @@ import type {
 interface MessageBatchOperations {
   postMessage(
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ): Message & PromiseLike<Message>;
   appendMessage(batchId: string, message: BatchMessageRef): void;
   removeMessages(batchId: string, messageIds: string[]): void;
@@ -107,7 +107,7 @@ export class MessageBatch {
    */
   post(
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ): Message & PromiseLike<Message> {
     const pending = this.operations.postMessage(content, options);
     void Promise.resolve(pending)

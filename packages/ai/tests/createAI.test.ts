@@ -1,10 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { z } from "zod";
 import type { AITracker, Usage } from "../src/types.js";
 
 // Mock the AI SDK
 const mockGenerateText = vi.fn();
+const mockStreamText = vi.fn();
+const mockSdkTool = vi.fn(
+  (def: { description: string; inputSchema: unknown; execute: unknown }) => def
+);
 vi.mock("ai", () => ({
   generateText: (...args: unknown[]) => mockGenerateText(...args),
+  streamText: (...args: unknown[]) => mockStreamText(...args),
+  tool: (def: unknown) => mockSdkTool(def as never),
+  stepCountIs: (n: number) => ({ type: "stepCount", count: n }),
   Output: {
     object: ({ schema }: { schema: unknown }) => ({ type: "object", schema }),
   },
@@ -36,6 +44,20 @@ function mockLogger(): {
   return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 }
 
+function mockStreamResult(
+  chunks: string[],
+  usage: Record<string, unknown> = { inputTokens: 10, outputTokens: 5 }
+) {
+  async function* textStream() {
+    for (const chunk of chunks) yield chunk;
+  }
+
+  return {
+    textStream: textStream(),
+    usage: Promise.resolve({ inputTokenDetails: {}, ...usage }),
+  };
+}
+
 describe("createAI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,6 +73,159 @@ describe("createAI", () => {
     expect(() =>
       createAI(mockModel() as never, null as never, mockLogger() as never)
     ).toThrow("AITracker is required");
+  });
+
+  describe("preferred API", () => {
+    it("accepts object config and optional logger", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Hello world",
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI({
+        model: mockModel() as never,
+        tracker,
+      });
+
+      const text = await ai.ask("Say hello");
+
+      expect(text).toBe("Hello world");
+      expect(tracker.calls).toHaveLength(1);
+    });
+
+    it("supports askFor with a default system prompt", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: '{"name":"Alice"}',
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
+        output: { name: "Alice" },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI({
+        model: mockModel() as never,
+        tracker,
+        systemPrompt: "Return concise JSON",
+      });
+
+      const data = await ai.askFor(
+        "Extract the user",
+        z.object({ name: z.string() })
+      );
+
+      const callArgs = mockGenerateText.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+
+      expect(data).toEqual({ name: "Alice" });
+      expect(callArgs).toHaveProperty("system", {
+        role: "system",
+        content: "Return concise JSON",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
+    });
+
+    it("supports stream string shorthand with inherited system prompt", async () => {
+      mockStreamText.mockReturnValueOnce(mockStreamResult(["Hello", " world"]));
+
+      const tracker = createMockTracker();
+      const ai = createAI({
+        model: mockModel() as never,
+        tracker,
+        systemPrompt: "Be helpful",
+      });
+
+      const chunks: string[] = [];
+      const result = await ai.stream("Say hello", (text) => chunks.push(text));
+
+      const callArgs = mockStreamText.mock.calls[0][0] as {
+        messages: Array<Record<string, unknown>>;
+      };
+
+      expect(chunks).toEqual(["Hello", " world"]);
+      expect(result.text).toBe("Hello world");
+      expect(callArgs.messages).toEqual([
+        {
+          role: "system",
+          content: "Be helpful",
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+        { role: "user", content: "Say hello" },
+      ]);
+      expect(tracker.calls[0].systemPrompt).toBe("Be helpful");
+    });
+
+    it("lets agents inherit the default system prompt and accept plain text input", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "done",
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI({
+        model: mockModel() as never,
+        tracker,
+        systemPrompt: "Use tools when needed",
+      });
+
+      const agent = ai.agent({
+        read_file: {
+          description: "Read a file",
+          inputSchema: z.object({ path: z.string() }),
+          execute: async ({ path }) => `contents of ${path}`,
+        },
+      });
+
+      await agent.run("Inspect src/index.ts");
+
+      const callArgs = mockGenerateText.mock.calls[0][0] as {
+        messages: Array<Record<string, unknown>>;
+      };
+
+      expect(callArgs.messages[0]).toEqual({
+        role: "system",
+        content: "Use tools when needed",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
+      expect(callArgs.messages[1]).toEqual({
+        role: "user",
+        content: "Inspect src/index.ts",
+      });
+    });
+
+    it("creates scoped clients with withSystemPrompt", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Scoped response",
+        usage: { inputTokens: 10, outputTokens: 5, inputTokenDetails: {} },
+      });
+
+      const tracker = createMockTracker();
+      const ai = createAI({
+        model: mockModel() as never,
+        tracker,
+      }).withSystemPrompt("Act like a reviewer");
+
+      await ai.ask("Review this change");
+
+      const callArgs = mockGenerateText.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(callArgs).toHaveProperty("system", {
+        role: "system",
+        content: "Act like a reviewer",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      });
+    });
   });
 
   describe("chat", () => {

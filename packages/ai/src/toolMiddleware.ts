@@ -11,7 +11,7 @@ export interface ToolMiddleware {
   onSuccess?(
     toolName: string,
     input: Record<string, unknown>,
-    output: string,
+    output: unknown,
     durationMs: number
   ): void;
   onError?(

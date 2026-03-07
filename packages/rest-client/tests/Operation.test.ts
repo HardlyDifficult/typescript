@@ -1,42 +1,67 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineOperation, validateParams } from "../src/Operation";
-import { ValidationError } from "../src/errors";
+
+import { defineOperation, operation, validateParams } from "../src/Operation";
+import { ConfigurationError, ValidationError } from "../src/errors";
 
 describe("defineOperation", () => {
-  it("returns the config unchanged", () => {
+  it("returns the config unchanged for explicit URLs", () => {
     const config = defineOperation<{ id: string }, { name: string }>({
       params: z.object({ id: z.string() }),
       method: "GET",
-      url: (p, base) => `${base}/users/${p.id}`,
+      url: (params, baseUrl) => `${baseUrl}/users/${params.id}`,
     });
 
     expect(config.method).toBe("GET");
-    expect(config.url({ id: "123" }, "https://api.test")).toBe(
+    expect(config.url?.({ id: "123" }, "https://api.test")).toBe(
       "https://api.test/users/123"
     );
   });
 
-  it("preserves body builder", () => {
-    const config = defineOperation<{ name: string }, { id: string }>({
+  it("accepts relative paths", () => {
+    const config = operation.get<{ name: string }>({
+      params: z.object({ id: z.string() }),
+      path: ({ id }) => `/users/${id}`,
+    });
+
+    expect(config.method).toBe("GET");
+    expect(config.path?.({ id: "123" })).toBe("/users/123");
+  });
+
+  it("preserves body builders", () => {
+    const config = operation.post<{ id: string }>({
       params: z.object({ name: z.string() }),
-      method: "POST",
-      url: (_p, base) => `${base}/users`,
-      body: (p) => ({ name: p.name }),
+      path: "/users",
+      body: ({ name }) => ({ name }),
     });
 
     expect(config.body?.({ name: "Alice" })).toEqual({ name: "Alice" });
   });
 
-  it("preserves transform function", () => {
-    const config = defineOperation<void, { raw: string }>({
-      params: z.void(),
-      method: "GET",
-      url: (_p, base) => `${base}/data`,
-      transform: (r) => ({ raw: r.raw.toUpperCase() }),
+  it("supports parse functions that change the response shape", () => {
+    const config = operation.get<
+      string[],
+      void,
+      { items: Array<{ name: string }> }
+    >({
+      path: "/users",
+      parse: (response) => response.items.map((user) => user.name),
     });
 
-    expect(config.transform?.({ raw: "hello" })).toEqual({ raw: "HELLO" });
+    expect(
+      config.parse?.(
+        { items: [{ name: "Alice" }, { name: "Bob" }] },
+        undefined as void
+      )
+    ).toEqual(["Alice", "Bob"]);
+  });
+
+  it("throws when neither path nor url is provided", () => {
+    expect(() =>
+      defineOperation({
+        method: "GET",
+      })
+    ).toThrow(ConfigurationError);
   });
 });
 
@@ -69,10 +94,10 @@ describe("validateParams", () => {
     try {
       validateParams({ name: "", age: -1 }, schema);
       expect.fail("should have thrown");
-    } catch (e) {
-      const err = e as ValidationError;
-      expect(err.message).toContain("name");
-      expect(err.message).toContain("age");
+    } catch (error) {
+      const validationError = error as ValidationError;
+      expect(validationError.message).toContain("name");
+      expect(validationError.message).toContain("age");
     }
   });
 

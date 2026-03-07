@@ -1,9 +1,9 @@
 import { MILLISECONDS_PER_MINUTE } from "@hardlydifficult/date-time";
 
 import type { SocialProviderClient } from "./SocialProviderClient.js";
-import type { LikeNotification, LikeWatcherOptions } from "./types.js";
+import type { LikeNotification, WatchLikesOptions } from "./types.js";
 
-export type SocialLikeWatcherOptions = LikeWatcherOptions;
+export type SocialLikeWatcherOptions = WatchLikesOptions;
 
 /**
  *
@@ -16,33 +16,30 @@ export class SocialLikeWatcher {
 
   constructor(
     private readonly provider: SocialProviderClient,
-    private readonly options: Required<
-      Pick<LikeWatcherOptions, "pollIntervalMs">
-    > &
-      Pick<LikeWatcherOptions, "onLike" | "onError">
+    private readonly options: Required<Pick<WatchLikesOptions, "everyMs">> &
+      Pick<WatchLikesOptions, "onLike" | "onError">
   ) {}
 
   static create(
     provider: SocialProviderClient,
-    options: LikeWatcherOptions
+    options: WatchLikesOptions
   ): SocialLikeWatcher {
     return new SocialLikeWatcher(provider, {
       ...options,
-      pollIntervalMs: options.pollIntervalMs ?? MILLISECONDS_PER_MINUTE,
+      everyMs:
+        options.everyMs ?? options.pollIntervalMs ?? MILLISECONDS_PER_MINUTE,
     });
   }
 
-  start(): void {
+  start(): SocialLikeWatcher {
     if (this.timer !== null) {
-      return;
+      return this;
     }
 
     void this.poll();
-    this.timer = setInterval(
-      () => void this.poll(),
-      this.options.pollIntervalMs
-    );
+    this.timer = setInterval(() => void this.poll(), this.options.everyMs);
     this.timer.unref();
+    return this;
   }
 
   stop(): void {
@@ -60,7 +57,7 @@ export class SocialLikeWatcher {
     this.polling = true;
 
     try {
-      const liked = await this.provider.getLikedPosts();
+      const liked = await this.provider.likes();
       const now = new Date().toISOString();
 
       if (!this.seeded) {

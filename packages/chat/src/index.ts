@@ -12,6 +12,8 @@ export {
   type ReactionCallback,
   type MessageEvent,
   type MessageContent,
+  type MessageSendOptions,
+  type ChannelMessageOptions,
   type MessageAuthorFilter,
   type MessageQueryOptions,
   type BatchMessageRef,
@@ -23,6 +25,7 @@ export {
   type DeleteMessageOptions,
   type TimestampInput,
   type ThreadData,
+  type ThreadStartOptions,
   type DisconnectCallback,
   type ErrorCallback,
 } from "./types.js";

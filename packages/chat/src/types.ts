@@ -132,6 +132,37 @@ export interface FileAttachment {
 }
 
 /**
+ * Declarative options for posting or replying to a message.
+ * Reactions are applied before awaited sends resolve.
+ */
+export interface MessageSendOptions {
+  /** Optional file attachments to include with the message. */
+  files?: FileAttachment[];
+  /** Reactions to add immediately after the message is posted. */
+  reactions?: string[];
+  /** Reaction handler to subscribe after the message is posted. */
+  onReaction?: ReactionCallback;
+}
+
+/**
+ * Channel-level message options.
+ */
+export interface ChannelMessageOptions extends MessageSendOptions {
+  /** Whether platform link previews should be shown. Defaults to false. */
+  linkPreviews?: boolean;
+}
+
+/**
+ * Options for starting a thread with a sensible default name.
+ */
+export interface ThreadStartOptions {
+  /** Optional explicit thread name. Defaults to inferred content or "Thread". */
+  name?: string;
+  /** Discord auto-archive duration in minutes. Ignored by Slack. */
+  autoArchiveDuration?: number;
+}
+
+/**
  * Data returned when a thread is created
  */
 export interface ThreadData {

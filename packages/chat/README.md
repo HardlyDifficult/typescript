@@ -18,7 +18,7 @@ const client = createChatClient({ type: "discord" });
 // or { type: "slack" }
 
 const channel = await client.connect("channel-id");
-await channel.postMessage("Hello world!").addReactions(["👍", "👎"]);
+await channel.post("Hello world!", { reactions: ["👍", "👎"] });
 ```
 
 ### Command-Based Bot Example
@@ -52,13 +52,15 @@ client.start();
 
 ### Message Operations
 
-Messages returned from `postMessage()` support chainable reaction and management operations.
+Common message setup can be declared in one call, and the lower-level chainable API is still available when needed.
 
 ```typescript
-const msg = await channel
-  .postMessage("Vote: 1, 2, or 3")
-  .addReactions(["1️⃣", "2️⃣", "3️⃣"])
-  .onReaction((event) => console.log(`${event.user.username} voted ${event.emoji}`));
+const msg = await channel.post("Vote: 1, 2, or 3", {
+  reactions: ["1️⃣", "2️⃣", "3️⃣"],
+  onReaction: (event) => {
+    console.log(`${event.user.username} voted ${event.emoji}`);
+  },
+});
 
 await msg.update("Final count in thread...");
 await msg.delete({ cascadeReplies: false });
@@ -69,10 +71,10 @@ await msg.delete({ cascadeReplies: false });
 Replies can be awaited like promises and support reactions before resolution.
 
 ```typescript
-const reply = await msg.reply("Counting votes...");
+const reply = await msg.reply("Counting votes...", {
+  reactions: ["🎉"],
+});
 await reply.update("12 votes for pizza");
-await reply.addReactions(["🎉"]);
-await reply.waitForReactions();
 ```
 
 ### Streaming Replies
@@ -102,7 +104,7 @@ await editableStream.stop(); // posts one message, edits it twice
 Create and manage conversational threads anchored to messages.
 
 ```typescript
-const thread = await channel.createThread("Topic", "Session-1");
+const thread = await channel.createThread("Topic");
 await thread.post("How can I help?");
 thread.onReply(async (msg) => {
   await thread.post(`You said: ${msg.content}`);
@@ -114,7 +116,7 @@ You can also create a thread from an existing message:
 
 ```typescript
 const msg = await channel.postMessage("Starting a discussion");
-const thread = await msg.startThread("Discussion Thread", 1440); // auto-archive in minutes
+const thread = await msg.startThread({ autoArchiveDuration: 1440 });
 ```
 
 Reconnect to an existing thread by ID (e.g., after a restart):

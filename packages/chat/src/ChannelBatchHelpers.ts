@@ -4,8 +4,8 @@ import { MessageBatch } from "./MessageBatch.js";
 import type {
   BatchQueryOptions,
   BeginBatchOptions,
+  ChannelMessageOptions,
   DeleteMessageOptions,
-  FileAttachment,
   MessageContent,
   Platform,
 } from "./types.js";
@@ -15,7 +15,7 @@ export interface ChannelBatchAdapter {
   platform: Platform;
   postMessage(
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ): Message & PromiseLike<Message>;
   deleteMessage(
     messageId: string,
@@ -29,7 +29,7 @@ export function createChannelBatchAdapter(
   platform: Platform,
   postMessage: (
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ) => Message & PromiseLike<Message>,
   deleteMessage: (
     messageId: string,
@@ -55,7 +55,7 @@ function buildBatch(
   return new MessageBatch(snapshot, {
     postMessage: (
       content: MessageContent,
-      options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+      options?: ChannelMessageOptions
     ) => adapter.postMessage(content, options),
     appendMessage: (id, message) => {
       batchStore.appendMessage(adapter.id, adapter.platform, id, {

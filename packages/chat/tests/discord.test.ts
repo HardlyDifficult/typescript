@@ -1178,6 +1178,36 @@ describe("DiscordChatClient", () => {
 
       expect(callback).toHaveBeenCalledTimes(1);
     });
+
+    it("should support declarative reactions and handlers in the initial post call", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      const message = channel.post("Vote!", {
+        reactions: ["1️⃣", "2️⃣"],
+        onReaction: callback,
+      });
+      await waitForMessage(message);
+
+      expect(mockDiscordMessage.react).toHaveBeenCalledTimes(2);
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(1, "1️⃣");
+      expect(mockDiscordMessage.react).toHaveBeenNthCalledWith(2, "2️⃣");
+
+      const mockReaction = {
+        partial: false,
+        message: { id: "msg-123", channelId: channelId },
+        emoji: { name: "2️⃣", id: null },
+      };
+      const handler = getReactionHandler();
+      await handler!(mockReaction, { id: "user-1", username: "Test" });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emoji: "2️⃣",
+          messageId: "msg-123",
+        })
+      );
+    });
   });
 
   describe("addReaction() (direct client method)", () => {
@@ -2035,6 +2065,19 @@ describe("DiscordChatClient", () => {
         autoArchiveDuration: 1440,
       });
     });
+
+    it("should infer a thread name when one is not provided", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("Deploy status");
+      await waitForMessage(message);
+
+      await message.startThread();
+
+      expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
+        name: "Thread",
+        autoArchiveDuration: undefined,
+      });
+    });
   });
 
   describe("Message.delete()", () => {
@@ -2550,6 +2593,16 @@ describe("DiscordChatClient", () => {
       expect(thread.id).toBe("thread-001");
       expect(thread.channelId).toBe(channelId);
       expect(thread.platform).toBe("discord");
+    });
+
+    it("should infer a thread name from the root message when omitted", async () => {
+      const channel = await client.connect(channelId);
+      await channel.createThread("Deploy status update");
+
+      expect(mockDiscordMessage.startThread).toHaveBeenCalledWith({
+        name: "Deploy status update",
+        autoArchiveDuration: undefined,
+      });
     });
 
     it("should post messages in a thread via thread.post()", async () => {

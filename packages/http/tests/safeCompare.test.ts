@@ -27,4 +27,10 @@ describe("safeCompare", () => {
     expect(safeCompare("héllo", "héllo")).toBe(true);
     expect(safeCompare("héllo", "hello")).toBe(false);
   });
+
+  it("fails closed for missing values", () => {
+    expect(safeCompare(undefined, "token")).toBe(false);
+    expect(safeCompare(null, "")).toBe(false);
+    expect(safeCompare(undefined, undefined)).toBe(false);
+  });
 });

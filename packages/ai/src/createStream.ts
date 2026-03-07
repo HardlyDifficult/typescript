@@ -1,8 +1,13 @@
-import type { Logger } from "@hardlydifficult/logger";
 import { type LanguageModel, streamText } from "ai";
 
 import { addCacheControl } from "./addCacheControl.js";
-import type { AgentResult, AITracker, Message, Usage } from "./types.js";
+import type {
+  AgentResult,
+  AITracker,
+  LoggerLike,
+  Message,
+  Usage,
+} from "./types.js";
 
 const DEFAULT_MAX_TOKENS = 4096;
 
@@ -10,11 +15,13 @@ const DEFAULT_MAX_TOKENS = 4096;
 export async function runStream(
   model: LanguageModel,
   tracker: AITracker,
-  logger: Logger,
+  logger: LoggerLike,
   messages: Message[],
   onText: (text: string) => void,
   maxTokens: number = DEFAULT_MAX_TOKENS,
-  temperature?: number
+  temperature?: number,
+  promptOverride?: string,
+  systemPrompt?: string
 ): Promise<AgentResult> {
   const startMs = Date.now();
 
@@ -43,8 +50,9 @@ export async function runStream(
     inputTokens: resultUsage.inputTokens ?? 0,
     outputTokens: resultUsage.outputTokens ?? 0,
     durationMs,
-    prompt: messages[messages.length - 1].content,
+    prompt: promptOverride ?? messages[messages.length - 1]?.content ?? "",
     response: accumulated,
+    systemPrompt,
     cacheCreationTokens:
       resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
     cacheReadTokens: resultUsage.inputTokenDetails.cacheReadTokens ?? undefined,

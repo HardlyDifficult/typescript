@@ -1,6 +1,9 @@
 # @hardlydifficult/http
 
-HTTP utilities for safe request/response handling: body reading with size limits, constant-time comparison, and JSON responses with CORS support.
+Opinionated HTTP helpers for small Node servers. The API is intentionally narrow:
+- request bodies default to a 1 MB limit
+- JSON responses default to `200` with CORS open to `*`
+- constant-time comparison accepts nullable values and fails closed on missing tokens
 
 ## Installation
 
@@ -12,110 +15,115 @@ npm install @hardlydifficult/http
 
 ```typescript
 import http from "http";
-import { readBody, sendJson, safeCompare } from "@hardlydifficult/http";
+import { json, readJson, safeCompare } from "@hardlydifficult/http";
 
 const server = http.createServer(async (req, res) => {
-  const body = await readBody(req);
-  
-  // Compare tokens safely
-  if (!safeCompare(body, "secret-token")) {
-    sendJson(res, 401, { error: "Unauthorized" }, "*");
+  const body = await readJson<{ token?: string }>(req);
+
+  if (!safeCompare(body.token, "secret-token")) {
+    json(res, { error: "Unauthorized" }, { status: 401 });
     return;
   }
-  
-  sendJson(res, 200, { success: true }, "https://example.com");
+
+  json(res, { success: true });
 });
 
 server.listen(3000);
 ```
 
-## Request Handling
+## Request Helpers
 
 ### `readBody`
 
-Reads the full HTTP request body as a string, with an optional size limit.
+Reads the full HTTP request body as a string.
 
 ```typescript
-function readBody(req: IncomingMessage, maxBytes?: number): Promise<string>
+function readBody(
+  req: IncomingMessage,
+  options?: { maxBytes?: number }
+): Promise<string>
 ```
 
-| Parameter | Type | Default | Description |
-|------|---|---|---------|
-| `req` | `IncomingMessage` | — | Node.js HTTP incoming message |
-| `maxBytes` | `number` | `MAX_BODY_BYTES` (1 MB) | Maximum body size in bytes |
+```typescript
+import { readBody } from "@hardlydifficult/http";
 
-Throws `"Payload too large"` error if the body exceeds the limit.
+const body = await readBody(req);
+const smallBody = await readBody(req, { maxBytes: 500 * 1024 });
+```
+
+### `readJson`
+
+Reads and parses a JSON request body.
 
 ```typescript
-import { readBody, MAX_BODY_BYTES } from "@hardlydifficult/http";
+function readJson<T>(
+  req: IncomingMessage,
+  options?: { maxBytes?: number }
+): Promise<T>
+```
 
-// Default 1MB limit
-const body = await readBody(req);
+Throws `"Invalid JSON body"` when parsing fails.
 
-// Custom limit (500 KB)
-const smallBody = await readBody(req, 500 * 1024);
+```typescript
+import { readJson } from "@hardlydifficult/http";
+
+const payload = await readJson<{ name: string }>(req);
 ```
 
 ### `MAX_BODY_BYTES`
 
-The default maximum body size (1 MB).
+The default maximum body size.
 
 ```typescript
 import { MAX_BODY_BYTES } from "@hardlydifficult/http";
+
 console.log(MAX_BODY_BYTES); // 1048576
 ```
 
-## Response Handling
+## Response Helpers
 
-### `sendJson`
+### `json`
 
-Sends a JSON response with CORS headers.
+Short alias for sending a JSON response.
 
 ```typescript
-function sendJson(
+function json(
   res: ServerResponse,
-  status: number,
   body: unknown,
-  corsOrigin: string
+  options?: { status?: number; corsOrigin?: string }
 ): void
 ```
 
-| Parameter | Type | Description |
-|------|---|---------|
-| `res` | `ServerResponse` | Node.js HTTP server response |
-| `status` | `number` | HTTP status code |
-| `body` | `unknown` | JSON-serializable data |
-| `corsOrigin` | `string` | CORS `Access-Control-Allow-Origin` value |
-
-Headers sent:
-- `Content-Type: application/json`
-- `Access-Control-Allow-Origin`
-- `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`
-- `Access-Control-Allow-Headers: Content-Type, Authorization`
-
 ```typescript
-import { sendJson } from "@hardlydifficult/http";
+import { json } from "@hardlydifficult/http";
 
-sendJson(res, 200, { id: 1, name: "Alice" }, "https://trusted.com");
+json(res, { ok: true });
+json(res, { error: "Unauthorized" }, { status: 401 });
+json(res, { id: 1 }, { corsOrigin: "https://trusted.com" });
 ```
+
+### `sendJson`
+
+Identical to `json` if you prefer the longer name.
 
 ## Security
 
 ### `safeCompare`
 
-Constant-time string comparison to prevent timing attacks.
+Constant-time string comparison for secrets and tokens.
+Missing values never match.
 
 ```typescript
-function safeCompare(a: string, b: string): boolean
+function safeCompare(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean
 ```
-
-Uses `crypto.timingSafeEqual` internally. Handles length differences safely.
 
 ```typescript
 import { safeCompare } from "@hardlydifficult/http";
 
-// Safe comparison of auth tokens
-if (safeCompare(storedToken, requestToken)) {
+if (safeCompare(request.headers.authorization, process.env.API_TOKEN)) {
   // Grant access
 }
 ```

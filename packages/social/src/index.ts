@@ -1,15 +1,16 @@
 export type {
   Provider,
   XConfig,
+  SocialOptions,
   SocialConfig,
+  SocialListOptions,
   SocialPost,
   SocialAuthor,
   SocialPostMetrics,
+  WatchLikesOptions,
   LikeWatcherOptions,
   LikeNotification,
 } from "./types.js";
-
-export type { SocialProviderClient } from "./SocialProviderClient.js";
 
 export { SocialClient } from "./SocialClient.js";
 export {
@@ -17,23 +18,22 @@ export {
   type SocialLikeWatcherOptions,
 } from "./SocialLikeWatcher.js";
 
-export { XSocialClient } from "./x";
-export { MastodonSocialClient } from "./mastodon/MastodonSocialClient.js";
-
 import { SocialClient } from "./SocialClient.js";
-import type { SocialConfig } from "./types.js";
+import type { SocialOptions } from "./types.js";
 import { XSocialClient } from "./x";
 
 /**
- * Create a social client from explicit provider configuration.
+ * Create the opinionated social client. X is the only provider today,
+ * so the factory accepts X settings directly and will also read
+ * X_BEARER_TOKEN from the environment.
  */
-export function createSocialClient(config: SocialConfig): SocialClient {
+export function createSocial(config: SocialOptions = {}): SocialClient {
   return new SocialClient(new XSocialClient(config));
 }
 
 /**
- * Create a social client using default provider configuration.
+ * Backwards-compatible alias for older call sites.
  */
-export function createSocial(): SocialClient {
-  return createSocialClient({ type: "x" });
+export function createSocialClient(config: SocialOptions = {}): SocialClient {
+  return createSocial(config);
 }

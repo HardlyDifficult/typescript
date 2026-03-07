@@ -1,4 +1,3 @@
-import type { Logger } from "@hardlydifficult/logger";
 import {
   generateText,
   type LanguageModel,
@@ -15,7 +14,10 @@ import type {
   AgentOptions,
   AgentResult,
   AITracker,
+  LoggerLike,
   Message,
+  PromptInput,
+  PromptOptions,
   ToolMap,
   Usage,
 } from "./types.js";
@@ -31,12 +33,42 @@ function toCallbacks(
   return typeof handler === "function" ? { onText: handler } : handler;
 }
 
+function normalizeMessages(
+  input: PromptInput,
+  systemPrompt?: string
+): Message[] {
+  const messages =
+    typeof input === "string"
+      ? [{ role: "user" as const, content: input }]
+      : [...input];
+
+  if (
+    systemPrompt === undefined ||
+    systemPrompt === "" ||
+    messages.some((message) => message.role === "system")
+  ) {
+    return messages;
+  }
+
+  return [{ role: "system", content: systemPrompt }, ...messages];
+}
+
+function getTrackedPrompt(messages: Message[]): string {
+  const lastUserMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
+
+  return (
+    lastUserMessage?.content ?? messages[messages.length - 1]?.content ?? ""
+  );
+}
+
 type AnyToolRecord = Record<string, Tool>;
 
 /** Convert ToolMap entries to AI SDK tool() calls, wrapping execute with logging + callbacks. */
 function convertTools(
   tools: ToolMap,
-  logger: Logger,
+  logger: LoggerLike,
   callbacks?: AgentCallbacks
 ): AnyToolRecord {
   const result: AnyToolRecord = {};
@@ -54,7 +86,13 @@ function convertTools(
 
         logger.debug("Tool result", {
           tool: name,
-          outputLength: output.length,
+          outputType:
+            output === null
+              ? "null"
+              : Array.isArray(output)
+                ? "array"
+                : typeof output,
+          ...(typeof output === "string" && { outputLength: output.length }),
         });
         callbacks?.onToolResult?.(name, output);
 
@@ -72,17 +110,25 @@ export function createAgent(
   model: LanguageModel,
   tools: ToolMap,
   tracker: AITracker,
-  logger: Logger,
+  logger: LoggerLike,
   options?: AgentOptions
 ): Agent {
   const maxSteps = options?.maxSteps ?? DEFAULT_MAX_STEPS;
   const maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
   const temperature = options?.temperature ?? DEFAULT_TEMPERATURE;
+  const defaultSystemPrompt = options?.systemPrompt;
 
   return {
-    async run(messages: Message[]): Promise<AgentResult> {
+    async run(
+      input: PromptInput,
+      runOptions?: PromptOptions
+    ): Promise<AgentResult> {
       const startMs = Date.now();
       const sdkTools = convertTools(tools, logger);
+      const messages = normalizeMessages(
+        input,
+        runOptions?.systemPrompt ?? defaultSystemPrompt
+      );
 
       logger.debug("Agent run start", {
         messageCount: messages.length,
@@ -105,8 +151,10 @@ export function createAgent(
         inputTokens: resultUsage.inputTokens ?? 0,
         outputTokens: resultUsage.outputTokens ?? 0,
         durationMs,
-        prompt: messages[messages.length - 1].content,
+        prompt: getTrackedPrompt(messages),
         response: result.text,
+        systemPrompt: messages.find((message) => message.role === "system")
+          ?.content,
         cacheCreationTokens:
           resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
         cacheReadTokens:
@@ -132,12 +180,17 @@ export function createAgent(
     },
 
     async stream(
-      messages: Message[],
-      handler: ((text: string) => void) | AgentCallbacks
+      input: PromptInput,
+      handler: ((text: string) => void) | AgentCallbacks,
+      streamOptions?: PromptOptions
     ): Promise<AgentResult> {
       const callbacks = toCallbacks(handler);
       const startMs = Date.now();
       const sdkTools = convertTools(tools, logger, callbacks);
+      const messages = normalizeMessages(
+        input,
+        streamOptions?.systemPrompt ?? defaultSystemPrompt
+      );
 
       logger.debug("Agent stream start", {
         messageCount: messages.length,
@@ -169,8 +222,10 @@ export function createAgent(
         inputTokens: resultUsage.inputTokens ?? 0,
         outputTokens: resultUsage.outputTokens ?? 0,
         durationMs,
-        prompt: messages[messages.length - 1].content,
+        prompt: getTrackedPrompt(messages),
         response: accumulated,
+        systemPrompt: messages.find((message) => message.role === "system")
+          ?.content,
         cacheCreationTokens:
           resultUsage.inputTokenDetails.cacheWriteTokens ?? undefined,
         cacheReadTokens:
