@@ -21,6 +21,14 @@ export type {
   GetConversationResponse,
   FollowupRequest,
   StopAgentResponse,
+  GetMeResponse,
+  ListModelsResponse,
+  RepositoryInfo,
+  ListRepositoriesResponse,
+  Artifact,
+  ListArtifactsResponse,
+  DownloadArtifactQuery,
+  DownloadArtifactResponse,
 } from "./schemas.js";
 
 export type FetchLike = (
