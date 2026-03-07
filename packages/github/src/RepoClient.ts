@@ -2,14 +2,15 @@ import { type Octokit } from "@octokit/rest";
 
 import { PRClient } from "./PRClient.js";
 import type {
-  CommitFilesOptions,
+  CommitOptions,
   CommitResult,
   CreatedPR,
-  CreatePROptions,
   FileTreeResult,
   KeyFile,
+  OpenPullRequestOptions,
   PullRequest,
   RepoContext,
+  RepoContextOptions,
   Repository,
   TreeEntry,
 } from "./types.js";
@@ -36,11 +37,11 @@ export class RepoClient {
     this.name = name;
   }
 
-  pr(number: number): PRClient {
+  pullRequest(number: number): PRClient {
     return new PRClient(this.octokit, this.owner, this.name, number);
   }
 
-  async getOpenPRs(): Promise<readonly PullRequest[]> {
+  async openPullRequests(): Promise<readonly PullRequest[]> {
     const response = await this.octokit.pulls.list({
       owner: this.owner,
       repo: this.name,
@@ -51,7 +52,7 @@ export class RepoClient {
     return response.data as unknown as readonly PullRequest[];
   }
 
-  async get(): Promise<Repository> {
+  async details(): Promise<Repository> {
     const response = await this.octokit.repos.get({
       owner: this.owner,
       repo: this.name,
@@ -60,11 +61,11 @@ export class RepoClient {
     return response.data as unknown as Repository;
   }
 
-  async getFileTree(sha = "HEAD"): Promise<FileTreeResult> {
+  async tree(ref = "HEAD"): Promise<FileTreeResult> {
     const response = await this.octokit.git.getTree({
       owner: this.owner,
       repo: this.name,
-      tree_sha: sha,
+      tree_sha: ref,
       recursive: "1",
     });
 
@@ -74,7 +75,7 @@ export class RepoClient {
     };
   }
 
-  async getFileContent(filePath: string, ref?: string): Promise<string> {
+  async read(filePath: string, ref?: string): Promise<string> {
     const response = await this.octokit.repos.getContent({
       owner: this.owner,
       repo: this.name,
@@ -87,22 +88,19 @@ export class RepoClient {
   }
 
   /** Fetch the file tree and a set of key files for AI context gathering. */
-  async gatherContext(
-    filesToFetch: readonly string[],
-    maxFileChars: number
-  ): Promise<RepoContext> {
-    const { entries: tree } = await this.getFileTree();
+  async context(options: RepoContextOptions): Promise<RepoContext> {
+    const { entries: tree } = await this.tree(options.ref);
     const filePaths = tree.filter((e) => e.type === "blob").map((e) => e.path);
     const treePathSet = new Set(filePaths);
     const keyFiles: KeyFile[] = [];
 
-    for (const path of filesToFetch) {
+    for (const path of options.files) {
       if (!treePathSet.has(path)) {
         continue;
       }
       try {
-        const content = await this.getFileContent(path);
-        keyFiles.push({ path, content: content.slice(0, maxFileChars) });
+        const content = await this.read(path, options.ref);
+        keyFiles.push({ path, content: content.slice(0, options.maxChars) });
       } catch {
         // File not accessible — skip
       }
@@ -112,8 +110,8 @@ export class RepoClient {
   }
 
   /** Fetch the HEAD commit SHA of the repository's default branch. */
-  async getDefaultBranchHeadSha(): Promise<string> {
-    const repo = await this.get();
+  async defaultBranchSha(): Promise<string> {
+    const repo = await this.details();
     const { data: ref } = await this.octokit.git.getRef({
       owner: this.owner,
       repo: this.name,
@@ -123,7 +121,7 @@ export class RepoClient {
   }
 
   /** Get the SHA of a branch ref. Returns null if the branch does not exist. */
-  async getBranchSha(branch: string): Promise<string | null> {
+  async branchSha(branch: string): Promise<string | null> {
     try {
       const { data: ref } = await this.octokit.git.getRef({
         owner: this.owner,
@@ -187,23 +185,27 @@ export class RepoClient {
   }
 
   /** Create a pull request. Throws on failure. */
-  async createPR(options: CreatePROptions): Promise<CreatedPR> {
+  async openPullRequest(options: OpenPullRequestOptions): Promise<CreatedPR> {
+    const base = options.base ?? (await this.details()).default_branch;
     const { data } = await this.octokit.pulls.create({
       owner: this.owner,
       repo: this.name,
       head: options.head,
-      base: options.base,
+      base,
       title: options.title,
-      body: options.body,
+      body: options.body ?? "",
     });
     return { number: data.number, url: data.html_url };
   }
 
   /**
    * Create blobs, build a tree, commit, then create or update the branch ref.
-   * Uses getBranchSha to decide between createBranch and updateBranch.
+   * Uses branchSha to decide between createBranch and updateBranch.
    */
-  async commitFiles(options: CommitFilesOptions): Promise<CommitResult> {
+  async commit(options: CommitOptions): Promise<CommitResult> {
+    const existingSha = await this.branchSha(options.branch);
+    const parentSha = existingSha ?? (await this.defaultBranchSha());
+
     // 1. Create blobs for each file
     const blobEntries: { path: string; sha: string }[] = [];
     for (const file of options.files) {
@@ -220,7 +222,7 @@ export class RepoClient {
     const { data: parentCommit } = await this.octokit.git.getCommit({
       owner: this.owner,
       repo: this.name,
-      commit_sha: options.parentSha,
+      commit_sha: parentSha,
     });
     const baseTreeSha = parentCommit.tree.sha;
 
@@ -243,14 +245,13 @@ export class RepoClient {
       repo: this.name,
       message: options.message,
       tree: tree.sha,
-      parents: [options.parentSha],
+      parents: [parentSha],
       ...(options.author !== undefined
         ? { author: { name: options.author.name, email: options.author.email } }
         : {}),
     });
 
     // 5. Create or update branch ref
-    const existingSha = await this.getBranchSha(options.branch);
     if (existingSha === null) {
       await this.createBranch(options.branch, commit.sha);
       return { commitSha: commit.sha, branchCreated: true };

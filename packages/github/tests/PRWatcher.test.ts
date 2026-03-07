@@ -2013,7 +2013,7 @@ describe("repo normalization", () => {
     stubEmptyActivity();
 
     const localWatcher = new PRWatcher(mockOctokit, "testuser", {
-      repos: ["https://github.com/owner/repo/pull/42"],
+      repos: ["https://github.com/owner/repo"],
     });
 
     await localWatcher.start();
@@ -2023,6 +2023,15 @@ describe("repo normalization", () => {
     );
 
     localWatcher.stop();
+  });
+
+  it("rejects pull request URLs in repo options", () => {
+    expect(
+      () =>
+        new PRWatcher(mockOctokit, "testuser", {
+          repos: ["https://github.com/owner/repo/pull/42"],
+        })
+    ).toThrow("Invalid repository reference");
   });
 
   it("normalizes addRepo/removeRepo inputs", async () => {

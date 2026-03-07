@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseGitHubFileUrl,
   parseGitHubDirectoryUrl,
+  parseGitHubPullRequestReference,
   parseGitHubRepoReference,
 } from "../src/githubUrlParser.js";
 
@@ -80,7 +81,7 @@ describe("parseGitHubRepoReference", () => {
       owner: "owner",
       repo: "repo",
     });
-    expect(parseGitHubRepoReference("github.com/owner/repo/pull/123")).toEqual({
+    expect(parseGitHubRepoReference("github.com/owner/repo")).toEqual({
       owner: "owner",
       repo: "repo",
     });
@@ -88,9 +89,41 @@ describe("parseGitHubRepoReference", () => {
 
   it("returns null for unsupported values", () => {
     expect(
+      parseGitHubRepoReference("https://github.com/owner/repo/pull/123")
+    ).toBeNull();
+    expect(
       parseGitHubRepoReference("https://example.com/owner/repo")
     ).toBeNull();
     expect(parseGitHubRepoReference("owner")).toBeNull();
     expect(parseGitHubRepoReference("   ")).toBeNull();
+  });
+});
+
+describe("parseGitHubPullRequestReference", () => {
+  it("parses owner/repo#number", () => {
+    expect(parseGitHubPullRequestReference("owner/repo#123")).toEqual({
+      owner: "owner",
+      repo: "repo",
+      number: 123,
+    });
+  });
+
+  it("parses pull request URLs", () => {
+    expect(
+      parseGitHubPullRequestReference(
+        "https://github.com/owner/repo/pull/123/files"
+      )
+    ).toEqual({
+      owner: "owner",
+      repo: "repo",
+      number: 123,
+    });
+  });
+
+  it("returns null for non-PR refs", () => {
+    expect(parseGitHubPullRequestReference("owner/repo")).toBeNull();
+    expect(
+      parseGitHubPullRequestReference("https://github.com/owner/repo")
+    ).toBeNull();
   });
 });

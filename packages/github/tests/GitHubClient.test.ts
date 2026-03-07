@@ -1,17 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { GitHubClient } from "../src/GitHubClient.js";
+import { formatTimeline } from "../src/timeline.js";
 import type {
-  PullRequest,
-  Repository,
   CheckRun,
-  PullRequestComment,
-  PullRequestReview,
-  PullRequestFile,
-  PullRequestCommit,
   ContributionRepo,
+  PullRequest,
+  PullRequestComment,
+  PullRequestCommit,
+  PullRequestFile,
+  PullRequestReview,
+  Repository,
 } from "../src/types.js";
 
-// Create mock instance
 const createMockOctokit = () => ({
   users: {
     getAuthenticated: vi
@@ -26,6 +27,7 @@ const createMockOctokit = () => ({
     listReviews: vi.fn(),
     merge: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
   },
   checks: {
     listForRef: vi.fn(),
@@ -39,6 +41,7 @@ const createMockOctokit = () => ({
     getRef: vi.fn(),
     createRef: vi.fn(),
     updateRef: vi.fn(),
+    deleteRef: vi.fn(),
     createBlob: vi.fn(),
     createTree: vi.fn(),
     createCommit: vi.fn(),
@@ -54,121 +57,229 @@ const createMockOctokit = () => ({
   search: {
     issuesAndPullRequests: vi.fn(),
   },
+  graphql: vi.fn(),
 });
 
 const mockOctokit = createMockOctokit();
+const octokitConfigs: unknown[] = [];
 
-// Mock Octokit
 vi.mock("@octokit/rest", () => ({
   Octokit: class {
-    constructor() {
+    constructor(config: unknown) {
+      octokitConfigs.push(config);
       return mockOctokit;
     }
   },
 }));
 
-describe("GitHubClient", () => {
-  let client: GitHubClient;
+function makeRepository(overrides: Partial<Repository> = {}): Repository {
+  return {
+    id: 1,
+    name: "repo",
+    full_name: "owner/repo",
+    owner: { login: "owner", id: 1 },
+    html_url: "https://github.com/owner/repo",
+    default_branch: "main",
+    description: null,
+    ...overrides,
+  };
+}
 
-  beforeEach(async () => {
+function makePullRequest(overrides: Partial<PullRequest> = {}): PullRequest {
+  return {
+    id: 1,
+    number: 42,
+    title: "Test PR",
+    body: "body",
+    state: "open",
+    draft: false,
+    user: {
+      login: "testuser",
+      id: 1,
+      avatar_url: "",
+      html_url: "",
+    },
+    html_url: "https://github.com/owner/repo/pull/42",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    closed_at: null,
+    merged_at: null,
+    head: {
+      ref: "feature",
+      sha: "head-sha",
+      repo: null,
+    },
+    base: {
+      ref: "main",
+      sha: "base-sha",
+      repo: makeRepository(),
+    },
+    mergeable: true,
+    mergeable_state: "mergeable",
+    labels: [],
+    requested_reviewers: [],
+    assignees: [],
+    ...overrides,
+  };
+}
+
+function makeComment(
+  overrides: Partial<PullRequestComment> = {}
+): PullRequestComment {
+  return {
+    id: 10,
+    user: {
+      login: "reviewer",
+      id: 2,
+      avatar_url: "",
+      html_url: "",
+    },
+    body: "Looks good",
+    created_at: "2024-01-02T00:00:00Z",
+    updated_at: "2024-01-02T00:00:00Z",
+    html_url: "https://github.com/owner/repo/pull/42#issuecomment-10",
+    ...overrides,
+  };
+}
+
+function makeReview(
+  overrides: Partial<PullRequestReview> = {}
+): PullRequestReview {
+  return {
+    id: 20,
+    user: {
+      login: "reviewer",
+      id: 2,
+      avatar_url: "",
+      html_url: "",
+    },
+    body: "Approved",
+    state: "APPROVED",
+    submitted_at: "2024-01-03T00:00:00Z",
+    html_url: "https://github.com/owner/repo/pull/42#pullrequestreview-20",
+    ...overrides,
+  };
+}
+
+function makeCheckRun(overrides: Partial<CheckRun> = {}): CheckRun {
+  return {
+    id: 30,
+    name: "CI",
+    status: "completed",
+    conclusion: "success",
+    started_at: "2024-01-04T00:00:00Z",
+    completed_at: "2024-01-04T00:01:00Z",
+    html_url: "https://github.com/owner/repo/actions/runs/30",
+    ...overrides,
+  };
+}
+
+function makeCommit(
+  overrides: Partial<PullRequestCommit> = {}
+): PullRequestCommit {
+  return {
+    sha: "abcdef123456",
+    commit: {
+      author: {
+        name: "Author",
+        email: "author@example.com",
+        date: "2024-01-05T00:00:00Z",
+      },
+      message: "Add feature",
+    },
+    author: {
+      login: "author",
+      id: 3,
+      avatar_url: "",
+      html_url: "",
+    },
+    html_url: "https://github.com/owner/repo/commit/abcdef1",
+    ...overrides,
+  };
+}
+
+describe("GitHubClient", () => {
+  beforeEach(() => {
     vi.clearAllMocks();
+    octokitConfigs.length = 0;
+    delete process.env.GH_PAT;
+    delete process.env.GITHUB_TOKEN;
     mockOctokit.users.getAuthenticated.mockResolvedValue({
       data: { login: "testuser" },
     });
-    client = await GitHubClient.create("test-token");
   });
 
-  describe("create", () => {
-    it("resolves username from token", async () => {
-      expect(mockOctokit.users.getAuthenticated).toHaveBeenCalled();
+  describe("constructor", () => {
+    it("uses the explicit token and does not eagerly resolve the username", () => {
+      new GitHubClient({ token: "test-token" });
+
+      expect(octokitConfigs).toEqual([{ auth: "test-token" }]);
+      expect(mockOctokit.users.getAuthenticated).not.toHaveBeenCalled();
     });
 
-    it("reads GH_PAT from environment when no token provided", async () => {
-      process.env.GH_PAT = "env-token";
-      try {
-        await GitHubClient.create();
-        expect(mockOctokit.users.getAuthenticated).toHaveBeenCalled();
-      } finally {
-        delete process.env.GH_PAT;
-      }
+    it("falls back to GH_PAT before GITHUB_TOKEN", () => {
+      process.env.GH_PAT = "gh-pat-token";
+      process.env.GITHUB_TOKEN = "github-token";
+
+      new GitHubClient();
+
+      expect(octokitConfigs).toEqual([{ auth: "gh-pat-token" }]);
     });
 
-    it("throws when no token and no GH_PAT", async () => {
-      delete process.env.GH_PAT;
-      await expect(GitHubClient.create()).rejects.toThrow(
-        "GitHub token is required"
-      );
-    });
-  });
+    it("falls back to GITHUB_TOKEN when GH_PAT is missing", () => {
+      process.env.GITHUB_TOKEN = "github-token";
 
-  describe("repo", () => {
-    it("supports owner/repo shorthand", () => {
-      const repoClient = client.repo("owner/repo");
-      expect(repoClient).toBeDefined();
+      new GitHubClient();
+
+      expect(octokitConfigs).toEqual([{ auth: "github-token" }]);
     });
 
-    it("supports GitHub URL repo references", () => {
-      const repoClient = client.repo("https://github.com/owner/repo/pull/42");
-      expect(repoClient).toBeDefined();
-    });
-
-    it("throws for invalid repo references", () => {
-      expect(() => client.repo("not-a-repo")).toThrow(
-        "Invalid repository reference"
-      );
+    it("throws when no token source is available", () => {
+      expect(() => new GitHubClient()).toThrow("GitHub token is required");
     });
   });
 
-  describe("repo().getOpenPRs", () => {
-    it("returns open pull requests", async () => {
-      const prs: PullRequest[] = [
-        {
-          id: 1,
-          number: 42,
-          title: "Test PR",
-          body: "body",
-          state: "open",
-          draft: false,
-          user: {
-            login: "testuser",
-            id: 1,
-            avatar_url: "",
-            html_url: "",
-          },
-          html_url: "https://github.com/owner/repo/pull/42",
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          closed_at: null,
-          merged_at: null,
-          head: {
-            ref: "feature",
-            sha: "abc123",
-            repo: null,
-          },
-          base: {
-            ref: "main",
-            sha: "def456",
-            repo: {
-              id: 1,
-              name: "repo",
-              full_name: "owner/repo",
-              owner: { login: "owner", id: 1 },
-              html_url: "",
-              default_branch: "main",
-            },
-          },
-          mergeable: true,
-          mergeable_state: "mergeable",
-          labels: [],
-          requested_reviewers: [],
-          assignees: [],
-        },
-      ];
-      mockOctokit.pulls.list.mockResolvedValue({ data: prs });
+  describe("refs", () => {
+    it("accepts repo refs and repo URLs", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const repo = makeRepository();
+      mockOctokit.repos.get.mockResolvedValue({ data: repo });
 
-      const result = await client.repo("owner", "repo").getOpenPRs();
+      await expect(client.repo("owner/repo").details()).resolves.toEqual(repo);
+      await expect(
+        client.repo("https://github.com/owner/repo").details()
+      ).resolves.toEqual(repo);
+    });
 
-      expect(result).toEqual(prs);
+    it("rejects PR URLs as repo refs", () => {
+      const client = new GitHubClient({ token: "test-token" });
+
+      expect(() =>
+        client.repo("https://github.com/owner/repo/pull/42")
+      ).toThrow("Invalid repository reference");
+    });
+
+    it("accepts PR refs and PR URLs", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const pr = makePullRequest();
+      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
+
+      await expect(client.pr("owner/repo#42").details()).resolves.toEqual(pr);
+      await expect(
+        client.pr("https://github.com/owner/repo/pull/42/files").details()
+      ).resolves.toEqual(pr);
+    });
+  });
+
+  describe("repo client", () => {
+    it("lists open PRs", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const pr = makePullRequest();
+      mockOctokit.pulls.list.mockResolvedValue({ data: [pr] });
+
+      const result = await client.repo("owner/repo").openPullRequests();
+
+      expect(result).toEqual([pr]);
       expect(mockOctokit.pulls.list).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
@@ -176,433 +287,95 @@ describe("GitHubClient", () => {
         per_page: 100,
       });
     });
-  });
 
-  describe("repo().get", () => {
-    it("returns repository info", async () => {
-      const repo: Repository = {
-        id: 1,
-        name: "repo",
-        full_name: "owner/repo",
-        owner: { login: "owner", id: 1 },
-        html_url: "https://github.com/owner/repo",
-        default_branch: "main",
-      };
-      mockOctokit.repos.get.mockResolvedValue({ data: repo });
-
-      const result = await client.repo("owner", "repo").get();
-
-      expect(result).toEqual(repo);
-    });
-  });
-
-  describe("repo().pr().get", () => {
-    it("returns a single pull request", async () => {
-      const pr = { id: 1, number: 42, title: "Test PR" };
-      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
-
-      const result = await client.repo("owner", "repo").pr(42).get();
-
-      expect(result).toEqual(pr);
-      expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        pull_number: 42,
+    it("reads repository trees and file content", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.git.getTree.mockResolvedValue({
+        data: { tree: [{ path: "README.md", sha: "sha1", type: "blob" }], sha: "root-sha" },
       });
-    });
-  });
-
-  describe("repo().pr().getDiff", () => {
-    it("returns diff string", async () => {
-      mockOctokit.pulls.get.mockResolvedValue({
-        data: "diff --git a/file.ts b/file.ts",
+      mockOctokit.repos.getContent.mockResolvedValue({
+        data: { content: Buffer.from("hello").toString("base64") },
       });
 
-      const result = await client.repo("owner", "repo").pr(42).getDiff();
-
-      expect(result).toBe("diff --git a/file.ts b/file.ts");
-      expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        pull_number: 42,
-        mediaType: { format: "diff" },
+      await expect(client.repo("owner/repo").tree("main")).resolves.toEqual({
+        entries: [{ path: "README.md", sha: "sha1", type: "blob" }],
+        rootSha: "root-sha",
       });
-    });
-  });
-
-  describe("repo().pr().getFiles", () => {
-    it("returns files changed in PR", async () => {
-      const files: PullRequestFile[] = [
-        {
-          sha: "abc",
-          filename: "src/index.ts",
-          status: "modified",
-          additions: 10,
-          deletions: 5,
-          changes: 15,
-          blob_url: "",
-          raw_url: "",
-          patch: "@@ -1,5 +1,10 @@",
-        },
-      ];
-      mockOctokit.pulls.listFiles.mockResolvedValue({ data: files });
-
-      const result = await client.repo("owner", "repo").pr(42).getFiles();
-
-      expect(result).toEqual(files);
-      expect(mockOctokit.pulls.listFiles).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        pull_number: 42,
-        per_page: 100,
-      });
-    });
-  });
-
-  describe("repo().pr().getCommits", () => {
-    it("returns commits in PR", async () => {
-      const commits: PullRequestCommit[] = [
-        {
-          sha: "abc123",
-          commit: {
-            author: {
-              name: "Test",
-              email: "test@example.com",
-              date: "2024-01-01T00:00:00Z",
-            },
-            message: "fix: something",
-          },
-          author: { login: "testuser", id: 1, avatar_url: "", html_url: "" },
-          html_url: "",
-        },
-      ];
-      mockOctokit.pulls.listCommits.mockResolvedValue({ data: commits });
-
-      const result = await client.repo("owner", "repo").pr(42).getCommits();
-
-      expect(result).toEqual(commits);
-    });
-  });
-
-  describe("repo().pr().getCheckRuns", () => {
-    it("fetches PR then returns check runs for head sha", async () => {
-      const pr = {
-        id: 1,
-        number: 42,
-        head: { sha: "abc123" },
-      };
-      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
-
-      const checkRuns: CheckRun[] = [
-        {
-          id: 1,
-          name: "CI",
-          status: "completed",
-          conclusion: "success",
-          started_at: "2024-01-01T00:00:00Z",
-          completed_at: "2024-01-01T00:01:00Z",
-          html_url: "",
-        },
-      ];
-      mockOctokit.checks.listForRef.mockResolvedValue({
-        data: { check_runs: checkRuns },
-      });
-
-      const result = await client.repo("owner", "repo").pr(42).getCheckRuns();
-
-      expect(result).toEqual(checkRuns);
-      expect(mockOctokit.pulls.get).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        pull_number: 42,
-      });
-      expect(mockOctokit.checks.listForRef).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        ref: "abc123",
-        per_page: 100,
-      });
-    });
-  });
-
-  describe("repo().pr().getComments", () => {
-    it("returns comments on a PR", async () => {
-      const comments: PullRequestComment[] = [
-        {
-          id: 1,
-          user: { login: "reviewer", id: 2, avatar_url: "", html_url: "" },
-          body: "LGTM",
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          html_url: "",
-        },
-      ];
-      mockOctokit.issues.listComments.mockResolvedValue({ data: comments });
-
-      const result = await client.repo("owner", "repo").pr(42).getComments();
-
-      expect(result).toEqual(comments);
-      expect(mockOctokit.issues.listComments).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        issue_number: 42,
-        per_page: 100,
-      });
-    });
-  });
-
-  describe("repo().pr().getReviews", () => {
-    it("returns reviews on a PR", async () => {
-      const reviews: PullRequestReview[] = [
-        {
-          id: 1,
-          user: { login: "reviewer", id: 2, avatar_url: "", html_url: "" },
-          body: "Approved",
-          state: "APPROVED",
-          submitted_at: "2024-01-01T00:00:00Z",
-          html_url: "",
-        },
-      ];
-      mockOctokit.pulls.listReviews.mockResolvedValue({ data: reviews });
-
-      const result = await client.repo("owner", "repo").pr(42).getReviews();
-
-      expect(result).toEqual(reviews);
-    });
-  });
-
-  describe("repo().pr().postComment", () => {
-    it("creates a comment on a PR", async () => {
-      mockOctokit.issues.createComment.mockResolvedValue({});
-
-      await client.repo("owner", "repo").pr(42).postComment("Great work!");
-
-      expect(mockOctokit.issues.createComment).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        issue_number: 42,
-        body: "Great work!",
-      });
-    });
-  });
-
-  describe("repo().pr().merge", () => {
-    it("squash merges a PR", async () => {
-      mockOctokit.pulls.merge.mockResolvedValue({});
-
-      await client.repo("owner", "repo").pr(42).merge("feat: my feature (#42)");
-
-      expect(mockOctokit.pulls.merge).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        pull_number: 42,
-        merge_method: "squash",
-        commit_title: "feat: my feature (#42)",
-      });
-    });
-  });
-
-  describe("getOwnerRepos", () => {
-    it("returns repos for an organization", async () => {
-      const repos = [{ name: "repo1", full_name: "org/repo1" }];
-      mockOctokit.repos.listForOrg.mockResolvedValue({ data: repos });
-
-      const result = await client.getOwnerRepos("org");
-
-      expect(result).toEqual([
-        { owner: "org", name: "repo1", fullName: "org/repo1" },
-      ] satisfies ContributionRepo[]);
+      await expect(client.repo("owner/repo").read("README.md", "main")).resolves.toBe(
+        "hello"
+      );
     });
 
-    it("falls back to user repos if org fails", async () => {
-      mockOctokit.repos.listForOrg.mockRejectedValue(new Error("Not an org"));
-      const repos = [{ name: "repo1", full_name: "user/repo1" }];
-      mockOctokit.repos.listForUser.mockResolvedValue({ data: repos });
-
-      const result = await client.getOwnerRepos("user");
-
-      expect(result).toEqual([
-        { owner: "user", name: "repo1", fullName: "user/repo1" },
-      ]);
-    });
-  });
-
-  describe("getContributedRepos", () => {
-    it("returns repos the user contributed to", async () => {
-      mockOctokit.search.issuesAndPullRequests.mockResolvedValue({
+    it("builds repo context from the configured files", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.git.getTree.mockResolvedValue({
         data: {
-          items: [
-            { repository_url: "https://api.github.com/repos/owner/repo1" },
-            { repository_url: "https://api.github.com/repos/owner/repo2" },
-            { repository_url: "https://api.github.com/repos/owner/repo1" },
+          tree: [
+            { path: "README.md", sha: "sha1", type: "blob" },
+            { path: "package.json", sha: "sha2", type: "blob" },
           ],
+          sha: "root-sha",
         },
       });
+      mockOctokit.repos.getContent
+        .mockResolvedValueOnce({
+          data: { content: Buffer.from("README").toString("base64") },
+        })
+        .mockResolvedValueOnce({
+          data: { content: Buffer.from("package").toString("base64") },
+        });
 
-      const result = await client.getContributedRepos(30);
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
-        owner: "owner",
-        name: "repo1",
-        fullName: "owner/repo1",
-      });
-      expect(result[1]).toEqual({
-        owner: "owner",
-        name: "repo2",
-        fullName: "owner/repo2",
-      });
-    });
-  });
-
-  describe("getMyOpenPRs", () => {
-    it("returns open PRs by the authenticated user", async () => {
-      mockOctokit.search.issuesAndPullRequests.mockResolvedValue({
-        data: {
-          items: [
-            {
-              number: 10,
-              repository_url: "https://api.github.com/repos/owner/repo",
-            },
-          ],
-        },
+      const result = await client.repo("owner/repo").context({
+        files: ["README.md", "package.json", "missing.md"],
+        maxChars: 4,
+        ref: "main",
       });
 
-      const prData = { id: 1, number: 10, title: "My PR" };
-      mockOctokit.pulls.get.mockResolvedValue({ data: prData });
-
-      const result = await client.getMyOpenPRs();
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        pr: prData,
-        repo: { owner: "owner", name: "repo" },
-      });
-      expect(mockOctokit.search.issuesAndPullRequests).toHaveBeenCalledWith({
-        q: "is:pr is:open author:testuser",
-        per_page: 100,
-        sort: "updated",
+      expect(result).toEqual({
+        filePaths: ["README.md", "package.json"],
+        keyFiles: [
+          { path: "README.md", content: "READ" },
+          { path: "package.json", content: "pack" },
+        ],
       });
     });
-  });
 
-  describe("repo().getBranchSha", () => {
-    it("returns SHA when branch exists", async () => {
+    it("resolves default branch and branch SHAs", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.repos.get.mockResolvedValue({
+        data: makeRepository({ default_branch: "trunk" }),
+      });
       mockOctokit.git.getRef.mockResolvedValue({
-        data: { ref: "refs/heads/main", object: { sha: "abc123" } },
+        data: { object: { sha: "branch-sha" } },
       });
 
-      const result = await client.repo("owner", "repo").getBranchSha("main");
-
-      expect(result).toBe("abc123");
-      expect(mockOctokit.git.getRef).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        ref: "heads/main",
-      });
+      await expect(client.repo("owner/repo").defaultBranchSha()).resolves.toBe(
+        "branch-sha"
+      );
+      await expect(client.repo("owner/repo").branchSha("feature")).resolves.toBe(
+        "branch-sha"
+      );
     });
 
-    it("returns null when branch does not exist (404)", async () => {
-      const notFoundError = Object.assign(new Error("Not Found"), {
-        status: 404,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
+    it("returns null when a branch does not exist", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.git.getRef.mockRejectedValue({ status: 404 });
 
-      const result = await client
-        .repo("owner", "repo")
-        .getBranchSha("nonexistent");
-
-      expect(result).toBeNull();
+      await expect(client.repo("owner/repo").branchSha("missing")).resolves.toBe(
+        null
+      );
     });
 
-    it("rethrows non-404 errors", async () => {
-      const serverError = Object.assign(new Error("Server Error"), {
-        status: 500,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(serverError);
-
-      await expect(
-        client.repo("owner", "repo").getBranchSha("main")
-      ).rejects.toThrow("Server Error");
-    });
-  });
-
-  describe("repo().mergeBranch", () => {
-    it("returns SHA on 201 merge created", async () => {
-      mockOctokit.repos.merge.mockResolvedValue({
-        status: 201,
-        data: { sha: "merge-sha-123" },
-      });
-
-      const result = await client
-        .repo("owner", "repo")
-        .mergeBranch("main", "feature");
-
-      expect(result).toBe("merge-sha-123");
-      expect(mockOctokit.repos.merge).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        base: "main",
-        head: "feature",
-        commit_message: "Merge feature into main",
-      });
-    });
-
-    it("returns null on 204 already up-to-date", async () => {
-      mockOctokit.repos.merge.mockResolvedValue({
-        status: 204,
-        data: {},
-      });
-
-      const result = await client
-        .repo("owner", "repo")
-        .mergeBranch("main", "feature");
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("repo().createBranch", () => {
-    it("calls createRef with refs/heads/ prefix", async () => {
-      mockOctokit.git.createRef.mockResolvedValue({});
-
-      await client.repo("owner", "repo").createBranch("my-branch", "sha123");
-
-      expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        ref: "refs/heads/my-branch",
-        sha: "sha123",
-      });
-    });
-  });
-
-  describe("repo().updateBranch", () => {
-    it("calls updateRef with heads/ prefix", async () => {
-      mockOctokit.git.updateRef.mockResolvedValue({});
-
-      await client.repo("owner", "repo").updateBranch("my-branch", "newsha123");
-
-      expect(mockOctokit.git.updateRef).toHaveBeenCalledWith({
-        owner: "owner",
-        repo: "repo",
-        ref: "heads/my-branch",
-        sha: "newsha123",
-      });
-    });
-  });
-
-  describe("repo().createPR", () => {
-    it("returns number and url", async () => {
+    it("defaults base and body when opening a pull request", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.repos.get.mockResolvedValue({ data: makeRepository() });
       mockOctokit.pulls.create.mockResolvedValue({
         data: { number: 42, html_url: "https://github.com/owner/repo/pull/42" },
       });
 
-      const result = await client.repo("owner", "repo").createPR({
+      const result = await client.repo("owner/repo").openPullRequest({
         head: "feature",
-        base: "main",
-        title: "My PR",
-        body: "PR body",
+        title: "Add feature",
       });
 
       expect(result).toEqual({
@@ -614,256 +387,216 @@ describe("GitHubClient", () => {
         repo: "repo",
         head: "feature",
         base: "main",
-        title: "My PR",
-        body: "PR body",
+        title: "Add feature",
+        body: "",
       });
     });
-  });
 
-  describe("repo().commitFiles", () => {
-    const setupCommitMocks = () => {
-      mockOctokit.git.createBlob.mockResolvedValue({
-        data: { sha: "blob-sha-1" },
+    it("uses the existing branch head when committing to an existing branch", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.git.getRef.mockResolvedValue({
+        data: { object: { sha: "existing-branch-sha" } },
       });
+      mockOctokit.git.createBlob.mockResolvedValue({ data: { sha: "blob-sha" } });
       mockOctokit.git.getCommit.mockResolvedValue({
-        data: { tree: { sha: "parent-tree-sha" } },
+        data: { tree: { sha: "base-tree-sha" } },
       });
-      mockOctokit.git.createTree.mockResolvedValue({
-        data: { sha: "new-tree-sha" },
-      });
-      mockOctokit.git.createCommit.mockResolvedValue({
-        data: { sha: "new-commit-sha" },
-      });
-    };
+      mockOctokit.git.createTree.mockResolvedValue({ data: { sha: "tree-sha" } });
+      mockOctokit.git.createCommit.mockResolvedValue({ data: { sha: "commit-sha" } });
 
-    it("creates new branch when branch does not exist", async () => {
-      setupCommitMocks();
-      const notFoundError = Object.assign(new Error("Not Found"), {
-        status: 404,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
-      mockOctokit.git.createRef.mockResolvedValue({});
-
-      const result = await client.repo("owner", "repo").commitFiles({
-        branch: "new-branch",
-        files: [{ path: "README.md", content: "# Hello" }],
-        message: "Add README",
-        parentSha: "parent-sha-123",
+      const result = await client.repo("owner/repo").commit({
+        branch: "feature",
+        files: [{ path: "README.md", content: "hello" }],
+        message: "Update README",
       });
 
       expect(result).toEqual({
-        commitSha: "new-commit-sha",
-        branchCreated: true,
+        commitSha: "commit-sha",
+        branchCreated: false,
       });
-      expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
+      expect(mockOctokit.git.getCommit).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
-        ref: "refs/heads/new-branch",
-        sha: "new-commit-sha",
-      });
-      expect(mockOctokit.git.updateRef).not.toHaveBeenCalled();
-    });
-
-    it("updates existing branch when branch already exists", async () => {
-      setupCommitMocks();
-      mockOctokit.git.getRef.mockResolvedValue({
-        data: {
-          ref: "refs/heads/existing-branch",
-          object: { sha: "existing-sha" },
-        },
-      });
-      mockOctokit.git.updateRef.mockResolvedValue({});
-
-      const result = await client.repo("owner", "repo").commitFiles({
-        branch: "existing-branch",
-        files: [{ path: "README.md", content: "# Updated" }],
-        message: "Update README",
-        parentSha: "parent-sha-123",
-      });
-
-      expect(result).toEqual({
-        commitSha: "new-commit-sha",
-        branchCreated: false,
+        commit_sha: "existing-branch-sha",
       });
       expect(mockOctokit.git.updateRef).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
-        ref: "heads/existing-branch",
-        sha: "new-commit-sha",
+        ref: "heads/feature",
+        sha: "commit-sha",
       });
-      expect(mockOctokit.git.createRef).not.toHaveBeenCalled();
     });
 
-    it("sends author when provided", async () => {
-      setupCommitMocks();
-      const notFoundError = Object.assign(new Error("Not Found"), {
-        status: 404,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
-      mockOctokit.git.createRef.mockResolvedValue({});
-
-      await client.repo("owner", "repo").commitFiles({
-        branch: "new-branch",
-        files: [{ path: "file.txt", content: "content" }],
-        message: "Commit with author",
-        parentSha: "parent-sha",
-        author: { name: "AI Bot", email: "ai@example.com" },
-      });
-
-      expect(mockOctokit.git.createCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          author: { name: "AI Bot", email: "ai@example.com" },
-        })
-      );
-    });
-
-    it("omits author field when not provided", async () => {
-      setupCommitMocks();
-      const notFoundError = Object.assign(new Error("Not Found"), {
-        status: 404,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
-      mockOctokit.git.createRef.mockResolvedValue({});
-
-      await client.repo("owner", "repo").commitFiles({
-        branch: "new-branch",
-        files: [{ path: "file.txt", content: "content" }],
-        message: "Commit without author",
-        parentSha: "parent-sha",
-      });
-
-      const callArgs = mockOctokit.git.createCommit.mock.calls[0]![0] as Record<
-        string,
-        unknown
-      >;
-      expect(callArgs).not.toHaveProperty("author");
-    });
-
-    it("creates blobs and tree correctly for multiple files", async () => {
-      mockOctokit.git.createBlob
-        .mockResolvedValueOnce({ data: { sha: "blob-sha-1" } })
-        .mockResolvedValueOnce({ data: { sha: "blob-sha-2" } });
+    it("falls back to the default branch head when creating a new branch commit", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.git.getRef
+        .mockRejectedValueOnce({ status: 404 })
+        .mockResolvedValueOnce({ data: { object: { sha: "default-branch-sha" } } });
+      mockOctokit.repos.get.mockResolvedValue({ data: makeRepository() });
+      mockOctokit.git.createBlob.mockResolvedValue({ data: { sha: "blob-sha" } });
       mockOctokit.git.getCommit.mockResolvedValue({
-        data: { tree: { sha: "parent-tree-sha" } },
+        data: { tree: { sha: "base-tree-sha" } },
       });
-      mockOctokit.git.createTree.mockResolvedValue({
-        data: { sha: "new-tree-sha" },
-      });
-      mockOctokit.git.createCommit.mockResolvedValue({
-        data: { sha: "new-commit-sha" },
-      });
-      const notFoundError = Object.assign(new Error("Not Found"), {
-        status: 404,
-      });
-      mockOctokit.git.getRef.mockRejectedValue(notFoundError);
-      mockOctokit.git.createRef.mockResolvedValue({});
+      mockOctokit.git.createTree.mockResolvedValue({ data: { sha: "tree-sha" } });
+      mockOctokit.git.createCommit.mockResolvedValue({ data: { sha: "commit-sha" } });
 
-      await client.repo("owner", "repo").commitFiles({
-        branch: "new-branch",
-        files: [
-          { path: "file1.md", content: "content1" },
-          { path: "file2.md", content: "content2" },
-        ],
-        message: "Add files",
-        parentSha: "parent-sha",
+      const result = await client.repo("owner/repo").commit({
+        branch: "feature",
+        files: [{ path: "README.md", content: "hello" }],
+        message: "Update README",
       });
 
-      expect(mockOctokit.git.createBlob).toHaveBeenCalledTimes(2);
-      expect(mockOctokit.git.createTree).toHaveBeenCalledWith({
+      expect(result).toEqual({
+        commitSha: "commit-sha",
+        branchCreated: true,
+      });
+      expect(mockOctokit.git.getCommit).toHaveBeenCalledWith({
         owner: "owner",
         repo: "repo",
-        base_tree: "parent-tree-sha",
-        tree: [
-          { path: "file1.md", mode: "100644", type: "blob", sha: "blob-sha-1" },
-          { path: "file2.md", mode: "100644", type: "blob", sha: "blob-sha-2" },
-        ],
+        commit_sha: "default-branch-sha",
+      });
+      expect(mockOctokit.git.createRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "refs/heads/feature",
+        sha: "commit-sha",
       });
     });
   });
 
-  describe("repo().gatherContext", () => {
-    it("returns file paths and key files", async () => {
-      mockOctokit.git.getTree.mockResolvedValue({
-        data: {
-          tree: [
-            { path: "src/index.ts", type: "blob", sha: "a1" },
-            { path: "src", type: "tree", sha: "a2" },
-            { path: "README.md", type: "blob", sha: "a3" },
-            { path: "package.json", type: "blob", sha: "a4" },
-          ],
+  describe("pull request client", () => {
+    it("returns PR details, files, commits, reviews, and comments", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const pr = makePullRequest();
+      const files: PullRequestFile[] = [
+        {
+          sha: "file-sha",
+          filename: "src/index.ts",
+          status: "modified",
+          additions: 1,
+          deletions: 0,
+          changes: 1,
+          blob_url: "",
+          raw_url: "",
         },
+      ];
+      const commits = [makeCommit()];
+      const reviews = [makeReview()];
+      const comments = [makeComment()];
+      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
+      mockOctokit.pulls.listFiles.mockResolvedValue({ data: files });
+      mockOctokit.pulls.listCommits.mockResolvedValue({ data: commits });
+      mockOctokit.pulls.listReviews.mockResolvedValue({ data: reviews });
+      mockOctokit.issues.listComments.mockResolvedValue({ data: comments });
+
+      const prClient = client.pr("owner/repo#42");
+      await expect(prClient.details()).resolves.toEqual(pr);
+      await expect(prClient.files()).resolves.toEqual(files);
+      await expect(prClient.commits()).resolves.toEqual(commits);
+      await expect(prClient.reviews()).resolves.toEqual(reviews);
+      await expect(prClient.comments()).resolves.toEqual(comments);
+    });
+
+    it("returns diffs and posts comments", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.pulls.get.mockResolvedValue({ data: "diff --git a b" });
+
+      await expect(client.pr("owner/repo#42").diff()).resolves.toBe(
+        "diff --git a b"
+      );
+
+      await client.pr("owner/repo#42").comment("Great work");
+
+      expect(mockOctokit.issues.createComment).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        issue_number: 42,
+        body: "Great work",
+      });
+    });
+
+    it("loads checks and builds timeline snapshots", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const pr = makePullRequest();
+      const comments = [makeComment()];
+      const reviews = [makeReview()];
+      const commits = [makeCommit()];
+      const checks = [makeCheckRun()];
+      mockOctokit.pulls.get.mockResolvedValue({ data: pr });
+      mockOctokit.issues.listComments.mockResolvedValue({ data: comments });
+      mockOctokit.pulls.listReviews.mockResolvedValue({ data: reviews });
+      mockOctokit.pulls.listCommits.mockResolvedValue({ data: commits });
+      mockOctokit.checks.listForRef.mockResolvedValue({
+        data: { check_runs: checks },
       });
 
-      const readmeContent = Buffer.from("# Hello World").toString("base64");
-      const pkgContent = Buffer.from('{"name": "test"}').toString("base64");
+      const prClient = client.pr("owner/repo#42");
+      await expect(prClient.checks()).resolves.toEqual(checks);
 
-      mockOctokit.repos.getContent
-        .mockResolvedValueOnce({ data: { content: readmeContent } })
-        .mockResolvedValueOnce({ data: { content: pkgContent } });
+      const snapshot = await prClient.load();
+      expect(snapshot).toEqual({
+        pullRequest: pr,
+        repository: pr.base.repo,
+        comments,
+        reviews,
+        checks,
+        timeline: await prClient.timeline(),
+      });
+      expect(formatTimeline(snapshot.timeline)).toContain("review: approved");
+      expect(mockOctokit.checks.listForRef).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        ref: "head-sha",
+        per_page: 100,
+      });
+    });
+  });
 
-      const result = await client
-        .repo("owner", "repo")
-        .gatherContext(["README.md", "package.json", "MISSING.md"], 5000);
+  describe("top-level queries", () => {
+    it("lists owner repositories and falls back from org to user", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      const repos: ContributionRepo[] = [
+        { owner: "owner", name: "repo", fullName: "owner/repo" },
+      ];
+      mockOctokit.repos.listForOrg
+        .mockRejectedValueOnce(new Error("not an org"))
+        .mockResolvedValueOnce({
+          data: [{ name: "repo", full_name: "owner/repo" }],
+        });
+      mockOctokit.repos.listForUser.mockResolvedValue({
+        data: [{ name: "repo", full_name: "owner/repo" }],
+      });
 
-      // Filters out tree entries (only blobs)
-      expect(result.filePaths).toEqual([
-        "src/index.ts",
-        "README.md",
-        "package.json",
+      await expect(client.ownerRepositories("owner")).resolves.toEqual(repos);
+      await expect(client.ownerRepositories("owner")).resolves.toEqual(repos);
+    });
+
+    it("memoizes the authenticated username for username-based queries", async () => {
+      const client = new GitHubClient({ token: "test-token" });
+      mockOctokit.search.issuesAndPullRequests
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ repository_url: "https://api.github.com/repos/owner/repo" }],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ repository_url: "https://api.github.com/repos/owner/repo", number: 42 }],
+          },
+        });
+      mockOctokit.pulls.get.mockResolvedValue({ data: makePullRequest() });
+
+      await expect(client.contributedRepositories(30)).resolves.toEqual([
+        { owner: "owner", name: "repo", fullName: "owner/repo" },
+      ]);
+      await expect(client.myOpenPullRequests()).resolves.toEqual([
+        {
+          pr: makePullRequest(),
+          repo: { owner: "owner", name: "repo" },
+        },
       ]);
 
-      // Fetches files that exist, skips MISSING.md
-      expect(result.keyFiles).toHaveLength(2);
-      expect(result.keyFiles[0]).toEqual({
-        path: "README.md",
-        content: "# Hello World",
-      });
-      expect(result.keyFiles[1]).toEqual({
-        path: "package.json",
-        content: '{"name": "test"}',
-      });
-    });
-
-    it("truncates file content to maxFileChars", async () => {
-      mockOctokit.git.getTree.mockResolvedValue({
-        data: {
-          tree: [{ path: "README.md", type: "blob", sha: "a1" }],
-        },
-      });
-
-      const longContent = Buffer.from("A".repeat(100)).toString("base64");
-      mockOctokit.repos.getContent.mockResolvedValue({
-        data: { content: longContent },
-      });
-
-      const result = await client
-        .repo("owner", "repo")
-        .gatherContext(["README.md"], 10);
-
-      expect(result.keyFiles[0]!.content).toBe("A".repeat(10));
-    });
-
-    it("skips files that fail to fetch", async () => {
-      mockOctokit.git.getTree.mockResolvedValue({
-        data: {
-          tree: [
-            { path: "README.md", type: "blob", sha: "a1" },
-            { path: "SECRET.md", type: "blob", sha: "a2" },
-          ],
-        },
-      });
-
-      const readmeContent = Buffer.from("# Hello").toString("base64");
-      mockOctokit.repos.getContent
-        .mockResolvedValueOnce({ data: { content: readmeContent } })
-        .mockRejectedValueOnce(new Error("403 Forbidden"));
-
-      const result = await client
-        .repo("owner", "repo")
-        .gatherContext(["README.md", "SECRET.md"], 5000);
-
-      expect(result.keyFiles).toHaveLength(1);
-      expect(result.keyFiles[0]!.path).toBe("README.md");
+      expect(mockOctokit.users.getAuthenticated).toHaveBeenCalledTimes(1);
     });
   });
 });

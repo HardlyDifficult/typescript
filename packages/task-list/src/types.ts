@@ -1,54 +1,36 @@
-/**
- * Configuration for Trello provider
- */
+import type { Project } from "./Project.js";
+import type { Task } from "./Task.js";
+
 export interface TrelloConfig {
-  type: "trello";
-  apiKey?: string; // defaults to process.env.TRELLO_API_KEY
-  token?: string; // defaults to process.env.TRELLO_API_TOKEN
+  provider: "trello";
+  apiKey?: string;
+  token?: string;
 }
 
-/**
- * Configuration for Linear provider
- */
 export interface LinearConfig {
-  type: "linear";
-  apiKey?: string; // defaults to process.env.LINEAR_API_KEY
-  teamId?: string; // Linear team UUID — auto-detected for single-team workspaces
-  team?: string; // Friendly team name — resolved to teamId via API
+  provider?: "linear";
+  apiKey?: string;
+  teamId?: string;
+  team?: string;
 }
 
-export type TaskListConfig = TrelloConfig | LinearConfig;
+export type TaskListConfig = LinearConfig | TrelloConfig;
 
-/**
- * Provider identifier
- */
 export type Provider = "trello" | "linear";
 
-/**
- * A label with identity and color
- */
 export interface Label {
   readonly id: string;
   readonly name: string;
   readonly color: string;
 }
 
-/**
- * A workflow status with identity
- */
 export interface Status {
   readonly id: string;
   readonly name: string;
 }
 
-/**
- * Priority levels
- */
 export type Priority = "None" | "Urgent" | "High" | "Medium" | "Low";
 
-/**
- * Filter criteria for querying tasks
- */
 export interface TaskFilter {
   readonly label?: string;
   readonly labels?: readonly string[];
@@ -56,83 +38,95 @@ export interface TaskFilter {
   readonly priority?: Priority;
 }
 
-/**
- * Options for creating a label
- */
 export interface CreateLabelOptions {
   readonly color?: string;
 }
 
-/**
- * Options for creating a task (passed to Project.createTask)
- */
-export interface CreateTaskOptions {
-  readonly description?: string | undefined;
-  readonly labels?: readonly string[] | undefined;
-  readonly status?: string | undefined;
-  readonly priority?: Priority | undefined;
+export interface CreateProjectTaskInput {
+  readonly title: string;
+  readonly description?: string;
+  readonly labels?: readonly string[];
+  readonly status?: string;
+  readonly priority?: Priority;
 }
 
-/**
- * Parameters for updating a task (passed to Task.update)
- */
-export interface UpdateTaskParams {
-  readonly name?: string | undefined;
-  readonly description?: string | undefined;
-  readonly status?: string | undefined;
-  readonly labels?: readonly string[] | undefined;
-  readonly priority?: Priority | undefined;
+export interface CreateTaskInput extends CreateProjectTaskInput {
+  readonly project: string;
 }
 
-/**
- * Internal raw task data returned by provider operations
- * @internal
- */
+export interface UpdateTaskInput {
+  readonly title?: string;
+  readonly description?: string;
+  readonly status?: string;
+  readonly labels?: readonly string[];
+  readonly priority?: Priority;
+}
+
+export interface TaskWatchOptions {
+  readonly project: string;
+  readonly whenStatus: string;
+  readonly moveTo: string;
+  readonly everyMs?: number;
+  readonly onTask: (task: Task, project: Project) => void | Promise<void>;
+  readonly onError?: (error: Error) => void;
+}
+
+export interface TaskWatchHandle {
+  stop(): void;
+  poll(): Promise<void>;
+}
+
 export interface TaskData {
   readonly id: string;
-  readonly name: string;
+  readonly title: string;
   readonly description: string;
   readonly statusId: string;
   readonly projectId: string;
-  readonly labels: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly color: string;
-  }[];
+  readonly labels: readonly Label[];
   readonly url: string;
   readonly priority?: number;
 }
 
-/**
- * Internal interface for provider-specific task operations and name resolution
- * @internal
- */
+export interface ProjectSnapshot {
+  readonly info: {
+    readonly id: string;
+    readonly name: string;
+    readonly url: string;
+  };
+  readonly statuses: readonly Status[];
+  readonly labels: readonly Label[];
+  readonly tasks: readonly TaskData[];
+  readonly context: TaskContext;
+}
+
+export interface TaskSnapshot {
+  readonly task: TaskData;
+  readonly context: TaskContext;
+}
+
 export interface TaskContext {
   createTask(params: {
-    statusId: string;
     projectId: string;
-    name: string;
+    title: string;
+    statusId: string;
     description?: string;
     labelIds?: readonly string[];
     priority?: number;
-  }): Promise<TaskData>;
+  }): Promise<TaskSnapshot>;
 
   updateTask(params: {
     taskId: string;
-    name?: string;
+    title?: string;
     description?: string;
     statusId?: string;
     labelIds?: readonly string[];
     priority?: number;
-  }): Promise<TaskData>;
+  }): Promise<TaskSnapshot>;
 
-  addTaskLabel(taskId: string, labelId: string): Promise<TaskData>;
-  removeTaskLabel(taskId: string, labelId: string): Promise<TaskData>;
+  fetchTask(taskId: string): Promise<TaskSnapshot>;
+  fetchProject(projectId: string): Promise<ProjectSnapshot>;
 
-  createLabel(
-    name: string,
-    color?: string
-  ): Promise<{ id: string; name: string; color: string }>;
+  createLabel(name: string, color?: string): Promise<Label>;
   deleteLabel(labelId: string): Promise<void>;
 
   resolveStatusId(name: string): string;
@@ -140,10 +134,6 @@ export interface TaskContext {
   resolveLabelId(name: string): string;
   resolvePriority?(name: string): number;
 
-  readonly labels: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly color: string;
-  }[];
-  readonly statuses: readonly { readonly id: string; readonly name: string }[];
+  readonly labels: readonly Label[];
+  readonly statuses: readonly Status[];
 }

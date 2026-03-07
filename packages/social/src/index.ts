@@ -1,39 +1,21 @@
 export type {
-  Provider,
-  XConfig,
-  SocialOptions,
-  SocialConfig,
+  CreateSocialOptions,
+  Social,
   SocialListOptions,
   SocialPost,
   SocialAuthor,
   SocialPostMetrics,
   WatchLikesOptions,
-  LikeWatcherOptions,
   LikeNotification,
 } from "./types.js";
 
-export { SocialClient } from "./SocialClient.js";
-export {
-  SocialLikeWatcher,
-  type SocialLikeWatcherOptions,
-} from "./SocialLikeWatcher.js";
-
-import { SocialClient } from "./SocialClient.js";
-import type { SocialOptions } from "./types.js";
-import { XSocialClient } from "./x";
+import type { CreateSocialOptions, Social } from "./types.js";
+import { createXSocial } from "./x/createXSocial.js";
 
 /**
- * Create the opinionated social client. X is the only provider today,
- * so the factory accepts X settings directly and will also read
- * X_BEARER_TOKEN from the environment.
+ * Create the opinionated social client. X is the only supported provider and
+ * token lookup falls back to X_BEARER_TOKEN automatically.
  */
-export function createSocial(config: SocialOptions = {}): SocialClient {
-  return new SocialClient(new XSocialClient(config));
-}
-
-/**
- * Backwards-compatible alias for older call sites.
- */
-export function createSocialClient(config: SocialOptions = {}): SocialClient {
-  return createSocial(config);
+export function createSocial(config: CreateSocialOptions = {}): Social {
+  return createXSocial(config);
 }

@@ -1,4 +1,4 @@
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { dateFromUnixSeconds } from "@hardlydifficult/date-time";
 import type { App } from "@slack/bolt";
 
 import type {
@@ -60,8 +60,10 @@ export async function getMessages(
       continue;
     }
 
-    const timestamp = new Date(secondsToMilliseconds(parseFloat(message.ts)));
-    if (!Number.isFinite(timestamp.getTime())) {
+    let timestamp: Date;
+    try {
+      timestamp = dateFromUnixSeconds(message.ts);
+    } catch {
       continue;
     }
     if (afterDate !== undefined && timestamp <= afterDate) {
@@ -162,9 +164,15 @@ function toDate(input: TimestampInput | undefined): Date | undefined {
     return Number.isNaN(input.getTime()) ? undefined : input;
   }
   if (typeof input === "number") {
-    const ms = input > 10_000_000_000 ? input : secondsToMilliseconds(input);
-    const date = new Date(ms);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (input > 10_000_000_000) {
+      const date = new Date(input);
+      return Number.isNaN(date.getTime()) ? undefined : date;
+    }
+    try {
+      return dateFromUnixSeconds(input);
+    } catch {
+      return undefined;
+    }
   }
   const trimmed = input.trim();
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
@@ -214,8 +222,10 @@ export async function getThreadMessages(
       continue;
     }
 
-    const timestamp = new Date(secondsToMilliseconds(parseFloat(message.ts)));
-    if (!Number.isFinite(timestamp.getTime())) {
+    let timestamp: Date;
+    try {
+      timestamp = dateFromUnixSeconds(message.ts);
+    } catch {
       continue;
     }
     if (afterDate !== undefined && timestamp <= afterDate) {

@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_MINUTE } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 
 /**
  * Calculate when to schedule proactive token refresh. Uses the later of:
@@ -21,7 +21,7 @@ export function calculateTokenRefreshTime(
   expiresAt: number
 ): number {
   const lifetimeMs = expiresAt - issuedAt;
-  const twoMinutesMs = 2 * MILLISECONDS_PER_MINUTE;
+  const twoMinutesMs = duration({ minutes: 2 });
 
   const halfLifetime = issuedAt + Math.floor(lifetimeMs / 2);
   const twoMinutesBefore = expiresAt - twoMinutesMs;

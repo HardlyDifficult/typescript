@@ -9,7 +9,6 @@ import type WebSocket from "ws";
 export enum WorkerStatus {
   Available = "available",
   Busy = "busy",
-  Draining = "draining",
   Unhealthy = "unhealthy",
 }
 
@@ -17,29 +16,39 @@ export enum WorkerStatus {
  * Describes a model that a worker can run.
  */
 export interface ModelInfo {
-  modelId: string;
-  displayName: string;
-  maxContextTokens: number;
-  maxOutputTokens: number;
-  supportsStreaming: boolean;
-  supportsVision?: boolean;
-  supportsTools?: boolean;
+  readonly modelId: string;
+  readonly displayName: string;
+  readonly maxContextTokens: number;
+  readonly maxOutputTokens: number;
+  readonly supportsStreaming: boolean;
+  readonly supportsVision?: boolean;
+  readonly supportsTools?: boolean;
 }
 
 /**
  * Describes the capabilities and resources of a worker.
  */
 export interface WorkerCapabilities {
-  models: ModelInfo[];
-  maxConcurrentRequests: number;
-  metadata?: Record<string, unknown>;
+  readonly models: readonly ModelInfo[];
+  readonly maxConcurrentRequests: number;
+  readonly metadata?: Readonly<Record<string, unknown>>;
   /** Per-category concurrency limits (category → max concurrent). Optional. */
-  concurrencyLimits?: Record<string, number>;
+  readonly concurrencyLimits?: Readonly<Record<string, number>>;
+}
+
+/**
+ * Immutable request statistics for a connected worker.
+ */
+export interface WorkerRequestInfo {
+  readonly active: number;
+  readonly completed: number;
+  readonly pendingIds: readonly string[];
+  readonly activeByCategory: Readonly<Record<string, number>>;
 }
 
 /**
  * Public worker info exposed to consumers.
- * Does NOT include the raw WebSocket reference.
+ * This is an immutable snapshot and does NOT include the raw WebSocket.
  */
 export interface WorkerInfo {
   readonly id: string;
@@ -49,11 +58,7 @@ export interface WorkerInfo {
   readonly sessionId: string;
   readonly connectedAt: Date;
   readonly lastHeartbeat: Date;
-  readonly activeRequests: number;
-  readonly completedRequests: number;
-  readonly pendingRequestIds: ReadonlySet<string>;
-  /** Active request count per category (category → count). */
-  readonly categoryActiveRequests: ReadonlyMap<string, number>;
+  readonly requests: WorkerRequestInfo;
 }
 
 /**
@@ -75,6 +80,38 @@ export interface ConnectedWorker {
   readonly requestCategories: Map<string, string>;
   /** Active request count per category (category → count). */
   readonly categoryActiveRequests: Map<string, number>;
+}
+
+/**
+ * Message payload exchanged with workers.
+ */
+export type WorkerMessage = Record<string, unknown> & {
+  type: string;
+  requestId?: string;
+};
+
+/**
+ * Handle returned when work is dispatched to a worker.
+ */
+export interface DispatchedRequest<
+  T extends WorkerMessage & { requestId: string },
+> {
+  readonly worker: WorkerInfo;
+  readonly message: T;
+  readonly requestId: string;
+  complete(): void;
+  fail(): void;
+}
+
+/**
+ * Event delivered to worker message handlers.
+ */
+export interface WorkerMessageEvent<T extends WorkerMessage = WorkerMessage> {
+  readonly worker: WorkerInfo;
+  readonly message: T;
+  readonly requestId: string | null;
+  complete(): void;
+  fail(): void;
 }
 
 /** Configuration for the WorkerServer. */
@@ -108,17 +145,13 @@ export type HttpRequestHandler = (
 ) => Promise<boolean>;
 
 /** Handler for typed worker messages. */
-export type WorkerMessageHandler<T = Record<string, unknown>> = (
-  worker: WorkerInfo,
-  message: T
+export type WorkerMessageHandler<T extends WorkerMessage = WorkerMessage> = (
+  event: WorkerMessageEvent<T>
 ) => void;
 
 /** Handler for worker lifecycle events. */
 export type WorkerConnectedHandler = (worker: WorkerInfo) => void;
-export type WorkerDisconnectedHandler = (
-  worker: WorkerInfo,
-  pendingRequestIds: ReadonlySet<string>
-) => void;
+export type WorkerDisconnectedHandler = (worker: WorkerInfo) => void;
 
 /** Handler for additional WebSocket endpoints. */
 export type WebSocketConnectionHandler = (ws: WebSocket) => void;

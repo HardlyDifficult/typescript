@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_SECOND } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 import type { Octokit } from "@octokit/rest";
 
 import { parseGitHubRepoReference } from "./githubUrlParser.js";
@@ -25,12 +25,12 @@ import type {
   WatchThrottle,
 } from "./types.js";
 
-const DEFAULT_INTERVAL_MS = 30 * MILLISECONDS_PER_SECOND;
+const DEFAULT_INTERVAL_MS = duration({ seconds: 30 });
 
 /** Polls GitHub for open pull requests and emits events for new PRs, comments, reviews, check runs, merges, and status changes. */
 export class PRWatcher extends PRWatcherBase {
   private readonly octokit: Octokit;
-  private readonly username: string;
+  private readonly getUsername: () => Promise<string>;
   private repos: string[];
   private readonly myPRs: boolean;
   private readonly intervalMs: number;
@@ -46,10 +46,17 @@ export class PRWatcher extends PRWatcherBase {
   private initialized = false;
 
   /** @internal */
-  constructor(octokit: Octokit, username: string, options: WatchOptions) {
+  constructor(
+    octokit: Octokit,
+    getUsername: string | (() => Promise<string>),
+    options: WatchOptions
+  ) {
     super();
     this.octokit = octokit;
-    this.username = username;
+    this.getUsername =
+      typeof getUsername === "string"
+        ? () => Promise.resolve(getUsername)
+        : getUsername;
     this.repos = [];
     for (const repo of options.repos ?? []) {
       this.addRepo(repo);
@@ -90,11 +97,7 @@ export class PRWatcher extends PRWatcherBase {
   }
 
   addRepo(repo: string): void {
-    const parsed = parseGitHubRepoReference(repo);
-    const normalized = parsed ? `${parsed.owner}/${parsed.repo}` : repo.trim();
-    if (normalized === "") {
-      return;
-    }
+    const normalized = normalizeRepoReference(repo);
 
     if (!this.repos.includes(normalized)) {
       this.repos.push(normalized);
@@ -102,8 +105,7 @@ export class PRWatcher extends PRWatcherBase {
   }
 
   removeRepo(repo: string): void {
-    const parsed = parseGitHubRepoReference(repo);
-    const normalized = parsed ? `${parsed.owner}/${parsed.repo}` : repo.trim();
+    const normalized = normalizeRepoReference(repo);
     const index = this.repos.indexOf(normalized);
     if (index !== -1) {
       this.repos.splice(index, 1);
@@ -126,9 +128,10 @@ export class PRWatcher extends PRWatcherBase {
           }
         }
 
+        const username = this.myPRs ? await this.getUsername() : undefined;
         const prs = await fetchWatchedPRs(
           this.octokit,
-          this.username,
+          username,
           this.repos,
           this.myPRs,
           this.throttle
@@ -366,4 +369,15 @@ export class PRWatcher extends PRWatcherBase {
 
 function prKey(owner: string, name: string, prNumber: number): string {
   return `${owner}/${name}#${String(prNumber)}`;
+}
+
+function normalizeRepoReference(repo: string): string {
+  const parsed = parseGitHubRepoReference(repo);
+  if (parsed === null) {
+    throw new Error(
+      `Invalid repository reference: ${repo}. Expected "owner/repo" or a GitHub repository URL.`
+    );
+  }
+
+  return `${parsed.owner}/${parsed.repo}`;
 }

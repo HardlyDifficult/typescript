@@ -1,91 +1,98 @@
-import type { FileManifest, TreeEntry } from "@hardlydifficult/github";
+import type { StateTrackerEvent } from "@hardlydifficult/state-tracker";
 
-export type { TreeEntry, FileManifest };
-
-/** Manifest of previously processed file SHAs (path → blob SHA). */
-export type { FileManifest as ProcessorFileManifest };
-
-/** Consumer-implemented persistence layer. */
-export interface ProcessorStore {
-  /** One-time init (e.g. ensure local clone). Optional. */
-  ensureReady?(owner: string, repo: string): Promise<void>;
-  /** Return manifest of previously processed file SHAs (path → blob SHA). */
-  getFileManifest(owner: string, repo: string): Promise<FileManifest>;
-  /** Return stored SHA for a directory. Null if not stored. */
-  getDirSha(
-    owner: string,
-    repo: string,
-    dirPath: string
-  ): Promise<string | null>;
-  /** Persist result for a processed file. */
-  writeFileResult(
-    owner: string,
-    repo: string,
-    path: string,
-    sha: string,
-    result: unknown
-  ): Promise<void>;
-  /** Persist result for a processed directory. */
-  writeDirResult(
-    owner: string,
-    repo: string,
-    path: string,
-    sha: string,
-    result: unknown
-  ): Promise<void>;
-  /** Delete stored result for a removed file. */
-  deleteFileResult(owner: string, repo: string, path: string): Promise<void>;
-  /** Commit current batch of changes. */
-  commitBatch(owner: string, repo: string, count: number): Promise<void>;
+export interface GitIdentity {
+  name: string;
+  email: string;
 }
 
-/** Context passed to processFile callback. */
-export interface FileContext {
-  readonly entry: TreeEntry;
-  readonly content: string;
+export interface RepoFileFilterInput {
+  path: string;
+  sha: string;
+  size?: number;
 }
 
-/** An immediate child of a directory being processed. */
-export interface DirectoryChild {
-  readonly name: string;
-  readonly isDir: boolean;
-  readonly fullPath: string;
+export interface RepoFileInput {
+  repo: string;
+  path: string;
+  sha: string;
+  content: string;
 }
 
-/** Context passed to processDirectory callback. */
-export interface DirectoryContext {
-  readonly path: string;
-  readonly sha: string;
-  readonly subtreeFilePaths: readonly string[];
-  readonly children: readonly DirectoryChild[];
-  readonly tree: readonly TreeEntry[];
+export interface RepoDirectoryChild {
+  name: string;
+  path: string;
+  type: "file" | "directory";
 }
 
-/** Consumer-provided domain logic. */
-export interface ProcessorCallbacks {
-  /** Filter: which tree entries should be processed? */
-  shouldProcess(entry: TreeEntry): boolean;
-  /** Process a single changed file. Return value passed to store.writeFileResult. */
-  processFile(ctx: FileContext): Promise<unknown>;
-  /** Process a directory after all children. Return value passed to store.writeDirResult. */
-  processDirectory(ctx: DirectoryContext): Promise<unknown>;
+export interface RepoDirectoryInput {
+  repo: string;
+  path: string;
+  sha: string;
+  files: readonly string[];
+  children: readonly RepoDirectoryChild[];
 }
 
-/** Progress reported during a run. */
-export interface ProcessingProgress {
+export interface RepoProcessorResultsConfig {
+  repo: string;
+  directory: string;
+  root?: string;
+  branch?: string;
+  gitUser?: GitIdentity;
+}
+
+export interface RepoProcessorOptions<
+  TFileResult,
+  TDirResult = never,
+> {
+  repo: string;
+  githubToken?: string;
+  ref?: string;
+  concurrency?: number;
+  results: RepoProcessorResultsConfig;
+  include?: (file: RepoFileFilterInput) => boolean;
+  processFile(file: RepoFileInput): Promise<TFileResult>;
+  processDirectory?: (
+    directory: RepoDirectoryInput
+  ) => Promise<TDirResult>;
+}
+
+export interface RepoProcessorProgressCounts {
+  total: number;
+  completed: number;
+}
+
+export interface RepoProcessorProgress {
   phase: "loading" | "files" | "directories" | "committing";
   message: string;
-  filesTotal: number;
-  filesCompleted: number;
-  dirsTotal: number;
-  dirsCompleted: number;
+  files: RepoProcessorProgressCounts;
+  directories: RepoProcessorProgressCounts;
 }
 
-export type ProgressCallback = (progress: ProcessingProgress) => void;
+export type RepoProcessorProgressCallback = (
+  progress: RepoProcessorProgress
+) => void;
 
-/** Result returned by RepoProcessor.run(). */
-export interface ProcessingResult {
-  filesProcessed: number;
-  filesRemoved: number;
-  dirsProcessed: number;
+export interface RepoProcessorRunOptions {
+  onProgress?: RepoProcessorProgressCallback;
+}
+
+export interface RepoProcessorRunResult {
+  repo: string;
+  sourceSha: string;
+  processedFiles: number;
+  removedFiles: number;
+  processedDirectories: number;
+}
+
+export interface RepoWatcherOptions {
+  stateDirectory?: string;
+  stateKey?: string;
+  autoSaveMs?: number;
+  maxAttempts?: number;
+  onComplete?: (
+    result: RepoProcessorRunResult,
+    sha: string
+  ) => void;
+  onError?: (error: unknown) => void;
+  onEvent?: (event: StateTrackerEvent) => void;
 }

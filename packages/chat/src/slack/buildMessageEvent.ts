@@ -1,4 +1,4 @@
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { dateFromUnixSeconds } from "@hardlydifficult/date-time";
 
 import type { Attachment, MessageEvent, User } from "../types.js";
 
@@ -61,9 +61,7 @@ export function buildMessageEvent(event: SlackMessagePayload): MessageEvent {
     author: user,
     channelId,
     timestamp:
-      event.ts !== undefined
-        ? new Date(secondsToMilliseconds(parseFloat(event.ts)))
-        : new Date(),
+      event.ts !== undefined ? dateFromUnixSeconds(event.ts) : new Date(),
     attachments,
   };
 }

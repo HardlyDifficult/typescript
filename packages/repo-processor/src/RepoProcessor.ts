@@ -1,58 +1,144 @@
 import { bottomUp, inBatches } from "@hardlydifficult/collections";
 import {
   diffTree,
-  type GitHubClient,
+  GitHubClient,
+  parseGitHubRepoReference,
   type TreeEntry,
 } from "@hardlydifficult/github";
 import { getErrorMessage } from "@hardlydifficult/text";
+import type { z } from "zod";
 
+import { GitYamlStore } from "./GitYamlStore.js";
+import type {
+  BoundRepoRef,
+  ProcessingFailure,
+  RepoProcessorInternals,
+} from "./internalTypes.js";
+import { RepoWatcher } from "./RepoWatcher.js";
 import { resolveStaleDirectories } from "./resolveDirectories.js";
 import type {
-  DirectoryChild,
-  DirectoryContext,
-  ProcessingProgress,
-  ProcessingResult,
-  ProcessorCallbacks,
-  ProcessorStore,
-  ProgressCallback,
+  RepoDirectoryChild,
+  RepoDirectoryInput,
+  RepoProcessorOptions,
+  RepoProcessorProgress,
+  RepoProcessorRunOptions,
+  RepoProcessorRunResult,
+  RepoWatcherOptions,
 } from "./types.js";
 
-export interface RepoProcessorConfig {
-  githubClient: GitHubClient;
-  store: ProcessorStore;
-  callbacks: ProcessorCallbacks;
-  concurrency?: number;
-  branch?: string;
+function parseRepoReference(value: string, label: string): BoundRepoRef {
+  const parsed = parseGitHubRepoReference(value);
+  if (parsed === null) {
+    throw new Error(
+      `Invalid ${label}: ${value}. Expected "owner/repo" or a GitHub URL.`
+    );
+  }
+
+  return {
+    owner: parsed.owner,
+    name: parsed.repo,
+    fullName: `${parsed.owner}/${parsed.repo}`,
+  };
 }
 
-/**
- * Generic pipeline for incrementally processing a GitHub repo's file tree.
- *
- * Pipeline: init → fetch tree → filter → diff → process changed files →
- * remove deleted files → resolve stale dirs → process dirs bottom-up → commit.
- */
-export class RepoProcessor {
-  private readonly github: GitHubClient;
-  private readonly store: ProcessorStore;
-  private readonly callbacks: ProcessorCallbacks;
-  private readonly concurrency: number;
-  private readonly branch: string;
+function formatFailures(
+  label: string,
+  failures: readonly ProcessingFailure[]
+): Error {
+  const details = failures
+    .map((failure) => `  ${failure.path}: ${getErrorMessage(failure.reason)}`)
+    .join("\n");
+  return new Error(
+    `${String(failures.length)} ${label} failed to process:\n${details}`
+  );
+}
 
-  constructor(config: RepoProcessorConfig) {
-    this.github = config.githubClient;
-    this.store = config.store;
-    this.callbacks = config.callbacks;
-    this.concurrency = config.concurrency ?? 5;
-    this.branch = config.branch ?? "main";
+export class RepoProcessor<
+  TFileResult = unknown,
+  TDirResult = never,
+> {
+  static async open<TFileResult, TDirResult = never>(
+    options: RepoProcessorOptions<TFileResult, TDirResult>
+  ): Promise<RepoProcessor<TFileResult, TDirResult>> {
+    const repo = parseRepoReference(options.repo, "repo");
+    const resultsRepo = parseRepoReference(options.results.repo, "results repo");
+    const githubToken =
+      options.githubToken ?? process.env.GH_PAT ?? process.env.GITHUB_TOKEN;
+    const github = new GitHubClient({ token: githubToken });
+    const sourceRepo = github.repo(repo.fullName);
+    const store = new GitYamlStore({
+      sourceRepo: repo,
+      resultsRepo,
+      localPath: options.results.directory,
+      root: options.results.root ?? "repos",
+      branch: options.results.branch,
+      authToken: githubToken,
+      gitUser: options.results.gitUser,
+    });
+
+    return new RepoProcessor({
+      repo,
+      repoClient: {
+        getFileTree(ref: string | undefined) {
+          return sourceRepo.tree(ref);
+        },
+        getFileContent(filePath: string, ref: string | undefined) {
+          return sourceRepo.read(filePath, ref);
+        },
+      },
+      store,
+      ref: options.ref,
+      concurrency: options.concurrency ?? 5,
+      include: options.include ?? (() => true),
+      processFile: options.processFile,
+      processDirectory: options.processDirectory,
+    });
+  }
+
+  private readonly repoRef: BoundRepoRef;
+  private readonly repoClient: RepoProcessorInternals<
+    TFileResult,
+    TDirResult
+  >["repoClient"];
+  private readonly store: RepoProcessorInternals<TFileResult, TDirResult>["store"];
+  private readonly ref: string | undefined;
+  private readonly concurrency: number;
+  private readonly include: RepoProcessorInternals<
+    TFileResult,
+    TDirResult
+  >["include"];
+  private readonly processFileHandler: RepoProcessorInternals<
+    TFileResult,
+    TDirResult
+  >["processFile"];
+  private readonly processDirectoryHandler:
+    | RepoProcessorInternals<TFileResult, TDirResult>["processDirectory"]
+    | undefined;
+
+  private constructor(
+    internals: RepoProcessorInternals<TFileResult, TDirResult>
+  ) {
+    this.repoRef = internals.repo;
+    this.repoClient = internals.repoClient;
+    this.store = internals.store;
+    this.ref = internals.ref;
+    this.concurrency = internals.concurrency;
+    this.include = internals.include;
+    this.processFileHandler = internals.processFile;
+    this.processDirectoryHandler = internals.processDirectory;
+  }
+
+  get repo(): string {
+    return this.repoRef.fullName;
   }
 
   async run(
-    owner: string,
-    repo: string,
-    onProgress?: ProgressCallback
-  ): Promise<ProcessingResult> {
+    options: RepoProcessorRunOptions = {}
+  ): Promise<RepoProcessorRunResult> {
+    const onProgress = options.onProgress;
+
     const emitProgress = (
-      phase: ProcessingProgress["phase"],
+      phase: RepoProcessorProgress["phase"],
       message: string,
       filesTotal: number,
       filesCompleted: number,
@@ -62,246 +148,273 @@ export class RepoProcessor {
       onProgress?.({
         phase,
         message,
-        filesTotal,
-        filesCompleted,
-        dirsTotal,
-        dirsCompleted,
+        files: { total: filesTotal, completed: filesCompleted },
+        directories: { total: dirsTotal, completed: dirsCompleted },
       });
     };
 
-    // 1. Init store
-    emitProgress("loading", "Initializing store...", 0, 0, 0, 0);
-    await this.store.ensureReady?.(owner, repo);
+    emitProgress("loading", "Initializing results store...", 0, 0, 0, 0);
+    await this.store.ensureReady();
 
-    // 2. Fetch tree
-    emitProgress("loading", "Fetching file tree...", 0, 0, 0, 0);
-    const { entries, rootSha } = await this.github
-      .repo(owner, repo)
-      .getFileTree();
+    emitProgress("loading", "Fetching source tree...", 0, 0, 0, 0);
+    const { entries, rootSha } = await this.repoClient.getFileTree(this.ref);
     const tree: readonly TreeEntry[] = [
       ...entries,
       { path: "", type: "tree", sha: rootSha },
     ];
 
-    // 3. Filter blobs
     const blobs = entries.filter(
-      (e) => e.type === "blob" && this.callbacks.shouldProcess(e)
+      (entry): entry is TreeEntry & { type: "blob" } => {
+        if (entry.type !== "blob") {
+          return false;
+        }
+
+        return this.include({
+          path: entry.path,
+          sha: entry.sha,
+          size: entry.size,
+        });
+      }
     );
 
-    // 4. Diff
-    const currentManifest = await this.store.getFileManifest(owner, repo);
+    const currentManifest = await this.store.getFileManifest();
     const diff = diffTree(blobs, currentManifest);
 
     const filesTotal = diff.changedFiles.length;
     let filesCompleted = 0;
-
     emitProgress(
       "files",
-      `Processing ${String(filesTotal)} files...`,
+      filesTotal === 0
+        ? "No files to process."
+        : `Processing ${String(filesTotal)} files...`,
       filesTotal,
       0,
-      diff.staleDirs.length,
+      0,
       0
     );
 
-    // 5. Process changed files in batches
+    const fileFailures: ProcessingFailure[] = [];
     for (const batch of inBatches(diff.changedFiles, this.concurrency)) {
       const results = await Promise.allSettled(
         batch.map(async (entry) => {
-          const content = await this.github
-            .repo(owner, repo)
-            .getFileContent(entry.path);
-          const result = await this.callbacks.processFile({ entry, content });
-          await this.store.writeFileResult(
-            owner,
-            repo,
+          const content = await this.repoClient.getFileContent(
             entry.path,
-            entry.sha,
-            result
+            this.ref
           );
+          const result = await this.processFileHandler({
+            repo: this.repo,
+            path: entry.path,
+            sha: entry.sha,
+            content,
+          });
+          await this.store.writeFileResult(entry.path, entry.sha, result);
         })
       );
 
-      const failures: { path: string; reason: unknown }[] = [];
       let succeededCount = 0;
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
+      for (let index = 0; index < results.length; index++) {
+        const result = results[index];
         filesCompleted++;
         if (result.status === "rejected") {
-          failures.push({
-            path: batch[i]?.path ?? `unknown-${String(i)}`,
+          fileFailures.push({
+            path: batch[index]?.path ?? `unknown-${String(index)}`,
             reason: result.reason,
           });
         } else {
           succeededCount++;
         }
+
         emitProgress(
           "files",
           `Files: ${String(filesCompleted)}/${String(filesTotal)}`,
           filesTotal,
           filesCompleted,
-          diff.staleDirs.length,
+          0,
           0
         );
       }
 
-      if (failures.length > 0) {
-        const details = failures
-          .map((f) => `  ${f.path}: ${getErrorMessage(f.reason)}`)
-          .join("\n");
-        throw new Error(
-          `${String(failures.length)} file(s) failed to process:\n${details}`
-        );
-      }
-
       if (succeededCount > 0) {
-        await this.store.commitBatch(owner, repo, succeededCount);
+        await this.store.commitBatch(this.repo, succeededCount);
       }
     }
 
-    // 6. Remove deleted files
+    if (fileFailures.length > 0) {
+      throw formatFailures("file(s)", fileFailures);
+    }
+
     for (const removedPath of diff.removedFiles) {
-      await this.store.deleteFileResult(owner, repo, removedPath);
+      await this.store.deleteFileResult(removedPath);
     }
     if (diff.removedFiles.length > 0) {
-      await this.store.commitBatch(owner, repo, diff.removedFiles.length);
+      await this.store.commitBatch(this.repo, diff.removedFiles.length);
     }
 
-    // 7. Resolve stale directories
-    const allFilePaths = blobs.map((b) => b.path);
-    const allDirs = await resolveStaleDirectories(
-      owner,
-      repo,
-      diff.staleDirs,
-      allFilePaths,
-      tree,
-      this.store
-    );
     let dirsCompleted = 0;
+    if (this.processDirectoryHandler !== undefined) {
+      const allFilePaths = blobs.map((blob) => blob.path);
+      const allDirs = await resolveStaleDirectories(
+        diff.staleDirs,
+        allFilePaths,
+        tree,
+        this.store
+      );
 
-    if (allDirs.length > 0) {
       emitProgress(
         "directories",
-        `Processing ${String(allDirs.length)} directories...`,
+        allDirs.length === 0
+          ? "No directories to process."
+          : `Processing ${String(allDirs.length)} directories...`,
         filesTotal,
         filesCompleted,
         allDirs.length,
         0
       );
 
-      // 8. Process directories bottom-up by depth
+      const directoryFailures: ProcessingFailure[] = [];
       for (const dirsAtDepth of bottomUp(allDirs)) {
-        let dirsInDepthGroup = 0;
+        let succeededCount = 0;
 
         for (const batch of inBatches(dirsAtDepth, this.concurrency)) {
           const results = await Promise.allSettled(
             batch.map(async (dirPath) => {
-              const ctx = this.buildDirectoryContext(
+              const directory = this.buildDirectoryInput(
                 dirPath,
                 tree,
                 allFilePaths
               );
-              const result = await this.callbacks.processDirectory(ctx);
-              await this.store.writeDirResult(
-                owner,
-                repo,
-                dirPath,
-                ctx.sha,
-                result
-              );
+              const result = await this.processDirectoryHandler?.(directory);
+              await this.store.writeDirResult(dirPath, directory.sha, result);
             })
           );
 
-          const failures: { path: string; reason: unknown }[] = [];
-          for (let i = 0; i < results.length; i++) {
-            const result = results[i];
+          for (let index = 0; index < results.length; index++) {
+            const result = results[index];
             dirsCompleted++;
-            dirsInDepthGroup++;
             if (result.status === "rejected") {
-              failures.push({
-                path: batch[i] ?? `unknown-${String(i)}`,
+              directoryFailures.push({
+                path: batch[index] ?? `unknown-${String(index)}`,
                 reason: result.reason,
               });
+            } else {
+              succeededCount++;
             }
+
             emitProgress(
               "directories",
-              `Dirs: ${String(dirsCompleted)}/${String(allDirs.length)}`,
+              `Directories: ${String(dirsCompleted)}/${String(allDirs.length)}`,
               filesTotal,
               filesCompleted,
               allDirs.length,
               dirsCompleted
             );
           }
-
-          if (failures.length > 0) {
-            const details = failures
-              .map((f) => `  ${f.path}: ${getErrorMessage(f.reason)}`)
-              .join("\n");
-            throw new Error(
-              `${String(failures.length)} directory(ies) failed to process:\n${details}`
-            );
-          }
         }
 
-        if (dirsInDepthGroup > 0) {
-          await this.store.commitBatch(owner, repo, dirsInDepthGroup);
+        if (succeededCount > 0) {
+          await this.store.commitBatch(this.repo, succeededCount);
         }
+      }
+
+      if (directoryFailures.length > 0) {
+        throw formatFailures("directory(ies)", directoryFailures);
       }
     }
 
-    // 9. Final safety commit
     emitProgress(
       "committing",
-      "Final commit...",
+      "Finalizing results...",
       filesTotal,
       filesCompleted,
-      allDirs.length,
+      this.processDirectoryHandler === undefined ? 0 : dirsCompleted,
       dirsCompleted
     );
-    await this.store.commitBatch(owner, repo, 0);
+    await this.store.commitBatch(this.repo, 0);
 
     return {
-      filesProcessed: filesCompleted,
-      filesRemoved: diff.removedFiles.length,
-      dirsProcessed: dirsCompleted,
+      repo: this.repo,
+      sourceSha: rootSha,
+      processedFiles: filesCompleted,
+      removedFiles: diff.removedFiles.length,
+      processedDirectories: dirsCompleted,
     };
   }
 
-  private buildDirectoryContext(
+  async readFileResult<T>(
+    filePath: string,
+    schema: z.ZodType<T>
+  ): Promise<T | null> {
+    return this.store.readFileResult(filePath, schema);
+  }
+
+  async readDirectoryResult<T>(
+    dirPath: string,
+    schema: z.ZodType<T>
+  ): Promise<T | null> {
+    return this.store.readDirectoryResult(dirPath, schema);
+  }
+
+  async watch(
+    options: RepoWatcherOptions = {}
+  ): Promise<RepoWatcher<TFileResult, TDirResult>> {
+    return RepoWatcher.open(this, options);
+  }
+
+  private buildDirectoryInput(
     dirPath: string,
     tree: readonly TreeEntry[],
     allFilePaths: readonly string[]
-  ): DirectoryContext {
+  ): RepoDirectoryInput {
     const dirTreeEntry = tree.find(
-      (e) => e.type === "tree" && e.path === dirPath
+      (entry): entry is TreeEntry & { type: "tree" } =>
+        entry.type === "tree" && entry.path === dirPath
     );
-    const sha = dirTreeEntry?.sha ?? "";
-
     const prefix = dirPath === "" ? "" : `${dirPath}/`;
-    const subtreeFilePaths = allFilePaths.filter(
-      (fp) => dirPath === "" || fp.startsWith(prefix)
+    const files = allFilePaths.filter(
+      (filePath) => dirPath === "" || filePath.startsWith(prefix)
     );
 
-    // Build immediate children list
     const seen = new Set<string>();
-    const children: DirectoryChild[] = [];
+    const children: RepoDirectoryChild[] = [];
 
-    for (const fp of subtreeFilePaths) {
-      const relative = prefix ? fp.slice(prefix.length) : fp;
+    for (const filePath of files) {
+      const relative = prefix === "" ? filePath : filePath.slice(prefix.length);
       const slashIndex = relative.indexOf("/");
-      const isDir = slashIndex !== -1;
-      const childName = isDir ? relative.slice(0, slashIndex) : relative;
+      const isDirectory = slashIndex !== -1;
+      const childName = isDirectory ? relative.slice(0, slashIndex) : relative;
 
-      if (!seen.has(childName)) {
-        seen.add(childName);
-        children.push({
-          name: childName,
-          isDir,
-          fullPath: dirPath === "" ? childName : `${dirPath}/${childName}`,
-        });
+      if (seen.has(childName)) {
+        continue;
       }
+
+      seen.add(childName);
+      children.push({
+        name: childName,
+        path: dirPath === "" ? childName : `${dirPath}/${childName}`,
+        type: isDirectory ? "directory" : "file",
+      });
     }
 
-    return { path: dirPath, sha, subtreeFilePaths, children, tree };
+    return {
+      repo: this.repo,
+      path: dirPath,
+      sha: dirTreeEntry?.sha ?? "",
+      files,
+      children,
+    };
   }
+}
+
+export function createRepoProcessorForTests<
+  TFileResult = unknown,
+  TDirResult = never,
+>(
+  internals: RepoProcessorInternals<TFileResult, TDirResult>
+): RepoProcessor<TFileResult, TDirResult> {
+  const RepoProcessorCtor = RepoProcessor as unknown as {
+    new (
+      config: RepoProcessorInternals<TFileResult, TDirResult>
+    ): RepoProcessor<TFileResult, TDirResult>;
+  };
+  return new RepoProcessorCtor(internals);
 }

@@ -9,101 +9,106 @@ import {
 import path from "node:path";
 
 import { formatYaml } from "@hardlydifficult/text";
+import type { SimpleGit } from "simple-git";
+import { simpleGit } from "simple-git";
 import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
 
-import type { FileManifest, ProcessorStore } from "./types.js";
+import type {
+  BoundRepoRef,
+  FileManifest,
+  ResultsStore,
+} from "./internalTypes.js";
+import type { GitIdentity } from "./types.js";
 
 export interface GitYamlStoreConfig {
-  /** URL of the git repository to clone/pull. */
-  cloneUrl: string;
-  /** Local directory to clone the repo into. */
+  sourceRepo: BoundRepoRef;
+  resultsRepo: BoundRepoRef;
   localPath: string;
-  /** Maps (owner, repo) to the subdirectory where results are stored. */
-  resultDir: (owner: string, repo: string) => string;
-  /** GitHub token for authenticated clone/push. Falls back to GITHUB_TOKEN env. */
+  root: string;
+  branch?: string;
   authToken?: string;
-  /** Git user identity used when committing results. */
-  gitUser: { name: string; email: string };
+  gitUser?: GitIdentity;
 }
 
-/**
- * A ProcessorStore implementation that persists results as YAML files
- * in a git repository.
- *
- * File results are stored at `<resultDir>/<filePath>.yml`.
- * Directory results are stored at `<resultDir>/<dirPath>/dir.yml`.
- * Each YAML file includes a `sha` field for change detection.
- */
-export class GitYamlStore implements ProcessorStore {
-  private readonly localPath: string;
-  private readonly cloneUrl: string;
-  private readonly authToken: string | undefined;
-  private readonly resultDir: (owner: string, repo: string) => string;
-  private readonly gitUser: { name: string; email: string };
-  private initialized = false;
-
-  constructor(config: GitYamlStoreConfig) {
-    this.cloneUrl = config.cloneUrl;
-    this.localPath = config.localPath;
-    this.resultDir = config.resultDir;
-    this.authToken = config.authToken ?? process.env.GITHUB_TOKEN;
-    this.gitUser = config.gitUser;
+function normalizeResult(result: unknown, sha: string): Record<string, unknown> {
+  if (
+    result !== null &&
+    typeof result === "object" &&
+    !Array.isArray(result)
+  ) {
+    return { ...(result as Record<string, unknown>), sha };
   }
 
-  // ---------------------------------------------------------------------------
-  // ProcessorStore implementation
-  // ---------------------------------------------------------------------------
+  return { value: result, sha };
+}
+
+export class GitYamlStore implements ResultsStore {
+  private readonly sourceRepo: BoundRepoRef;
+  private readonly cloneUrl: string;
+  private readonly localPath: string;
+  private readonly root: string;
+  private readonly authToken: string | undefined;
+  private readonly requestedBranch: string | undefined;
+  private readonly configuredGitUser: GitIdentity | undefined;
+  private initialized = false;
+  private activeBranch: string | undefined;
+  private gitUser: GitIdentity | undefined;
+
+  constructor(config: GitYamlStoreConfig) {
+    this.sourceRepo = config.sourceRepo;
+    this.cloneUrl = `https://github.com/${config.resultsRepo.fullName}.git`;
+    this.localPath = config.localPath;
+    this.root = config.root;
+    this.authToken = config.authToken;
+    this.requestedBranch = config.branch;
+    this.configuredGitUser = config.gitUser;
+  }
 
   async ensureReady(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    const { simpleGit } = await import("simple-git");
-    const exists = await stat(path.join(this.localPath, ".git")).catch(
-      () => null
-    );
+    const gitDir = path.join(this.localPath, ".git");
+    const hasClone = await stat(gitDir)
+      .then(() => true)
+      .catch(() => false);
 
-    if (exists) {
-      const git = simpleGit(this.localPath);
-      try {
-        await git.pull("origin", "main");
-      } catch {
-        // Pull failed (e.g. offline), continue with local state
-      }
-    } else {
+    if (!hasClone) {
       await mkdir(path.dirname(this.localPath), { recursive: true });
-      const git = simpleGit();
-      await git.clone(this.getAuthenticatedUrl(), this.localPath);
+      await simpleGit().clone(this.getAuthenticatedUrl(), this.localPath);
     }
 
+    const git = simpleGit(this.localPath);
+    this.activeBranch = await this.resolveBranch(git);
+    await this.checkoutBranch(git, this.activeBranch);
+
+    try {
+      await git.pull("origin", this.activeBranch);
+    } catch {
+      // Pull can fail offline or when the branch has no remote tracking yet.
+    }
+
+    this.gitUser = await this.resolveGitUser(git);
     this.initialized = true;
   }
 
-  async getFileManifest(owner: string, repo: string): Promise<FileManifest> {
-    const dir = this.getResultDir(owner, repo);
+  async getFileManifest(): Promise<FileManifest> {
+    const dir = this.getResultDir();
     const manifest: FileManifest = {};
 
     try {
       await this.walkDir(dir, dir, manifest);
     } catch {
-      // Directory doesn't exist yet, return empty manifest
+      // First run: no results yet.
     }
 
     return manifest;
   }
 
-  async getDirSha(
-    owner: string,
-    repo: string,
-    dirPath: string
-  ): Promise<string | null> {
-    const filePath = path.join(
-      this.getResultDir(owner, repo),
-      dirPath,
-      "dir.yml"
-    );
+  async getDirSha(dirPath: string): Promise<string | null> {
+    const filePath = path.join(this.getResultDir(), dirPath, "dir.yml");
     try {
       const content = await readFile(filePath, "utf-8");
       const parsed = parseYaml(content) as Record<string, unknown>;
@@ -114,90 +119,73 @@ export class GitYamlStore implements ProcessorStore {
   }
 
   async writeFileResult(
-    owner: string,
-    repo: string,
     filePath: string,
     sha: string,
     result: unknown
   ): Promise<void> {
-    const data = { ...(result as Record<string, unknown>), sha };
-    const yamlContent = formatYaml(data);
-    const fullPath = path.join(
-      this.getResultDir(owner, repo),
-      `${filePath}.yml`
-    );
+    const fullPath = path.join(this.getResultDir(), `${filePath}.yml`);
     await mkdir(path.dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, yamlContent, "utf-8");
+    await writeFile(fullPath, formatYaml(normalizeResult(result, sha)), "utf-8");
   }
 
   async writeDirResult(
-    owner: string,
-    repo: string,
     dirPath: string,
     sha: string,
     result: unknown
   ): Promise<void> {
-    const data = { ...(result as Record<string, unknown>), sha };
-    const yamlContent = formatYaml(data);
-    const fullPath = path.join(
-      this.getResultDir(owner, repo),
-      dirPath,
-      "dir.yml"
-    );
+    const fullPath = path.join(this.getResultDir(), dirPath, "dir.yml");
     await mkdir(path.dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, yamlContent, "utf-8");
+    await writeFile(fullPath, formatYaml(normalizeResult(result, sha)), "utf-8");
   }
 
-  async deleteFileResult(
-    owner: string,
-    repo: string,
-    filePath: string
-  ): Promise<void> {
-    const fullPath = path.join(
-      this.getResultDir(owner, repo),
-      `${filePath}.yml`
-    );
+  async deleteFileResult(filePath: string): Promise<void> {
+    const fullPath = path.join(this.getResultDir(), `${filePath}.yml`);
     await rm(fullPath, { force: true });
   }
 
-  async commitBatch(
-    owner: string,
-    repo: string,
-    filesChanged: number
-  ): Promise<void> {
-    const { simpleGit } = await import("simple-git");
+  async commitBatch(sourceRepo: string, count: number): Promise<void> {
+    await this.ensureReady();
+
     const git = simpleGit(this.localPath);
-
-    await git.addConfig("user.email", this.gitUser.email);
-    await git.addConfig("user.name", this.gitUser.name);
-
     const status = await git.status();
     if (status.files.length === 0) {
       return;
     }
 
+    const gitUser = this.gitUser;
+    const branch = this.activeBranch;
+    if (gitUser === undefined || branch === undefined) {
+      throw new Error("Git results store was not initialized correctly");
+    }
+
+    await git.addConfig("user.email", gitUser.email);
+    await git.addConfig("user.name", gitUser.name);
     await git.add("-A");
-    const message = `Update results for ${owner}/${repo} (${String(filesChanged)} files)`;
+
+    const message = `Update results for ${sourceRepo} (${String(count)} files)`;
     await git.commit(message);
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        await git.push("origin", "main");
+        await git.push("origin", branch);
         return;
       } catch (pushError) {
-        const errorMsg =
+        const errorMessage =
           pushError instanceof Error ? pushError.message : String(pushError);
-        if (errorMsg.includes("rejected") || errorMsg.includes("conflict")) {
-          try {
-            await git.pull("origin", "main", { "--rebase": null });
-          } catch {
-            await git.rebase({ "--abort": null }).catch(() => undefined);
-            await git.pull("origin", "main");
-            await git.add("-A");
-            await git.commit(message);
-          }
-        } else {
+        if (
+          !errorMessage.includes("rejected") &&
+          !errorMessage.includes("conflict")
+        ) {
           throw pushError;
+        }
+
+        try {
+          await git.pull("origin", branch, { "--rebase": null });
+        } catch {
+          await git.rebase({ "--abort": null }).catch(() => undefined);
+          await git.pull("origin", branch);
+          await git.add("-A");
+          await git.commit(message);
         }
       }
     }
@@ -205,24 +193,13 @@ export class GitYamlStore implements ProcessorStore {
     throw new Error("Failed to push after 3 attempts");
   }
 
-  // ---------------------------------------------------------------------------
-  // Generic typed readers (for callers that need to load results back)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Load a file result, parsed and validated with the given Zod schema.
-   * Returns null if the file doesn't exist or fails validation.
-   */
-  async loadFileResult<T>(
-    owner: string,
-    repo: string,
+  async readFileResult<T>(
     filePath: string,
     schema: z.ZodType<T>
   ): Promise<T | null> {
-    const fullPath = path.join(
-      this.getResultDir(owner, repo),
-      `${filePath}.yml`
-    );
+    await this.ensureReady();
+    const fullPath = path.join(this.getResultDir(), `${filePath}.yml`);
+
     try {
       const content = await readFile(fullPath, "utf-8");
       return schema.parse(parseYaml(content));
@@ -231,21 +208,13 @@ export class GitYamlStore implements ProcessorStore {
     }
   }
 
-  /**
-   * Load a directory result, parsed and validated with the given Zod schema.
-   * Returns null if the file doesn't exist or fails validation.
-   */
-  async loadDirResult<T>(
-    owner: string,
-    repo: string,
+  async readDirectoryResult<T>(
     dirPath: string,
     schema: z.ZodType<T>
   ): Promise<T | null> {
-    const fullPath = path.join(
-      this.getResultDir(owner, repo),
-      dirPath,
-      "dir.yml"
-    );
+    await this.ensureReady();
+    const fullPath = path.join(this.getResultDir(), dirPath, "dir.yml");
+
     try {
       const content = await readFile(fullPath, "utf-8");
       return schema.parse(parseYaml(content));
@@ -254,22 +223,96 @@ export class GitYamlStore implements ProcessorStore {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
-
-  private getResultDir(owner: string, repo: string): string {
-    return path.join(this.localPath, this.resultDir(owner, repo));
+  private getResultDir(): string {
+    return path.join(
+      this.localPath,
+      this.root,
+      this.sourceRepo.owner,
+      this.sourceRepo.name
+    );
   }
 
   private getAuthenticatedUrl(): string {
-    if (this.authToken !== undefined && this.authToken !== "") {
-      return this.cloneUrl.replace(
-        "https://github.com/",
-        `https://${this.authToken}@github.com/`
-      );
+    if (this.authToken === undefined || this.authToken === "") {
+      return this.cloneUrl;
     }
-    return this.cloneUrl;
+
+    return this.cloneUrl.replace(
+      "https://github.com/",
+      `https://${this.authToken}@github.com/`
+    );
+  }
+
+  private async resolveBranch(git: SimpleGit): Promise<string> {
+    if (this.requestedBranch !== undefined && this.requestedBranch !== "") {
+      return this.requestedBranch;
+    }
+
+    const localBranches = await git.branchLocal();
+    if (localBranches.current !== null && localBranches.current !== "") {
+      return localBranches.current;
+    }
+
+    try {
+      const remoteHead = await git.raw([
+        "symbolic-ref",
+        "--quiet",
+        "refs/remotes/origin/HEAD",
+      ]);
+      const branch = remoteHead
+        .trim()
+        .replace(/^refs\/remotes\/origin\//u, "");
+      if (branch !== "") {
+        return branch;
+      }
+    } catch {
+      // Fall back to any available branch.
+    }
+
+    if (localBranches.all.length > 0) {
+      return localBranches.all[0];
+    }
+
+    throw new Error("Unable to determine which branch to use for results");
+  }
+
+  private async checkoutBranch(git: SimpleGit, branch: string): Promise<void> {
+    const localBranches = await git.branchLocal();
+    if (localBranches.current === branch) {
+      return;
+    }
+
+    if (localBranches.all.includes(branch)) {
+      await git.checkout(branch);
+      return;
+    }
+
+    try {
+      await git.checkoutBranch(branch, `origin/${branch}`);
+    } catch {
+      await git.checkoutLocalBranch(branch);
+    }
+  }
+
+  private async resolveGitUser(git: SimpleGit): Promise<GitIdentity> {
+    if (this.configuredGitUser !== undefined) {
+      return this.configuredGitUser;
+    }
+
+    const [nameResult, emailResult] = await Promise.all([
+      git.getConfig("user.name"),
+      git.getConfig("user.email"),
+    ]);
+
+    const name = nameResult.value?.trim() ?? "";
+    const email = emailResult.value?.trim() ?? "";
+    if (name !== "" && email !== "") {
+      return { name, email };
+    }
+
+    throw new Error(
+      "Git user is required. Set results.gitUser or configure git user.name and user.email."
+    );
   }
 
   private async walkDir(
@@ -277,34 +320,33 @@ export class GitYamlStore implements ProcessorStore {
     currentDir: string,
     manifest: FileManifest
   ): Promise<void> {
-    let entries;
-    try {
-      entries = await readdir(currentDir, { withFileTypes: true });
-    } catch {
-      return;
-    }
+    const entries = await readdir(currentDir, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
         await this.walkDir(baseDir, fullPath, manifest);
-      } else if (
-        entry.isFile() &&
-        entry.name.endsWith(".yml") &&
-        entry.name !== "dir.yml"
+        continue;
+      }
+
+      if (
+        !entry.isFile() ||
+        !entry.name.endsWith(".yml") ||
+        entry.name === "dir.yml"
       ) {
-        try {
-          const yamlContent = await readFile(fullPath, "utf-8");
-          const parsed = parseYaml(yamlContent) as Record<string, unknown>;
-          if (typeof parsed.sha === "string") {
-            const relativePath = path.relative(baseDir, fullPath);
-            const repoPath = relativePath.slice(0, -4); // Remove .yml
-            manifest[repoPath] = parsed.sha;
-          }
-        } catch {
-          // Invalid file, skip
+        continue;
+      }
+
+      try {
+        const yamlContent = await readFile(fullPath, "utf-8");
+        const parsed = parseYaml(yamlContent) as Record<string, unknown>;
+        if (typeof parsed.sha === "string") {
+          const relativePath = path.relative(baseDir, fullPath);
+          manifest[relativePath.slice(0, -4)] = parsed.sha;
         }
+      } catch {
+        // Skip invalid YAML files while building the manifest.
       }
     }
   }

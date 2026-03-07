@@ -12,6 +12,8 @@ import {
   type WorkerConnectedHandler,
   type WorkerDisconnectedHandler,
   type WorkerInfo,
+  type WorkerMessage,
+  type WorkerMessageEvent,
   type WorkerMessageHandler,
   type WorkerServerLogger,
   WorkerStatus,
@@ -28,6 +30,11 @@ const NO_OP_LOGGER: WorkerServerLogger = {
   warn: noop,
   error: noop,
 };
+
+interface RequestSettlement {
+  complete(): void;
+  fail(): void;
+}
 
 export interface ConnectionHandlerConfig {
   authToken?: string;
@@ -53,6 +60,9 @@ export class ConnectionHandler {
   constructor(
     private readonly pool: WorkerPool,
     private readonly config: ConnectionHandlerConfig,
+    private readonly createRequestSettlement: (
+      requestId: string | null
+    ) => RequestSettlement,
     logger?: WorkerServerLogger
   ) {
     this.logger = logger ?? NO_OP_LOGGER;
@@ -62,7 +72,7 @@ export class ConnectionHandler {
    * Register a handler for a specific message type.
    * Returns an unsubscribe function.
    */
-  onMessage<T = Record<string, unknown>>(
+  onMessage<T extends WorkerMessage = WorkerMessage>(
     type: string,
     handler: WorkerMessageHandler<T>
   ): () => void {
@@ -71,10 +81,12 @@ export class ConnectionHandler {
       set = new Set();
       this.messageHandlers.set(type, set);
     }
-    const h = handler as WorkerMessageHandler;
-    set.add(h);
+
+    const typedHandler = handler as WorkerMessageHandler;
+    set.add(typedHandler);
+
     return () => {
-      set.delete(h);
+      set.delete(typedHandler);
     };
   }
 
@@ -112,9 +124,10 @@ export class ConnectionHandler {
   }
 
   private handleMessage(ws: WebSocket, data: Buffer): void {
-    let message: Record<string, unknown>;
+    let message: WorkerMessage;
+
     try {
-      message = JSON.parse(data.toString()) as Record<string, unknown>;
+      message = JSON.parse(data.toString()) as WorkerMessage;
     } catch {
       this.logger.warn("Invalid JSON message from worker");
       return;
@@ -126,39 +139,48 @@ export class ConnectionHandler {
       return;
     }
 
-    // Handle protocol messages internally
     if (type === "worker_registration") {
       this.handleRegistration(ws, message as unknown as RegistrationMessage);
       return;
     }
+
     if (type === "heartbeat") {
       this.handleHeartbeat(ws, message as unknown as HeartbeatMessage);
       return;
     }
 
-    // Dispatch to registered handlers by type
     const handlers = this.messageHandlers.get(type);
-    if (handlers !== undefined && handlers.size > 0) {
-      const { workerId } = ws as WebSocket & { workerId?: string };
-      const worker =
-        workerId !== undefined ? this.pool.get(workerId) : undefined;
-      const info =
-        worker !== undefined
-          ? toWorkerInfo(worker)
-          : this.unknownWorkerInfo(workerId);
-
-      for (const handler of handlers) {
-        try {
-          handler(info, message);
-        } catch (err) {
-          this.logger.error("Error in message handler", {
-            type,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    } else {
+    if (handlers === undefined || handlers.size === 0) {
       this.logger.warn("Unhandled message type from worker", { type });
+      return;
+    }
+
+    const { workerId } = ws as WebSocket & { workerId?: string };
+    const worker = workerId !== undefined ? this.pool.get(workerId) : undefined;
+    const info =
+      worker !== undefined
+        ? toWorkerInfo(worker)
+        : this.unknownWorkerInfo(workerId);
+    const requestId =
+      typeof message.requestId === "string" ? message.requestId : null;
+    const settlement = this.createRequestSettlement(requestId);
+    const event = Object.freeze({
+      worker: info,
+      message,
+      requestId,
+      complete: settlement.complete,
+      fail: settlement.fail,
+    }) as WorkerMessageEvent;
+
+    for (const handler of handlers) {
+      try {
+        handler(event);
+      } catch (error) {
+        this.logger.error("Error in message handler", {
+          type,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -166,7 +188,6 @@ export class ConnectionHandler {
     ws: WebSocket,
     message: RegistrationMessage
   ): void {
-    // Validate auth token if required
     if (
       this.config.authToken !== undefined &&
       !safeCompare(message.authToken ?? "", this.config.authToken)
@@ -184,7 +205,6 @@ export class ConnectionHandler {
       return;
     }
 
-    // Replace existing worker with same ID
     const existing = this.pool.get(message.workerId);
     if (existing !== undefined) {
       this.logger.debug("Replacing existing worker connection", {
@@ -200,7 +220,6 @@ export class ConnectionHandler {
         // Old socket may already be dead
       }
 
-      // Notify disconnected handlers for pending requests on old connection
       if (existing.pendingRequests.size > 0) {
         this.logger.warn("Replaced worker had pending requests", {
           workerId: message.workerId,
@@ -209,10 +228,10 @@ export class ConnectionHandler {
         const info = toWorkerInfo(existing);
         for (const handler of this.disconnectedHandlers) {
           try {
-            handler(info, existing.pendingRequests);
-          } catch (err) {
+            handler(info);
+          } catch (error) {
             this.logger.error("Error in disconnected handler", {
-              error: err instanceof Error ? err.message : String(err),
+              error: error instanceof Error ? error.message : String(error),
             });
           }
         }
@@ -223,7 +242,6 @@ export class ConnectionHandler {
 
     const sessionId = randomUUID();
     const now = new Date();
-
     const worker: ConnectedWorker = {
       id: message.workerId,
       name: message.workerName,
@@ -254,18 +272,17 @@ export class ConnectionHandler {
     this.logger.debug("Worker registered", {
       workerId: message.workerId,
       workerName: message.workerName,
-      models: message.capabilities.models.map((m) => m.modelId),
+      models: message.capabilities.models.map((model) => model.modelId),
       maxConcurrentRequests: message.capabilities.maxConcurrentRequests,
     });
 
-    // Notify connected handlers
     const info = toWorkerInfo(worker);
     for (const handler of this.connectedHandlers) {
       try {
         handler(info);
-      } catch (err) {
+      } catch (error) {
         this.logger.error("Error in connected handler", {
-          error: err instanceof Error ? err.message : String(err),
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -309,45 +326,51 @@ export class ConnectionHandler {
     }
 
     const worker = this.pool.get(workerId);
-    if (worker !== undefined) {
-      const info = toWorkerInfo(worker);
-      const pendingCopy: ReadonlySet<string> = new Set(worker.pendingRequests);
+    if (worker === undefined) {
+      return;
+    }
 
-      if (worker.pendingRequests.size > 0) {
-        this.logger.warn("Worker disconnected with pending requests", {
-          workerId,
-          count: worker.pendingRequests.size,
+    const info = toWorkerInfo(worker);
+
+    if (worker.pendingRequests.size > 0) {
+      this.logger.warn("Worker disconnected with pending requests", {
+        workerId,
+        count: worker.pendingRequests.size,
+      });
+    }
+
+    this.pool.remove(workerId);
+    this.logger.debug("Worker disconnected", { workerId, code, reason });
+
+    for (const handler of this.disconnectedHandlers) {
+      try {
+        handler(info);
+      } catch (error) {
+        this.logger.error("Error in disconnected handler", {
+          error: error instanceof Error ? error.message : String(error),
         });
-      }
-
-      this.pool.remove(workerId);
-      this.logger.debug("Worker disconnected", { workerId, code, reason });
-
-      for (const handler of this.disconnectedHandlers) {
-        try {
-          handler(info, pendingCopy);
-        } catch (err) {
-          this.logger.error("Error in disconnected handler", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
       }
     }
   }
 
   private unknownWorkerInfo(workerId?: string): WorkerInfo {
-    return {
+    return Object.freeze({
       id: workerId ?? "unknown",
       name: "unknown",
       status: WorkerStatus.Unhealthy,
-      capabilities: { models: [], maxConcurrentRequests: 0 },
+      capabilities: Object.freeze({
+        models: Object.freeze([]),
+        maxConcurrentRequests: 0,
+      }),
       sessionId: "",
       connectedAt: new Date(0),
       lastHeartbeat: new Date(0),
-      activeRequests: 0,
-      completedRequests: 0,
-      pendingRequestIds: new Set(),
-      categoryActiveRequests: new Map(),
-    };
+      requests: Object.freeze({
+        active: 0,
+        completed: 0,
+        pendingIds: Object.freeze([]),
+        activeByCategory: Object.freeze({}),
+      }),
+    });
   }
 }

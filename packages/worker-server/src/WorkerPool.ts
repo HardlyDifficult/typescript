@@ -2,7 +2,10 @@ import WebSocket from "ws";
 
 import {
   type ConnectedWorker,
+  type ModelInfo,
+  type WorkerCapabilities,
   type WorkerInfo,
+  type WorkerMessage,
   type WorkerServerLogger,
   WorkerStatus,
 } from "./types.js";
@@ -18,21 +21,106 @@ const NO_OP_LOGGER: WorkerServerLogger = {
   error: noop,
 };
 
+function cloneModelInfo(model: ModelInfo): ModelInfo {
+  return Object.freeze({ ...model });
+}
+
+function cloneCapabilities(
+  capabilities: WorkerCapabilities
+): WorkerCapabilities {
+  return Object.freeze({
+    maxConcurrentRequests: capabilities.maxConcurrentRequests,
+    models: Object.freeze(capabilities.models.map(cloneModelInfo)),
+    ...(capabilities.metadata !== undefined && {
+      metadata: Object.freeze({ ...capabilities.metadata }),
+    }),
+    ...(capabilities.concurrencyLimits !== undefined && {
+      concurrencyLimits: Object.freeze({
+        ...capabilities.concurrencyLimits,
+      }),
+    }),
+  });
+}
+
+function getLoad(worker: ConnectedWorker): number {
+  return worker.activeRequests / worker.capabilities.maxConcurrentRequests;
+}
+
+function supportsModel(worker: ConnectedWorker, model: string): boolean {
+  return worker.capabilities.models.some(
+    (candidate) =>
+      candidate.modelId === model ||
+      candidate.modelId.includes(model) ||
+      model.includes(candidate.modelId)
+  );
+}
+
+function hasCategoryCapacity(
+  worker: ConnectedWorker,
+  category?: string
+): boolean {
+  if (category === undefined) {
+    return true;
+  }
+
+  const categoryLimit = worker.capabilities.concurrencyLimits?.[category];
+  if (categoryLimit === undefined) {
+    return true;
+  }
+
+  return (worker.categoryActiveRequests.get(category) ?? 0) < categoryLimit;
+}
+
+function isDispatchCandidate(
+  worker: ConnectedWorker,
+  options: { model?: string; category?: string }
+): boolean {
+  if (worker.status !== WorkerStatus.Available) {
+    return false;
+  }
+
+  if (worker.activeRequests >= worker.capabilities.maxConcurrentRequests) {
+    return false;
+  }
+
+  if (options.model !== undefined && !supportsModel(worker, options.model)) {
+    return false;
+  }
+
+  return hasCategoryCapacity(worker, options.category);
+}
+
+function createRequestSnapshot(
+  worker: ConnectedWorker
+): WorkerInfo["requests"] {
+  const activeByCategory = Object.freeze(
+    Object.fromEntries(
+      Array.from(worker.categoryActiveRequests.entries()).filter(
+        ([, count]) => count > 0
+      )
+    ) as Record<string, number>
+  );
+
+  return Object.freeze({
+    active: worker.activeRequests,
+    completed: worker.completedRequests,
+    pendingIds: Object.freeze(Array.from(worker.pendingRequests)),
+    activeByCategory,
+  });
+}
+
 /** Convert internal ConnectedWorker to public WorkerInfo (strips websocket). */
-export function toWorkerInfo(w: ConnectedWorker): WorkerInfo {
-  return {
-    id: w.id,
-    name: w.name,
-    status: w.status,
-    capabilities: w.capabilities,
-    sessionId: w.sessionId,
-    connectedAt: w.connectedAt,
-    lastHeartbeat: w.lastHeartbeat,
-    activeRequests: w.activeRequests,
-    completedRequests: w.completedRequests,
-    pendingRequestIds: w.pendingRequests,
-    categoryActiveRequests: w.categoryActiveRequests,
-  };
+export function toWorkerInfo(worker: ConnectedWorker): WorkerInfo {
+  return Object.freeze({
+    id: worker.id,
+    name: worker.name,
+    status: worker.status,
+    capabilities: cloneCapabilities(worker.capabilities),
+    sessionId: worker.sessionId,
+    connectedAt: new Date(worker.connectedAt),
+    lastHeartbeat: new Date(worker.lastHeartbeat),
+    requests: createRequestSnapshot(worker),
+  });
 }
 
 /**
@@ -66,78 +154,43 @@ export class WorkerPool {
     return this.workers.has(id);
   }
 
-  values(): IterableIterator<ConnectedWorker> {
-    return this.workers.values();
+  getCount(): number {
+    return this.workers.size;
+  }
+
+  getAvailableCount(): number {
+    let count = 0;
+    for (const worker of this.workers.values()) {
+      if (worker.status === WorkerStatus.Available) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  getDispatchCandidates(options: {
+    model?: string;
+    category?: string;
+  }): ConnectedWorker[] {
+    return Array.from(this.workers.values())
+      .filter((worker) => isDispatchCandidate(worker, options))
+      .sort((left, right) => {
+        const loadDifference = getLoad(left) - getLoad(right);
+        if (loadDifference !== 0) {
+          return loadDifference;
+        }
+
+        return left.id.localeCompare(right.id);
+      });
   }
 
   /**
    * Get the least-loaded available worker supporting the given model.
-   * If category is provided and the worker has a concurrencyLimits entry for
-   * that category, the category slot count is checked in addition to the
-   * overall maxConcurrentRequests limit.
+   * If category is provided and the worker has a concurrency limit for that
+   * category, the category slot count is checked in addition to overall load.
    */
   getAvailableWorker(model: string, category?: string): ConnectedWorker | null {
-    let bestWorker: ConnectedWorker | null = null;
-    let lowestLoad = Infinity;
-
-    for (const worker of this.workers.values()) {
-      if (worker.status !== WorkerStatus.Available) {
-        continue;
-      }
-
-      const supportsModel = worker.capabilities.models.some(
-        (m) =>
-          m.modelId === model ||
-          m.modelId.includes(model) ||
-          model.includes(m.modelId)
-      );
-      if (!supportsModel) {
-        continue;
-      }
-
-      if (worker.activeRequests >= worker.capabilities.maxConcurrentRequests) {
-        continue;
-      }
-
-      // Check per-category limit when applicable
-      if (
-        category !== undefined &&
-        worker.capabilities.concurrencyLimits !== undefined
-      ) {
-        if (category in worker.capabilities.concurrencyLimits) {
-          const categoryLimit = worker.capabilities.concurrencyLimits[category];
-          const categoryCount =
-            worker.categoryActiveRequests.get(category) ?? 0;
-          if (categoryCount >= categoryLimit) {
-            continue;
-          }
-        }
-      }
-
-      const load =
-        worker.activeRequests / worker.capabilities.maxConcurrentRequests;
-      if (load < lowestLoad) {
-        lowestLoad = load;
-        bestWorker = worker;
-      }
-    }
-
-    return bestWorker;
-  }
-
-  /**
-   * Get any available worker (for tasks that don't need a specific model).
-   */
-  getAnyAvailableWorker(): ConnectedWorker | null {
-    for (const w of this.workers.values()) {
-      if (
-        w.status === WorkerStatus.Available ||
-        w.status === WorkerStatus.Busy
-      ) {
-        return w;
-      }
-    }
-    return null;
+    return this.getDispatchCandidates({ model, category })[0] ?? null;
   }
 
   /**
@@ -145,10 +198,14 @@ export class WorkerPool {
    * If category is provided it is stored for automatic lookup on release and
    * the per-category active count is incremented.
    */
-  trackRequest(workerId: string, requestId: string, category?: string): void {
+  trackRequest(
+    workerId: string,
+    requestId: string,
+    category?: string
+  ): boolean {
     const worker = this.workers.get(workerId);
     if (worker === undefined) {
-      return;
+      return false;
     }
 
     worker.activeRequests++;
@@ -165,6 +222,8 @@ export class WorkerPool {
     if (worker.activeRequests >= worker.capabilities.maxConcurrentRequests) {
       worker.status = WorkerStatus.Busy;
     }
+
+    return true;
   }
 
   /**
@@ -174,47 +233,45 @@ export class WorkerPool {
   releaseRequest(
     requestId: string,
     options?: { incrementCompleted?: boolean }
-  ): void {
+  ): boolean {
     for (const worker of this.workers.values()) {
-      if (worker.pendingRequests.has(requestId)) {
-        worker.pendingRequests.delete(requestId);
-        worker.activeRequests = Math.max(0, worker.activeRequests - 1);
-
-        // Decrement per-category count if this request had a category
-        const category = worker.requestCategories.get(requestId);
-        if (category !== undefined) {
-          worker.requestCategories.delete(requestId);
-          const prev = worker.categoryActiveRequests.get(category) ?? 0;
-          worker.categoryActiveRequests.set(category, Math.max(0, prev - 1));
-        }
-
-        if (options?.incrementCompleted === true) {
-          worker.completedRequests++;
-        }
-
-        if (
-          worker.status === WorkerStatus.Busy &&
-          worker.activeRequests < worker.capabilities.maxConcurrentRequests
-        ) {
-          worker.status = WorkerStatus.Available;
-        }
-        break;
+      if (!worker.pendingRequests.has(requestId)) {
+        continue;
       }
-    }
-  }
 
-  getCount(): number {
-    return this.workers.size;
-  }
+      worker.pendingRequests.delete(requestId);
+      worker.activeRequests = Math.max(0, worker.activeRequests - 1);
 
-  getAvailableCount(): number {
-    let count = 0;
-    for (const worker of this.workers.values()) {
-      if (worker.status === WorkerStatus.Available) {
-        count++;
+      const category = worker.requestCategories.get(requestId);
+      if (category !== undefined) {
+        worker.requestCategories.delete(requestId);
+        const nextCount = Math.max(
+          0,
+          (worker.categoryActiveRequests.get(category) ?? 0) - 1
+        );
+
+        if (nextCount === 0) {
+          worker.categoryActiveRequests.delete(category);
+        } else {
+          worker.categoryActiveRequests.set(category, nextCount);
+        }
       }
+
+      if (options?.incrementCompleted === true) {
+        worker.completedRequests++;
+      }
+
+      if (
+        worker.status === WorkerStatus.Busy &&
+        worker.activeRequests < worker.capabilities.maxConcurrentRequests
+      ) {
+        worker.status = WorkerStatus.Available;
+      }
+
+      return true;
     }
-    return count;
+
+    return false;
   }
 
   /**
@@ -223,32 +280,35 @@ export class WorkerPool {
    */
   getAvailableSlotCount(model: string, category?: string): number {
     let count = 0;
+
     for (const worker of this.workers.values()) {
       if (worker.status !== WorkerStatus.Available) {
         continue;
       }
-      const supportsModel = worker.capabilities.models.some(
-        (m) =>
-          m.modelId === model ||
-          m.modelId.includes(model) ||
-          model.includes(m.modelId)
-      );
-      if (!supportsModel) {
+
+      if (!supportsModel(worker, model)) {
         continue;
       }
+
       const workerFreeSlots =
         worker.capabilities.maxConcurrentRequests - worker.activeRequests;
+
       if (
         category !== undefined &&
         worker.capabilities.concurrencyLimits?.[category] !== undefined
       ) {
         const categoryLimit = worker.capabilities.concurrencyLimits[category];
         const categoryCount = worker.categoryActiveRequests.get(category) ?? 0;
-        count += Math.min(workerFreeSlots, categoryLimit - categoryCount);
-      } else {
-        count += workerFreeSlots;
+        count += Math.min(
+          workerFreeSlots,
+          Math.max(0, categoryLimit - categoryCount)
+        );
+        continue;
       }
+
+      count += workerFreeSlots;
     }
+
     return count;
   }
 
@@ -288,11 +348,12 @@ export class WorkerPool {
   }
 
   /** Send a JSON message to a specific worker. */
-  send(workerId: string, message: Record<string, unknown>): boolean {
+  send(workerId: string, message: WorkerMessage): boolean {
     const worker = this.workers.get(workerId);
     if (worker === undefined) {
       return false;
     }
+
     if (worker.websocket.readyState !== WebSocket.OPEN) {
       return false;
     }
@@ -306,15 +367,18 @@ export class WorkerPool {
   }
 
   /** Broadcast a JSON message to all connected workers with open sockets. */
-  broadcast(message: Record<string, unknown>): void {
+  broadcast(message: WorkerMessage): void {
     const json = JSON.stringify(message);
+
     for (const worker of this.workers.values()) {
-      if (worker.websocket.readyState === WebSocket.OPEN) {
-        try {
-          worker.websocket.send(json);
-        } catch {
-          // Worker may be disconnecting
-        }
+      if (worker.websocket.readyState !== WebSocket.OPEN) {
+        continue;
+      }
+
+      try {
+        worker.websocket.send(json);
+      } catch {
+        // Worker may be disconnecting
       }
     }
   }
@@ -328,6 +392,7 @@ export class WorkerPool {
         // Ignore close errors
       }
     }
+
     this.workers.clear();
   }
 }

@@ -104,6 +104,10 @@ export interface ContributionRepo {
   readonly fullName: string;
 }
 
+export interface GitHubClientConfig {
+  readonly token?: string;
+}
+
 export interface PullRequestFile {
   readonly sha: string;
   readonly filename: string;
@@ -164,8 +168,15 @@ export interface KeyFile {
   readonly content: string;
 }
 
+export interface RepoContextOptions {
+  readonly files: readonly string[];
+  readonly maxChars: number;
+  readonly ref?: string;
+}
+
 // --- Watcher types ---
 
+import type { TimelineEntry } from "./timeline.js";
 import type { PRActivity } from "./polling/fetchPRActivity.js";
 
 export type ClassifyPR = (
@@ -267,11 +278,10 @@ export interface CommitFile {
   readonly content: string;
 }
 
-export interface CommitFilesOptions {
+export interface CommitOptions {
   readonly branch: string;
   readonly files: readonly CommitFile[];
   readonly message: string;
-  readonly parentSha: string;
   readonly author?: CommitAuthor;
 }
 
@@ -280,14 +290,23 @@ export interface CommitResult {
   readonly branchCreated: boolean;
 }
 
-export interface CreatePROptions {
+export interface OpenPullRequestOptions {
   readonly head: string;
-  readonly base: string;
+  readonly base?: string;
   readonly title: string;
-  readonly body: string;
+  readonly body?: string;
 }
 
 export interface CreatedPR {
   readonly number: number;
   readonly url: string;
+}
+
+export interface PullRequestSnapshot {
+  readonly pullRequest: PullRequest;
+  readonly repository: Repository;
+  readonly comments: readonly PullRequestComment[];
+  readonly reviews: readonly PullRequestReview[];
+  readonly checks: readonly CheckRun[];
+  readonly timeline: readonly TimelineEntry[];
 }

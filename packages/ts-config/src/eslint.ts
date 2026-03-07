@@ -103,11 +103,6 @@ export default function createConfig(projectRoot: string) {
         "no-restricted-syntax": [
           "error",
           {
-            selector: "NewExpression[callee.name='Poller'][arguments.length>1]",
-            message:
-              "Use object-style constructor options for Poller (new Poller({ ... }) or Poller.create({ ... })).",
-          },
-          {
             selector:
               "NewExpression[callee.name='Channel'][arguments.length>1]",
             message:

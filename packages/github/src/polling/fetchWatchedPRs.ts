@@ -11,7 +11,7 @@ export interface WatchedPR {
 /** Fetches all open PRs from the given repos, optionally including the authenticated user's own PRs across GitHub. */
 export async function fetchWatchedPRs(
   octokit: Octokit,
-  username: string,
+  username: string | undefined,
   repos: readonly string[],
   myPRs: boolean,
   throttle?: WatchThrottle
@@ -41,6 +41,10 @@ export async function fetchWatchedPRs(
   }
 
   if (myPRs) {
+    if (username === undefined) {
+      throw new Error("Authenticated username is required when myPRs is enabled");
+    }
+
     await throttle?.wait(1);
     const response = await octokit.search.issuesAndPullRequests({
       q: `is:pr is:open author:${username}`,
