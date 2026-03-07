@@ -36,8 +36,8 @@ const sizeStyles: Record<ButtonSize, string> = {
 };
 
 const linkSizeStyles: Record<ButtonSize, string> = {
-  sm: "text-[length:var(--text-xs)] gap-[var(--space-1)]",
-  md: "text-[length:var(--text-sm)] gap-[var(--space-2)]",
+  sm: "text-[length:var(--text-xs)] gap-[var(--space-1)] px-0",
+  md: "text-[length:var(--text-sm)] gap-[var(--space-2)] px-0",
 };
 
 /** Button with primary, secondary, ghost, danger, and link variants. */
