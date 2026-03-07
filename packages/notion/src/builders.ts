@@ -1,8 +1,8 @@
 import type {
   NotionBlock,
   NotionCheckboxProperty,
-  NotionDataSourceParent,
   NotionDatabaseParent,
+  NotionDataSourceParent,
   NotionDateInput,
   NotionDateProperty,
   NotionEmailProperty,
@@ -216,10 +216,16 @@ export const notionProperty = {
   },
 } as const;
 
+/**
+ * Convert markdown content helpers into a raw markdown string payload.
+ */
 export function toMarkdownContent(content: NotionMarkdownContent): string {
   return typeof content === "string" ? content : content.toMarkdown();
 }
 
+/**
+ * Normalize page body input to markdown text or Notion blocks.
+ */
 export function toPageBody(
   content?: NotionPageBody
 ): string | NotionBlock[] | undefined {
@@ -230,6 +236,9 @@ export function toPageBody(
   return toMarkdownContent(content);
 }
 
+/**
+ * Convert user-friendly property input values into Notion API property payloads.
+ */
 export function toPropertyValue(
   propertyName: string,
   value: NotionPropertyInput
@@ -304,6 +313,9 @@ export function toPropertyValue(
   }
 }
 
+/**
+ * Normalize a map of property inputs into Notion API-ready property values.
+ */
 export function normalizeProperties(
   properties: Record<string, NotionPropertyInput>
 ): Record<string, NotionPropertyValue> {
@@ -315,10 +327,16 @@ export function normalizeProperties(
   );
 }
 
+/**
+ * Identify page draft payloads that already include a parent descriptor.
+ */
 export function isPageDraft(value: unknown): value is NotionPageDraft {
   return isRecord(value) && "parent" in value;
 }
 
+/**
+ * Identify values that expose a markdown rendering contract.
+ */
 export function isMarkdownRenderable(
   value: unknown
 ): value is NotionMarkdownRenderable {

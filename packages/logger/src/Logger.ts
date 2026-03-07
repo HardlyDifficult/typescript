@@ -1,5 +1,5 @@
-import type { LogEntry, LoggerPlugin, LogLevel } from "./types.js";
 import { normalizeContext } from "./serialize.js";
+import type { LogEntry, LoggerPlugin, LogLevel } from "./types.js";
 
 const LOG_LEVELS: Readonly<Record<LogLevel, number>> = {
   debug: 0,

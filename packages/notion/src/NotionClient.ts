@@ -1,6 +1,6 @@
 import {
-  isPageDraft,
   isMarkdownRenderable,
+  isPageDraft,
   normalizeProperties,
   notionProperty,
   toMarkdownContent,
@@ -38,9 +38,9 @@ import type {
   NotionActivityEvent,
   NotionApiVersion,
   NotionBlock,
+  NotionCommentMeta,
   NotionMarkdownContent,
   NotionPageBody,
-  NotionCommentMeta,
   NotionPageContent,
   NotionPageDraft,
   NotionPageMarkdownResponse,

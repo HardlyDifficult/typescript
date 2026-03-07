@@ -1,8 +1,8 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-import type { LogEntry, LoggerPlugin } from "../types.js";
 import { safeJsonStringify } from "../serialize.js";
+import type { LogEntry, LoggerPlugin } from "../types.js";
 
 /** Logger plugin that appends JSON-serialized log entries to a file on disk. */
 export class FilePlugin implements LoggerPlugin {

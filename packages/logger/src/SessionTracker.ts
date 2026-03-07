@@ -122,7 +122,7 @@ export class SessionTracker {
 
           let startedAt = stat.birthtime.toISOString();
           if (entries.length > 0) {
-            startedAt = entries[0]!.timestamp;
+            startedAt = entries[0].timestamp;
           }
 
           sessions.push({

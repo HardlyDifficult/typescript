@@ -1,5 +1,5 @@
-import { NotionApiError } from "../NotionApiError.js";
 import { selectionFromMarkdown } from "../markdown.js";
+import { NotionApiError } from "../NotionApiError.js";
 import type {
   NotionBlock,
   NotionPageContent,

@@ -10,7 +10,7 @@ function serializeError(error: Error, seen: WeakSet<object>): Record<string, unk
       message: error.message,
     };
 
-    if (error.stack) {
+    if (typeof error.stack === "string" && error.stack.length > 0) {
       result.stack = error.stack;
     }
 
@@ -78,7 +78,7 @@ function serializeArray(
 function serializeMap(
   value: ReadonlyMap<unknown, unknown>,
   seen: WeakSet<object>
-): Array<[unknown, unknown]> | string {
+): [unknown, unknown][] | string {
   if (seen.has(value)) {
     return "[Circular]";
   }
@@ -131,7 +131,7 @@ function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
     case "object":
       break;
     default:
-      return String(value);
+      return undefined;
   }
 
   if (value instanceof Date) {
@@ -157,17 +157,27 @@ function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
   return serializeRecord(value as Record<string, unknown>, seen);
 }
 
+/**
+ * Normalize context objects into JSON-safe values.
+ */
 export function normalizeContext(
   context: Readonly<Record<string, unknown>>
 ): Readonly<Record<string, unknown>> {
   const normalized = serializeRecord(
     context as Record<string, unknown>,
-    new WeakSet<object>()
+    new WeakSet()
   );
 
   return typeof normalized === "string" ? { value: normalized } : normalized;
 }
 
+/**
+ * Safely stringify unknown values while preserving non-JSON primitives.
+ */
 export function safeJsonStringify(value: unknown, space?: number): string {
-  return JSON.stringify(serializeValue(value, new WeakSet<object>()), null, space) ?? "null";
+  const serialized = serializeValue(value, new WeakSet());
+  if (serialized === undefined) {
+    return "null";
+  }
+  return JSON.stringify(serialized, null, space);
 }

@@ -1,5 +1,5 @@
-import type { NotionApiVersion } from "../types.js";
 import { NotionApiError } from "../NotionApiError.js";
+import type { NotionApiVersion } from "../types.js";
 
 import type { RequestOptions } from "./types.js";
 

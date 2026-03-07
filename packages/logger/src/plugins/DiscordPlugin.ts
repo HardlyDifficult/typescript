@@ -1,5 +1,5 @@
-import type { LogEntry, LoggerPlugin } from "../types.js";
 import { safeJsonStringify } from "../serialize.js";
+import type { LogEntry, LoggerPlugin } from "../types.js";
 
 export type DiscordSender = (message: string) => void;
 

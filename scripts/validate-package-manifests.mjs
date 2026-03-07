@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const packagesDir = join(process.cwd(), "packages");
@@ -14,6 +14,10 @@ for (const entry of readdirSync(packagesDir)) {
   }
 
   const manifestPath = join(packageDir, "package.json");
+  if (!existsSync(manifestPath)) {
+    continue;
+  }
+
   let manifest;
 
   try {

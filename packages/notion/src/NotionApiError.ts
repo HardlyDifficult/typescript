@@ -1,3 +1,6 @@
+/**
+ * Error wrapper for non-2xx Notion API responses.
+ */
 export class NotionApiError extends Error {
   readonly status: number;
   readonly body: string;

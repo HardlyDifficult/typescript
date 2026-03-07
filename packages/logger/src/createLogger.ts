@@ -1,6 +1,6 @@
 import { Logger } from "./Logger.js";
-import { type DiscordSender, DiscordPlugin } from "./plugins/DiscordPlugin.js";
 import { ConsolePlugin } from "./plugins/ConsolePlugin.js";
+import { DiscordPlugin, type DiscordSender } from "./plugins/DiscordPlugin.js";
 import { FilePlugin } from "./plugins/FilePlugin.js";
 import type { LogLevel } from "./types.js";
 
@@ -25,19 +25,23 @@ export interface CreateLoggerOptions {
 export function createLogger(options: CreateLoggerOptions = {}): Logger {
   const logger = new Logger(options.level ?? "info");
 
-  if (!options.suppressConsole) {
+  if (options.suppressConsole !== true) {
     logger.use(new ConsolePlugin());
   }
 
-  if (options.filePath) {
+  if (typeof options.filePath === "string" && options.filePath.length > 0) {
     logger.use(new FilePlugin(options.filePath));
   }
 
-  if (options.discord) {
+  if (options.discord !== undefined) {
     const discord = new DiscordPlugin();
     discord.setSender(options.discord);
     logger.use(discord);
   }
 
-  return options.name ? logger.withContext({ name: options.name }) : logger;
+  if (typeof options.name === "string" && options.name.length > 0) {
+    return logger.withContext({ name: options.name });
+  }
+
+  return logger;
 }
