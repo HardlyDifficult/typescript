@@ -52,7 +52,7 @@ Focused, opinionated, easy-to-use npm packages for building robust TypeScript ap
 | [date-time](./packages/date-time) | Strongly-typed `TimeSpan` and `toMilliseconds` conversion with unit-aware multipliers and ESM/CJS dual exports. |
 | [document-generator](./packages/document-generator) | Platform-agnostic document generator with fluent API for Markdown, Slack mrkdwn, and plain text output. |
 | [http](./packages/http) | Secure HTTP utilities: constant-time comparison, bounded body reading (1MB), JSON/CORS responses. |
-| [logger](./packages/logger) | Pluggable structured logging with session-based JSONL tracking and extensible output plugins. |
+| [logger](./packages/logger) | Opinionated structured logging with console-first defaults, bound context, JSONL output, and session tracking. |
 | [text](./packages/text) | Text utilities for chunking, YAML/JSON conversion, markdown escaping, and linkification. |
 | [workflow-engine](./packages/workflow-engine) | Typed workflow engine with FSM core and pipeline abstraction: gates, retries, hooks, and persistence. |
 

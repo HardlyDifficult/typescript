@@ -1,6 +1,10 @@
 import type { NotionBlock } from "./blocks.js";
 import type { NotionApiVersion } from "./common.js";
-import type { NotionIcon, NotionPropertyValue } from "./properties.js";
+import type {
+  NotionIcon,
+  NotionPropertyInput,
+  NotionPropertyValue,
+} from "./properties.js";
 
 export interface NotionDatabaseParent {
   type: "database_id";
@@ -192,6 +196,31 @@ export interface ReadPageOptions {
   fallbackToBlocks?: boolean;
 }
 
+export interface NotionMarkdownRenderable {
+  toMarkdown(): string;
+}
+
+export type NotionMarkdownContent = string | NotionMarkdownRenderable;
+export type NotionPageBody = NotionBlock[] | NotionMarkdownContent;
+
+export interface NotionPageDraft {
+  parent: NotionParent | string;
+  title?: string;
+  titleProperty?: string;
+  properties?: Record<string, NotionPropertyInput>;
+  content?: NotionMarkdownContent;
+  blocks?: NotionBlock[];
+}
+
+export interface AppendPageMarkdownOptions {
+  after?: string;
+}
+
+export interface ReplacePageMarkdownOptions {
+  contentRange?: string;
+  allowDeletingContent?: boolean;
+}
+
 export interface InsertContentMarkdownRequest {
   type: "insert_content";
   insert_content: {
@@ -213,11 +242,10 @@ export type UpdatePageMarkdownRequest =
   | InsertContentMarkdownRequest
   | ReplaceContentRangeMarkdownRequest;
 
-export interface UpdatePageOptions {
+export interface UpdatePageOptions
+  extends AppendPageMarkdownOptions,
+    ReplacePageMarkdownOptions {
   replace?: boolean;
-  after?: string;
-  contentRange?: string;
-  allowDeletingContent?: boolean;
 }
 
 export interface NotionClientOptions {

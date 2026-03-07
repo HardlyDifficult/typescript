@@ -3,9 +3,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import {
+  createFileStorage,
   defineStateMigration,
   StateTracker,
   type StateTrackerEvent,
+  type StateStorage,
   type StorageAdapter,
 } from "../src/StateTracker";
 
@@ -189,7 +191,7 @@ describe("StateTracker", () => {
       expect(tracker2.state).toBe(300);
     });
 
-    it("loadAsync returns void and sets state", async () => {
+    it("loadAsync returns the loaded state", async () => {
       const tracker = new StateTracker({
         key: "async-load",
         default: { count: 0, name: "default" },
@@ -207,7 +209,7 @@ describe("StateTracker", () => {
       );
 
       const result = await tracker.loadAsync();
-      expect(result).toBeUndefined();
+      expect(result).toEqual({ count: 42, name: "loaded" });
       expect(tracker.state).toEqual({ count: 42, name: "loaded" });
     });
 
@@ -531,6 +533,16 @@ describe("StateTracker", () => {
       expect(filePath).toBe(path.join(testDir, "my-key.json"));
     });
 
+    it("works with the storage-first file helper", () => {
+      const tracker = new StateTracker({
+        key: "my-key",
+        default: 0,
+        storage: createFileStorage({ directory: testDir }),
+      });
+
+      expect(tracker.getFilePath()).toBe(path.join(testDir, "my-key.json"));
+    });
+
     it("should throw when using a storageAdapter", () => {
       const adapter: StorageAdapter = {
         read: async () => null,
@@ -542,7 +554,30 @@ describe("StateTracker", () => {
         storageAdapter: adapter,
       });
 
-      expect(() => tracker.getFilePath()).toThrow("storageAdapter");
+      expect(() => tracker.getFilePath()).toThrow("file storage");
+    });
+  });
+
+  describe("open()", () => {
+    it("returns a ready-to-use tracker in one call", async () => {
+      const filePath = path.join(testDir, "open-test.json");
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify({
+          value: { count: 7 },
+          lastUpdated: new Date().toISOString(),
+        }),
+        "utf-8"
+      );
+
+      const tracker = await StateTracker.open({
+        key: "open-test",
+        default: { count: 0 },
+        storage: createFileStorage({ directory: testDir }),
+      });
+
+      expect(tracker.state).toEqual({ count: 7 });
+      expect(tracker.isPersistent).toBe(true);
     });
   });
 
@@ -615,6 +650,54 @@ describe("StateTracker", () => {
 
       tracker.reset();
       expect(tracker.state).toEqual({ x: "original" });
+    });
+
+    it("mutate updates nested state without manual copying", () => {
+      const tracker = new StateTracker({
+        key: "mutate-test",
+        default: { stats: { count: 1 }, tags: ["a"] as string[] },
+        stateDirectory: testDir,
+      });
+
+      tracker.mutate((draft) => {
+        draft.stats.count += 1;
+        draft.tags.push("b");
+      });
+
+      expect(tracker.state).toEqual({
+        stats: { count: 2 },
+        tags: ["a", "b"],
+      });
+    });
+
+    it("mutate does not commit a partial change when the mutator throws", () => {
+      const tracker = new StateTracker({
+        key: "mutate-rollback",
+        default: { count: 1, items: [] as string[] },
+        stateDirectory: testDir,
+      });
+
+      expect(() =>
+        tracker.mutate((draft) => {
+          draft.count = 99;
+          draft.items.push("broken");
+          throw new Error("stop");
+        })
+      ).toThrow("stop");
+
+      expect(tracker.state).toEqual({ count: 1, items: [] });
+    });
+
+    it("mutate throws on primitive state", () => {
+      const tracker = new StateTracker({
+        key: "mutate-prim",
+        default: 42,
+        stateDirectory: testDir,
+      });
+
+      expect(() => tracker.mutate(() => undefined)).toThrow(
+        "mutate() can only be used when state is an object or array"
+      );
     });
   });
 
@@ -968,7 +1051,7 @@ describe("StateTracker", () => {
 
       const loadEvent = events.find((e) => e.message.includes("defaults"));
       expect(loadEvent).toBeDefined();
-      const saveEvent = events.find((e) => e.message.includes("adapter"));
+      const saveEvent = events.find((e) => e.message.includes("Saved state"));
       expect(saveEvent).toBeDefined();
     });
 
@@ -981,6 +1064,56 @@ describe("StateTracker", () => {
       });
       await tracker.loadAsync();
       expect(tracker.isPersistent).toBe(true);
+    });
+
+    it("supports redis-style storage through the storage option", async () => {
+      const redis = new Map<string, string>();
+      const storage: StateStorage = {
+        async read(key) {
+          return redis.get(`state:${key}`) ?? null;
+        },
+        async write(key, value) {
+          redis.set(`state:${key}`, value);
+        },
+      };
+
+      const tracker = await StateTracker.open({
+        key: "redis-test",
+        default: { count: 0 },
+        storage,
+      });
+
+      tracker.mutate((draft) => {
+        draft.count = 5;
+      });
+      await tracker.saveAsync();
+
+      expect(JSON.parse(redis.get("state:redis-test") ?? "{}")).toEqual({
+        value: { count: 5 },
+        lastUpdated: expect.any(String),
+      });
+    });
+
+    it("disables persistence after a storage write failure", async () => {
+      const storage: StateStorage = {
+        async read() {
+          return null;
+        },
+        async write() {
+          throw new Error("Redis unavailable");
+        },
+      };
+
+      const tracker = await StateTracker.open({
+        key: "write-failure",
+        default: { count: 0 },
+        storage,
+      });
+
+      tracker.set({ count: 1 });
+      await tracker.saveAsync();
+
+      expect(tracker.isPersistent).toBe(false);
     });
   });
 });

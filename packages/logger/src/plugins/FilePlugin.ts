@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 import type { LogEntry, LoggerPlugin } from "../types.js";
+import { safeJsonStringify } from "../serialize.js";
 
 /** Logger plugin that appends JSON-serialized log entries to a file on disk. */
 export class FilePlugin implements LoggerPlugin {
@@ -17,7 +18,7 @@ export class FilePlugin implements LoggerPlugin {
   }
 
   log(entry: LogEntry): void {
-    const line = `${JSON.stringify(entry)}\n`;
+    const line = `${safeJsonStringify(entry)}\n`;
     try {
       appendFileSync(this.filePath, line);
     } catch {

@@ -1,3 +1,4 @@
+import { NotionApiError } from "../NotionApiError.js";
 import { selectionFromMarkdown } from "../markdown.js";
 import type {
   NotionBlock,
@@ -13,6 +14,17 @@ import type {
 import type { NotionRequestFn } from "./requestFn.js";
 import { MARKDOWN_NOTION_VERSION, toPageMeta } from "./shared.js";
 import type { RawMarkdownPageResponse } from "./types.js";
+
+function shouldFallbackToBlocks(error: unknown): boolean {
+  if (!(error instanceof NotionApiError) || error.status !== 400) {
+    return false;
+  }
+
+  const body = error.body.toLowerCase();
+  return (
+    body.includes("unsupported version") && body.includes("markdown")
+  ) || body.includes("content_format");
+}
 
 /** Retrieves normalized metadata for a page ID. */
 export async function getPageMeta(
@@ -42,6 +54,8 @@ export async function readPage(
   pageId: string,
   options?: ReadPageOptions
 ): Promise<NotionPageContent> {
+  const fallbackToBlocks = options?.fallbackToBlocks ?? true;
+
   try {
     const page = await request<RawMarkdownPageResponse>(
       "GET",
@@ -63,7 +77,7 @@ export async function readPage(
       unknownBlockIds: page.unknown_block_ids ?? [],
     };
   } catch (error) {
-    if (options?.fallbackToBlocks !== true) {
+    if (!fallbackToBlocks || !shouldFallbackToBlocks(error)) {
       throw error;
     }
 

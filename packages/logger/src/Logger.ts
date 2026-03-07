@@ -1,4 +1,5 @@
 import type { LogEntry, LoggerPlugin, LogLevel } from "./types.js";
+import { normalizeContext } from "./serialize.js";
 
 const LOG_LEVELS: Readonly<Record<LogLevel, number>> = {
   debug: 0,
@@ -16,6 +17,7 @@ interface PluginEntry {
 export class Logger {
   private readonly minLevel: LogLevel;
   private readonly plugins: PluginEntry[] = [];
+  private baseContext?: Readonly<Record<string, unknown>>;
 
   constructor(minLevel: LogLevel = "info") {
     this.minLevel = minLevel;
@@ -24,6 +26,13 @@ export class Logger {
   use(plugin: LoggerPlugin, options?: { minLevel?: LogLevel }): this {
     this.plugins.push({ plugin, minLevel: options?.minLevel });
     return this;
+  }
+
+  withContext(context: Readonly<Record<string, unknown>>): Logger {
+    const child = new Logger(this.minLevel);
+    child.plugins.push(...this.plugins);
+    child.baseContext = mergeContexts(this.baseContext, context);
+    return child;
   }
 
   debug(message: string, context?: Readonly<Record<string, unknown>>): void {
@@ -67,9 +76,15 @@ export class Logger {
       return;
     }
 
+    const mergedContext = mergeContexts(this.baseContext, context);
     const entry: LogEntry =
-      context !== undefined
-        ? { level, message, timestamp: new Date().toISOString(), context }
+      mergedContext !== undefined
+        ? {
+            level,
+            message,
+            timestamp: new Date().toISOString(),
+            context: normalizeContext(mergedContext),
+          }
         : { level, message, timestamp: new Date().toISOString() };
 
     for (const { plugin, minLevel } of this.plugins) {
@@ -83,4 +98,18 @@ export class Logger {
       }
     }
   }
+}
+
+function mergeContexts(
+  baseContext?: Readonly<Record<string, unknown>>,
+  context?: Readonly<Record<string, unknown>>
+): Readonly<Record<string, unknown>> | undefined {
+  if (baseContext === undefined && context === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(baseContext ?? {}),
+    ...(context ?? {}),
+  };
 }

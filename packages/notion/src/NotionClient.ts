@@ -1,4 +1,12 @@
 import {
+  isPageDraft,
+  isMarkdownRenderable,
+  normalizeProperties,
+  notionProperty,
+  toMarkdownContent,
+  toPageBody,
+} from "./builders.js";
+import {
   getActivityFeed as getActivityFeedImpl,
   listComments as listCommentsImpl,
 } from "./client/activityFeed.js";
@@ -24,20 +32,25 @@ import {
 import { buildSectionBlocks, LEGACY_NOTION_VERSION } from "./client/shared.js";
 import { blocksToMarkdown, markdownToBlocks } from "./markdown.js";
 import type {
+  AppendPageMarkdownOptions,
   GetActivityFeedOptions,
   ListCommentsOptions,
   NotionActivityEvent,
   NotionApiVersion,
   NotionBlock,
+  NotionMarkdownContent,
+  NotionPageBody,
   NotionCommentMeta,
   NotionPageContent,
+  NotionPageDraft,
   NotionPageMarkdownResponse,
   NotionPageMeta,
   NotionPageResponse,
   NotionPageSearchResult,
   NotionParent,
-  NotionPropertyValue,
+  NotionPropertyInput,
   ReadPageOptions,
+  ReplacePageMarkdownOptions,
   RetrieveBlockChildrenOptions,
   SearchPagesOptions,
   UpdatePageMarkdownRequest,
@@ -67,31 +80,88 @@ export class NotionClient extends BaseNotionClient {
    * used, the markdown endpoint is used directly. Legacy database parents use
    * block conversion for backwards compatibility.
    */
+  async createPage(page: NotionPageDraft): Promise<NotionPageResponse>;
   async createPage(
     parentOrDatabaseId: NotionParent | string,
-    properties: Record<string, NotionPropertyValue> = {},
-    content?: NotionBlock[] | string
+    content: NotionPageBody
+  ): Promise<NotionPageResponse>;
+  async createPage(
+    parentOrDatabaseId: NotionParent | string,
+    properties?: Record<string, NotionPropertyInput>,
+    content?: NotionPageBody
+  ): Promise<NotionPageResponse>;
+  async createPage(
+    parentOrDraft: NotionPageDraft | NotionParent | string,
+    propertiesOrContent: Record<string, NotionPropertyInput> | NotionPageBody = {},
+    content?: NotionPageBody
   ): Promise<NotionPageResponse> {
+    if (isPageDraft(parentOrDraft)) {
+      if (parentOrDraft.content !== undefined && parentOrDraft.blocks !== undefined) {
+        throw new Error(
+          "Provide either content or blocks when creating a Notion page, not both"
+        );
+      }
+
+      const titleProperty = parentOrDraft.titleProperty ?? "Name";
+      if (
+        parentOrDraft.title !== undefined &&
+        parentOrDraft.properties?.[titleProperty] !== undefined
+      ) {
+        throw new Error(
+          `Notion page draft sets title twice. Remove either "title" or properties["${titleProperty}"].`
+        );
+      }
+
+      return createPageImpl(
+        (method, path, body, opts) => this.request(method, path, body, opts),
+        (markdown) => this.markdownToBlocks(markdown),
+        (pageId, blocks) => this.appendBlocks(pageId, blocks),
+        parentOrDraft.parent,
+        normalizeProperties({
+          ...(parentOrDraft.title !== undefined
+            ? { [titleProperty]: notionProperty.title(parentOrDraft.title) }
+            : {}),
+          ...(parentOrDraft.properties ?? {}),
+        }),
+        parentOrDraft.blocks ?? toPageBody(parentOrDraft.content)
+      );
+    }
+
+    const properties =
+      content === undefined &&
+      (typeof propertiesOrContent === "string" ||
+        Array.isArray(propertiesOrContent) ||
+        isMarkdownRenderable(propertiesOrContent))
+        ? {}
+        : (propertiesOrContent as Record<string, NotionPropertyInput>);
+    const resolvedContent =
+      content === undefined &&
+      (typeof propertiesOrContent === "string" ||
+        Array.isArray(propertiesOrContent) ||
+        isMarkdownRenderable(propertiesOrContent))
+        ? propertiesOrContent
+        : content;
+
     return createPageImpl(
       (method, path, body, opts) => this.request(method, path, body, opts),
       (markdown) => this.markdownToBlocks(markdown),
       (pageId, blocks) => this.appendBlocks(pageId, blocks),
-      parentOrDatabaseId,
-      properties,
-      content
+      parentOrDraft,
+      normalizeProperties(properties),
+      toPageBody(resolvedContent)
     );
   }
 
   async createPageMarkdown(
     parent: Exclude<NotionParent, { type: "database_id" }>,
-    markdown: string,
-    properties: Record<string, NotionPropertyValue> = {}
+    markdown: NotionMarkdownContent,
+    properties: Record<string, NotionPropertyInput> = {}
   ): Promise<NotionPageResponse> {
     return createPageMarkdownImpl(
       (method, path, body, opts) => this.request(method, path, body, opts),
       parent,
-      markdown,
-      properties
+      toMarkdownContent(markdown),
+      normalizeProperties(properties)
     );
   }
 
@@ -157,16 +227,35 @@ export class NotionClient extends BaseNotionClient {
 
   async updatePage(
     pageId: string,
-    content: string,
+    content: NotionMarkdownContent,
     options?: UpdatePageOptions
   ): Promise<NotionPageMarkdownResponse> {
     return updatePageImpl(
       (targetPageId) => this.readPage(targetPageId),
       (targetPageId, request) => this.updatePageMarkdown(targetPageId, request),
       pageId,
-      content,
+      toMarkdownContent(content),
       options
     );
+  }
+
+  async appendPageMarkdown(
+    pageId: string,
+    content: NotionMarkdownContent,
+    options?: AppendPageMarkdownOptions
+  ): Promise<NotionPageMarkdownResponse> {
+    return this.updatePage(pageId, content, options);
+  }
+
+  async replacePageMarkdown(
+    pageId: string,
+    content: NotionMarkdownContent,
+    options?: ReplacePageMarkdownOptions
+  ): Promise<NotionPageMarkdownResponse> {
+    return this.updatePage(pageId, content, {
+      ...options,
+      replace: true,
+    });
   }
 
   async updatePageMarkdown(
@@ -182,12 +271,12 @@ export class NotionClient extends BaseNotionClient {
 
   async updatePageProperties(
     pageId: string,
-    properties: Record<string, NotionPropertyValue>
+    properties: Record<string, NotionPropertyInput>
   ): Promise<NotionPageResponse> {
     return updatePagePropertiesImpl(
       (method, path, body, opts) => this.request(method, path, body, opts),
       pageId,
-      properties
+      normalizeProperties(properties)
     );
   }
 

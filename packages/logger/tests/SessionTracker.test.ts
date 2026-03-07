@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -63,6 +69,29 @@ describe("SessionTracker", () => {
       expect(new Date(parsed.timestamp).toISOString()).toBe(parsed.timestamp);
     });
 
+    it("serializes rich data and keeps session files inside the tracker directory", () => {
+      const circular: Record<string, unknown> = { name: "loop" };
+      circular.self = circular;
+
+      tracker.append("../outside", {
+        type: "metadata",
+        data: { attempts: 3n, circular },
+      });
+
+      expect(existsSync(join(tempDir, "outside.jsonl"))).toBe(false);
+      expect(tracker.has("../outside")).toBe(true);
+      expect(tracker.list()[0]?.sessionId).toBe("../outside");
+
+      const entries = tracker.read("../outside");
+      expect(entries[0]?.data).toEqual({
+        attempts: "3",
+        circular: {
+          name: "loop",
+          self: "[Circular]",
+        },
+      });
+    });
+
     it("uses custom subdirectory when configured", () => {
       const custom = new SessionTracker({
         stateDirectory: tempDir,
@@ -109,6 +138,22 @@ describe("SessionTracker", () => {
 
     it("returns empty array for nonexistent session", () => {
       expect(tracker.read("nonexistent")).toEqual([]);
+    });
+
+    it("skips malformed lines instead of dropping the whole session", () => {
+      tracker.append("sess-1", {
+        type: "session_start",
+        data: { prompt: "hello" },
+      });
+
+      appendFileSync(
+        join(tempDir, "sessions", "sess-1.jsonl"),
+        "not valid json\n"
+      );
+
+      const entries = tracker.read("sess-1");
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.type).toBe("session_start");
     });
   });
 

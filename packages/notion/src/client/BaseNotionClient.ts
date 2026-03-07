@@ -1,4 +1,5 @@
 import type { NotionApiVersion } from "../types.js";
+import { NotionApiError } from "../NotionApiError.js";
 
 import type { RequestOptions } from "./types.js";
 
@@ -56,7 +57,7 @@ export class BaseNotionClient {
 
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(`Notion API error ${String(response.status)}: ${text}`);
+      throw new NotionApiError(response.status, text);
     }
 
     if (text.trim().length === 0) {
