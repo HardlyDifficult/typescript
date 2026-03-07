@@ -14,13 +14,13 @@ function makeTree(
   ];
 }
 
-function makeStore(
-  dirShas: Record<string, string | null> = {}
-): ResultsStore {
+function makeStore(dirShas: Record<string, string | null> = {}): ResultsStore {
   return {
     ensureReady: vi.fn(),
     getFileManifest: vi.fn(),
-    getDirSha: vi.fn((dirPath: string) => Promise.resolve(dirShas[dirPath] ?? null)),
+    getDirSha: vi.fn((dirPath: string) =>
+      Promise.resolve(dirShas[dirPath] ?? null)
+    ),
     writeFileResult: vi.fn(),
     writeDirResult: vi.fn(),
     deleteFileResult: vi.fn(),

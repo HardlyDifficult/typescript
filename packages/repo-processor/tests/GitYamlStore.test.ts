@@ -7,9 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const simpleGitFactory = vi.fn();
 
 vi.mock("simple-git", async () => {
-  const actual = await vi.importActual<typeof import("simple-git")>(
-    "simple-git"
-  );
+  const actual =
+    await vi.importActual<typeof import("simple-git")>("simple-git");
 
   return {
     ...actual,
@@ -123,7 +122,10 @@ describe("GitYamlStore", () => {
     await store.commitBatch("owner/repo", 1);
 
     expect(git.pull).toHaveBeenCalledWith("origin", "main");
-    expect(git.addConfig).toHaveBeenCalledWith("user.email", "nick@example.com");
+    expect(git.addConfig).toHaveBeenCalledWith(
+      "user.email",
+      "nick@example.com"
+    );
     expect(git.addConfig).toHaveBeenCalledWith("user.name", "Nick");
     expect(git.push).toHaveBeenCalledWith("origin", "main");
   });

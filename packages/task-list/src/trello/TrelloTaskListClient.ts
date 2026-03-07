@@ -47,6 +47,7 @@ interface TrelloCard {
   url: string;
 }
 
+/** Trello-backed task list client implementation. */
 export class TrelloTaskListClient extends TaskListClient {
   readonly provider = "trello" as const;
 
@@ -59,8 +60,9 @@ export class TrelloTaskListClient extends TaskListClient {
     this.token = config.token ?? process.env.TRELLO_API_TOKEN ?? "";
   }
 
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
     this.assertConfigured();
+    return Promise.resolve();
   }
 
   async getProjects(): Promise<Project[]> {
@@ -69,7 +71,9 @@ export class TrelloTaskListClient extends TaskListClient {
     const boards = await this.request<TrelloBoard[]>("/members/me/boards");
 
     return Promise.all(
-      boards.map(async (board) => new Project(await this.fetchProjectSnapshot(board.id)))
+      boards.map(
+        async (board) => new Project(await this.fetchProjectSnapshot(board.id))
+      )
     );
   }
 
@@ -247,10 +251,13 @@ export class TrelloTaskListClient extends TaskListClient {
           body.color = color;
         }
 
-        const label = await this.request<TrelloLabel>(`/boards/${boardId}/labels`, {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
+        const label = await this.request<TrelloLabel>(
+          `/boards/${boardId}/labels`,
+          {
+            method: "POST",
+            body: JSON.stringify(body),
+          }
+        );
 
         return {
           id: label.id,
@@ -269,7 +276,9 @@ export class TrelloTaskListClient extends TaskListClient {
     return context;
   }
 
-  private async fetchProjectSnapshot(projectId: string): Promise<ProjectSnapshot> {
+  private async fetchProjectSnapshot(
+    projectId: string
+  ): Promise<ProjectSnapshot> {
     await this.initialize();
 
     const [board, lists, cards, labels] = await Promise.all([
@@ -292,7 +301,11 @@ export class TrelloTaskListClient extends TaskListClient {
     ]);
     const statuses = this.toStatuses(lists);
     const normalizedLabels = this.toLabels(labels);
-    const context = this.createContext(statuses, normalizedLabels, card.idBoard);
+    const context = this.createContext(
+      statuses,
+      normalizedLabels,
+      card.idBoard
+    );
 
     return {
       task: this.toTaskData(card),

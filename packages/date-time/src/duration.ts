@@ -21,9 +21,9 @@ export function duration(parts: DurationParts): number {
   let hasSupportedField = false;
   let totalMilliseconds = 0;
 
-  for (const unit of Object.keys(MILLISECONDS_PER_UNIT) as Array<
-    keyof DurationParts
-  >) {
+  for (const unit of Object.keys(
+    MILLISECONDS_PER_UNIT
+  ) as (keyof DurationParts)[]) {
     const value = parts[unit];
     if (value === undefined) {
       continue;

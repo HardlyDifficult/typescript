@@ -1,7 +1,4 @@
-import type {
-  FileTreeResult,
-  TreeEntry,
-} from "@hardlydifficult/github";
+import type { FileTreeResult, TreeEntry } from "@hardlydifficult/github";
 import type { z } from "zod";
 
 import type {
@@ -16,9 +13,7 @@ export interface BoundRepoRef {
   fullName: string;
 }
 
-export interface FileManifest {
-  [path: string]: string;
-}
+export type FileManifest = Record<string, string>;
 
 export interface ResultsStore {
   ensureReady(): Promise<void>;
@@ -29,17 +24,10 @@ export interface ResultsStore {
     sha: string,
     result: unknown
   ): Promise<void>;
-  writeDirResult(
-    dirPath: string,
-    sha: string,
-    result: unknown
-  ): Promise<void>;
+  writeDirResult(dirPath: string, sha: string, result: unknown): Promise<void>;
   deleteFileResult(filePath: string): Promise<void>;
   commitBatch(sourceRepo: string, count: number): Promise<void>;
-  readFileResult<T>(
-    filePath: string,
-    schema: z.ZodType<T>
-  ): Promise<T | null>;
+  readFileResult<T>(filePath: string, schema: z.ZodType<T>): Promise<T | null>;
   readDirectoryResult<T>(
     dirPath: string,
     schema: z.ZodType<T>
@@ -51,10 +39,7 @@ export interface RepoClientLike {
   getFileContent(filePath: string, ref?: string): Promise<string>;
 }
 
-export interface RepoProcessorInternals<
-  TFileResult,
-  TDirResult = never,
-> {
+export interface RepoProcessorInternals<TFileResult, TDirResult = never> {
   repo: BoundRepoRef;
   repoClient: RepoClientLike;
   store: ResultsStore;
@@ -62,9 +47,7 @@ export interface RepoProcessorInternals<
   concurrency: number;
   include: (file: RepoFileFilterInput) => boolean;
   processFile(file: RepoFileInput): Promise<TFileResult>;
-  processDirectory?: (
-    directory: RepoDirectoryInput
-  ) => Promise<TDirResult>;
+  processDirectory?: (directory: RepoDirectoryInput) => Promise<TDirResult>;
 }
 
 export interface ProcessingFailure {

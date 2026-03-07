@@ -168,8 +168,12 @@ export class ConnectionHandler {
       worker: info,
       message,
       requestId,
-      complete: settlement.complete,
-      fail: settlement.fail,
+      complete: () => {
+        settlement.complete();
+      },
+      fail: () => {
+        settlement.fail();
+      },
     }) as WorkerMessageEvent;
 
     for (const handler of handlers) {

@@ -24,7 +24,6 @@ import type {
 import {
   type GraphQLResponse,
   ISSUE_CREATE_MUTATION,
-  ISSUE_FETCH_QUERY,
   ISSUE_FIELDS,
   ISSUE_UPDATE_MUTATION,
   type IssueCreateData,
@@ -45,6 +44,9 @@ import {
 
 const LINEAR_API_URL = "https://api.linear.app/graphql";
 
+/**
+ *
+ */
 export class LinearTaskListClient extends TaskListClient {
   readonly provider = "linear" as const;
 
@@ -98,7 +100,7 @@ export class LinearTaskListClient extends TaskListClient {
   async getProjects(): Promise<Project[]> {
     await this.initialize();
 
-    const teamId = this.teamId as string;
+    const teamId = this.teamId!;
     const data = await this.request<ProjectsQueryData>(
       `query($teamId: String!, $teamIdFilter: ID!) {
         organization { urlKey }
@@ -124,7 +126,13 @@ export class LinearTaskListClient extends TaskListClient {
 
     return data.team.projects.nodes.map((project) => {
       return new Project(
-        this.toProjectSnapshot(project, project.issues.nodes, context, statuses, labels)
+        this.toProjectSnapshot(
+          project,
+          project.issues.nodes,
+          context,
+          statuses,
+          labels
+        )
       );
     });
   }
@@ -166,7 +174,7 @@ export class LinearTaskListClient extends TaskListClient {
 
       if (this.teamName !== undefined) {
         const team = teams.find((entry) =>
-          matchesCaseInsensitive(entry.name, this.teamName as string)
+          matchesCaseInsensitive(entry.name, this.teamName!)
         );
 
         if (!team) {
@@ -221,13 +229,15 @@ export class LinearTaskListClient extends TaskListClient {
 
     const json = (await response.json()) as GraphQLResponse<T>;
     if (json.errors && json.errors.length > 0) {
-      throw new LinearGraphQLError(json.errors[0]!.message);
+      throw new LinearGraphQLError(json.errors[0].message);
     }
 
     return json.data;
   }
 
-  private toStatuses(states: readonly LinearWorkflowState[]): readonly Status[] {
+  private toStatuses(
+    states: readonly LinearWorkflowState[]
+  ): readonly Status[] {
     return states.map((state) => ({ id: state.id, name: state.name }));
   }
 
@@ -395,10 +405,12 @@ export class LinearTaskListClient extends TaskListClient {
     return context;
   }
 
-  private async fetchProjectSnapshot(projectId: string): Promise<ProjectSnapshot> {
+  private async fetchProjectSnapshot(
+    projectId: string
+  ): Promise<ProjectSnapshot> {
     await this.initialize();
 
-    const teamId = this.teamId as string;
+    const teamId = this.teamId!;
     const data = await this.request<ProjectQueryData>(
       `query($projectId: String!, $teamId: String!, $teamIdFilter: ID!) {
         organization { urlKey }

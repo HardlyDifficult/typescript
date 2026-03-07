@@ -105,7 +105,7 @@ export function parseGitHubPullRequestReference(
     return {
       owner: direct[1],
       repo: direct[2],
-      number: Number.parseInt(direct[3] ?? "", 10),
+      number: Number.parseInt(direct[3], 10),
     };
   }
 
@@ -114,10 +114,15 @@ export function parseGitHubPullRequestReference(
     return null;
   }
 
-  const [owner, rawRepo, kind, rawNumber] = url.pathname
-    .split("/")
-    .filter((segment) => segment !== "");
-  if (!owner || !rawRepo || kind !== "pull" || rawNumber === undefined) {
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length < 4) {
+    return null;
+  }
+  const owner = segments[0];
+  const rawRepo = segments[1];
+  const kind = segments[2];
+  const rawNumber = segments[3];
+  if (kind !== "pull") {
     return null;
   }
 

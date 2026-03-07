@@ -176,8 +176,8 @@ export interface RepoContextOptions {
 
 // --- Watcher types ---
 
-import type { TimelineEntry } from "./timeline.js";
 import type { PRActivity } from "./polling/fetchPRActivity.js";
+import type { TimelineEntry } from "./timeline.js";
 
 export type ClassifyPR = (
   event: PREvent,

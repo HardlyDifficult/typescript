@@ -94,7 +94,9 @@ class FakeClient extends TaskListClient {
   });
   readonly getTask = vi.fn(async (taskId: string) => {
     return this.projectsFactory().then((projects) => {
-      return projects.flatMap((project) => project.tasks()).find((task) => task.id === taskId)!;
+      return projects
+        .flatMap((project) => project.tasks())
+        .find((task) => task.id === taskId)!;
     });
   });
 
@@ -235,7 +237,10 @@ describe("TaskList session", () => {
   it("finds projects by exact case-insensitive name", async () => {
     const project = new Project(createProjectSnapshot());
     const taskList = new TaskList(
-      new FakeClient(async () => [project, new Project(createProjectSnapshot([], createMockContext()))])
+      new FakeClient(async () => [
+        project,
+        new Project(createProjectSnapshot([], createMockContext())),
+      ])
     );
 
     await expect(taskList.project("bot")).resolves.toBe(project);

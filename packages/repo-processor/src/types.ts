@@ -40,10 +40,7 @@ export interface RepoProcessorResultsConfig {
   gitUser?: GitIdentity;
 }
 
-export interface RepoProcessorOptions<
-  TFileResult,
-  TDirResult = never,
-> {
+export interface RepoProcessorOptions<TFileResult, TDirResult = never> {
   repo: string;
   githubToken?: string;
   ref?: string;
@@ -51,9 +48,7 @@ export interface RepoProcessorOptions<
   results: RepoProcessorResultsConfig;
   include?: (file: RepoFileFilterInput) => boolean;
   processFile(file: RepoFileInput): Promise<TFileResult>;
-  processDirectory?: (
-    directory: RepoDirectoryInput
-  ) => Promise<TDirResult>;
+  processDirectory?: (directory: RepoDirectoryInput) => Promise<TDirResult>;
 }
 
 export interface RepoProcessorProgressCounts {
@@ -89,10 +84,7 @@ export interface RepoWatcherOptions {
   stateKey?: string;
   autoSaveMs?: number;
   maxAttempts?: number;
-  onComplete?: (
-    result: RepoProcessorRunResult,
-    sha: string
-  ) => void;
+  onComplete?: (result: RepoProcessorRunResult, sha: string) => void;
   onError?: (error: unknown) => void;
   onEvent?: (event: StateTrackerEvent) => void;
 }

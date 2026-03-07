@@ -42,7 +42,9 @@ export async function fetchWatchedPRs(
 
   if (myPRs) {
     if (username === undefined) {
-      throw new Error("Authenticated username is required when myPRs is enabled");
+      throw new Error(
+        "Authenticated username is required when myPRs is enabled"
+      );
     }
 
     await throttle?.wait(1);

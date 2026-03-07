@@ -2,12 +2,15 @@ import type { Project } from "./Project.js";
 import type { Task } from "./Task.js";
 import type { Provider, TaskListConfig } from "./types.js";
 
+/** Base client contract implemented by provider-specific task list clients. */
 export abstract class TaskListClient {
   abstract readonly provider: Provider;
 
   constructor(protected readonly config: TaskListConfig) {}
 
-  async initialize(): Promise<void> {}
+  initialize(): Promise<void> {
+    return Promise.resolve();
+  }
 
   abstract getProjects(): Promise<Project[]>;
 

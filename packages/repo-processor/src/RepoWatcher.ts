@@ -1,10 +1,7 @@
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
 import type { RepoProcessor } from "./RepoProcessor.js";
-import type {
-  RepoProcessorRunResult,
-  RepoWatcherOptions,
-} from "./types.js";
+import type { RepoProcessorRunResult, RepoWatcherOptions } from "./types.js";
 
 interface WatcherState {
   lastProcessedSha?: string;
@@ -14,10 +11,8 @@ function getDefaultStateKey(repo: string): string {
   return `repo-processor-${repo.replace(/[^A-Za-z0-9_-]/gu, "-")}`;
 }
 
-export class RepoWatcher<
-  TFileResult = unknown,
-  TDirResult = never,
-> {
+/** Watches for repository updates and schedules processor runs with retries. */
+export class RepoWatcher<TFileResult = unknown, TDirResult = never> {
   static async open<TFileResult, TDirResult>(
     processor: RepoProcessor<TFileResult, TDirResult>,
     options: RepoWatcherOptions = {}
@@ -85,7 +80,7 @@ export class RepoWatcher<
       throw error;
     } finally {
       this.running = false;
-      void this.flushPendingRun();
+      this.flushPendingRun();
     }
   }
 
@@ -108,12 +103,12 @@ export class RepoWatcher<
       .then((result) => {
         this.completeRun(result);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         this.onError?.(error);
       })
       .finally(() => {
         this.running = false;
-        void this.flushPendingRun();
+        this.flushPendingRun();
       });
   }
 
@@ -122,8 +117,8 @@ export class RepoWatcher<
     this.onComplete?.(result, result.sourceSha);
   }
 
-  private async flushPendingRun(): Promise<void> {
-    const pendingSha = this.pendingSha;
+  private flushPendingRun(): void {
+    const { pendingSha } = this;
     this.pendingSha = undefined;
 
     if (

@@ -3,6 +3,9 @@ import { duration } from "@hardlydifficult/date-time";
 import type { TaskList } from "./TaskList.js";
 import type { TaskWatchHandle, TaskWatchOptions } from "./types.js";
 
+/**
+ *
+ */
 export class TaskWatcher implements TaskWatchHandle {
   private readonly taskList: TaskList;
   private readonly options: Required<

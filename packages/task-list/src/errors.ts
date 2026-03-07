@@ -5,6 +5,9 @@ function formatAvailable(items: readonly string[] | undefined): string {
   return ` Available: ${items.join(", ")}`;
 }
 
+/**
+ *
+ */
 export class TaskListError extends Error {
   readonly code: string;
   readonly details?: Record<string, unknown>;
@@ -21,6 +24,9 @@ export class TaskListError extends Error {
   }
 }
 
+/**
+ *
+ */
 export class UnknownTaskListProviderError extends TaskListError {
   constructor(provider: string) {
     super(`Unknown task list provider: ${provider}`, "UNKNOWN_PROVIDER", {
@@ -29,11 +35,11 @@ export class UnknownTaskListProviderError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class TaskListProviderNotConfiguredError extends TaskListError {
-  constructor(
-    provider: "linear" | "trello",
-    missing: readonly string[] = []
-  ) {
+  constructor(provider: "linear" | "trello", missing: readonly string[] = []) {
     super(
       provider === "linear"
         ? `Linear provider is not configured.${formatAvailable(missing)}`
@@ -44,6 +50,9 @@ export class TaskListProviderNotConfiguredError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class ProjectNotFoundError extends TaskListError {
   constructor(name: string, availableProjects: readonly string[] = []) {
     super(
@@ -54,6 +63,9 @@ export class ProjectNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class TaskNotFoundError extends TaskListError {
   constructor(
     taskId: string,
@@ -68,6 +80,9 @@ export class TaskNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class StatusNotFoundError extends TaskListError {
   constructor(
     name: string,
@@ -84,6 +99,9 @@ export class StatusNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class StatusIdNotFoundError extends TaskListError {
   constructor(id: string, availableStatuses: readonly string[] = []) {
     super(
@@ -94,6 +112,9 @@ export class StatusIdNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class LabelNotFoundError extends TaskListError {
   constructor(
     name: string,
@@ -110,6 +131,9 @@ export class LabelNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class TeamNotFoundError extends TaskListError {
   constructor(teamName: string, availableTeams: readonly string[]) {
     super(
@@ -120,12 +144,18 @@ export class TeamNotFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class NoTeamsFoundError extends TaskListError {
   constructor() {
     super("No teams found in Linear workspace", "NO_TEAMS_FOUND");
   }
 }
 
+/**
+ *
+ */
 export class MultipleTeamsFoundError extends TaskListError {
   constructor(availableTeams: readonly string[]) {
     super(
@@ -136,6 +166,9 @@ export class MultipleTeamsFoundError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class TaskListApiError extends TaskListError {
   constructor(
     provider: "linear" | "trello",
@@ -150,6 +183,9 @@ export class TaskListApiError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class LinearGraphQLError extends TaskListError {
   constructor(message: string) {
     super(`Linear API error: ${message}`, "LINEAR_GRAPHQL_ERROR", {
@@ -159,6 +195,9 @@ export class LinearGraphQLError extends TaskListError {
   }
 }
 
+/**
+ *
+ */
 export class InvalidPriorityError extends TaskListError {
   constructor(name: string) {
     super(

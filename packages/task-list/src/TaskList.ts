@@ -1,9 +1,9 @@
 import { ProjectNotFoundError } from "./errors.js";
-import { findByCaseInsensitiveName } from "./resolvers.js";
-import { TaskWatcher } from "./TaskWatcher.js";
 import type { Project } from "./Project.js";
+import { findByCaseInsensitiveName } from "./resolvers.js";
 import type { Task } from "./Task.js";
 import type { TaskListClient } from "./TaskListClient.js";
+import { TaskWatcher } from "./TaskWatcher.js";
 import type {
   CreateTaskInput,
   Provider,
@@ -11,6 +11,9 @@ import type {
   TaskWatchOptions,
 } from "./types.js";
 
+/**
+ *
+ */
 export class TaskList {
   readonly provider: Provider;
 

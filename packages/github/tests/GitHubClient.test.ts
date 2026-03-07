@@ -291,7 +291,10 @@ describe("GitHubClient", () => {
     it("reads repository trees and file content", async () => {
       const client = new GitHubClient({ token: "test-token" });
       mockOctokit.git.getTree.mockResolvedValue({
-        data: { tree: [{ path: "README.md", sha: "sha1", type: "blob" }], sha: "root-sha" },
+        data: {
+          tree: [{ path: "README.md", sha: "sha1", type: "blob" }],
+          sha: "root-sha",
+        },
       });
       mockOctokit.repos.getContent.mockResolvedValue({
         data: { content: Buffer.from("hello").toString("base64") },
@@ -301,9 +304,9 @@ describe("GitHubClient", () => {
         entries: [{ path: "README.md", sha: "sha1", type: "blob" }],
         rootSha: "root-sha",
       });
-      await expect(client.repo("owner/repo").read("README.md", "main")).resolves.toBe(
-        "hello"
-      );
+      await expect(
+        client.repo("owner/repo").read("README.md", "main")
+      ).resolves.toBe("hello");
     });
 
     it("builds repo context from the configured files", async () => {
@@ -352,18 +355,18 @@ describe("GitHubClient", () => {
       await expect(client.repo("owner/repo").defaultBranchSha()).resolves.toBe(
         "branch-sha"
       );
-      await expect(client.repo("owner/repo").branchSha("feature")).resolves.toBe(
-        "branch-sha"
-      );
+      await expect(
+        client.repo("owner/repo").branchSha("feature")
+      ).resolves.toBe("branch-sha");
     });
 
     it("returns null when a branch does not exist", async () => {
       const client = new GitHubClient({ token: "test-token" });
       mockOctokit.git.getRef.mockRejectedValue({ status: 404 });
 
-      await expect(client.repo("owner/repo").branchSha("missing")).resolves.toBe(
-        null
-      );
+      await expect(
+        client.repo("owner/repo").branchSha("missing")
+      ).resolves.toBe(null);
     });
 
     it("defaults base and body when opening a pull request", async () => {
@@ -397,12 +400,18 @@ describe("GitHubClient", () => {
       mockOctokit.git.getRef.mockResolvedValue({
         data: { object: { sha: "existing-branch-sha" } },
       });
-      mockOctokit.git.createBlob.mockResolvedValue({ data: { sha: "blob-sha" } });
+      mockOctokit.git.createBlob.mockResolvedValue({
+        data: { sha: "blob-sha" },
+      });
       mockOctokit.git.getCommit.mockResolvedValue({
         data: { tree: { sha: "base-tree-sha" } },
       });
-      mockOctokit.git.createTree.mockResolvedValue({ data: { sha: "tree-sha" } });
-      mockOctokit.git.createCommit.mockResolvedValue({ data: { sha: "commit-sha" } });
+      mockOctokit.git.createTree.mockResolvedValue({
+        data: { sha: "tree-sha" },
+      });
+      mockOctokit.git.createCommit.mockResolvedValue({
+        data: { sha: "commit-sha" },
+      });
 
       const result = await client.repo("owner/repo").commit({
         branch: "feature",
@@ -431,14 +440,22 @@ describe("GitHubClient", () => {
       const client = new GitHubClient({ token: "test-token" });
       mockOctokit.git.getRef
         .mockRejectedValueOnce({ status: 404 })
-        .mockResolvedValueOnce({ data: { object: { sha: "default-branch-sha" } } });
+        .mockResolvedValueOnce({
+          data: { object: { sha: "default-branch-sha" } },
+        });
       mockOctokit.repos.get.mockResolvedValue({ data: makeRepository() });
-      mockOctokit.git.createBlob.mockResolvedValue({ data: { sha: "blob-sha" } });
+      mockOctokit.git.createBlob.mockResolvedValue({
+        data: { sha: "blob-sha" },
+      });
       mockOctokit.git.getCommit.mockResolvedValue({
         data: { tree: { sha: "base-tree-sha" } },
       });
-      mockOctokit.git.createTree.mockResolvedValue({ data: { sha: "tree-sha" } });
-      mockOctokit.git.createCommit.mockResolvedValue({ data: { sha: "commit-sha" } });
+      mockOctokit.git.createTree.mockResolvedValue({
+        data: { sha: "tree-sha" },
+      });
+      mockOctokit.git.createCommit.mockResolvedValue({
+        data: { sha: "commit-sha" },
+      });
 
       const result = await client.repo("owner/repo").commit({
         branch: "feature",
@@ -576,12 +593,19 @@ describe("GitHubClient", () => {
       mockOctokit.search.issuesAndPullRequests
         .mockResolvedValueOnce({
           data: {
-            items: [{ repository_url: "https://api.github.com/repos/owner/repo" }],
+            items: [
+              { repository_url: "https://api.github.com/repos/owner/repo" },
+            ],
           },
         })
         .mockResolvedValueOnce({
           data: {
-            items: [{ repository_url: "https://api.github.com/repos/owner/repo", number: 42 }],
+            items: [
+              {
+                repository_url: "https://api.github.com/repos/owner/repo",
+                number: 42,
+              },
+            ],
           },
         });
       mockOctokit.pulls.get.mockResolvedValue({ data: makePullRequest() });

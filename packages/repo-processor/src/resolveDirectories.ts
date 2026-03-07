@@ -2,6 +2,7 @@ import type { TreeEntry } from "@hardlydifficult/github";
 
 import type { ResultsStore } from "./internalTypes.js";
 
+/** Returns directories that are missing results or whose stored SHA is stale. */
 export async function resolveStaleDirectories(
   staleDirsFromDiff: readonly string[],
   allFilePaths: readonly string[],

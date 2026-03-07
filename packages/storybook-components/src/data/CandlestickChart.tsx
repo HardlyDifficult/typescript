@@ -1,18 +1,17 @@
 "use client";
 
 import {
+  type AreaData,
   AreaSeries,
+  type BarData,
   BarSeries,
   type CandlestickData,
   CandlestickSeries,
   ColorType,
   createChart,
   type IChartApi,
-  type ISeriesApi,
-  LineSeries,
   type LineData,
-  type BarData,
-  type AreaData,
+  LineSeries,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
@@ -73,7 +72,7 @@ const COLORS = {
 function addSeriesForType(
   chart: IChartApi,
   type: CandlestickChartType,
-  candles: CandlestickChartCandle[],
+  candles: CandlestickChartCandle[]
 ) {
   const time = (c: CandlestickChartCandle) => (c.ts / 1000) as UTCTimestamp;
 
@@ -137,6 +136,8 @@ function addSeriesForType(
   return s;
 }
 
+type ChartSeries = ReturnType<typeof addSeriesForType>;
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -152,14 +153,16 @@ export function CandlestickChart({
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const seriesRef = useRef<ISeriesApi<any> | null>(null);
-  const [activeType, setActiveType] = useState<CandlestickChartType>(initialType);
+  const seriesRef = useRef<ChartSeries | null>(null);
+  const [activeType, setActiveType] =
+    useState<CandlestickChartType>(initialType);
 
   // Create chart once (or when layout-affecting props change)
   useEffect(() => {
     const el = containerRef.current;
-    if (el === null) {return;}
+    if (el === null) {
+      return;
+    }
 
     const chart = createChart(el, {
       height,
@@ -206,7 +209,9 @@ export function CandlestickChart({
   // Swap series whenever data, type, orders, or currentPrice changes
   useEffect(() => {
     const chart = chartRef.current;
-    if (chart === null) {return;}
+    if (chart === null) {
+      return;
+    }
 
     // Remove existing series
     if (seriesRef.current !== null) {
@@ -214,7 +219,9 @@ export function CandlestickChart({
       seriesRef.current = null;
     }
 
-    if (candles.length === 0) {return;}
+    if (candles.length === 0) {
+      return;
+    }
 
     const series = addSeriesForType(chart, activeType, candles);
     seriesRef.current = series;
@@ -280,7 +287,9 @@ export function CandlestickChart({
       {/* Type selector overlay */}
       <select
         value={activeType}
-        onChange={(e) => { setActiveType(e.target.value as CandlestickChartType); }}
+        onChange={(e) => {
+          setActiveType(e.target.value as CandlestickChartType);
+        }}
         style={{
           position: "absolute",
           top: 6,

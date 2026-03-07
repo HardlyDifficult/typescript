@@ -9,8 +9,7 @@ import {
 import path from "node:path";
 
 import { formatYaml } from "@hardlydifficult/text";
-import type { SimpleGit } from "simple-git";
-import { simpleGit } from "simple-git";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
 
@@ -31,18 +30,18 @@ export interface GitYamlStoreConfig {
   gitUser?: GitIdentity;
 }
 
-function normalizeResult(result: unknown, sha: string): Record<string, unknown> {
-  if (
-    result !== null &&
-    typeof result === "object" &&
-    !Array.isArray(result)
-  ) {
+function normalizeResult(
+  result: unknown,
+  sha: string
+): Record<string, unknown> {
+  if (result !== null && typeof result === "object" && !Array.isArray(result)) {
     return { ...(result as Record<string, unknown>), sha };
   }
 
   return { value: result, sha };
 }
 
+/** Persists file and directory processing results as YAML in a Git repo. */
 export class GitYamlStore implements ResultsStore {
   private readonly sourceRepo: BoundRepoRef;
   private readonly cloneUrl: string;
@@ -125,7 +124,11 @@ export class GitYamlStore implements ResultsStore {
   ): Promise<void> {
     const fullPath = path.join(this.getResultDir(), `${filePath}.yml`);
     await mkdir(path.dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, formatYaml(normalizeResult(result, sha)), "utf-8");
+    await writeFile(
+      fullPath,
+      formatYaml(normalizeResult(result, sha)),
+      "utf-8"
+    );
   }
 
   async writeDirResult(
@@ -135,7 +138,11 @@ export class GitYamlStore implements ResultsStore {
   ): Promise<void> {
     const fullPath = path.join(this.getResultDir(), dirPath, "dir.yml");
     await mkdir(path.dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, formatYaml(normalizeResult(result, sha)), "utf-8");
+    await writeFile(
+      fullPath,
+      formatYaml(normalizeResult(result, sha)),
+      "utf-8"
+    );
   }
 
   async deleteFileResult(filePath: string): Promise<void> {
@@ -152,7 +159,7 @@ export class GitYamlStore implements ResultsStore {
       return;
     }
 
-    const gitUser = this.gitUser;
+    const { gitUser } = this;
     const branch = this.activeBranch;
     if (gitUser === undefined || branch === undefined) {
       throw new Error("Git results store was not initialized correctly");
@@ -249,7 +256,7 @@ export class GitYamlStore implements ResultsStore {
     }
 
     const localBranches = await git.branchLocal();
-    if (localBranches.current !== null && localBranches.current !== "") {
+    if (localBranches.current !== "") {
       return localBranches.current;
     }
 
@@ -259,9 +266,7 @@ export class GitYamlStore implements ResultsStore {
         "--quiet",
         "refs/remotes/origin/HEAD",
       ]);
-      const branch = remoteHead
-        .trim()
-        .replace(/^refs\/remotes\/origin\//u, "");
+      const branch = remoteHead.trim().replace(/^refs\/remotes\/origin\//u, "");
       if (branch !== "") {
         return branch;
       }

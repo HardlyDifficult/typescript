@@ -58,13 +58,12 @@ function normalizeConfig(config?: TaskListConfig): TaskListConfig {
     };
   }
 
-  if (config.provider === "trello") {
+  const { provider } = config as { provider?: unknown };
+  if (provider === "trello") {
     return config;
   }
 
-  throw new UnknownTaskListProviderError(
-    String((config as { provider?: unknown }).provider)
-  );
+  throw new UnknownTaskListProviderError(String(provider));
 }
 
 function createClient(config: TaskListConfig): TaskListClient {
@@ -81,7 +80,10 @@ function createClient(config: TaskListConfig): TaskListClient {
   );
 }
 
-export async function createTaskList(config?: TaskListConfig): Promise<TaskList> {
+/** Creates and initializes a TaskList instance for the configured provider. */
+export async function createTaskList(
+  config?: TaskListConfig
+): Promise<TaskList> {
   const normalizedConfig = normalizeConfig(config);
   const client = createClient(normalizedConfig);
   await client.initialize();

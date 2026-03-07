@@ -1,5 +1,10 @@
 import { matchesCaseInsensitive } from "./resolvers.js";
-import type { Priority, TaskContext, TaskSnapshot, UpdateTaskInput } from "./types.js";
+import type {
+  Priority,
+  TaskContext,
+  TaskSnapshot,
+  UpdateTaskInput,
+} from "./types.js";
 
 const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
   0: "None",
@@ -9,6 +14,9 @@ const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
   4: "Low",
 };
 
+/**
+ *
+ */
 export class Task {
   id: string;
   title: string;

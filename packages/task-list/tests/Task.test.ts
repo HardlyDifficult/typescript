@@ -128,7 +128,9 @@ describe("Task", () => {
     const context = createMockContext({
       updateTask: vi
         .fn()
-        .mockResolvedValue(createTaskSnapshot(updatedData, createMockContext())),
+        .mockResolvedValue(
+          createTaskSnapshot(updatedData, createMockContext())
+        ),
     });
     const task = new Task(createTaskSnapshot(baseTaskData, context));
 
@@ -158,7 +160,9 @@ describe("Task", () => {
     const context = createMockContext({
       updateTask: vi
         .fn()
-        .mockResolvedValue(createTaskSnapshot({ ...baseTaskData, priority: 1 })),
+        .mockResolvedValue(
+          createTaskSnapshot({ ...baseTaskData, priority: 1 })
+        ),
     });
     const task = new Task(createTaskSnapshot(baseTaskData, context));
 
@@ -179,7 +183,9 @@ describe("Task", () => {
     const context = createMockContext({
       updateTask: vi
         .fn()
-        .mockResolvedValue(createTaskSnapshot(updatedData, createMockContext())),
+        .mockResolvedValue(
+          createTaskSnapshot(updatedData, createMockContext())
+        ),
     });
     const task = new Task(createTaskSnapshot(baseTaskData, context));
 
@@ -244,7 +250,9 @@ describe("Task", () => {
     const context = createMockContext({
       fetchTask: vi
         .fn()
-        .mockResolvedValue(createTaskSnapshot(refreshedData, createMockContext())),
+        .mockResolvedValue(
+          createTaskSnapshot(refreshedData, createMockContext())
+        ),
     });
     const task = new Task(createTaskSnapshot(baseTaskData, context));
 
@@ -370,7 +378,9 @@ describe("Project", () => {
     const refreshedContext = createMockContext();
     const refreshedSnapshot = createProjectSnapshot([], refreshedContext);
     refreshedContext.deleteLabel = vi.fn().mockResolvedValue(undefined);
-    refreshedContext.fetchProject = vi.fn().mockResolvedValue(refreshedSnapshot);
+    refreshedContext.fetchProject = vi
+      .fn()
+      .mockResolvedValue(refreshedSnapshot);
     const context = createMockContext({
       createLabel: vi.fn().mockResolvedValue({
         id: "label-3",

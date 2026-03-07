@@ -3,10 +3,7 @@ import type { TreeEntry } from "@hardlydifficult/github";
 import { z } from "zod";
 
 import { createRepoProcessorForTests } from "../src/RepoProcessor.js";
-import type {
-  RepoClientLike,
-  ResultsStore,
-} from "../src/internalTypes.js";
+import type { RepoClientLike, ResultsStore } from "../src/internalTypes.js";
 import type {
   RepoDirectoryInput,
   RepoFileInput,
@@ -79,7 +76,9 @@ function makeProcessor(config: {
   concurrency?: number;
   include?: (file: { path: string; sha: string; size?: number }) => boolean;
   processFile?: (file: RepoFileInput) => Promise<unknown>;
-  processDirectory?: ((directory: RepoDirectoryInput) => Promise<unknown>) | undefined;
+  processDirectory?:
+    | ((directory: RepoDirectoryInput) => Promise<unknown>)
+    | undefined;
 }) {
   const {
     entries,
@@ -151,9 +150,7 @@ describe("RepoProcessor.run", () => {
         entries: [makeEntry("src/index.ts", "sha1")],
         rootSha: "root-sha",
       }),
-      getFileContent: vi
-        .fn()
-        .mockResolvedValue("content of src/index.ts"),
+      getFileContent: vi.fn().mockResolvedValue("content of src/index.ts"),
     };
     const processor = createRepoProcessorForTests({
       repo: { owner: "owner", name: "repo", fullName: "owner/repo" },
@@ -336,15 +333,12 @@ describe("RepoProcessor.run", () => {
     });
 
     expect(progress.map((update) => update.phase)).toEqual(
-      expect.arrayContaining([
-        "loading",
-        "files",
-        "directories",
-        "committing",
-      ])
+      expect.arrayContaining(["loading", "files", "directories", "committing"])
     );
     expect(progress.some((update) => update.files.total === 1)).toBe(true);
-    expect(progress.some((update) => update.directories.total === 1)).toBe(true);
+    expect(progress.some((update) => update.directories.total === 1)).toBe(
+      true
+    );
   });
 
   it("aggregates file failures with path details", async () => {

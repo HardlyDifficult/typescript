@@ -56,11 +56,13 @@ export async function analyzePR(
   botMention: string,
   hooks?: AnalyzerHooks
 ): Promise<ScannedPR> {
-  const snapshot = await client.pr(`${owner}/${repo}#${String(pr.number)}`).load();
+  const snapshot = await client
+    .pr(`${owner}/${repo}#${String(pr.number)}`)
+    .load();
   const currentPr = snapshot.pullRequest;
-  const checks = snapshot.checks;
-  const comments = snapshot.comments;
-  const reviews = snapshot.reviews;
+  const { checks } = snapshot;
+  const { comments } = snapshot;
+  const { reviews } = snapshot;
   const repoInfo = snapshot.repository;
 
   // Analyze the fetched data

@@ -111,7 +111,9 @@ describe("LinearTaskListClient", () => {
   it("throws on HTTP errors", async () => {
     mockFetch.mockResolvedValueOnce(httpErrorResponse(401, "Unauthorized"));
 
-    await expect(client.getTask("ISS-1")).rejects.toBeInstanceOf(TaskListApiError);
+    await expect(client.getTask("ISS-1")).rejects.toBeInstanceOf(
+      TaskListApiError
+    );
   });
 
   it("throws on GraphQL errors", async () => {

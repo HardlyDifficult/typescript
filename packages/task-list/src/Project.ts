@@ -3,7 +3,10 @@ import {
   StatusNotFoundError,
   TaskNotFoundError,
 } from "./errors.js";
-import { findByCaseInsensitiveName, matchesCaseInsensitive } from "./resolvers.js";
+import {
+  findByCaseInsensitiveName,
+  matchesCaseInsensitive,
+} from "./resolvers.js";
 import { Task } from "./Task.js";
 import type {
   CreateLabelOptions,
@@ -20,6 +23,9 @@ export interface BulkUpdateResult {
   readonly count: number;
 }
 
+/**
+ *
+ */
 export class Project {
   id: string;
   name: string;
@@ -76,10 +82,7 @@ export class Project {
         }
       }
 
-      if (
-        filter.priority !== undefined &&
-        task.priority !== filter.priority
-      ) {
+      if (filter.priority !== undefined && task.priority !== filter.priority) {
         return false;
       }
 
@@ -93,7 +96,9 @@ export class Project {
         ? this.context.resolveStatusId(input.status)
         : (this.statuses[0]?.id ?? "");
 
-    const labelIds = input.labels?.map((name) => this.context.resolveLabelId(name));
+    const labelIds = input.labels?.map((name) =>
+      this.context.resolveLabelId(name)
+    );
     const priority =
       input.priority !== undefined && this.context.resolvePriority
         ? this.context.resolvePriority(input.priority)

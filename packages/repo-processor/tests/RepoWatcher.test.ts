@@ -5,14 +5,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRepoProcessorForTests } from "../src/RepoProcessor.js";
-import type {
-  RepoClientLike,
-  ResultsStore,
-} from "../src/internalTypes.js";
+import type { RepoClientLike, ResultsStore } from "../src/internalTypes.js";
 
-function makeProcessor(
-  rootShaValues: string[] | (() => Promise<string>)
-) {
+function makeProcessor(rootShaValues: string[] | (() => Promise<string>)) {
   let callCount = 0;
   const getNextSha = async () => {
     if (typeof rootShaValues === "function") {

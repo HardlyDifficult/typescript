@@ -37,6 +37,7 @@ interface XResponse {
   };
 }
 
+/** Creates the X-backed social read client with token and limit fallbacks. */
 export function createXSocial(options: CreateSocialOptions = {}): Social {
   const token =
     options.token ?? options.bearerToken ?? process.env.X_BEARER_TOKEN ?? "";
@@ -211,7 +212,7 @@ async function* watchLikesStream({
   const knownLikeIds = new Set<string>();
   let seeded = false;
 
-  while (!signal?.aborted) {
+  while (signal?.aborted !== true) {
     const liked = await listLikes();
     const seenAt = new Date().toISOString();
 
@@ -241,27 +242,34 @@ async function* watchLikesStream({
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
-  if (signal?.aborted) {
+  if (signal?.aborted === true) {
     return Promise.resolve(false);
   }
 
+  if (signal === undefined) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        resolve(true);
+      }, ms);
+      timer.unref();
+    });
+  }
+
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      cleanup();
+    const timer = setTimeout(onTimeout, ms);
+    timer.unref();
+
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    function onTimeout(): void {
+      signal.removeEventListener("abort", onAbort);
       resolve(true);
-    }, ms);
-    timer.unref?.();
+    }
 
-    const onAbort = () => {
+    function onAbort(): void {
       clearTimeout(timer);
-      cleanup();
+      signal.removeEventListener("abort", onAbort);
       resolve(false);
-    };
-
-    const cleanup = () => {
-      signal?.removeEventListener("abort", onAbort);
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
+    }
   });
 }

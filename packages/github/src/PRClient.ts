@@ -9,7 +9,6 @@ import type {
   PullRequestFile,
   PullRequestReview,
   PullRequestSnapshot,
-  Repository,
 } from "./types.js";
 
 /** Client for interacting with a specific GitHub pull request (comments, reviews, check runs, merging). */
@@ -120,7 +119,7 @@ export class PRClient {
 
     return {
       pullRequest,
-      repository: pullRequest.base.repo as Repository,
+      repository: pullRequest.base.repo,
       comments,
       reviews,
       checks,
@@ -176,9 +175,11 @@ export class PRClient {
     );
   }
 
-  private async loadActivity(options: {
-    includeTimeline?: boolean;
-  } = {}): Promise<{
+  private async loadActivity(
+    options: {
+      includeTimeline?: boolean;
+    } = {}
+  ): Promise<{
     pullRequest: PullRequest;
     comments: readonly PullRequestComment[];
     reviews: readonly PullRequestReview[];
@@ -190,7 +191,7 @@ export class PRClient {
       this.comments(),
       this.reviews(),
       this.listChecks(pullRequest.head.sha),
-      options.includeTimeline ? this.commits() : Promise.resolve([]),
+      options.includeTimeline === true ? this.commits() : Promise.resolve([]),
     ]);
 
     return {
@@ -198,11 +199,7 @@ export class PRClient {
       comments,
       reviews,
       checks,
-      timeline: buildTimeline(
-        comments,
-        reviews,
-        commits as readonly PullRequestCommit[]
-      ),
+      timeline: buildTimeline(comments, reviews, commits),
     };
   }
 

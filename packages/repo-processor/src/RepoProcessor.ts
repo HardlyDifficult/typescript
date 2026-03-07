@@ -53,8 +53,9 @@ function formatFailures(
   );
 }
 
+/** Incrementally processes repository files/directories and stores derived results. */
 export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
-  static async open<TFileResult, TDirResult = never>(
+  static open<TFileResult, TDirResult = never>(
     options: RepoProcessorOptions<TFileResult, TDirResult>
   ): Promise<RepoProcessor<TFileResult, TDirResult>> {
     const repo = parseRepoReference(options.repo, "repo");
@@ -76,23 +77,28 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
       gitUser: options.results.gitUser,
     });
 
-    return new RepoProcessor({
-      repo,
-      repoClient: {
-        getFileTree(ref: string | undefined) {
-          return sourceRepo.tree(ref);
+    return Promise.resolve(
+      new RepoProcessor({
+        repo,
+        repoClient: {
+          getFileTree(ref: string | undefined) {
+            return sourceRepo.tree(ref);
+          },
+          getFileContent(filePath: string, ref: string | undefined) {
+            return sourceRepo.read(filePath, ref);
+          },
         },
-        getFileContent(filePath: string, ref: string | undefined) {
-          return sourceRepo.read(filePath, ref);
-        },
-      },
-      store,
-      ref: options.ref,
-      concurrency: options.concurrency ?? 5,
-      include: options.include ?? (() => true),
-      processFile: options.processFile,
-      processDirectory: options.processDirectory,
-    });
+        store,
+        ref: options.ref,
+        concurrency: options.concurrency ?? 5,
+        include: options.include ?? (() => true),
+        processFile: (input) => options.processFile(input),
+        processDirectory:
+          options.processDirectory === undefined
+            ? undefined
+            : (input) => options.processDirectory(input),
+      })
+    );
   }
 
   private readonly repoRef: BoundRepoRef;
@@ -127,8 +133,11 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
     this.ref = internals.ref;
     this.concurrency = internals.concurrency;
     this.include = internals.include;
-    this.processFileHandler = internals.processFile;
-    this.processDirectoryHandler = internals.processDirectory;
+    this.processFileHandler = (input) => internals.processFile(input);
+    this.processDirectoryHandler =
+      internals.processDirectory === undefined
+        ? undefined
+        : (input) => internals.processDirectory(input);
   }
 
   get repo(): string {
@@ -138,7 +147,7 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
   async run(
     options: RepoProcessorRunOptions = {}
   ): Promise<RepoProcessorRunResult> {
-    const onProgress = options.onProgress;
+    const { onProgress } = options;
 
     const emitProgress = (
       phase: RepoProcessorProgress["phase"],
@@ -408,16 +417,20 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
   }
 }
 
+type RepoProcessorCtor<TFileResult, TDirResult> = new (
+  config: RepoProcessorInternals<TFileResult, TDirResult>
+) => RepoProcessor<TFileResult, TDirResult>;
+
+/** Creates a RepoProcessor instance using test doubles for internal dependencies. */
 export function createRepoProcessorForTests<
   TFileResult = unknown,
   TDirResult = never,
 >(
   internals: RepoProcessorInternals<TFileResult, TDirResult>
 ): RepoProcessor<TFileResult, TDirResult> {
-  const RepoProcessorCtor = RepoProcessor as unknown as {
-    new (
-      config: RepoProcessorInternals<TFileResult, TDirResult>
-    ): RepoProcessor<TFileResult, TDirResult>;
-  };
+  const RepoProcessorCtor = RepoProcessor as unknown as RepoProcessorCtor<
+    TFileResult,
+    TDirResult
+  >;
   return new RepoProcessorCtor(internals);
 }

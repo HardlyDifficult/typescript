@@ -55,12 +55,13 @@ export function buildMessageEvent(event: SlackMessagePayload): MessageEvent {
     }
   }
 
-  const timestamp =
-    event.ts === undefined
-      ? new Date()
-      : Number.isFinite(Number.parseFloat(event.ts))
-        ? dateFromUnixSeconds(Number.parseFloat(event.ts))
-        : new Date();
+  let timestamp = new Date();
+  if (event.ts !== undefined) {
+    const parsedTimestamp = Number.parseFloat(event.ts);
+    if (Number.isFinite(parsedTimestamp)) {
+      timestamp = dateFromUnixSeconds(parsedTimestamp);
+    }
+  }
 
   return {
     id: event.ts ?? "",

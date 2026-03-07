@@ -4,9 +4,9 @@ const constructorMock = vi.fn();
 const repoMock = vi.fn();
 
 vi.mock("@hardlydifficult/github", async () => {
-  const actual = await vi.importActual<typeof import("@hardlydifficult/github")>(
-    "@hardlydifficult/github"
-  );
+  const actual = await vi.importActual<
+    typeof import("@hardlydifficult/github")
+  >("@hardlydifficult/github");
 
   class MockGitHubClient {
     constructor(config: unknown) {
