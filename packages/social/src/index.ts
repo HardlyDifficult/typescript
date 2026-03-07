@@ -1,12 +1,17 @@
 export type {
   CreateSocialOptions,
+  LikeNotification,
+  LikeWatcherOptions,
+  Provider,
   Social,
-  SocialListOptions,
-  SocialPost,
   SocialAuthor,
+  SocialConfig,
+  SocialListOptions,
+  SocialOptions,
+  SocialPost,
   SocialPostMetrics,
   WatchLikesOptions,
-  LikeNotification,
+  XConfig,
 } from "./types.js";
 
 import type { CreateSocialOptions, Social } from "./types.js";

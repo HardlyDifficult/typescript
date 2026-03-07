@@ -53,15 +53,15 @@ function formatFailures(
   );
 }
 
-export class RepoProcessor<
-  TFileResult = unknown,
-  TDirResult = never,
-> {
+export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
   static async open<TFileResult, TDirResult = never>(
     options: RepoProcessorOptions<TFileResult, TDirResult>
   ): Promise<RepoProcessor<TFileResult, TDirResult>> {
     const repo = parseRepoReference(options.repo, "repo");
-    const resultsRepo = parseRepoReference(options.results.repo, "results repo");
+    const resultsRepo = parseRepoReference(
+      options.results.repo,
+      "results repo"
+    );
     const githubToken =
       options.githubToken ?? process.env.GH_PAT ?? process.env.GITHUB_TOKEN;
     const github = new GitHubClient({ token: githubToken });
@@ -100,7 +100,10 @@ export class RepoProcessor<
     TFileResult,
     TDirResult
   >["repoClient"];
-  private readonly store: RepoProcessorInternals<TFileResult, TDirResult>["store"];
+  private readonly store: RepoProcessorInternals<
+    TFileResult,
+    TDirResult
+  >["store"];
   private readonly ref: string | undefined;
   private readonly concurrency: number;
   private readonly include: RepoProcessorInternals<

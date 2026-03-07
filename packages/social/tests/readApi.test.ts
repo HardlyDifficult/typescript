@@ -104,4 +104,21 @@ describe("social read APIs", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain("max_results=12");
     expect(fetchMock.mock.calls[1]?.[0]).toContain("max_results=25");
   });
+
+  it("accepts maxResults as an alias for defaultLimit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const social = createSocial({ token: "token", maxResults: 7 });
+    await social.me.timeline();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("max_results=7"),
+      expect.any(Object)
+    );
+  });
 });

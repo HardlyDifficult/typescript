@@ -55,13 +55,19 @@ export function buildMessageEvent(event: SlackMessagePayload): MessageEvent {
     }
   }
 
+  const timestamp =
+    event.ts === undefined
+      ? new Date()
+      : Number.isFinite(Number.parseFloat(event.ts))
+        ? dateFromUnixSeconds(Number.parseFloat(event.ts))
+        : new Date();
+
   return {
     id: event.ts ?? "",
     content: event.text ?? "",
     author: user,
     channelId,
-    timestamp:
-      event.ts !== undefined ? dateFromUnixSeconds(event.ts) : new Date(),
+    timestamp,
     attachments,
   };
 }

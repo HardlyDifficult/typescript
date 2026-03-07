@@ -1,7 +1,4 @@
-import {
-  collectPathDepthGroups,
-  type PathDepthGroup,
-} from "./pathDepth.js";
+import { collectPathDepthGroups, type PathDepthGroup } from "./pathDepth.js";
 
 /**
  * Group path strings by their normalized `/`-separated depth, sorted deepest-first.

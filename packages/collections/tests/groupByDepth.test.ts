@@ -6,11 +6,7 @@ describe("bottomUp", () => {
   it("groups paths deepest-first without exposing depth metadata", () => {
     const result = bottomUp(["src/a/b", "src/a", "src", "src/c"]);
 
-    expect(result).toEqual([
-      ["src/a/b"],
-      ["src/a", "src/c"],
-      ["src"],
-    ]);
+    expect(result).toEqual([["src/a/b"], ["src/a", "src/c"], ["src"]]);
   });
 
   it("handles root paths and empty input", () => {

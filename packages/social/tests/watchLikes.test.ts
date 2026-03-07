@@ -78,6 +78,32 @@ describe("watchLikes", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts pollIntervalMs as an alias for everyMs", async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okLikedTweets(["1"]))
+      .mockResolvedValueOnce(okLikedTweets(["2", "1"]));
+
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const iterator = createSocial({ token: "token" })
+      .me.watchLikes({ pollIntervalMs: 5_000 })
+      [Symbol.asyncIterator]();
+
+    const firstLike = iterator.next();
+    await vi.runAllTicks();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await firstLike;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("ends cleanly when aborted", async () => {
     vi.useFakeTimers();
 

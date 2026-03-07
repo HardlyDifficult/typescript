@@ -30,6 +30,7 @@ const post = await social.posts.get("1234567890");
 ```
 
 If you omit `token`, the client reads `X_BEARER_TOKEN` from the environment.
+`bearerToken` is accepted as a compatibility alias.
 
 ## API
 
@@ -47,7 +48,14 @@ const social = createSocial({
 Options:
 
 - `token?: string`
+- `bearerToken?: string`
 - `defaultLimit?: number`
+- `limit?: number`
+- `maxResults?: number`
+- `type?: "x"`
+
+`bearerToken`, `limit`, and `maxResults` are accepted as compatibility aliases.
+`type` is optional because X is the only supported provider.
 
 ### `social.posts.get(id)`
 
@@ -95,13 +103,20 @@ for await (const like of social.me.watchLikes({
 Options:
 
 - `everyMs?: number`
+- `pollIntervalMs?: number`
 - `signal?: AbortSignal`
+
+`pollIntervalMs` is accepted as a compatibility alias for `everyMs`.
 
 ## Types
 
 Core types exported by the package:
 
 - `CreateSocialOptions`
+- `Provider`
+- `XConfig`
+- `SocialOptions`
+- `SocialConfig`
 - `Social`
 - `SocialListOptions`
 - `SocialPost`
@@ -109,6 +124,7 @@ Core types exported by the package:
 - `SocialPostMetrics`
 - `LikeNotification`
 - `WatchLikesOptions`
+- `LikeWatcherOptions`
 
 ## Scope
 

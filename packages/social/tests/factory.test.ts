@@ -47,6 +47,27 @@ describe("social factories", () => {
     }
   });
 
+  it("accepts bearerToken as an alias for token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = createSocial({ bearerToken: "token-from-options" });
+    await client.me.likes();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/liked_tweets"),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-from-options",
+        }),
+      })
+    );
+  });
+
   it("prefers token over X_BEARER_TOKEN", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

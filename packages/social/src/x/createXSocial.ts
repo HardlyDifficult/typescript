@@ -38,8 +38,13 @@ interface XResponse {
 }
 
 export function createXSocial(options: CreateSocialOptions = {}): Social {
-  const token = options.token ?? process.env.X_BEARER_TOKEN ?? "";
-  const defaultLimit = options.defaultLimit ?? DEFAULT_LIMIT;
+  const token =
+    options.token ?? options.bearerToken ?? process.env.X_BEARER_TOKEN ?? "";
+  const defaultLimit =
+    options.defaultLimit ??
+    options.limit ??
+    options.maxResults ??
+    DEFAULT_LIMIT;
 
   if (token.length === 0) {
     throw new Error("X bearer token is required. Set X_BEARER_TOKEN.");
@@ -100,7 +105,10 @@ export function createXSocial(options: CreateSocialOptions = {}): Social {
       likes: listLikes,
       watchLikes(watchOptions: WatchLikesOptions = {}) {
         return watchLikesStream({
-          everyMs: watchOptions.everyMs ?? DEFAULT_WATCH_INTERVAL_MS,
+          everyMs:
+            watchOptions.everyMs ??
+            watchOptions.pollIntervalMs ??
+            DEFAULT_WATCH_INTERVAL_MS,
           signal: watchOptions.signal,
           listLikes,
         });
@@ -165,9 +173,7 @@ function isTweet(value: unknown): value is XTweet {
   }
 
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === "string" && typeof candidate.text === "string"
-  );
+  return typeof candidate.id === "string" && typeof candidate.text === "string";
 }
 
 function normalizeTweet(tweet: XTweet, users: readonly XUser[]): SocialPost {
