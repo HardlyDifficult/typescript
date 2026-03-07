@@ -170,7 +170,7 @@ export const GetMeResponseSchema = z
   .object({
     apiKeyName: z.string(),
     createdAt: z.string(),
-    userEmail: z.string().email(),
+    userEmail: z.email(),
   })
   .catchall(z.unknown());
 
@@ -206,7 +206,7 @@ export const DownloadArtifactQuerySchema = z.object({
 });
 
 export const DownloadArtifactResponseSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   expiresAt: z.string(),
 });
 
