@@ -200,6 +200,60 @@ describe("CursorCloudClient", () => {
     );
   });
 
+  it("listAgents filters archived sessions by default", async () => {
+    const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+      jsonResponse({
+        agents: [
+          { id: "agent-a", status: "running" },
+          { id: "agent-b", status: "archived" },
+          { id: "agent-c", status: "completed" },
+          { id: "agent-d", status: "archived" },
+        ],
+        total: 4,
+        hasMore: false,
+      })
+    );
+    const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
+
+    const result = await client.listAgents();
+    expect(result.agents).toHaveLength(2);
+    expect(result.agents.map((a) => a.id)).toEqual(["agent-a", "agent-c"]);
+    expect(result.total).toBe(2);
+  });
+
+  it("listAgents includes archived when includeArchived is true", async () => {
+    const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+      jsonResponse({
+        agents: [
+          { id: "agent-a", status: "running" },
+          { id: "agent-b", status: "archived" },
+        ],
+        total: 2,
+        hasMore: false,
+      })
+    );
+    const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
+
+    const result = await client.listAgents({ includeArchived: true });
+    expect(result.agents).toHaveLength(2);
+    expect(result.total).toBe(2);
+  });
+
+  it("listAgents includes archived when status filter is archived", async () => {
+    const fetchImpl = vi.fn<FetchLike>().mockResolvedValueOnce(
+      jsonResponse({
+        agents: [{ id: "agent-b", status: "archived" }],
+        total: 1,
+        hasMore: false,
+      })
+    );
+    const client = new CursorCloudClient({ apiKey: "test-key", fetchImpl });
+
+    const result = await client.listAgents({ status: "archived" });
+    expect(result.agents).toHaveLength(1);
+    expect(result.total).toBe(1);
+  });
+
   it("validates launch schema with repo field", () => {
     expect(() =>
       LaunchCursorAgentInputSchema.parse({
