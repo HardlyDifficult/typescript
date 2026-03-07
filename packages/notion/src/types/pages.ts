@@ -94,6 +94,48 @@ export interface NotionPageSearchResult extends NotionPageMeta {
   object?: "page";
 }
 
+export interface NotionCommentParent {
+  type: "page_id";
+  page_id: string;
+}
+
+export interface NotionCommentResponse {
+  object: "comment";
+  id: string;
+  parent: NotionCommentParent | Record<string, unknown>;
+  discussion_id?: string;
+  rich_text?: unknown[];
+  created_time?: string;
+  last_edited_time?: string;
+}
+
+export interface NotionCommentMeta {
+  id: string;
+  pageId: string | null;
+  discussionId: string | null;
+  createdTime: string | null;
+  lastEdited: string | null;
+}
+
+export interface NotionCommentActivityEvent {
+  kind: "comment";
+  eventId: string;
+  timestamp: string;
+  pageId: string | null;
+  comment: NotionCommentMeta;
+}
+
+export interface NotionPageActivityEvent {
+  kind: "page";
+  eventId: string;
+  timestamp: string;
+  page: NotionPageSearchResult;
+}
+
+export type NotionActivityEvent =
+  | NotionCommentActivityEvent
+  | NotionPageActivityEvent;
+
 export interface AppendBlocksRequest {
   children: NotionBlock[];
 }
@@ -121,6 +163,22 @@ export interface SearchPagesOptions {
   startCursor?: string;
   filter?: NotionSearchFilter;
   sort?: NotionSearchSort;
+}
+
+export interface ListCommentsOptions {
+  limit?: number;
+  pageSize?: number;
+  startCursor?: string;
+}
+
+export interface GetActivityFeedOptions {
+  since?: Date | string;
+  until?: Date | string;
+  overlapMinutes?: number;
+  limit?: number;
+  pageSize?: number;
+  includePages?: boolean;
+  includeComments?: boolean;
 }
 
 export interface RetrieveBlockChildrenOptions {

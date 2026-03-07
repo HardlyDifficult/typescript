@@ -30,6 +30,7 @@ For databases, pages, and data sources, open the item in Notion and connect the 
 - Create pages in databases, data sources, pages, or the workspace root
 - Read page metadata and markdown content
 - Search pages by query
+- Build a recent activity timeline for page/comment updates by timestamp window
 - Update page markdown content or properties
 - Append blocks with automatic batching
 - Retrieve page blocks recursively
@@ -87,6 +88,20 @@ const results = await notion.searchPages("planning", { limit: 10 });
 
 for (const result of results) {
   console.log(result.title, result.url);
+}
+```
+
+### Build an activity timeline (pages + comments)
+
+```typescript
+const activity = await notion.getActivityFeed({
+  since: new Date(Date.now() - 15 * 60 * 1000),
+  overlapMinutes: 1,
+  limit: 100,
+});
+
+for (const event of activity) {
+  console.log(event.kind, event.timestamp, event.eventId);
 }
 ```
 
@@ -152,6 +167,16 @@ Returns page metadata including title, URL, timestamps, and properties.
 ### `notion.searchPages(query, options?)`
 
 Searches for pages and returns normalized page metadata results.
+
+### `notion.listComments(blockId, options?)`
+
+Lists comments for a specific page/block and returns normalized metadata.
+
+### `notion.getActivityFeed(options?)`
+
+Returns a merged timeline of page edits and page-level comment updates between `since` and `until`, with optional overlap buffering.
+
+> Note: Notion does not currently provide a single global timestamp-filtered activity/audit feed in the standard content API. This helper composes `/search` and per-page `/comments` requests, then filters and sorts results client-side.
 
 ### `notion.updatePage(pageId, content, options?)`
 
