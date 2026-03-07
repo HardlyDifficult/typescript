@@ -169,11 +169,14 @@ export class CursorCloudClient {
       return parsedResponse;
     }
 
+    const filteredAgents = parsedResponse.agents.filter(
+      (agent) => agent.status !== ARCHIVED_STATUS
+    );
+
     return {
       ...parsedResponse,
-      agents: parsedResponse.agents.filter(
-        (agent) => agent.status !== ARCHIVED_STATUS
-      ),
+      agents: filteredAgents,
+      total: filteredAgents.length,
     };
   }
 
