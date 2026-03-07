@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   beginChannelBatch,
   type ChannelBatchAdapter,
@@ -14,11 +15,17 @@ import { tryDeduplicateMessage } from "./duplicateCounter.js";
 import { extractMentionId, findBestMemberMatch } from "./memberMatching.js";
 import { Message, type MessageOperations } from "./Message.js";
 import type { MessageBatch } from "./MessageBatch.js";
+import {
+  applyMessageSendOptions,
+  resolveThreadStartOptions,
+  toTransportMessageOptions,
+} from "./messageOptions.js";
 import { PendingMessage } from "./PendingMessage.js";
 import { Thread, type ThreadOperations } from "./Thread.js";
 import type {
   BatchQueryOptions,
   BeginBatchOptions,
+  ChannelMessageOptions,
   ChannelOperations,
   ChannelOptions,
   DeleteMessageOptions,
@@ -32,6 +39,7 @@ import type {
   Platform,
   ReactionCallback,
   ThreadData,
+  ThreadStartOptions,
 } from "./types.js";
 
 export type { ChannelOperations, ChannelOptions } from "./types.js";
@@ -90,35 +98,46 @@ export class Channel {
    * @param options - Optional message options (e.g., files for attachments)
    * @returns Message object with chainable reaction methods
    */
+  post(
+    content: MessageContent,
+    options?: ChannelMessageOptions
+  ): Message & PromiseLike<Message> {
+    return this.postMessage(content, options);
+  }
+
   postMessage(
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ): Message & PromiseLike<Message> {
     const messagePromise = this.deduplicateOrPost(content, options);
 
     // Create a Message that will resolve once the post completes
-    return new PendingMessage(
-      messagePromise,
-      this.createMessageOperations(),
-      this.platform
+    return applyMessageSendOptions(
+      new PendingMessage(
+        messagePromise,
+        this.createMessageOperations(),
+        this.platform
+      ),
+      options
     );
   }
 
   private async deduplicateOrPost(
     content: MessageContent,
-    options?: { files?: FileAttachment[]; linkPreviews?: boolean }
+    options?: ChannelMessageOptions
   ): Promise<MessageData> {
+    const transportOptions = toTransportMessageOptions(options);
     const deduped = await tryDeduplicateMessage(
       content,
       (queryOpts) => this.operations.getMessages(this.id, queryOpts),
       (messageId, channelId, newContent) =>
         this.operations.updateMessage(messageId, channelId, newContent),
-      options
+      transportOptions
     );
     if (deduped) {
       return deduped;
     }
-    return this.operations.postMessage(this.id, content, options);
+    return this.operations.postMessage(this.id, content, transportOptions);
   }
 
   /**
@@ -129,17 +148,31 @@ export class Channel {
    * @param autoArchiveDuration - Auto-archive in minutes (Discord only: 60, 1440, 4320, 10080)
    * @returns Thread object
    */
-  async createThread(
+  createThread(
     content: MessageContent,
     name: string,
     autoArchiveDuration?: number
+  ): Promise<Thread>;
+  createThread(
+    content: MessageContent,
+    options?: ThreadStartOptions
+  ): Promise<Thread>;
+  async createThread(
+    content: MessageContent,
+    nameOrOptions?: string | ThreadStartOptions,
+    autoArchiveDuration?: number
   ): Promise<Thread> {
+    const options = resolveThreadStartOptions(
+      content,
+      nameOrOptions,
+      autoArchiveDuration
+    );
     const rootMsg = await this.operations.postMessage(this.id, content);
     const threadData = await this.operations.startThread(
       rootMsg.id,
       this.id,
-      name,
-      autoArchiveDuration
+      options.name,
+      options.autoArchiveDuration
     );
     return this.buildThread(threadData);
   }

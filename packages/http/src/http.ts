@@ -2,11 +2,22 @@ import type { IncomingMessage, ServerResponse } from "http";
 
 export const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
 
+export interface ReadBodyOptions {
+  maxBytes?: number;
+}
+
+export interface SendJsonOptions {
+  status?: number;
+  corsOrigin?: string;
+}
+
 /** Read the full request body as a string, rejecting if it exceeds maxBytes. */
 export function readBody(
   req: IncomingMessage,
-  maxBytes = MAX_BODY_BYTES
+  options: ReadBodyOptions = {}
 ): Promise<string> {
+  const maxBytes = options.maxBytes ?? MAX_BODY_BYTES;
+
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalBytes = 0;
@@ -58,13 +69,28 @@ export function readBody(
   });
 }
 
+/** Read and parse a JSON request body. */
+export async function readJson<T>(
+  req: IncomingMessage,
+  options: ReadBodyOptions = {}
+): Promise<T> {
+  const body = await readBody(req, options);
+
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
+}
+
 /** Send a JSON response */
 export function sendJson(
   res: ServerResponse,
-  status: number,
   body: unknown,
-  corsOrigin: string
+  options: SendJsonOptions = {}
 ): void {
+  const { status = 200, corsOrigin = "*" } = options;
+
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": corsOrigin,
@@ -73,3 +99,5 @@ export function sendJson(
   });
   res.end(JSON.stringify(body));
 }
+
+export const json = sendJson;

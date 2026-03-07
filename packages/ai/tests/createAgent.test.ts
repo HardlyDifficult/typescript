@@ -115,6 +115,40 @@ describe("createAgent", () => {
       expect(tracker.calls[0].systemPrompt).toBeUndefined();
     });
 
+    it("accepts plain string prompts and injects the default system prompt", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "Done analyzing",
+        usage: { inputTokens: 100, outputTokens: 50, inputTokenDetails: {} },
+      });
+
+      const tracker = createMockTracker();
+      const agent = createAgent(
+        mockModel() as never,
+        createTestTools(),
+        tracker,
+        mockLogger() as never,
+        { systemPrompt: "Use tools first" }
+      );
+
+      await agent.run("Analyze the code");
+
+      const callArgs = mockGenerateText.mock.calls[0][0] as {
+        messages: Array<Record<string, unknown>>;
+      };
+
+      expect(callArgs.messages).toEqual([
+        {
+          role: "system",
+          content: "Use tools first",
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+        { role: "user", content: "Analyze the code" },
+      ]);
+      expect(tracker.calls[0].systemPrompt).toBe("Use tools first");
+    });
+
     it("converts ToolMap to SDK tool calls", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "done",
@@ -368,6 +402,58 @@ describe("createAgent", () => {
 
       expect(chunks).toEqual(["Before", " After"]);
       expect(result.text).toBe("Before After");
+    });
+
+    it("passes structured tool results to callbacks", async () => {
+      mockStreamText.mockImplementationOnce(
+        (
+          options: Record<
+            string,
+            Record<
+              string,
+              { execute: (args: Record<string, unknown>) => Promise<unknown> }
+            >
+          >
+        ) => {
+          const tools = options.tools;
+
+          async function* fullStream() {
+            await tools.read_file.execute({ path: "src/index.ts" });
+            yield { type: "text-delta", text: "Done" };
+          }
+
+          return {
+            fullStream: fullStream(),
+            usage: Promise.resolve({
+              inputTokens: 10,
+              outputTokens: 5,
+              inputTokenDetails: {},
+            }),
+          };
+        }
+      );
+
+      const tracker = createMockTracker();
+      const results: unknown[] = [];
+      const agent = createAgent(
+        mockModel() as never,
+        {
+          read_file: {
+            description: "Read a file",
+            inputSchema: z.object({ path: z.string() }),
+            execute: ({ path }) => ({ path, contents: "hello" }),
+          },
+        },
+        tracker,
+        mockLogger() as never
+      );
+
+      await agent.stream("test", {
+        onText() {},
+        onToolResult: (_name, result) => results.push(result),
+      });
+
+      expect(results).toEqual([{ path: "src/index.ts", contents: "hello" }]);
     });
   });
 });

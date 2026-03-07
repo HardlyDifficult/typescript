@@ -1,5 +1,31 @@
 import { describe, it, expect } from "vitest";
+import { bottomUp } from "../src/bottomUp";
 import { groupByDepth } from "../src/groupByDepth";
+
+describe("bottomUp", () => {
+  it("groups paths deepest-first without exposing depth metadata", () => {
+    const result = bottomUp(["src/a/b", "src/a", "src", "src/c"]);
+
+    expect(result).toEqual([["src/a/b"], ["src/a", "src/c"], ["src"]]);
+  });
+
+  it("handles root paths and empty input", () => {
+    expect(bottomUp(["src", ""])).toEqual([["src"], [""]]);
+    expect(bottomUp([])).toEqual([]);
+  });
+
+  it("ignores repeated and trailing slashes when computing depth", () => {
+    expect(bottomUp(["src///nested/", "src/", "/"])).toEqual([
+      ["src///nested/"],
+      ["src/"],
+      ["/"],
+    ]);
+  });
+
+  it("preserves order within each depth group", () => {
+    expect(bottomUp(["z/b", "a/c", "m/a"])).toEqual([["z/b", "a/c", "m/a"]]);
+  });
+});
 
 describe("groupByDepth", () => {
   it("groups paths by depth, sorted deepest-first", () => {
@@ -13,28 +39,16 @@ describe("groupByDepth", () => {
   });
 
   it("handles empty string as depth 0 (root)", () => {
-    const result = groupByDepth(["src", ""]);
-
-    expect(result).toEqual([
+    expect(groupByDepth(["src", ""])).toEqual([
       { depth: 1, paths: ["src"] },
       { depth: 0, paths: [""] },
     ]);
-  });
-
-  it("returns empty array for empty input", () => {
-    expect(groupByDepth([])).toEqual([]);
   });
 
   it("groups all paths at the same depth together", () => {
     const result = groupByDepth(["a/x", "b/y", "c/z"]);
 
     expect(result).toEqual([{ depth: 2, paths: ["a/x", "b/y", "c/z"] }]);
-  });
-
-  it("preserves order within each depth group", () => {
-    const result = groupByDepth(["z/b", "a/c", "m/a"]);
-
-    expect(result[0]!.paths).toEqual(["z/b", "a/c", "m/a"]);
   });
 
   it("works with deeply nested paths", () => {
@@ -44,6 +58,14 @@ describe("groupByDepth", () => {
       { depth: 5, paths: ["a/b/c/d/e"] },
       { depth: 3, paths: ["a/b/c"] },
       { depth: 1, paths: ["a"] },
+    ]);
+  });
+
+  it("normalizes repeated and trailing slashes when computing depth", () => {
+    expect(groupByDepth(["src///nested/", "src/", "/"])).toEqual([
+      { depth: 2, paths: ["src///nested/"] },
+      { depth: 1, paths: ["src/"] },
+      { depth: 0, paths: ["/"] },
     ]);
   });
 });

@@ -6,7 +6,14 @@ import { timingSafeEqual } from "crypto";
  * Pads both values to the same length before comparing so the timing-safe
  * compare path is always executed, even for different-length inputs.
  */
-export function safeCompare(a: string, b: string): boolean {
+export function safeCompare(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return false;
+  }
+
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
 

@@ -23,9 +23,9 @@ const post = (id: string): SocialPost => ({
 describe("SocialLikeWatcher", () => {
   it("seeds first snapshot and emits only newly seen likes", async () => {
     const provider: SocialProviderClient = {
-      getPost: vi.fn(),
-      getTimeline: vi.fn(),
-      getLikedPosts: vi
+      post: vi.fn(),
+      timeline: vi.fn(),
+      likes: vi
         .fn()
         .mockResolvedValueOnce([post("1"), post("2")])
         .mockResolvedValueOnce([post("3"), post("2"), post("1")]),
@@ -34,7 +34,7 @@ describe("SocialLikeWatcher", () => {
     const onLike = vi.fn();
     const watcher = SocialLikeWatcher.create(provider, {
       onLike,
-      pollIntervalMs: 1000,
+      everyMs: 1000,
     });
 
     await watcher.poll();

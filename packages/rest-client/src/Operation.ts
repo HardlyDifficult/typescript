@@ -1,18 +1,34 @@
 import { z } from "zod";
 
-import { ValidationError } from "./errors.js";
+import { ConfigurationError, ValidationError } from "./errors.js";
 import type { HttpMethod } from "./types.js";
 
 /** Declarative configuration for a REST operation. */
-export interface OperationConfig<Params, Response> {
-  readonly params: z.ZodType<Params>;
+export interface OperationConfig<
+  Params = undefined,
+  Response = unknown,
+  RawResponse = Response,
+> {
+  readonly params?: z.ZodType<Params>;
   readonly method: HttpMethod;
-  readonly url: (params: Params, baseUrl: string) => string;
+  readonly path?: string | ((params: Params) => string);
+  readonly url?: (params: Params, baseUrl: string) => string;
   readonly body?: (
     params: Params
   ) => Record<string, unknown> | string | undefined;
-  readonly transform?: (response: Response) => Response;
+  readonly parse?: (response: RawResponse, params: Params) => Response;
+  readonly transform?: (response: RawResponse, params: Params) => Response;
 }
+
+export type OperationOptions<
+  Params = undefined,
+  Response = unknown,
+  RawResponse = Response,
+> = Omit<OperationConfig<Params, Response, RawResponse>, "method">;
+
+export type BoundOperation<Params, Response> = [Params] extends [undefined]
+  ? () => Promise<Response>
+  : (params: Params) => Promise<Response>;
 
 /**
  * Define a REST operation declaratively.
@@ -24,9 +40,16 @@ export interface OperationConfig<Params, Response> {
  *     url: (p, base) => `${base}/users/${p.id}`,
  *   });
  */
-export function defineOperation<Params, Response>(
-  config: OperationConfig<Params, Response>
-): OperationConfig<Params, Response> {
+export function defineOperation<
+  Params = undefined,
+  Response = unknown,
+  RawResponse = Response,
+>(
+  config: OperationConfig<Params, Response, RawResponse>
+): OperationConfig<Params, Response, RawResponse> {
+  if (config.path === undefined && config.url === undefined) {
+    throw new ConfigurationError("Operation requires either path or url");
+  }
   return config;
 }
 
@@ -43,3 +66,42 @@ export function validateParams<T>(params: T, schema: z.ZodType<T>): T {
     throw error;
   }
 }
+
+function defineMethodOperation<
+  Response,
+  Params = undefined,
+  RawResponse = Response,
+>(
+  method: HttpMethod,
+  config: OperationOptions<Params, Response, RawResponse>
+): OperationConfig<Params, Response, RawResponse> {
+  return defineOperation({ ...config, method });
+}
+
+export const operation = {
+  get<Response, Params = undefined, RawResponse = Response>(
+    config: OperationOptions<Params, Response, RawResponse>
+  ): OperationConfig<Params, Response, RawResponse> {
+    return defineMethodOperation("GET", config);
+  },
+  post<Response, Params = undefined, RawResponse = Response>(
+    config: OperationOptions<Params, Response, RawResponse>
+  ): OperationConfig<Params, Response, RawResponse> {
+    return defineMethodOperation("POST", config);
+  },
+  delete<Response, Params = undefined, RawResponse = Response>(
+    config: OperationOptions<Params, Response, RawResponse>
+  ): OperationConfig<Params, Response, RawResponse> {
+    return defineMethodOperation("DELETE", config);
+  },
+  patch<Response, Params = undefined, RawResponse = Response>(
+    config: OperationOptions<Params, Response, RawResponse>
+  ): OperationConfig<Params, Response, RawResponse> {
+    return defineMethodOperation("PATCH", config);
+  },
+  put<Response, Params = undefined, RawResponse = Response>(
+    config: OperationOptions<Params, Response, RawResponse>
+  ): OperationConfig<Params, Response, RawResponse> {
+    return defineMethodOperation("PUT", config);
+  },
+} as const;

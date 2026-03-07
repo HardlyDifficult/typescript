@@ -1,16 +1,13 @@
 # @hardlydifficult/social
 
-Provider-agnostic social read client with an X implementation in this version.
+Opinionated social read client for X.
 
-## Current scope (read-first)
+This package is intentionally narrow:
 
-This package is intentionally read-only for now:
-
-- Read timeline content
-- Read liked content
-- Watch for newly liked posts
-
-Write operations (posting, liking, reposting) are intentionally not included yet.
+- One provider: X
+- One factory: `createSocial()`
+- Terse methods: `post()`, `timeline()`, `likes()`
+- Like watching that starts immediately
 
 ## Installation
 
@@ -20,212 +17,138 @@ npm install @hardlydifficult/social
 
 ## Quick Start
 
-```typescript
-import { createXClient } from '@hardlydifficult/social';
+```ts
+import { createSocial } from "@hardlydifficult/social";
 
-const client = createXClient({
-  bearerToken: process.env.X_BEARER_TOKEN!,
+const social = createSocial({
+  bearerToken: process.env.X_BEARER_TOKEN,
 });
 
-const timeline = await client.getTimeline();
-console.log(`Retrieved ${timeline.length} posts`);
+const posts = await social.timeline(10);
+const liked = await social.likes(10);
+const post = await social.post("1234567890");
 ```
 
-## Core Client
+If you omit `bearerToken`, the client reads `X_BEARER_TOKEN` from the environment.
 
-### Social Client
+## API
 
-The `SocialClient` wraps a `SocialProviderClient` implementation to provide a platform-agnostic interface for social operations.
+### `createSocial(options?)`
 
-```typescript
-import { createXClient } from '@hardlydifficult/social';
+Creates the default client. X is the only supported provider today, so the options are X-specific without extra nesting.
 
-const client = createXClient({ bearerToken: 'your-token' });
-
-// Get timeline posts
-const posts = await client.getTimeline();
-
-// Get posts where the user was liked (via polling-like interface)
-const likedPosts = await client.getLikedPosts();
+```ts
+const social = createSocial({
+  bearerToken: process.env.X_BEARER_TOKEN,
+  limit: 25,
+});
 ```
 
-### Social Provider Interface
+Options:
 
-All provider implementations must implement `SocialProviderClient`, which requires:
+- `bearerToken?: string`
+- `limit?: number`
 
-- `getTimeline()`: Fetch recent posts
-- `getLikedPosts()`: Fetch posts the authenticated user has liked
-- `getPost(postId: string)`: Fetch a specific post
+`maxResults` is still accepted as a compatibility alias for `limit`.
 
-```typescript
-import type { SocialProviderClient } from '@hardlydifficult/social';
+### `social.post(id)`
 
-// Example interface contract
-interface MyProvider implements SocialProviderClient {
-  getTimeline(): Promise<SocialPost[]>;
-  getLikedPosts(): Promise<SocialPost[]>;
-  getPost(id: string): Promise<SocialPost | undefined>;
-}
+Fetch a single post.
+
+```ts
+const post = await social.post("123");
 ```
+
+### `social.timeline(limitOrOptions?)`
+
+Fetch the authenticated user timeline.
+
+```ts
+const recent = await social.timeline();
+const firstTen = await social.timeline(10);
+const custom = await social.timeline({ limit: 5 });
+```
+
+### `social.likes(limitOrOptions?)`
+
+Fetch posts liked by the authenticated user.
+
+```ts
+const liked = await social.likes();
+const latestLiked = await social.likes(20);
+```
+
+### `social.watchLikes(onLike, options?)`
+
+Starts polling immediately and returns a watcher you can stop later.
+
+```ts
+const watcher = social.watchLikes(
+  ({ post, seenAt }) => {
+    console.log(`[${seenAt}] ${post.url}`);
+  },
+  { everyMs: 30_000 }
+);
+
+// later
+watcher.stop();
+```
+
+Options:
+
+- `everyMs?: number`
+- `onError?: (error: Error) => void`
+
+You can also use the object form if you prefer:
+
+```ts
+const watcher = social.watchLikes({
+  everyMs: 30_000,
+  onLike: ({ post }) => {
+    console.log(post.text);
+  },
+});
+```
+
+## Watcher
+
+`watchLikes()` returns a `SocialLikeWatcher`.
+
+Methods:
+
+- `start()` starts polling and returns the watcher
+- `stop()` stops polling
+- `poll()` runs one polling cycle manually
+
+The first poll seeds known likes and does not emit notifications for existing liked posts.
 
 ## Types
 
-### SocialPost
+Core types exported by the package:
 
-Standardized post type used across platforms:
+- `SocialOptions`
+- `SocialListOptions`
+- `SocialPost`
+- `SocialAuthor`
+- `SocialPostMetrics`
+- `LikeNotification`
+- `WatchLikesOptions`
 
-```typescript
-import type { SocialPost } from '@hardlydifficult/social';
+## Compatibility Aliases
 
-interface SocialPost {
-  id: string;
-  text: string;
-  createdAt: Date;
-  author: {
-    username: string;
-    displayName?: string;
-    avatarUrl?: string;
-  };
-  media?: { url: string; type: 'image' | 'video' }[];
-}
-```
+These still exist, but they are no longer the preferred style:
 
-## X (Twitter) Client
+- `createSocialClient()` delegates to `createSocial()`
+- `client.getPost()` delegates to `client.post()`
+- `client.likedPosts()` delegates to `client.likes()`
+- `pollIntervalMs` is accepted as an alias for `everyMs`
 
-The `XSocialClient` implements the provider interface against the X/Twitter API.
+## Scope
 
-### Constructor Options
+This package is read-only for now:
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `bearerToken` | `string` | ✅ | Twitter API bearer token |
-| `userId` | `string` | ❌ | User ID; falls back to `/2/users/me` if not provided |
+- Read timeline content
+- Read liked posts
+- Watch for newly liked posts
 
-### Example Usage
-
-```typescript
-import { createXClient } from '@hardlydifficult/social';
-
-const client = createXClient({
-  bearerToken: process.env.X_BEARER_TOKEN!,
-});
-
-// Fetch timeline
-const posts = await client.getTimeline();
-
-// Fetch liked posts for this user
-const likedPosts = await client.getLikedPosts();
-```
-
-## Like Watching
-
-`SocialLikeWatcher` polls the provider for new liked posts and emits events when new ones are detected.
-
-### Constructor Options
-
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `client` | `SocialProviderClient` | ✅ | — | Provider client instance |
-| `pollIntervalMs` | `number` | ❌ | `60_000` | Polling interval in milliseconds |
-| `initialLikeIds` | `string[]` | ❌ | `[]` | Pre-known liked post IDs (for resume) |
-
-### Event Emitter API
-
-```typescript
-import { createXClient, SocialLikeWatcher } from '@hardlydifficult/social';
-
-const client = createXClient({ bearerToken: process.env.X_BEARER_TOKEN! });
-const watcher = new SocialLikeWatcher(client, { pollIntervalMs: 30_000 });
-
-watcher.on('newLike', (post) => {
-  console.log(`New like detected: ${post.text}`);
-});
-
-watcher.on('error', (err) => {
-  console.error('Watcher error:', err);
-});
-
-watcher.start();
-// Wait for likes...
-// watcher.stop();
-```
-
-## Factory Functions
-
-The package exports convenience factory functions to construct platform-specific clients:
-
-| Function | Returns | Description |
-|---------|---------|-------------|
-| `createXClient(options)` | `SocialClient` | Constructs X/Twitter client with default implementation |
-| `createMastodonClient(options)` | `never` | Currently throws "not implemented" error |
-
-```typescript
-import { createXClient } from '@hardlydifficult/social';
-
-// X client
-const xClient = createXClient({ bearerToken: '...' });
-```
-
-## Usage with High-Level API
-
-For a more opinionated interface, use `createSocial`:
-
-```typescript
-import { createSocial } from "@hardlydifficult/social";
-
-const social = createSocial(); // defaults to "x"
-
-const timeline = await social.timeline({ maxResults: 10 });
-const liked = await social.likedPosts({ maxResults: 10 });
-
-const watcher = social.watchLikes({
-  pollIntervalMs: 30_000,
-  onLike: ({ post }) => {
-    console.log(`New like: ${post.url}`);
-  },
-});
-
-watcher.start();
-```
-
-### X configuration
-
-Set environment variables, or pass explicit config through `createSocialClient`.
-
-- `X_BEARER_TOKEN` (required)
-- Get a bearer token from the X Developer Portal: https://developer.x.com/en/docs/authentication/oauth-2-0/bearer-tokens
-
-```typescript
-import { createSocialClient } from "@hardlydifficult/social";
-
-const social = createSocialClient({
-  type: "x",
-  bearerToken: process.env.X_BEARER_TOKEN,
-});
-```
-
-## Testing
-
-Unit tests cover:
-
-- Factory initialization
-- Timeline retrieval via provider-agnostic interface
-- Like watcher polling and stateful detection
-
-Run tests with:
-
-```bash
-npm test
-```
-
-## Appendix
-
-### Platform Support
-
-| Feature | X (Twitter) | Mastodon |
-|---------|-------------|----------|
-| Timeline | ✅ | ❌ (stub) |
-| Liked Posts | ✅ | ❌ (stub) |
-| Like Watching | ✅ | ❌ (stub) |
-
-Mastodon support is currently unimplemented and will throw errors on usage.
+Posting, liking, and reposting are intentionally out of scope.

@@ -1,4 +1,3 @@
-import type { Logger } from "@hardlydifficult/logger";
 import { generateText, type LanguageModel, Output } from "ai";
 import type { z } from "zod";
 
@@ -13,7 +12,11 @@ import type {
   AITracker,
   ChatCall,
   ChatMessage,
+  CreateAIConfig,
+  LoggerLike,
   Message,
+  PromptInput,
+  PromptOptions,
   ToolMap,
   Usage,
 } from "./types.js";
@@ -24,11 +27,69 @@ interface CoreMessage {
 }
 
 const DEFAULT_MAX_TOKENS = 4096;
+const NOOP = (): void => undefined;
+const NOOP_LOGGER: LoggerLike = {
+  debug: NOOP,
+  info: NOOP,
+  warn: NOOP,
+  error: NOOP,
+};
+
+function resolveSystemPrompt(
+  defaultSystemPrompt: string | undefined,
+  systemPromptOrOptions?: string | PromptOptions
+): string | undefined {
+  if (typeof systemPromptOrOptions === "string") {
+    return systemPromptOrOptions;
+  }
+
+  return systemPromptOrOptions?.systemPrompt ?? defaultSystemPrompt;
+}
+
+function normalizeMessages(
+  input: PromptInput,
+  systemPrompt?: string
+): Message[] {
+  const messages =
+    typeof input === "string"
+      ? [{ role: "user" as const, content: input }]
+      : [...input];
+
+  if (
+    systemPrompt === undefined ||
+    systemPrompt === "" ||
+    messages.some((message) => message.role === "system")
+  ) {
+    return messages;
+  }
+
+  return [{ role: "system", content: systemPrompt }, ...messages];
+}
+
+function getTrackedPrompt(messages: Message[]): string {
+  const lastUserMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
+
+  if (lastUserMessage !== undefined) {
+    return lastUserMessage.content;
+  }
+  if (messages.length > 0) {
+    return messages[messages.length - 1].content;
+  }
+  return "";
+}
+
+function isCreateAIConfig(
+  value: LanguageModel | CreateAIConfig
+): value is CreateAIConfig {
+  return typeof value === "object" && "model" in value && "tracker" in value;
+}
 
 function createChatCall(
   model: LanguageModel,
   tracker: AITracker,
-  logger: Logger,
+  logger: LoggerLike,
   maxTokens: number,
   messages: CoreMessage[],
   systemPrompt: string | undefined
@@ -70,7 +131,7 @@ function createChatCall(
       inputTokens: resultUsage.inputTokens ?? 0,
       outputTokens: resultUsage.outputTokens ?? 0,
       durationMs,
-      prompt: messages[messages.length - 1].content,
+      prompt: messages[messages.length - 1]?.content ?? "",
       response: result.text,
       systemPrompt,
       cacheCreationTokens:
@@ -179,52 +240,120 @@ function createChatCall(
 }
 
 /** Creates an AI client with required usage tracking and logging. */
+export function createAI(config: CreateAIConfig): AI;
 export function createAI(
-  model: LanguageModel,
-  tracker: AITracker,
-  logger: Logger,
+  modelOrConfig: LanguageModel | CreateAIConfig,
+  tracker?: AITracker,
+  logger?: LoggerLike,
   options?: AIOptions
 ): AI {
+  const config = isCreateAIConfig(modelOrConfig)
+    ? modelOrConfig
+    : {
+        model: modelOrConfig,
+        tracker,
+        logger,
+        maxTokens: options?.maxTokens,
+        temperature: options?.temperature,
+        systemPrompt: undefined,
+      };
+
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for JS callers
-  if (tracker === undefined || tracker === null) {
+  if (config.tracker === undefined || config.tracker === null) {
     throw new Error("AITracker is required — all AI usage must be tracked");
   }
 
-  const maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS;
-  const temperature = options?.temperature;
+  const modelInstance = config.model;
+  const trackerInstance = config.tracker;
+  const loggerInstance = config.logger ?? NOOP_LOGGER;
+  const { maxTokens: configuredMaxTokens, temperature } = config;
+  const maxTokens = configuredMaxTokens ?? DEFAULT_MAX_TOKENS;
+  const defaultSystemPrompt = config.systemPrompt;
+  const chat = (
+    prompt: string,
+    systemPromptOrOptions?: string | PromptOptions
+  ): ChatCall =>
+    createChatCall(
+      modelInstance,
+      trackerInstance,
+      loggerInstance,
+      maxTokens,
+      [{ role: "user", content: prompt }],
+      resolveSystemPrompt(defaultSystemPrompt, systemPromptOrOptions)
+    );
 
   return {
-    chat(prompt: string, systemPrompt?: string): ChatCall {
-      return createChatCall(
-        model,
-        tracker,
-        logger,
-        maxTokens,
-        [{ role: "user", content: prompt }],
-        systemPrompt
+    ask(prompt: string, options?: PromptOptions): Promise<string> {
+      return Promise.resolve(
+        chat(prompt, resolveSystemPrompt(defaultSystemPrompt, options)).text()
       );
     },
 
+    askFor<TSchema extends z.ZodType>(
+      prompt: string,
+      schema: TSchema,
+      options?: PromptOptions
+    ): Promise<z.infer<TSchema>> {
+      return Promise.resolve(
+        chat(prompt, resolveSystemPrompt(defaultSystemPrompt, options)).zod(
+          schema
+        )
+      );
+    },
+
+    chat(
+      prompt: string,
+      systemPromptOrOptions?: string | PromptOptions
+    ): ChatCall {
+      return chat(prompt, systemPromptOrOptions);
+    },
+
     stream(
-      messages: Message[],
-      onText: (text: string) => void
+      input: PromptInput,
+      onText: (text: string) => void,
+      options?: PromptOptions
     ): Promise<AgentResult> {
+      const messages = normalizeMessages(
+        input,
+        resolveSystemPrompt(defaultSystemPrompt, options)
+      );
+
       return runStream(
-        model,
-        tracker,
-        logger,
+        modelInstance,
+        trackerInstance,
+        loggerInstance,
         messages,
         onText,
         maxTokens,
-        temperature
+        temperature,
+        getTrackedPrompt(messages),
+        messages.find((message) => message.role === "system")?.content
       );
     },
 
     agent(tools: ToolMap, agentOptions?: AgentOptions): Agent {
-      return createAgent(model, tools, tracker, logger, {
-        maxSteps: agentOptions?.maxSteps,
-        maxTokens: agentOptions?.maxTokens ?? maxTokens,
-        temperature: agentOptions?.temperature ?? temperature,
+      return createAgent(
+        modelInstance,
+        tools,
+        trackerInstance,
+        loggerInstance,
+        {
+          maxSteps: agentOptions?.maxSteps,
+          maxTokens: agentOptions?.maxTokens ?? maxTokens,
+          temperature: agentOptions?.temperature ?? temperature,
+          systemPrompt: agentOptions?.systemPrompt ?? defaultSystemPrompt,
+        }
+      );
+    },
+
+    withSystemPrompt(systemPrompt: string): AI {
+      return createAI({
+        model: modelInstance,
+        tracker: trackerInstance,
+        logger: loggerInstance,
+        maxTokens,
+        temperature,
+        systemPrompt,
       });
     },
   };

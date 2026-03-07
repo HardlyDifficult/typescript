@@ -1,3 +1,8 @@
+import {
+  applyMessageSendOptions,
+  resolveMessageSendOptions,
+  resolveThreadStartOptions,
+} from "./messageOptions.js";
 import { StreamingReply } from "./StreamingReply.js";
 import type { Thread } from "./Thread.js";
 import type {
@@ -6,8 +11,10 @@ import type {
   FileAttachment,
   MessageContent,
   MessageData,
+  MessageSendOptions,
   Platform,
   ReactionCallback,
+  ThreadStartOptions,
   User,
 } from "./types.js";
 
@@ -210,15 +217,23 @@ export class Message {
    */
   reply(
     content: MessageContent,
-    files?: FileAttachment[]
+    optionsOrFiles?: MessageSendOptions | FileAttachment[]
+  ): Message & PromiseLike<Message>;
+  reply(
+    content: MessageContent,
+    optionsOrFiles?: MessageSendOptions | FileAttachment[]
   ): Message & PromiseLike<Message> {
+    const options = resolveMessageSendOptions(optionsOrFiles);
     const replyPromise = this.operations.reply(
       this.channelId,
       this.id,
       content,
-      files
+      options?.files
     );
-    return new ReplyMessage(replyPromise, this.operations, this.platform);
+    return applyMessageSendOptions(
+      new ReplyMessage(replyPromise, this.operations, this.platform),
+      options
+    );
   }
 
   /**
@@ -247,15 +262,22 @@ export class Message {
    * @param autoArchiveDuration - Auto-archive duration in minutes (60, 1440, 4320, 10080)
    * @returns Thread with post, onReply, and delete capabilities
    */
+  startThread(name: string, autoArchiveDuration?: number): Promise<Thread>;
+  startThread(options?: ThreadStartOptions): Promise<Thread>;
   async startThread(
-    name: string,
+    nameOrOptions?: string | ThreadStartOptions,
     autoArchiveDuration?: number
   ): Promise<Thread> {
+    const options = resolveThreadStartOptions(
+      this.content,
+      nameOrOptions,
+      autoArchiveDuration
+    );
     return this.operations.startThread(
       this.id,
       this.channelId,
-      name,
-      autoArchiveDuration
+      options.name,
+      options.autoArchiveDuration
     );
   }
 

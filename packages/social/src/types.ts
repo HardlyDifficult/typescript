@@ -1,12 +1,19 @@
 export type Provider = "x";
 
-export interface XConfig {
-  readonly type: "x";
+export interface SocialOptions {
+  readonly type?: "x";
   readonly bearerToken?: string;
+  readonly limit?: number;
   readonly maxResults?: number;
 }
 
-export type SocialConfig = XConfig;
+export type XConfig = SocialOptions;
+
+export type SocialConfig = SocialOptions;
+
+export interface SocialListOptions {
+  readonly limit?: number;
+}
 
 export interface SocialAuthor {
   readonly id: string;
@@ -34,8 +41,11 @@ export interface LikeNotification {
   readonly seenAt: string;
 }
 
-export interface LikeWatcherOptions {
+export interface WatchLikesOptions {
+  readonly everyMs?: number;
   readonly pollIntervalMs?: number;
   readonly onLike: (notification: LikeNotification) => void;
   readonly onError?: (error: Error) => void;
 }
+
+export type LikeWatcherOptions = WatchLikesOptions;

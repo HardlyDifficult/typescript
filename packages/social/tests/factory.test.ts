@@ -4,16 +4,15 @@ import { createSocial, createSocialClient } from "../src/index.js";
 const originalFetch = globalThis.fetch;
 
 describe("social factories", () => {
-  it("creates an X client when configured explicitly", () => {
-    const client = createSocialClient({
-      type: "x",
+  it("creates a client from direct X options", () => {
+    const client = createSocial({
       bearerToken: "token",
     });
 
     expect(client).toBeDefined();
   });
 
-  it("createSocial defaults to x", async () => {
+  it("createSocial uses X by default", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
@@ -33,5 +32,14 @@ describe("social factories", () => {
       globalThis.fetch = originalFetch;
       delete process.env.X_BEARER_TOKEN;
     }
+  });
+
+  it("keeps createSocialClient as a compatibility alias", () => {
+    const client = createSocialClient({
+      type: "x",
+      bearerToken: "token",
+    });
+
+    expect(client).toBeDefined();
   });
 });

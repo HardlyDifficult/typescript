@@ -138,6 +138,44 @@ describe("Message", () => {
 
       expect(result).toBe("caught: Reply failed");
     });
+
+    it("should accept declarative reply options", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        {
+          id: "msg-1",
+          channelId: "ch-1",
+          platform: "slack",
+          content: "Build failed",
+        },
+        mockOperations
+      );
+      const handler = vi.fn();
+
+      const reply = msg.reply("Reply content", {
+        files: [{ content: "details", name: "details.txt" }],
+        reactions: ["thumbsup"],
+        onReaction: handler,
+      });
+
+      await Promise.resolve(reply);
+
+      expect(mockOperations.reply).toHaveBeenCalledWith(
+        "ch-1",
+        "msg-1",
+        "Reply content",
+        [{ content: "details", name: "details.txt" }]
+      );
+      expect(mockOperations.addReaction).toHaveBeenCalledWith(
+        "reply-123",
+        "ch-1",
+        "thumbsup"
+      );
+      expect(mockOperations.subscribeToReactions).toHaveBeenCalledWith(
+        "reply-123",
+        handler
+      );
+    });
   });
 
   describe("update", () => {
@@ -554,6 +592,69 @@ describe("Message", () => {
       expect(mockOperations.subscribeToReactions).toHaveBeenCalledWith(
         "reply-123",
         handler
+      );
+    });
+  });
+
+  describe("startThread", () => {
+    it("should infer the thread name from message content", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        {
+          id: "msg-1",
+          channelId: "ch-1",
+          platform: "slack",
+          content: "Deploy status\nsecond line",
+        },
+        mockOperations
+      );
+
+      await msg.startThread();
+
+      expect(mockOperations.startThread).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        "Deploy status",
+        undefined
+      );
+    });
+
+    it('should fall back to "Thread" when no name can be inferred', async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        { id: "msg-1", channelId: "ch-1", platform: "slack" },
+        mockOperations
+      );
+
+      await msg.startThread();
+
+      expect(mockOperations.startThread).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        "Thread",
+        undefined
+      );
+    });
+
+    it("should accept a thread options object", async () => {
+      const mockOperations = createMockOperations();
+      const msg = new Message(
+        {
+          id: "msg-1",
+          channelId: "ch-1",
+          platform: "slack",
+          content: "Deploy status",
+        },
+        mockOperations
+      );
+
+      await msg.startThread({ name: "Deploy", autoArchiveDuration: 1440 });
+
+      expect(mockOperations.startThread).toHaveBeenCalledWith(
+        "msg-1",
+        "ch-1",
+        "Deploy",
+        1440
       );
     });
   });

@@ -1163,6 +1163,46 @@ describe("SlackChatClient", () => {
 
       expect(callback).toHaveBeenCalledTimes(1);
     });
+
+    it("should support declarative reactions and handlers in the initial post call", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+
+      const message = channel.post("Vote", {
+        reactions: ["thumbsup", "heart"],
+        onReaction: callback,
+      });
+      await waitForMessage(message);
+
+      expect(mockReactionsAdd).toHaveBeenNthCalledWith(1, {
+        channel: channelId,
+        name: "thumbsup",
+        timestamp: message.id,
+      });
+      expect(mockReactionsAdd).toHaveBeenNthCalledWith(2, {
+        channel: channelId,
+        name: "heart",
+        timestamp: message.id,
+      });
+
+      const handler = getReactionHandler();
+      await handler!({
+        event: {
+          reaction: "heart",
+          user: "U123456",
+          item: { channel: channelId, ts: message.id },
+          event_ts: "1609459200.000000",
+        },
+      });
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emoji: "heart",
+          messageId: message.id,
+        })
+      );
+    });
   });
 
   describe("Channel.disconnect()", () => {
@@ -1835,6 +1875,16 @@ describe("SlackChatClient", () => {
       const channel = await client.connect(channelId);
       const msg = await channel.postMessage("Thread root");
       const thread = await msg.startThread("Thread Name");
+
+      expect(thread.id).toBe(msg.id);
+      expect(thread.channelId).toBe(channelId);
+      expect(thread.platform).toBe("slack");
+    });
+
+    it("should support starting a thread without explicitly naming it", async () => {
+      const channel = await client.connect(channelId);
+      const msg = await channel.postMessage("Deploy status");
+      const thread = await msg.startThread();
 
       expect(thread.id).toBe(msg.id);
       expect(thread.channelId).toBe(channelId);

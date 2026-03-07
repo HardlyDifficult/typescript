@@ -1,6 +1,16 @@
-export { RestClient } from "./RestClient.js";
-export { defineOperation, validateParams } from "./Operation.js";
-export type { OperationConfig } from "./Operation.js";
+export { RestClient, createRestClient } from "./RestClient.js";
+export { defineOperation, operation, validateParams } from "./Operation.js";
+export type {
+  BoundOperation,
+  OperationConfig,
+  OperationOptions,
+} from "./Operation.js";
+export type {
+  AnyOperationConfig,
+  BoundOperations,
+  OperationMap,
+  RestClientApi,
+} from "./RestClient.js";
 export { AuthenticationManager } from "./AuthenticationManager.js";
 export { HttpClient } from "./HttpClient.js";
 

@@ -1,6 +1,10 @@
 import { tryDeduplicateMessage } from "./duplicateCounter.js";
 import { EditableStreamReply } from "./EditableStreamReply.js";
 import { Message, type MessageOperations } from "./Message.js";
+import {
+  applyMessageSendOptions,
+  resolveMessageSendOptions,
+} from "./messageOptions.js";
 import { StreamingReply } from "./StreamingReply.js";
 import type {
   FileAttachment,
@@ -9,6 +13,7 @@ import type {
   MessageData,
   MessageEvent,
   MessageQueryOptions,
+  MessageSendOptions,
   Platform,
   ThreadData,
 } from "./types.js";
@@ -72,8 +77,9 @@ export class Thread {
    */
   async post(
     content: MessageContent,
-    files?: FileAttachment[]
+    optionsOrFiles?: MessageSendOptions | FileAttachment[]
   ): Promise<Message> {
+    const options = resolveMessageSendOptions(optionsOrFiles);
     const deduped = await tryDeduplicateMessage(
       content,
       (queryOpts) => this.ops.getMessages(queryOpts),
@@ -81,13 +87,19 @@ export class Thread {
         const msgOps = this.ops.createMessageOps();
         return msgOps.updateMessage(messageId, channelId, newContent);
       },
-      files ? { files } : undefined
+      options?.files ? { files: options.files } : undefined
     );
+    let message: Message;
     if (deduped) {
-      return new Message(deduped, this.ops.createMessageOps());
+      message = new Message(deduped, this.ops.createMessageOps());
+    } else {
+      const data = await this.ops.post(content, options?.files);
+      message = new Message(data, this.ops.createMessageOps());
     }
-    const data = await this.ops.post(content, files);
-    return new Message(data, this.ops.createMessageOps());
+
+    applyMessageSendOptions(message, options);
+    await message.waitForReactions();
+    return message;
   }
 
   /**

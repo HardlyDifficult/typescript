@@ -1,23 +1,11 @@
+import { collectPathDepthGroups, type PathDepthGroup } from "./pathDepth.js";
+
 /**
- * Group path strings by their `/`-separated depth, sorted deepest-first.
- * Useful for bottom-up directory processing where children must be handled before parents.
+ * Group path strings by their normalized `/`-separated depth, sorted deepest-first.
+ * Useful when callers still want explicit depth metadata.
  */
-export function groupByDepth(
-  paths: readonly string[]
-): { depth: number; paths: string[] }[] {
-  const depthMap = new Map<number, string[]>();
-
-  for (const p of paths) {
-    const depth = p === "" ? 0 : p.split("/").length;
-    let group = depthMap.get(depth);
-    if (!group) {
-      group = [];
-      depthMap.set(depth, group);
-    }
-    group.push(p);
-  }
-
-  return [...depthMap.entries()]
-    .sort(([a], [b]) => b - a)
-    .map(([depth, paths]) => ({ depth, paths }));
+export function groupByDepth(paths: readonly string[]): PathDepthGroup[] {
+  return collectPathDepthGroups(paths);
 }
+
+export type { PathDepthGroup };

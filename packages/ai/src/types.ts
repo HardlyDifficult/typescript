@@ -1,3 +1,4 @@
+import type { LanguageModel } from "ai";
 import type { z } from "zod";
 
 export interface Usage {
@@ -22,6 +23,23 @@ export interface AIOptions {
   temperature?: number;
 }
 
+export interface LoggerLike {
+  debug(message: string, context?: Readonly<Record<string, unknown>>): void;
+  info(message: string, context?: Readonly<Record<string, unknown>>): void;
+  warn(message: string, context?: Readonly<Record<string, unknown>>): void;
+  error(message: string, context?: Readonly<Record<string, unknown>>): void;
+}
+
+export interface PromptOptions {
+  systemPrompt?: string;
+}
+
+export interface CreateAIConfig extends AIOptions, PromptOptions {
+  model: LanguageModel;
+  tracker: AITracker;
+  logger?: LoggerLike;
+}
+
 export interface ChatMessage {
   text: string;
   usage: Usage;
@@ -41,11 +59,13 @@ export interface Message {
   content: string;
 }
 
+export type PromptInput = string | Message[];
+
 /** Tool definition — consumers define tools as plain objects, no SDK import needed. */
 export interface ToolDefinition<TInput extends z.ZodType = z.ZodType> {
   description: string;
   inputSchema: TInput;
-  execute: (input: z.infer<TInput>) => Promise<string>;
+  execute: (input: z.infer<TInput>) => unknown;
 }
 
 /** Named set of tools. Each tool may have a different input schema. */
@@ -56,11 +76,11 @@ export type ToolMap = Record<string, ToolDefinition<any>>;
 export interface AgentCallbacks {
   onText: (text: string) => void;
   onToolCall?: (name: string, input: Record<string, unknown>) => void;
-  onToolResult?: (name: string, result: string) => void;
+  onToolResult?: (name: string, result: unknown) => void;
 }
 
 /** Options for creating an agent. */
-export interface AgentOptions {
+export interface AgentOptions extends PromptOptions {
   maxSteps?: number;
   temperature?: number;
   maxTokens?: number;
@@ -74,18 +94,27 @@ export interface AgentResult {
 
 /** Tool-calling agent bound to a model and tool set. */
 export interface Agent {
-  run(messages: Message[]): Promise<AgentResult>;
+  run(input: PromptInput, options?: PromptOptions): Promise<AgentResult>;
   stream(
-    messages: Message[],
-    handler: ((text: string) => void) | AgentCallbacks
+    input: PromptInput,
+    handler: ((text: string) => void) | AgentCallbacks,
+    options?: PromptOptions
   ): Promise<AgentResult>;
 }
 
 export interface AI {
-  chat(prompt: string, systemPrompt?: string): ChatCall;
+  ask(prompt: string, options?: PromptOptions): Promise<string>;
+  askFor<TSchema extends z.ZodType>(
+    prompt: string,
+    schema: TSchema,
+    options?: PromptOptions
+  ): Promise<z.infer<TSchema>>;
+  chat(prompt: string, systemPrompt?: string | PromptOptions): ChatCall;
   stream(
-    messages: Message[],
-    onText: (text: string) => void
+    input: PromptInput,
+    onText: (text: string) => void,
+    options?: PromptOptions
   ): Promise<AgentResult>;
   agent(tools: ToolMap, options?: AgentOptions): Agent;
+  withSystemPrompt(systemPrompt: string): AI;
 }

@@ -1,4 +1,4 @@
-import { chunk, groupByDepth } from "@hardlydifficult/collections";
+import { bottomUp, inBatches } from "@hardlydifficult/collections";
 import {
   diffTree,
   type GitHubClient,
@@ -105,8 +105,7 @@ export class RepoProcessor {
     );
 
     // 5. Process changed files in batches
-    const fileBatches = chunk(diff.changedFiles, this.concurrency);
-    for (const batch of fileBatches) {
+    for (const batch of inBatches(diff.changedFiles, this.concurrency)) {
       const results = await Promise.allSettled(
         batch.map(async (entry) => {
           const content = await this.github
@@ -191,13 +190,10 @@ export class RepoProcessor {
       );
 
       // 8. Process directories bottom-up by depth
-      const depthGroups = groupByDepth(allDirs);
-
-      for (const { paths: dirsAtDepth } of depthGroups) {
-        const batches = chunk(dirsAtDepth, this.concurrency);
+      for (const dirsAtDepth of bottomUp(allDirs)) {
         let dirsInDepthGroup = 0;
 
-        for (const batch of batches) {
+        for (const batch of inBatches(dirsAtDepth, this.concurrency)) {
           const results = await Promise.allSettled(
             batch.map(async (dirPath) => {
               const ctx = this.buildDirectoryContext(
