@@ -1,3 +1,5 @@
+export { GitYamlStore } from "./GitYamlStore.js";
+export type { GitYamlStoreConfig } from "./GitYamlStore.js";
 export { RepoProcessor } from "./RepoProcessor.js";
 export { RepoWatcher } from "./RepoWatcher.js";
 export type {
