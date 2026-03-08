@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.2.20"
+    "@opencode-ai/sdk": "1.2.21"
   },
   "devDependencies": {
     "@types/node": "25.3.5",
