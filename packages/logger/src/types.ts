@@ -10,7 +10,9 @@ export interface LogEntry {
 export interface LoggerPlugin {
   /** Called for each log entry that passes the level filter. */
   log(entry: LogEntry): void;
-  /** Called for notify() — out-of-band notifications. Optional. */
+  /** Called for alert() — out-of-band notifications. Optional. */
+  alert?(message: string): void;
+  /** Backwards-compatible alias for alert(). Optional. */
   notify?(message: string): void;
 }
 

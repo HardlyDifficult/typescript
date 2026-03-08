@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
+import { runWithThrottle } from "../runWithThrottle.js";
 import type { PushEvent, WatchThrottle } from "../types.js";
 
 export interface BranchHeadCheckResult {
@@ -33,22 +34,30 @@ export class BranchHeadTracker {
       try {
         let branch = this.defaultBranches.get(repoKey);
         if (branch === undefined) {
-          await throttle?.wait(1);
-          const { data } = await octokit.repos.get({
-            owner,
-            repo: name,
-          });
+          const { data } = await runWithThrottle(
+            throttle,
+            () =>
+              octokit.repos.get({
+                owner,
+                repo: name,
+              }),
+            1
+          );
           branch = (data as unknown as { default_branch: string })
             .default_branch;
           this.defaultBranches.set(repoKey, branch);
         }
 
-        await throttle?.wait(1);
-        const { data: ref } = await octokit.git.getRef({
-          owner,
-          repo: name,
-          ref: `heads/${branch}`,
-        });
+        const { data: ref } = await runWithThrottle(
+          throttle,
+          () =>
+            octokit.git.getRef({
+              owner,
+              repo: name,
+              ref: `heads/${branch}`,
+            }),
+          1
+        );
         const currentSha = ref.object.sha;
         const previousSha = this.headShas.get(repoKey);
         this.headShas.set(repoKey, currentSha);

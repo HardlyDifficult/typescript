@@ -1,12 +1,11 @@
 export { UsageTracker } from "./UsageTracker.js";
-export { SpendLimitExceededError } from "./SpendLimitExceededError.js";
-export { deepAdd } from "./deepAdd.js";
-export { findCostFieldPaths, extractCostFromDelta } from "./costFields.js";
+export { BudgetExceededError } from "./BudgetExceededError.js";
 export type {
   NumericRecord,
   DeepPartial,
-  UsageTrackerOptions,
-  SpendLimit,
-  SpendStatus,
-  SpendEntry,
+  UsageTrackerOpenOptions,
+  Budget,
+  BudgetWindow,
+  BudgetStatus,
+  BudgetSnapshot,
 } from "./types.js";

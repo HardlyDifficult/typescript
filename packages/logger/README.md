@@ -2,7 +2,7 @@
 
 Opinionated structured logging with strong defaults.
 
-Use `createLogger()` for application logs. It writes to console by default, can mirror to a JSONL file, can forward alerts to Discord, and lets you bind business context once with `withContext()`. The low-level plugin API still exists, but it is not the preferred client path.
+Use `createLogger()` for application logs. The preferred path is short on purpose: name the scope once, turn on the outputs you want, and log plain runtime data. The low-level plugin API still exists, but it is the escape hatch.
 
 ## Installation
 
@@ -15,10 +15,9 @@ npm install @hardlydifficult/logger
 ```typescript
 import { createLogger } from "@hardlydifficult/logger";
 
-const logger = createLogger({
-  name: "payments",
-  filePath: "./logs/app.jsonl",
-  discord: (message) => {
+const logger = createLogger("payments", {
+  file: "./logs/app.jsonl",
+  alert: (message) => {
     // POST to your Discord webhook here
   },
 });
@@ -30,7 +29,8 @@ logger.info("service started", { port: 3000 });
 
 - Console logging is on by default.
 - Default level is `info`.
-- Discord only receives `warn`, `error`, and `notify()` messages.
+- The string shorthand binds `{ scope: "..." }` into every entry.
+- Alert senders only receive `warn`, `error`, and `alert()` messages.
 - File output is JSONL, one entry per line.
 - Context is serialized safely by default.
 
@@ -51,7 +51,7 @@ try {
 Business code should not repeat infrastructure metadata on every call.
 
 ```typescript
-const orderLogger = logger.withContext({
+const orderLogger = logger.child({
   orderId: "ord_123",
   customerId: "cus_456",
 });
@@ -62,39 +62,40 @@ orderLogger.info("receipt sent");
 
 Per-call context is merged with bound context. If keys overlap, the per-call value wins.
 
-## Notifications
+## Alerts
 
-Use `notify()` for out-of-band alerts that should bypass normal log levels.
+Use `alert()` for out-of-band messages that should bypass normal log levels.
 
 ```typescript
-logger.notify("manual intervention required");
+logger.alert("manual intervention required");
 ```
 
-When `discord` is configured, `notify()` sends the message directly to Discord.
+When `alert` is configured, `alert()` sends the message directly to the sender.
 
 ## API
 
-### `createLogger(options?)`
+### `createLogger(scope?, options?)`
 
 ```typescript
 import { createLogger } from "@hardlydifficult/logger";
 
-const logger = createLogger({
-  name: "api",
+const logger = createLogger("api", {
   level: "debug",
-  suppressConsole: true,
-  filePath: "./logs/api.jsonl",
-  discord: sendDiscordMessage,
+  console: false,
+  file: "./logs/api.jsonl",
+  alert: sendDiscordMessage,
+  context: { region: "us-east-1" },
 });
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `name` | `string` | `undefined` | Added to every entry as context |
 | `level` | `LogLevel` | `"info"` | Global minimum log level |
-| `suppressConsole` | `boolean` | `false` | Disable the default console logger |
-| `filePath` | `string` | `undefined` | Mirror every entry to a JSONL file |
-| `discord` | `(message: string) => void` | `undefined` | Send `warn`, `error`, and `notify()` messages to Discord |
+| `scope` | `string` | `undefined` | Added to every entry as `{ scope }` when using the object form |
+| `context` | `Record<string, unknown>` | `undefined` | Extra context bound into every entry |
+| `console` | `boolean` | `true` | Disable console logging by setting it to `false` |
+| `file` | `string` | `undefined` | Mirror every entry to a JSONL file |
+| `alert` | `(message: string) => void` | `undefined` | Send `warn`, `error`, and `alert()` messages to a sender |
 
 ### Logger methods
 
@@ -103,13 +104,13 @@ logger.debug(message, context?);
 logger.info(message, context?);
 logger.warn(message, context?);
 logger.error(message, context?);
-logger.notify(message);
-logger.withContext(context);
+logger.alert(message);
+logger.child(context);
 ```
 
 ## Session Tracking
 
-`SessionTracker` is the package's append-only JSONL tracker for AI sessions, agent runs, and other debug traces.
+`SessionTracker` is the append-only JSONL tracker for AI sessions, agent runs, and other debug traces.
 
 ```typescript
 import { SessionTracker } from "@hardlydifficult/logger";
@@ -118,15 +119,10 @@ const tracker = new SessionTracker({
   stateDirectory: "./state",
 });
 
-tracker.append("chat/user-123", {
-  type: "ai_request",
-  data: { prompt: "Summarize this PR" },
-});
+const session = tracker.session("chat/user-123");
 
-tracker.append("chat/user-123", {
-  type: "error",
-  data: { error: new Error("model timeout") },
-});
+session.request({ prompt: "Summarize this PR" });
+session.error(new Error("model timeout"), { model: "gpt-5" });
 ```
 
 ### SessionTracker defaults
@@ -139,12 +135,29 @@ tracker.append("chat/user-123", {
 ### SessionTracker methods
 
 ```typescript
+tracker.session(sessionId);
 tracker.append(sessionId, entry);
 tracker.read(sessionId);
 tracker.list();
 tracker.has(sessionId);
 tracker.delete(sessionId);
 tracker.cleanup();
+```
+
+### Bound session methods
+
+```typescript
+session.start(data?);
+session.request(data);
+session.response(data);
+session.toolCall(data);
+session.toolResult(data);
+session.metadata(data);
+session.error(error, data?);
+session.end(data?);
+session.read();
+session.exists();
+session.delete();
 ```
 
 ## Low-Level API

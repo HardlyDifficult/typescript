@@ -13,7 +13,6 @@
 import { duration } from "@hardlydifficult/date-time";
 import type {
   CheckRun,
-  GitHubClient,
   PullRequest,
   PullRequestComment,
   PullRequestReview,
@@ -25,6 +24,7 @@ import type {
   CorePRStatus,
   DiscoveredPR,
   Logger,
+  PRAnalyzerClient,
   ScannedPR,
 } from "./types.js";
 
@@ -49,21 +49,20 @@ const BOT_USERNAMES = new Set([
  * Analyze a PR and determine its status
  */
 export async function analyzePR(
-  client: GitHubClient,
+  client: PRAnalyzerClient,
   owner: string,
   repo: string,
-  pr: PullRequest,
+  pr: PullRequest | number,
   botMention: string,
   hooks?: AnalyzerHooks
 ): Promise<ScannedPR> {
-  const snapshot = await client
-    .pr(`${owner}/${repo}#${String(pr.number)}`)
-    .load();
-  const currentPr = snapshot.pullRequest;
+  const prNumber = typeof pr === "number" ? pr : pr.number;
+  const snapshot = await client.repo(owner, repo).pr(prNumber).snapshot();
+  const currentPr = snapshot.pr;
   const { checks } = snapshot;
   const { comments } = snapshot;
   const { reviews } = snapshot;
-  const repoInfo = snapshot.repository;
+  const repoInfo = snapshot.repo;
 
   // Analyze the fetched data
   const ciStatus = analyzeCIStatus(checks);
@@ -106,23 +105,34 @@ export async function analyzePR(
  */
 export async function analyzeAll(
   prs: readonly DiscoveredPR[],
-  client: GitHubClient,
+  client: PRAnalyzerClient,
   botMention: string,
   logger?: Logger,
   hooks?: AnalyzerHooks
 ): Promise<ScannedPR[]> {
+  const settled = await Promise.allSettled(
+    prs.map(({ pr, repoOwner, repoName }) =>
+      analyzePR(client, repoOwner, repoName, pr, botMention, hooks)
+    )
+  );
+
   const results: ScannedPR[] = [];
 
-  for (const { pr, repoOwner, repoName } of prs) {
-    try {
-      results.push(
-        await analyzePR(client, repoOwner, repoName, pr, botMention, hooks)
-      );
-    } catch (err) {
+  for (const [index, result] of settled.entries()) {
+    if (result.status === "fulfilled") {
+      results.push(result.value);
+      continue;
+    }
+
+    const failed = prs[index];
+    if (failed !== undefined) {
       logger?.error("Failed to analyze PR", {
-        repo: `${repoOwner}/${repoName}`,
-        pr: pr.number,
-        error: err instanceof Error ? err.message : String(err),
+        repo: `${failed.repoOwner}/${failed.repoName}`,
+        pr: failed.pr.number,
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
       });
     }
   }

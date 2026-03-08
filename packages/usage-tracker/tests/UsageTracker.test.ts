@@ -1,17 +1,17 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { UsageTracker } from "../src/UsageTracker.js";
-import { SpendLimitExceededError } from "../src/SpendLimitExceededError.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const defaults = {
+import { BudgetExceededError } from "../src/BudgetExceededError.js";
+import { UsageTracker } from "../src/UsageTracker.js";
+
+const metrics = {
   api: { requests: 0, tokens: 0, costUsd: 0 },
   audio: { requests: 0, durationSeconds: 0 },
 };
 
-/** Defaults with CostUsd-convention fields for spend limit tests. */
-const spendDefaults = {
+const spendMetrics = {
   api: { requests: 0, tokens: 0, estimatedCostUsd: 0 },
   code: { sessions: 0, totalCostUsd: 0 },
 };
@@ -23,182 +23,150 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   fs.rmSync(testDir, { recursive: true, force: true });
 });
 
 describe("UsageTracker", () => {
-  describe("create", () => {
-    it("starts with zero session and cumulative", async () => {
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+  describe("open", () => {
+    it("starts with zero current and total metrics", async () => {
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
 
-      expect(tracker.session).toEqual(defaults);
-      expect(tracker.cumulative).toEqual(defaults);
+      expect(usage.current).toEqual(metrics);
+      expect(usage.total).toEqual(metrics);
     });
 
-    it("sets sessionStartedAt and trackingSince", async () => {
+    it("sets startedAt and trackingSince", async () => {
       const before = new Date().toISOString();
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
       const after = new Date().toISOString();
 
-      expect(tracker.sessionStartedAt >= before).toBe(true);
-      expect(tracker.sessionStartedAt <= after).toBe(true);
-      expect(tracker.trackingSince >= before).toBe(true);
-      expect(tracker.trackingSince <= after).toBe(true);
+      expect(usage.startedAt >= before).toBe(true);
+      expect(usage.startedAt <= after).toBe(true);
+      expect(usage.trackingSince >= before).toBe(true);
+      expect(usage.trackingSince <= after).toBe(true);
     });
 
-    it("reports isPersistent true when storage works", async () => {
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+    it("reports persistence when file storage works", async () => {
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
+      expect(usage.persistent).toBe(true);
+    });
 
-      expect(tracker.isPersistent).toBe(true);
+    it("rejects invalid budget values", async () => {
+      await expect(() =>
+        UsageTracker.open("test", spendMetrics, {
+          dir: testDir,
+          budget: { hour: -1 },
+        })
+      ).rejects.toThrow('Budget for "hour" must be a finite number >= 0');
     });
   });
 
-  describe("record", () => {
-    it("increments session and cumulative simultaneously", async () => {
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+  describe("track", () => {
+    it("increments current and total simultaneously", async () => {
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
 
-      tracker.record({ api: { requests: 1, tokens: 500, costUsd: 0.01 } });
+      usage.track({ api: { requests: 1, tokens: 500, costUsd: 0.01 } });
 
-      expect(tracker.session.api).toEqual({
+      expect(usage.current.api).toEqual({
         requests: 1,
         tokens: 500,
         costUsd: 0.01,
       });
-      expect(tracker.cumulative.api).toEqual({
+      expect(usage.total.api).toEqual({
         requests: 1,
         tokens: 500,
         costUsd: 0.01,
       });
-      // Audio untouched
-      expect(tracker.session.audio).toEqual(defaults.audio);
+      expect(usage.current.audio).toEqual(metrics.audio);
     });
 
     it("accepts partial metrics", async () => {
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
 
-      tracker.record({ api: { requests: 1 } });
+      usage.track({ api: { requests: 1 } });
 
-      expect(tracker.session.api.requests).toBe(1);
-      expect(tracker.session.api.tokens).toBe(0);
-      expect(tracker.session.api.costUsd).toBe(0);
+      expect(usage.current.api.requests).toBe(1);
+      expect(usage.current.api.tokens).toBe(0);
+      expect(usage.current.api.costUsd).toBe(0);
     });
 
     it("accumulates across multiple calls", async () => {
-      const tracker = await UsageTracker.create({
-        key: "test",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+      const usage = await UsageTracker.open("test", metrics, { dir: testDir });
 
-      tracker.record({ api: { requests: 1, tokens: 100 } });
-      tracker.record({ api: { requests: 1, tokens: 200 } });
-      tracker.record({ audio: { requests: 1, durationSeconds: 30 } });
+      usage.track({ api: { requests: 1, tokens: 100 } });
+      usage.track({ api: { requests: 1, tokens: 200 } });
+      usage.track({ audio: { requests: 1, durationSeconds: 30 } });
 
-      expect(tracker.session.api.requests).toBe(2);
-      expect(tracker.session.api.tokens).toBe(300);
-      expect(tracker.session.audio.requests).toBe(1);
-      expect(tracker.session.audio.durationSeconds).toBe(30);
+      expect(usage.current.api.requests).toBe(2);
+      expect(usage.current.api.tokens).toBe(300);
+      expect(usage.current.audio.requests).toBe(1);
+      expect(usage.current.audio.durationSeconds).toBe(30);
     });
   });
 
   describe("persistence", () => {
-    it("preserves cumulative data across instances", async () => {
-      const tracker1 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+    it("preserves total data across instances", async () => {
+      const usage1 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      tracker1.record({ api: { requests: 5, tokens: 1000, costUsd: 0.05 } });
-      await tracker1.save();
+      usage1.track({ api: { requests: 5, tokens: 1000, costUsd: 0.05 } });
+      await usage1.save();
 
-      const tracker2 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage2 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      expect(tracker2.cumulative.api).toEqual({
+      expect(usage2.total.api).toEqual({
         requests: 5,
         tokens: 1000,
         costUsd: 0.05,
       });
     });
 
-    it("resets session on new create while preserving cumulative", async () => {
-      const tracker1 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+    it("starts a fresh current run when reopened", async () => {
+      const usage1 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      tracker1.record({
+      usage1.track({
         api: { requests: 3, tokens: 600, costUsd: 0.03 },
         audio: { requests: 2, durationSeconds: 60 },
       });
-      await tracker1.save();
+      await usage1.save();
 
-      const tracker2 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage2 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      // Session is zeroed out
-      expect(tracker2.session).toEqual(defaults);
-      // Cumulative is preserved
-      expect(tracker2.cumulative.api.requests).toBe(3);
-      expect(tracker2.cumulative.audio.durationSeconds).toBe(60);
+      expect(usage2.current).toEqual(metrics);
+      expect(usage2.total.api.requests).toBe(3);
+      expect(usage2.total.audio.durationSeconds).toBe(60);
     });
 
     it("preserves trackingSince across instances", async () => {
-      const tracker1 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage1 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      const originalTrackingSince = tracker1.trackingSince;
-      await tracker1.save();
+      const trackingSince = usage1.trackingSince;
+      await usage1.save();
 
-      const tracker2 = await UsageTracker.create({
-        key: "persist-test",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage2 = await UsageTracker.open("persist-test", metrics, {
+        dir: testDir,
       });
 
-      expect(tracker2.trackingSince).toBe(originalTrackingSince);
+      expect(usage2.trackingSince).toBe(trackingSince);
     });
 
-    it("save() force-saves to disk", async () => {
-      const tracker = await UsageTracker.create({
-        key: "save-test",
-        default: defaults,
-        stateDirectory: testDir,
+    it("save() writes the current state to disk", async () => {
+      const usage = await UsageTracker.open("save-test", metrics, {
+        dir: testDir,
       });
 
-      tracker.record({ api: { requests: 1, tokens: 100, costUsd: 0.01 } });
-      await tracker.save();
+      usage.track({ api: { requests: 1, tokens: 100, costUsd: 0.01 } });
+      await usage.save();
 
       const filePath = path.join(testDir, "save-test.json");
       expect(fs.existsSync(filePath)).toBe(true);
@@ -210,404 +178,321 @@ describe("UsageTracker", () => {
     });
   });
 
-  describe("realistic scenario", () => {
-    it("simulates multi-provider usage with restart", async () => {
-      // Session 1: record various metrics
-      const session1 = await UsageTracker.create({
-        key: "realistic",
-        default: defaults,
-        stateDirectory: testDir,
+  describe("usage flow", () => {
+    it("keeps totals across a restart while resetting the current run", async () => {
+      const firstRun = await UsageTracker.open("realistic", metrics, {
+        dir: testDir,
       });
 
-      session1.record({ api: { requests: 1, tokens: 500, costUsd: 0.01 } });
-      session1.record({ api: { requests: 1, tokens: 300, costUsd: 0.008 } });
-      session1.record({ audio: { requests: 1, durationSeconds: 45 } });
+      firstRun.track({ api: { requests: 1, tokens: 500, costUsd: 0.01 } });
+      firstRun.track({ api: { requests: 1, tokens: 300, costUsd: 0.008 } });
+      firstRun.track({ audio: { requests: 1, durationSeconds: 45 } });
 
-      expect(session1.session.api.requests).toBe(2);
-      expect(session1.cumulative.api.tokens).toBe(800);
-      await session1.save();
+      expect(firstRun.current.api.requests).toBe(2);
+      expect(firstRun.total.api.tokens).toBe(800);
+      await firstRun.save();
 
-      // Session 2: restart — cumulative persists, session resets
-      const session2 = await UsageTracker.create({
-        key: "realistic",
-        default: defaults,
-        stateDirectory: testDir,
+      const secondRun = await UsageTracker.open("realistic", metrics, {
+        dir: testDir,
       });
 
-      expect(session2.session.api.requests).toBe(0);
-      expect(session2.cumulative.api.requests).toBe(2);
-      expect(session2.cumulative.api.tokens).toBe(800);
-      expect(session2.cumulative.audio.durationSeconds).toBe(45);
+      expect(secondRun.current.api.requests).toBe(0);
+      expect(secondRun.total.api.requests).toBe(2);
+      expect(secondRun.total.api.tokens).toBe(800);
+      expect(secondRun.total.audio.durationSeconds).toBe(45);
 
-      // Record more in session 2
-      session2.record({ api: { requests: 1, tokens: 200, costUsd: 0.005 } });
+      secondRun.track({ api: { requests: 1, tokens: 200, costUsd: 0.005 } });
 
-      expect(session2.session.api.requests).toBe(1);
-      expect(session2.cumulative.api.requests).toBe(3);
-      expect(session2.cumulative.api.tokens).toBe(1000);
+      expect(secondRun.current.api.requests).toBe(1);
+      expect(secondRun.total.api.requests).toBe(3);
+      expect(secondRun.total.api.tokens).toBe(1000);
+    });
+
+    it("returns defensive metric snapshots", async () => {
+      const usage = await UsageTracker.open("defensive-getters", metrics, {
+        dir: testDir,
+      });
+
+      const current = usage.current as typeof metrics;
+      current.api.requests = 999;
+
+      const total = usage.total as typeof metrics;
+      total.audio.durationSeconds = 123;
+
+      expect(usage.current.api.requests).toBe(0);
+      expect(usage.total.audio.durationSeconds).toBe(0);
     });
   });
 
-  describe("read-only getters are defensive", () => {
-    it("session and cumulative cannot be mutated externally", async () => {
-      const tracker = await UsageTracker.create({
-        key: "defensive-getters",
-        default: defaults,
-        stateDirectory: testDir,
-      });
+  describe("spend", () => {
+    it("returns 0 when there are no tracked cost fields", async () => {
+      const usage = await UsageTracker.open(
+        "no-cost",
+        { requests: 0, tokens: 0 },
+        { dir: testDir }
+      );
 
-      const sessionView = tracker.session as typeof defaults;
-      sessionView.api.requests = 999;
-
-      const cumulativeView = tracker.cumulative as typeof defaults;
-      cumulativeView.audio.durationSeconds = 123;
-
-      expect(tracker.session.api.requests).toBe(0);
-      expect(tracker.cumulative.audio.durationSeconds).toBe(0);
-    });
-  });
-
-  describe("costInWindow", () => {
-    it("returns 0 when no cost fields exist", async () => {
-      const tracker = await UsageTracker.create({
-        key: "no-cost",
-        default: { requests: 0, tokens: 0 },
-        stateDirectory: testDir,
-      });
-
-      tracker.record({ requests: 1, tokens: 100 });
-      expect(tracker.costInWindow(60_000)).toBe(0);
+      usage.track({ requests: 1, tokens: 100 });
+      expect(usage.spend("minute")).toBe(0);
     });
 
-    it("tracks cost from *CostUsd fields automatically", async () => {
-      const tracker = await UsageTracker.create({
-        key: "cost-track",
-        default: spendDefaults,
-        stateDirectory: testDir,
+    it("tracks spend from every *CostUsd field automatically", async () => {
+      const usage = await UsageTracker.open("cost-track", spendMetrics, {
+        dir: testDir,
       });
 
-      tracker.record({ api: { estimatedCostUsd: 0.05 } });
-      tracker.record({ code: { totalCostUsd: 1.5 } });
+      usage.track({ api: { estimatedCostUsd: 0.05 } });
+      usage.track({ code: { totalCostUsd: 1.5 } });
 
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(1.55);
+      expect(usage.spend("minute")).toBeCloseTo(1.55);
     });
 
-    it("sums cost across multiple CostUsd fields in a single record", async () => {
-      const tracker = await UsageTracker.create({
-        key: "multi-cost",
-        default: spendDefaults,
-        stateDirectory: testDir,
+    it("sums multiple cost fields from one track call", async () => {
+      const usage = await UsageTracker.open("multi-cost", spendMetrics, {
+        dir: testDir,
       });
 
-      tracker.record({
+      usage.track({
         api: { estimatedCostUsd: 0.1 },
         code: { totalCostUsd: 2.0 },
       });
 
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(2.1);
+      expect(usage.spend("minute")).toBeCloseTo(2.1);
     });
 
-    it("excludes entries outside the window", async () => {
-      const tracker = await UsageTracker.create({
-        key: "window-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-      });
-
-      // Record an entry, then advance time past the window
+    it("uses named trailing windows", async () => {
       vi.useFakeTimers();
       const baseTime = Date.now();
       vi.setSystemTime(baseTime);
 
-      tracker.record({ api: { estimatedCostUsd: 1.0 } });
-
-      // Move forward 5 minutes
-      vi.setSystemTime(baseTime + 5 * 60_000);
-      tracker.record({ api: { estimatedCostUsd: 0.5 } });
-
-      // 1-minute window should only include the recent entry
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(0.5);
-      // 10-minute window should include both
-      expect(tracker.costInWindow(10 * 60_000)).toBeCloseTo(1.5);
-
-      vi.useRealTimers();
-    });
-
-    it("does not track records with zero cost", async () => {
-      const tracker = await UsageTracker.create({
-        key: "zero-cost",
-        default: spendDefaults,
-        stateDirectory: testDir,
+      const usage = await UsageTracker.open("window-test", spendMetrics, {
+        dir: testDir,
       });
 
-      // Record with no cost fields
-      tracker.record({ api: { requests: 1, tokens: 500 } });
+      usage.track({ api: { estimatedCostUsd: 1.0 } });
 
-      expect(tracker.costInWindow(60_000)).toBe(0);
+      vi.setSystemTime(baseTime + 5 * 60_000);
+      usage.track({ api: { estimatedCostUsd: 0.5 } });
+
+      expect(usage.spend("minute")).toBeCloseTo(0.5);
+      expect(usage.spend("day")).toBeCloseTo(1.5);
+    });
+
+    it("ignores records with zero cost", async () => {
+      const usage = await UsageTracker.open("zero-cost", spendMetrics, {
+        dir: testDir,
+      });
+
+      usage.track({ api: { requests: 1, tokens: 500 } });
+
+      expect(usage.spend("minute")).toBe(0);
     });
   });
 
-  describe("spend limits", () => {
-    it("assertWithinSpendLimits passes when under limit", async () => {
-      const tracker = await UsageTracker.create({
-        key: "limit-pass",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 5, label: "1 minute" }],
+  describe("budget", () => {
+    it("assertBudget passes when usage is under budget", async () => {
+      const usage = await UsageTracker.open("budget-pass", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 5 },
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.0 } });
-      expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
+      usage.track({ api: { estimatedCostUsd: 1.0 } });
+      expect(() => usage.assertBudget()).not.toThrow();
     });
 
-    it("assertWithinSpendLimits throws when over limit", async () => {
-      const tracker = await UsageTracker.create({
-        key: "limit-fail",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
+    it("assertBudget throws when usage is over budget", async () => {
+      const usage = await UsageTracker.open("budget-fail", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 1 },
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.5 } });
+      usage.track({ api: { estimatedCostUsd: 1.5 } });
 
-      expect(() => tracker.assertWithinSpendLimits()).toThrow(
-        SpendLimitExceededError
-      );
+      expect(() => usage.assertBudget()).toThrow(BudgetExceededError);
     });
 
-    it("throws for the first exceeded limit", async () => {
-      const tracker = await UsageTracker.create({
-        key: "multi-limit",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" },
-          { windowMs: 600_000, maxSpendUsd: 5, label: "10 minutes" },
-        ],
+    it("throws the first exceeded configured window", async () => {
+      const usage = await UsageTracker.open("multi-budget", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 1, hour: 5 },
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.5 } });
+      usage.track({ api: { estimatedCostUsd: 1.5 } });
 
       try {
-        tracker.assertWithinSpendLimits();
+        usage.assertBudget();
         expect.fail("should have thrown");
-      } catch (err) {
-        expect(err).toBeInstanceOf(SpendLimitExceededError);
-        const e = err as SpendLimitExceededError;
-        expect(e.status.limit.label).toBe("1 minute");
-        expect(e.status.spentUsd).toBeCloseTo(1.5);
-        expect(e.status.exceeded).toBe(true);
+      } catch (error) {
+        expect(error).toBeInstanceOf(BudgetExceededError);
+        const budgetError = error as BudgetExceededError;
+        expect(budgetError.status.window).toBe("minute");
+        expect(budgetError.status.spentUsd).toBeCloseTo(1.5);
+        expect(budgetError.status.exceeded).toBe(true);
       }
     });
 
-    it("is a no-op when no spend limits configured", async () => {
-      const tracker = await UsageTracker.create({
-        key: "no-limits",
-        default: spendDefaults,
-        stateDirectory: testDir,
+    it("is a no-op when no budget is configured", async () => {
+      const usage = await UsageTracker.open("no-budget", spendMetrics, {
+        dir: testDir,
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1000 } });
-      expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
+      usage.track({ api: { estimatedCostUsd: 1000 } });
+      expect(() => usage.assertBudget()).not.toThrow();
+      expect(usage.budget).toEqual({});
     });
 
-    it("fires onSpendLimitExceeded callback on transition into exceeded", async () => {
-      const exceeded = vi.fn();
-      const tracker = await UsageTracker.create({
-        key: "callback-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
-        onSpendLimitExceeded: exceeded,
+    it("returns budget status keyed by window name", async () => {
+      const usage = await UsageTracker.open("budget-status", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 5, hour: 20 },
       });
 
-      tracker.record({ api: { estimatedCostUsd: 0.5 } });
-      expect(exceeded).not.toHaveBeenCalled();
+      usage.track({ api: { estimatedCostUsd: 3.0 } });
 
-      tracker.record({ api: { estimatedCostUsd: 0.6 } });
-      expect(exceeded).toHaveBeenCalledOnce();
-      expect(exceeded.mock.calls[0]![0]!.exceeded).toBe(true);
-      expect(exceeded.mock.calls[0]![0]!.limit.label).toBe("1 minute");
+      expect(usage.budget.minute).toEqual({
+        window: "minute",
+        spentUsd: 3,
+        limitUsd: 5,
+        remainingUsd: 2,
+        exceeded: false,
+        resumesAt: null,
+      });
 
-      // Still over the limit, so no new transition should occur.
-      tracker.record({ api: { estimatedCostUsd: 0.1 } });
-      expect(exceeded).toHaveBeenCalledTimes(1);
+      expect(usage.budget.hour).toEqual({
+        window: "hour",
+        spentUsd: 3,
+        limitUsd: 20,
+        remainingUsd: 17,
+        exceeded: false,
+        resumesAt: null,
+      });
     });
 
-    it("does not fire callback immediately when already exceeded from persisted state", async () => {
-      const firstExceeded = vi.fn();
-      const key = "persisted-over-limit";
-
-      const tracker1 = await UsageTracker.create({
-        key,
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
-        onSpendLimitExceeded: firstExceeded,
-      });
-
-      tracker1.record({ api: { estimatedCostUsd: 1.5 } });
-      expect(firstExceeded).toHaveBeenCalledOnce();
-      await tracker1.save();
-
-      const secondExceeded = vi.fn();
-      const tracker2 = await UsageTracker.create({
-        key,
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 1, label: "1 minute" }],
-        onSpendLimitExceeded: secondExceeded,
-      });
-
-      // Still over the limit, but this is not a fresh transition.
-      tracker2.record({ api: { estimatedCostUsd: 0.1 } });
-      expect(secondExceeded).not.toHaveBeenCalled();
-    });
-
-    it("does not fire callback for records with zero cost", async () => {
-      const exceeded = vi.fn();
-      const tracker = await UsageTracker.create({
-        key: "no-fire",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 0.01, label: "1 minute" },
-        ],
-        onSpendLimitExceeded: exceeded,
-      });
-
-      // Record without cost fields — should never trigger limit check
-      tracker.record({ api: { requests: 1 } });
-      expect(exceeded).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("spendStatus", () => {
-    it("returns empty array when no limits configured", async () => {
-      const tracker = await UsageTracker.create({
-        key: "no-status",
-        default: spendDefaults,
-        stateDirectory: testDir,
-      });
-
-      expect(tracker.spendStatus()).toEqual([]);
-    });
-
-    it("returns status for each configured limit", async () => {
-      const tracker = await UsageTracker.create({
-        key: "status-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [
-          { windowMs: 60_000, maxSpendUsd: 5, label: "1 minute" },
-          { windowMs: 600_000, maxSpendUsd: 20, label: "10 minutes" },
-        ],
-      });
-
-      tracker.record({ api: { estimatedCostUsd: 3.0 } });
-
-      const statuses = tracker.spendStatus();
-      expect(statuses).toHaveLength(2);
-
-      expect(statuses[0]!.spentUsd).toBeCloseTo(3.0);
-      expect(statuses[0]!.remainingUsd).toBeCloseTo(2.0);
-      expect(statuses[0]!.exceeded).toBe(false);
-      expect(statuses[0]!.resumesAt).toBeNull();
-
-      expect(statuses[1]!.spentUsd).toBeCloseTo(3.0);
-      expect(statuses[1]!.remainingUsd).toBeCloseTo(17.0);
-      expect(statuses[1]!.exceeded).toBe(false);
-    });
-
-    it("calculates resumesAt when exceeded", async () => {
+    it("calculates resumesAt when a budget is exceeded", async () => {
       vi.useFakeTimers();
       const baseTime = Date.now();
       vi.setSystemTime(baseTime);
 
-      const tracker = await UsageTracker.create({
-        key: "resume-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 2, label: "1 minute" }],
+      const usage = await UsageTracker.open("resume-test", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 2 },
       });
 
-      tracker.record({ api: { estimatedCostUsd: 1.5 } });
+      usage.track({ api: { estimatedCostUsd: 1.5 } });
 
       vi.setSystemTime(baseTime + 10_000);
-      tracker.record({ api: { estimatedCostUsd: 1.0 } });
+      usage.track({ api: { estimatedCostUsd: 1.0 } });
 
-      const status = tracker.spendStatus()[0]!;
-      expect(status.exceeded).toBe(true);
-      // The first entry ($1.50) needs to leave the window.
-      // It was recorded at baseTime, so it leaves at baseTime + 60_000.
-      expect(status.resumesAt).toEqual(new Date(baseTime + 60_000));
+      expect(usage.budget.minute?.exceeded).toBe(true);
+      expect(usage.budget.minute?.resumesAt).toEqual(
+        new Date(baseTime + 60_000)
+      );
+    });
 
-      vi.useRealTimers();
+    it("fires onBudgetExceeded only on transition into exceeded", async () => {
+      const exceeded = vi.fn();
+      const usage = await UsageTracker.open("callback-test", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 1 },
+        onBudgetExceeded: exceeded,
+      });
+
+      usage.track({ api: { estimatedCostUsd: 0.5 } });
+      expect(exceeded).not.toHaveBeenCalled();
+
+      usage.track({ api: { estimatedCostUsd: 0.6 } });
+      expect(exceeded).toHaveBeenCalledOnce();
+      expect(exceeded.mock.calls[0]![0]!.window).toBe("minute");
+      expect(exceeded.mock.calls[0]![0]!.exceeded).toBe(true);
+
+      usage.track({ api: { estimatedCostUsd: 0.1 } });
+      expect(exceeded).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire onBudgetExceeded immediately from persisted over-budget state", async () => {
+      const firstExceeded = vi.fn();
+      const usage1 = await UsageTracker.open("persisted-over-budget", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 1 },
+        onBudgetExceeded: firstExceeded,
+      });
+
+      usage1.track({ api: { estimatedCostUsd: 1.5 } });
+      expect(firstExceeded).toHaveBeenCalledOnce();
+      await usage1.save();
+
+      const secondExceeded = vi.fn();
+      const usage2 = await UsageTracker.open("persisted-over-budget", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 1 },
+        onBudgetExceeded: secondExceeded,
+      });
+
+      usage2.track({ api: { estimatedCostUsd: 0.1 } });
+      expect(secondExceeded).not.toHaveBeenCalled();
+    });
+
+    it("does not fire onBudgetExceeded for zero-cost records", async () => {
+      const exceeded = vi.fn();
+      const usage = await UsageTracker.open("no-fire", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 0.01 },
+        onBudgetExceeded: exceeded,
+      });
+
+      usage.track({ api: { requests: 1 } });
+      expect(exceeded).not.toHaveBeenCalled();
     });
   });
 
   describe("spend entry persistence", () => {
     it("persists spend entries across restarts", async () => {
-      const tracker1 = await UsageTracker.create({
-        key: "spend-persist",
-        default: spendDefaults,
-        stateDirectory: testDir,
+      const usage1 = await UsageTracker.open("spend-persist", spendMetrics, {
+        dir: testDir,
       });
 
-      tracker1.record({ api: { estimatedCostUsd: 2.0 } });
-      tracker1.record({ code: { totalCostUsd: 3.0 } });
-      await tracker1.save();
+      usage1.track({ api: { estimatedCostUsd: 2.0 } });
+      usage1.track({ code: { totalCostUsd: 3.0 } });
+      await usage1.save();
 
-      const tracker2 = await UsageTracker.create({
-        key: "spend-persist",
-        default: spendDefaults,
-        stateDirectory: testDir,
+      const usage2 = await UsageTracker.open("spend-persist", spendMetrics, {
+        dir: testDir,
       });
 
-      expect(tracker2.costInWindow(60_000)).toBeCloseTo(5.0);
+      expect(usage2.spend("minute")).toBeCloseTo(5.0);
     });
 
-    it("prunes stale entries on restart", async () => {
+    it("prunes spend entries older than one week on restart", async () => {
       vi.useFakeTimers();
       const baseTime = Date.now();
       vi.setSystemTime(baseTime);
 
-      const tracker1 = await UsageTracker.create({
-        key: "prune-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
+      const usage1 = await UsageTracker.open("prune-test", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 10 },
       });
 
-      tracker1.record({ api: { estimatedCostUsd: 1.0 } });
-      await tracker1.save();
+      usage1.track({ api: { estimatedCostUsd: 1.0 } });
+      await usage1.save();
 
-      // Restart 2 minutes later — entry should be pruned
-      vi.setSystemTime(baseTime + 120_000);
+      vi.setSystemTime(baseTime + 8 * 24 * 60 * 60_000);
 
-      const tracker2 = await UsageTracker.create({
-        key: "prune-test",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
+      const usage2 = await UsageTracker.open("prune-test", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 10 },
       });
 
-      expect(tracker2.costInWindow(60_000)).toBe(0);
-
-      vi.useRealTimers();
+      expect(usage2.spend("week")).toBe(0);
     });
 
-    it("backfills missing top-level keys in cumulative when schema gains new fields", async () => {
-      // Simulate a state file written before a new metric group was added.
-      // The persisted cumulative only has "api", but the new default also has "audio".
+    it("backfills missing top-level keys when the metric schema grows", async () => {
       const filePath = path.join(testDir, "schema-migration.json");
       const oldState = {
         value: {
           cumulative: {
             api: { requests: 7, tokens: 500, costUsd: 0.07 },
-            // "audio" is absent — added to schema after this state was saved
           },
-          session: defaults,
+          session: metrics,
           trackingSince: new Date().toISOString(),
           sessionStartedAt: new Date().toISOString(),
           spendEntries: [],
@@ -616,31 +501,25 @@ describe("UsageTracker", () => {
       };
       fs.writeFileSync(filePath, JSON.stringify(oldState));
 
-      const tracker = await UsageTracker.create({
-        key: "schema-migration",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage = await UsageTracker.open("schema-migration", metrics, {
+        dir: testDir,
       });
 
-      // Existing data is preserved
-      expect(tracker.cumulative.api.requests).toBe(7);
-      expect(tracker.cumulative.api.tokens).toBe(500);
-      // Missing key is backfilled with defaults (not undefined)
-      expect(tracker.cumulative.audio).toEqual(defaults.audio);
-      expect(tracker.cumulative.audio.requests).toBe(0);
+      expect(usage.total.api.requests).toBe(7);
+      expect(usage.total.api.tokens).toBe(500);
+      expect(usage.total.audio).toEqual(metrics.audio);
+      expect(usage.total.audio.requests).toBe(0);
     });
 
-    it("backfills missing nested fields in cumulative when schema gains new fields", async () => {
-      // Simulate a state file written before a new field was added inside an existing group.
-      // The persisted cumulative.api is missing "costUsd" (added to schema later).
+    it("backfills missing nested keys when the metric schema grows", async () => {
       const filePath = path.join(testDir, "nested-migration.json");
       const oldState = {
         value: {
           cumulative: {
-            api: { requests: 3, tokens: 200 }, // costUsd missing
+            api: { requests: 3, tokens: 200 },
             audio: { requests: 1, durationSeconds: 30 },
           },
-          session: defaults,
+          session: metrics,
           trackingSince: new Date().toISOString(),
           sessionStartedAt: new Date().toISOString(),
           spendEntries: [],
@@ -649,48 +528,38 @@ describe("UsageTracker", () => {
       };
       fs.writeFileSync(filePath, JSON.stringify(oldState));
 
-      const tracker = await UsageTracker.create({
-        key: "nested-migration",
-        default: defaults,
-        stateDirectory: testDir,
+      const usage = await UsageTracker.open("nested-migration", metrics, {
+        dir: testDir,
       });
 
-      // Existing nested data is preserved
-      expect(tracker.cumulative.api.requests).toBe(3);
-      expect(tracker.cumulative.api.tokens).toBe(200);
-      // Missing nested field is backfilled with the default value (0)
-      expect(tracker.cumulative.api.costUsd).toBe(0);
+      expect(usage.total.api.requests).toBe(3);
+      expect(usage.total.api.tokens).toBe(200);
+      expect(usage.total.api.costUsd).toBe(0);
     });
 
-    it("handles state files without spendEntries (backward compat)", async () => {
-      // Write a state file without spendEntries (simulating old format)
+    it("supports old persisted state without spendEntries", async () => {
       const filePath = path.join(testDir, "old-format.json");
       const oldState = {
         value: {
-          cumulative: spendDefaults,
-          session: spendDefaults,
+          cumulative: spendMetrics,
+          session: spendMetrics,
           trackingSince: new Date().toISOString(),
           sessionStartedAt: new Date().toISOString(),
-          // no spendEntries field
         },
         lastUpdated: new Date().toISOString(),
       };
       fs.writeFileSync(filePath, JSON.stringify(oldState));
 
-      const tracker = await UsageTracker.create({
-        key: "old-format",
-        default: spendDefaults,
-        stateDirectory: testDir,
-        spendLimits: [{ windowMs: 60_000, maxSpendUsd: 10, label: "1 minute" }],
+      const usage = await UsageTracker.open("old-format", spendMetrics, {
+        dir: testDir,
+        budget: { minute: 10 },
       });
 
-      // Should work fine with empty entries
-      expect(tracker.costInWindow(60_000)).toBe(0);
-      expect(() => tracker.assertWithinSpendLimits()).not.toThrow();
+      expect(usage.spend("minute")).toBe(0);
+      expect(() => usage.assertBudget()).not.toThrow();
 
-      // Should be able to record new entries
-      tracker.record({ api: { estimatedCostUsd: 1.0 } });
-      expect(tracker.costInWindow(60_000)).toBeCloseTo(1.0);
+      usage.track({ api: { estimatedCostUsd: 1.0 } });
+      expect(usage.spend("minute")).toBeCloseTo(1.0);
     });
   });
 });

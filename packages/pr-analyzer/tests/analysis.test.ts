@@ -131,14 +131,16 @@ function makeMockClient(opts: {
   const repo = opts.repo ?? makeRepo();
 
   const client = {
-    pr: vi.fn().mockReturnValue({
-      load: vi.fn().mockResolvedValue({
-        pullRequest: opts.pr,
-        repository: repo,
-        comments,
-        reviews,
-        checks,
-        timeline: [],
+    repo: vi.fn().mockReturnValue({
+      pr: vi.fn().mockReturnValue({
+        snapshot: vi.fn().mockResolvedValue({
+          pr: opts.pr,
+          repo,
+          comments,
+          reviews,
+          checks,
+          timeline: [],
+        }),
       }),
     }),
   } as unknown as GitHubClient;

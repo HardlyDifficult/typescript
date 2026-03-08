@@ -28,7 +28,7 @@ describe("watchLikes", () => {
     globalThis.fetch = fetchMock as typeof fetch;
 
     const iterator = createSocial({ token: "token" })
-      .me.watchLikes({ everyMs: 1_000 })
+      .watchLikes({ everyMs: 1_000 })
       [Symbol.asyncIterator]();
 
     const firstLike = iterator.next();
@@ -63,7 +63,7 @@ describe("watchLikes", () => {
     globalThis.fetch = fetchMock as typeof fetch;
 
     const iterator = createSocial({ token: "token" })
-      .me.watchLikes({ everyMs: 5_000 })
+      .watchLikes({ everyMs: 5_000 })
       [Symbol.asyncIterator]();
 
     const firstLike = iterator.next();
@@ -78,7 +78,7 @@ describe("watchLikes", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("accepts pollIntervalMs as an alias for everyMs", async () => {
+  it("accepts a bare interval number", async () => {
     vi.useFakeTimers();
 
     const fetchMock = vi
@@ -89,7 +89,7 @@ describe("watchLikes", () => {
     globalThis.fetch = fetchMock as typeof fetch;
 
     const iterator = createSocial({ token: "token" })
-      .me.watchLikes({ pollIntervalMs: 5_000 })
+      .watchLikes(5_000)
       [Symbol.asyncIterator]();
 
     const firstLike = iterator.next();
@@ -112,7 +112,7 @@ describe("watchLikes", () => {
 
     const controller = new AbortController();
     const iterator = createSocial({ token: "token" })
-      .me.watchLikes({ everyMs: 1_000, signal: controller.signal })
+      .watchLikes({ everyMs: 1_000, signal: controller.signal })
       [Symbol.asyncIterator]();
 
     const result = iterator.next();
@@ -140,7 +140,7 @@ describe("watchLikes", () => {
     globalThis.fetch = fetchMock as typeof fetch;
 
     const iterator = createSocial({ token: "token" })
-      .me.watchLikes({ everyMs: 1_000 })
+      .watchLikes({ everyMs: 1_000 })
       [Symbol.asyncIterator]();
 
     const nextLike = iterator.next();

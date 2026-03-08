@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
+import { runWithThrottle } from "../runWithThrottle.js";
 import type { PullRequest, WatchThrottle } from "../types.js";
 
 export interface WatchedPR {
@@ -21,15 +22,19 @@ export async function fetchWatchedPRs(
 
   for (const repoSpec of repos) {
     const [owner, name] = repoSpec.split("/");
-    await throttle?.wait(1);
-    const response = await octokit.pulls.list({
-      owner,
-      repo: name,
-      state: "open",
-      per_page: 100,
-      sort: "updated",
-      direction: "desc",
-    });
+    const response = await runWithThrottle(
+      throttle,
+      () =>
+        octokit.pulls.list({
+          owner,
+          repo: name,
+          state: "open",
+          per_page: 100,
+          sort: "updated",
+          direction: "desc",
+        }),
+      1
+    );
 
     for (const pr of response.data) {
       const key = `${owner}/${name}#${String(pr.number)}`;
@@ -47,12 +52,16 @@ export async function fetchWatchedPRs(
       );
     }
 
-    await throttle?.wait(1);
-    const response = await octokit.search.issuesAndPullRequests({
-      q: `is:pr is:open author:${username}`,
-      per_page: 100,
-      sort: "updated",
-    });
+    const response = await runWithThrottle(
+      throttle,
+      () =>
+        octokit.search.issuesAndPullRequests({
+          q: `is:pr is:open author:${username}`,
+          per_page: 100,
+          sort: "updated",
+        }),
+      1
+    );
 
     const pattern = /repos\/([^/]+)\/([^/]+)$/;
     for (const item of response.data.items) {
@@ -62,12 +71,16 @@ export async function fetchWatchedPRs(
         const key = `${owner}/${name}#${String(item.number)}`;
         if (!seen.has(key)) {
           seen.add(key);
-          await throttle?.wait(1);
-          const prResponse = await octokit.pulls.get({
-            owner,
-            repo: name,
-            pull_number: item.number,
-          });
+          const prResponse = await runWithThrottle(
+            throttle,
+            () =>
+              octokit.pulls.get({
+                owner,
+                repo: name,
+                pull_number: item.number,
+              }),
+            1
+          );
           results.push({
             pr: prResponse.data as unknown as PullRequest,
             owner,

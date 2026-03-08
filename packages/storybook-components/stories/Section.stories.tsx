@@ -9,7 +9,7 @@ const meta: Meta<typeof Section> = {
   component: Section,
   argTypes: {
     title: { control: "text" },
-    subtitle: { control: "text" },
+    description: { control: "text" },
     children: { control: "text" },
   },
 };
@@ -20,7 +20,7 @@ type Story = StoryObj<typeof Section>;
 export const Default: Story = {
   args: {
     title: "Recent activity",
-    subtitle: "Last 24 hours",
+    description: "Last 24 hours",
     children: "Section content goes here.",
   },
 };
@@ -30,10 +30,12 @@ export const WithActions: Story = {
   render: () => (
     <Section
       title="Team members"
-      subtitle="3 active"
+      description="3 active"
       actions={
         <Stack direction="horizontal" gap="sm">
-          <Button variant="ghost" size="sm">Manage</Button>
+          <Button variant="ghost" size="sm">
+            Manage
+          </Button>
           <Button size="sm">Invite</Button>
         </Stack>
       }
@@ -46,4 +48,3 @@ export const WithActions: Story = {
     </Section>
   ),
 };
-

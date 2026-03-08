@@ -17,28 +17,29 @@ export type DeepPartial<T> = {
       : never;
 };
 
-/** A trailing-window spend limit. */
-export interface SpendLimit {
-  /** Window duration in milliseconds. */
-  windowMs: number;
-  /** Maximum spend allowed in the window. */
-  maxSpendUsd: number;
-  /** Human-readable label, e.g. "24 hours". */
-  label: string;
-}
+/** Named trailing windows supported for spend queries and budgets. */
+export type BudgetWindow = "minute" | "hour" | "day" | "week";
 
-/** Status of a single spend limit window. */
-export interface SpendStatus {
-  limit: SpendLimit;
+/** Opinionated spend budget config keyed by named time window. */
+export type Budget = Partial<Record<BudgetWindow, number>>;
+
+/** Status of a single budget window. */
+export interface BudgetStatus {
+  window: BudgetWindow;
   /** Amount spent in the current window. */
   spentUsd: number;
+  /** Configured maximum spend allowed in the window. */
+  limitUsd: number;
   /** How much more can be spent before hitting the limit. */
   remainingUsd: number;
-  /** Whether the limit is currently exceeded. */
+  /** Whether the window is currently over budget. */
   exceeded: boolean;
   /** When the window will have enough room again (null if not exceeded). */
   resumesAt: Date | null;
 }
+
+/** Snapshot of all configured budgets. */
+export type BudgetSnapshot = Partial<Record<BudgetWindow, BudgetStatus>>;
 
 /** A single timestamped spend entry for the cost time-series. */
 export interface SpendEntry {
@@ -56,22 +57,18 @@ export interface PersistedUsageState<T extends NumericRecord> {
   spendEntries: SpendEntry[];
 }
 
-/** Configuration for UsageTracker.create(). */
-export interface UsageTrackerOptions<T extends NumericRecord> {
-  /** Unique persistence key (alphanumeric, hyphens, underscores). */
-  key: string;
-  /** Default metrics shape — all leaves must be 0. */
-  default: T;
+/** Configuration for UsageTracker.open(). */
+export interface UsageTrackerOpenOptions {
   /** Directory for state persistence. */
-  stateDirectory?: string;
-  /** Custom storage adapter (takes priority over stateDirectory). */
-  storageAdapter?: StorageAdapter;
+  dir?: string;
+  /** Custom storage adapter (takes priority over dir). */
+  storage?: StorageAdapter;
   /** Auto-save interval in ms (passed through to StateTracker). */
   autoSaveMs?: number;
   /** Event callback for logging (same shape as StateTracker). */
   onEvent?: (event: StateTrackerEvent) => void;
-  /** Trailing-window spend limits. Requires at least one *CostUsd field in `default`. */
-  spendLimits?: readonly SpendLimit[];
-  /** Fires when a spend limit transitions from within-budget to exceeded after a record() call. */
-  onSpendLimitExceeded?: (status: SpendStatus) => void;
+  /** Spend budgets keyed by named time window. */
+  budget?: Budget;
+  /** Fires when a budget transitions from within-budget to exceeded after a track() call. */
+  onBudgetExceeded?: (status: BudgetStatus) => void;
 }

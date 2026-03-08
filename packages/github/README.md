@@ -11,11 +11,11 @@ npm install @hardlydifficult/github
 ## Quick Start
 
 ```typescript
-import { GitHubClient } from "@hardlydifficult/github";
+import { github } from "@hardlydifficult/github";
 
-const client = new GitHubClient({ token: "ghp_..." });
-const repo = client.repo("owner/repo");
-const pr = client.pr("owner/repo#123");
+const client = github({ token: "ghp_..." });
+const repo = client.repo("owner", "repo");
+const pr = repo.pr(123);
 const watcher = client.watch({ repos: ["owner/repo"] });
 
 // Listen for new PRs
@@ -31,36 +31,24 @@ await watcher.start();
 
 The `GitHubClient` provides top-level access to repositories, PR watching, and user contribution queries.
 
-### new GitHubClient({ token? })
+### github({ token? })
 
-Creates a new client instance from a personal access token. Falls back to `GH_PAT`, then `GITHUB_TOKEN`, when no token is provided.
+Creates a new client instance from a personal access token. Falls back to `GH_PAT`, then `GITHUB_TOKEN`, when no token is provided. `GitHubClient` is still available, but the factory keeps call sites shorter.
 
 ```typescript
-import { GitHubClient } from "@hardlydifficult/github";
+import { github } from "@hardlydifficult/github";
 
-const client = new GitHubClient(); // reads GH_PAT, then GITHUB_TOKEN
-const client2 = new GitHubClient({ token: "ghp_..." }); // explicit token
+const client = github(); // reads GH_PAT, then GITHUB_TOKEN
+const client2 = github({ token: "ghp_..." }); // explicit token
 ```
 
-### client.repo(repoRef)
+### client.repo(owner, repo)
 
 Returns a `RepoClient` for repository-specific operations.
 
 ```typescript
-const repo = client.repo("owner/repo");
-const sameRepo = client.repo("hardlydifficult/typescript");
-const fromUrl = client.repo("https://github.com/hardlydifficult/typescript");
-```
-
-### client.pr(prRef)
-
-Returns a `PRClient` for a pull request reference.
-
-```typescript
-const pr = client.pr("hardlydifficult/typescript#123");
-const fromUrl = client.pr(
-  "https://github.com/hardlydifficult/typescript/pull/123"
-);
+const repo = client.repo("owner", "repo");
+const sameRepo = client.repo("hardlydifficult", "typescript");
 ```
 
 ### client.watch(options)
@@ -97,12 +85,12 @@ const repos = await client.contributedRepositories(30);
 // => Repos where user contributed in past 30 days
 ```
 
-### client.myOpenPullRequests()
+### client.myOpenPRs()
 
 Returns all open PRs authored by the authenticated user.
 
 ```typescript
-const results = await client.myOpenPullRequests();
+const results = await client.myOpenPRs();
 // => [{ pr: PullRequest, repo: { owner, name } }, ...]
 ```
 
@@ -110,29 +98,29 @@ const results = await client.myOpenPullRequests();
 
 `RepoClient` provides methods to inspect and modify a specific repository.
 
-### repo.pullRequest(number)
+### repo.pr(number)
 
 Returns a `PRClient` for interacting with a specific pull request.
 
 ```typescript
-const prClient = repo.pullRequest(42);
-await prClient.markReady(); // Mark PR #42 as ready for review
+const prClient = repo.pr(42);
+await prClient.ready(); // Mark PR #42 as ready for review
 ```
 
-### repo.openPullRequests()
+### repo.openPRs()
 
 Fetches all open pull requests in the repository.
 
 ```typescript
-const prs = await repo.openPullRequests();
+const prs = await repo.openPRs();
 ```
 
-### repo.details()
+### repo.get()
 
 Fetches repository metadata.
 
 ```typescript
-const repoInfo = await repo.details();
+const repoInfo = await repo.get();
 // => { id, name, full_name, owner, html_url, default_branch, description, ... }
 ```
 
@@ -213,12 +201,12 @@ Deletes a branch reference.
 await repo.deleteBranch("feature/branch");
 ```
 
-### repo.openPullRequest(options)
+### repo.openPR(options)
 
 Creates a new pull request.
 
 ```typescript
-const pr = await repo.openPullRequest({
+const pr = await repo.openPR({
   head: "feature/branch",
   title: "Add new feature",
   body: "This PR adds...",
@@ -244,12 +232,12 @@ const result = await repo.commit({
 
 `PRClient` provides high-level methods for working with a specific pull request.
 
-### prClient.details()
+### prClient.get()
 
 Fetches the full pull request details.
 
 ```typescript
-const pr = await prClient.details();
+const pr = await prClient.get();
 ```
 
 ### prClient.diff()
@@ -318,13 +306,13 @@ const timeline = await prClient.timeline();
 // => TimelineEntry[]
 ```
 
-### prClient.load()
+### prClient.snapshot()
 
 Loads the PR details plus comments, reviews, checks, and a prebuilt timeline in one call.
 
 ```typescript
-const snapshot = await prClient.load();
-// => { pullRequest, repository, comments, reviews, checks, timeline }
+const snapshot = await prClient.snapshot();
+// => { pr, repo, comments, reviews, checks, timeline }
 ```
 
 ### prClient.formatTimeline(entries)
@@ -336,28 +324,28 @@ const formatted = formatTimeline(timeline);
 // => "[2024-01-15 10:30] 💬 @alice (comment): Looks good\n[...]"
 ```
 
-### prClient.merge(title)
+### prClient.squash(title)
 
 Squash-merges the PR with a custom commit title.
 
 ```typescript
-await prClient.merge("Merge feature/branch");
+await prClient.squash("Merge feature/branch");
 ```
 
-### prClient.markReady()
+### prClient.ready()
 
 Marks the PR as ready for review (unset draft).
 
 ```typescript
-await prClient.markReady();
+await prClient.ready();
 ```
 
-### prClient.enableAutoMerge(mergeMethod)
+### prClient.enableAutoMerge()
 
-Enables auto-merge with the specified method: `SQUASH`, `MERGE`, or `REBASE`.
+Enables squash auto-merge.
 
 ```typescript
-await prClient.enableAutoMerge("REBASE");
+await prClient.enableAutoMerge();
 ```
 
 ## PRWatcher — Real-Time Event Polling
@@ -487,9 +475,7 @@ Fires when a user-defined status changes (requires `classifyPR` option).
 const watcher = client.watch({
   repos: ["owner/repo"],
   classifyPR: async ({ pr, repo }) => {
-    const checks = await client
-      .pr(`${repo.owner}/${repo.name}#${String(pr.number)}`)
-      .checks();
+    const checks = await client.repo(repo.owner, repo.name).pr(pr.number).checks();
     return checks.every((check) => check.conclusion === "success")
       ? "green"
       : "red";
@@ -590,9 +576,10 @@ const watcher = client.watch({
 
 ```typescript
 const throttle = {
-  async wait(weight: number) {
-    // Implement custom rate limiting
+  async run<T>(task: () => Promise<T>, weight: number) {
+    // Rate-limit the work, then run it
     await new Promise(resolve => setTimeout(resolve, weight * 100));
+    return task();
   },
 };
 
@@ -716,7 +703,7 @@ All exported types are included below:
 ### Watcher Types
 
 - `WatchOptions`: Configuration for `PRWatcher`
-- `WatchThrottle`: Interface for rate-limiting (compatible with `@hardlydifficult/throttle`)
+- `WatchThrottle`: Task-oriented rate-limiter interface (compatible with `@hardlydifficult/throttle`)
 - `ClassifyPR`: Function to compute custom PR status
 - `DiscoverRepos`: Function to discover repositories dynamically
 - `PREvent`: Base event for PR actions
@@ -733,9 +720,9 @@ All exported types are included below:
 - `CommitFile`: Path and content
 - `CommitOptions`: Parameters for `repo.commit`
 - `CommitResult`: Result of a file commit
-- `OpenPullRequestOptions`: Parameters for `repo.openPullRequest`
+- `OpenPullRequestOptions`: Parameters for `repo.openPR`
 - `CreatedPR`: Result of PR creation
-- `PullRequestSnapshot`: Result of `prClient.load()`
+- `PullRequestSnapshot`: Result of `prClient.snapshot()`
 
 ## Setup
 

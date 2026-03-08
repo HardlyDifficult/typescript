@@ -28,11 +28,15 @@ export class Logger {
     return this;
   }
 
-  withContext(context: Readonly<Record<string, unknown>>): Logger {
+  child(context: Readonly<Record<string, unknown>>): Logger {
     const child = new Logger(this.minLevel);
     child.plugins.push(...this.plugins);
     child.baseContext = mergeContexts(this.baseContext, context);
     return child;
+  }
+
+  withContext(context: Readonly<Record<string, unknown>>): Logger {
+    return this.child(context);
   }
 
   debug(message: string, context?: Readonly<Record<string, unknown>>): void {
@@ -51,16 +55,21 @@ export class Logger {
     this.log("error", message, context);
   }
 
-  notify(message: string): void {
+  alert(message: string): void {
     for (const { plugin } of this.plugins) {
-      if (plugin.notify) {
+      const sendAlert = plugin.alert ?? plugin.notify;
+      if (sendAlert) {
         try {
-          plugin.notify(message);
+          sendAlert(message);
         } catch {
           /* swallow */
         }
       }
     }
+  }
+
+  notify(message: string): void {
+    this.alert(message);
   }
 
   private shouldLog(level: LogLevel): boolean {

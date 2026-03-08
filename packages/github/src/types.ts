@@ -188,9 +188,9 @@ export type DiscoverRepos = () =>
   | readonly string[]
   | Promise<readonly string[]>;
 
-/** Minimal throttle interface compatible with `@hardlydifficult/throttle`. */
+/** Task-oriented throttle interface compatible with `@hardlydifficult/throttle`. */
 export interface WatchThrottle {
-  wait(weight?: number): Promise<void>;
+  run<T>(task: () => Promise<T> | T, weight?: number): Promise<T>;
 }
 
 export interface WatchOptions {
@@ -303,8 +303,8 @@ export interface CreatedPR {
 }
 
 export interface PullRequestSnapshot {
-  readonly pullRequest: PullRequest;
-  readonly repository: Repository;
+  readonly pr: PullRequest;
+  readonly repo: Repository;
   readonly comments: readonly PullRequestComment[];
   readonly reviews: readonly PullRequestReview[];
   readonly checks: readonly CheckRun[];

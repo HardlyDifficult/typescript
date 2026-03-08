@@ -1,9 +1,8 @@
 /**
  * OpenCode server lifecycle management.
  *
- * Manages starting the OpenCode Go binary as a subprocess and providing
- * a connected client. The server is started once per process and reused
- * across sessions.
+ * Manages starting the OpenCode server once per process. Clients are created
+ * on demand so each run can target its own working directory cleanly.
  *
  * The `@opencode-ai/sdk` is ESM-only with `exports` maps, so we use
  * dynamic import() and untyped handles to avoid moduleResolution issues.
@@ -15,7 +14,13 @@
 export type OpencodeClient = any;
 
 interface ServerHandle {
-  client: OpencodeClient;
+  sdk: {
+    createOpencodeClient: (options?: {
+      baseUrl?: string;
+      directory?: string;
+    }) => OpencodeClient;
+  };
+  url: string;
   close: () => void;
 }
 
@@ -23,52 +28,53 @@ let _instance: ServerHandle | undefined;
 let _starting: Promise<ServerHandle> | undefined;
 
 /**
- * Get or create the OpenCode server instance.
- *
- * On first call, spawns the `opencode serve` process and waits for it to
- * become healthy. Subsequent calls return the same instance.
- *
- * @param cwd - Working directory passed as config to the server.
+ * Create a client for the given directory, starting the shared server if needed.
  */
-export async function getOrCreateServer(cwd?: string): Promise<OpencodeClient> {
-  if (_instance) {
-    return _instance.client;
-  }
-
-  // Avoid double-starting if called concurrently
-  _starting ??= startServer(cwd);
-
-  // eslint-disable-next-line require-atomic-updates
-  _instance = await _starting;
-  // eslint-disable-next-line require-atomic-updates
-  _starting = undefined;
-  return _instance.client;
+export async function getClient(directory?: string): Promise<OpencodeClient> {
+  const server = await getOrCreateServer();
+  return server.sdk.createOpencodeClient({
+    baseUrl: server.url,
+    ...(directory !== undefined ? { directory } : {}),
+  });
 }
 
-async function startServer(cwd?: string): Promise<ServerHandle> {
-  // Dynamic import — the SDK is ESM-only. We use a variable for the module
-  // specifier so TypeScript doesn't try to resolve it statically (our
-  // moduleResolution is "node" but the SDK uses package.json "exports").
+async function getOrCreateServer(): Promise<ServerHandle> {
+  if (_instance !== undefined) {
+    return _instance;
+  }
+
+  _starting ??= startServer();
+  _instance = await _starting;
+  _starting = undefined;
+  return _instance;
+}
+
+async function startServer(): Promise<ServerHandle> {
   const sdkModule = "@opencode-ai/sdk";
   const sdk: any = await import(/* webpackIgnore: true */ sdkModule);
-  const createOpencode = sdk.createOpencode ?? sdk.default?.createOpencode;
+  const createOpencodeServer =
+    sdk.createOpencodeServer ?? sdk.default?.createOpencodeServer;
+  const createOpencodeClient =
+    sdk.createOpencodeClient ?? sdk.default?.createOpencodeClient;
 
-  if (typeof createOpencode !== "function") {
+  if (
+    typeof createOpencodeServer !== "function" ||
+    typeof createOpencodeClient !== "function"
+  ) {
     throw new Error(
-      "Could not find createOpencode in @opencode-ai/sdk. " +
-        "Ensure the package is installed and up to date."
+      "Could not load createOpencodeServer/createOpencodeClient from @opencode-ai/sdk."
     );
   }
 
-  const result = await createOpencode({
-    port: 0, // random available port
+  const server = await createOpencodeServer({
+    port: 0,
     timeout: 15_000,
-    ...(cwd !== undefined ? { config: { cwd } } : {}),
   });
 
   return {
-    client: result.client,
-    close: () => result.server.close(),
+    sdk: { createOpencodeClient },
+    url: server.url,
+    close: () => server.close(),
   };
 }
 
@@ -76,7 +82,7 @@ async function startServer(cwd?: string): Promise<ServerHandle> {
  * Dispose the OpenCode server process.
  * Call this on worker shutdown to clean up the subprocess.
  */
-export function disposeServer(): void {
+export function shutdownAgentServer(): void {
   if (_instance) {
     _instance.close();
     _instance = undefined;

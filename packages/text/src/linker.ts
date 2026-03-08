@@ -1,53 +1,47 @@
-export type LinkerPlatform = "slack" | "discord" | "markdown" | "plaintext";
+export type LinkStyle = "slack" | "discord" | "markdown" | "plain";
 
-export interface LinkerApplyOptions {
+export interface LinkOptions {
   /**
-   * Target output format.
-   * Alias: `platform`.
+   * Target output style.
    * Default: "markdown"
    */
-  format?: LinkerPlatform;
-  platform?: LinkerPlatform;
+  for?: LinkStyle;
   /**
    * When true (default), skips linkification inside inline/fenced code spans.
    */
-  skipCode?: boolean;
+  ignoreCode?: boolean;
   /**
    * When true (default), skips linkification inside existing links.
    */
-  skipExistingLinks?: boolean;
+  ignoreExistingLinks?: boolean;
 }
 
-export interface LinkMatchContext {
-  /** Full regex match text. */
-  match: string;
+export interface LinkContext {
+  /** Full matched text. */
+  text: string;
   /** Positional capture groups. */
   groups: string[];
   /** Rule name assigned at registration time. */
-  ruleName: string;
+  name: string;
   /** Match start index in the original input. */
   index: number;
   /** Original input string. */
   input: string;
 }
 
-export type LinkHrefBuilder = (context: LinkMatchContext) => string;
+export type LinkTarget = (context: LinkContext) => string;
 
 export interface LinkRule {
   /** Optional stable name for diagnostics and conflict visibility. */
   name?: string;
   /** Match pattern. Global matching is enforced automatically. */
-  pattern: RegExp;
+  match: RegExp;
   /**
-   * URL template string (supports $0/$& for full match, $1..$N for groups).
-   * Convenience alias for `toHref`.
+   * Either a URL template string or a callback that builds a URL from match
+   * context. Template strings support `$0`/`$&` for the full match and
+   * `$1..$N` for groups.
    */
-  href?: string;
-  /**
-   * Either a URL template string or a callback that builds an href from match context.
-   * If both `href` and `toHref` are provided, `toHref` wins.
-   */
-  toHref?: string | LinkHrefBuilder;
+  to: string | LinkTarget;
   /**
    * Higher priority wins for overlapping matches that start at the same index.
    * Default: 0
@@ -55,11 +49,22 @@ export interface LinkRule {
   priority?: number;
 }
 
+export interface LinkerConfig {
+  /** Linear workspace slug, used for issue references like `ENG-533`. */
+  linear?: string;
+  /** GitHub repository for PR references like `PR#42`. */
+  githubPrs?: string;
+  /** Additional custom rules appended after built-in presets. */
+  rules?: readonly LinkRule[];
+}
+
+export interface LinkTextOptions extends LinkerConfig, LinkOptions {}
+
 interface CompiledRule {
   name: string;
-  pattern: RegExp;
+  match: RegExp;
   priority: number;
-  toHref: LinkHrefBuilder;
+  to: LinkTarget;
 }
 
 interface Span {
@@ -73,7 +78,7 @@ interface LinkCandidate {
   text: string;
   groups: string[];
   ruleOrder: number;
-  ruleName: string;
+  name: string;
   priority: number;
 }
 
@@ -84,14 +89,14 @@ function ensureGlobal(pattern: RegExp): RegExp {
   return new RegExp(pattern.source, `${pattern.flags}g`);
 }
 
-function templateToHref(template: string): LinkHrefBuilder {
-  return ({ match, groups }: LinkMatchContext): string =>
+function templateToTarget(template: string): LinkTarget {
+  return ({ text, groups }: LinkContext): string =>
     template.replace(/\$\$|\$(\d+|&|0)/g, (token, capture: string): string => {
       if (token === "$$") {
         return "$";
       }
       if (capture === "&" || capture === "0") {
-        return match;
+        return text;
       }
       const index = Number(capture);
       if (!Number.isInteger(index) || index < 0) {
@@ -102,18 +107,11 @@ function templateToHref(template: string): LinkHrefBuilder {
 }
 
 function compileRule(rule: LinkRule, index: number): CompiledRule {
-  const source = rule.toHref ?? rule.href;
-  if (source === undefined) {
-    throw new Error(
-      `Invalid linker rule "${rule.name ?? `rule-${String(index + 1)}`}": missing href/toHref`
-    );
-  }
-  const toHref = typeof source === "string" ? templateToHref(source) : source;
   return {
     name: rule.name ?? `rule-${String(index + 1)}`,
-    pattern: ensureGlobal(rule.pattern),
+    match: ensureGlobal(rule.match),
     priority: rule.priority ?? 0,
-    toHref,
+    to: typeof rule.to === "string" ? templateToTarget(rule.to) : rule.to,
   };
 }
 
@@ -154,20 +152,16 @@ function normalizeSpans(spans: Span[]): Span[] {
 
 function getProtectedSpans(
   input: string,
-  options: Required<Pick<LinkerApplyOptions, "skipCode" | "skipExistingLinks">>
+  options: Required<Pick<LinkOptions, "ignoreCode" | "ignoreExistingLinks">>
 ): Span[] {
   const spans: Span[] = [];
-  if (options.skipCode) {
-    // Fenced code blocks first, then inline spans.
+  if (options.ignoreCode) {
     pushSpans(input, /```[\s\S]*?```/g, spans);
     pushSpans(input, /`[^`\n]+`/g, spans);
   }
-  if (options.skipExistingLinks) {
-    // Slack and angle-bracket links/mentions.
+  if (options.ignoreExistingLinks) {
     pushSpans(input, /<[^>\n]+>/g, spans);
-    // Markdown links.
     pushSpans(input, /\[[^\]]+\]\([^)]+\)/g, spans);
-    // Plain URLs.
     pushSpans(input, /https?:\/\/[^\s<>()]+/g, spans);
   }
   return normalizeSpans(spans);
@@ -186,120 +180,73 @@ function overlapsProtected(spans: Span[], start: number, end: number): boolean {
   return false;
 }
 
-function formatLink(
-  href: string,
-  text: string,
-  platform: LinkerPlatform
-): string {
-  switch (platform) {
+function formatLink(href: string, text: string, style: LinkStyle): string {
+  switch (style) {
     case "slack":
       return `<${href}|${text}>`;
     case "discord":
     case "markdown":
       return `[${text}](${href})`;
-    case "plaintext":
+    case "plain":
       return href;
     default:
       return text;
   }
 }
 
-function resolvePlatform(options: LinkerApplyOptions): LinkerPlatform {
-  return options.format ?? options.platform ?? "markdown";
-}
+function buildRules(config: LinkerConfig): CompiledRule[] {
+  const rules: LinkRule[] = [];
 
-/**
- * Stateful linker utility that applies configured rules to text.
- *
- * Behavior highlights:
- * - idempotent by default (skips existing links)
- * - skips code spans by default
- * - deterministic overlap resolution (priority, length, then declaration order)
- */
-export class Linker {
-  private readonly rules: CompiledRule[] = [];
-
-  constructor(initialRules: LinkRule[] = []) {
-    for (const rule of initialRules) {
-      this.addRule(rule);
-    }
-  }
-
-  private addRule(rule: LinkRule): this {
-    this.rules.push(compileRule(rule, this.rules.length));
-    return this;
-  }
-
-  rule(rule: LinkRule): this;
-  rule(name: string, rule: Omit<LinkRule, "name">): this;
-  rule(
-    ruleOrName: LinkRule | string,
-    maybeRule?: Omit<LinkRule, "name">
-  ): this {
-    if (typeof ruleOrName === "string") {
-      if (maybeRule === undefined) {
-        throw new Error(`Missing rule config for "${ruleOrName}"`);
-      }
-      return this.addRule({ ...maybeRule, name: ruleOrName });
-    }
-    return this.addRule(ruleOrName);
-  }
-
-  custom(
-    pattern: RegExp,
-    toHref: string | LinkHrefBuilder,
-    options: { name?: string; priority?: number } = {}
-  ): this {
-    return this.addRule({
-      name: options.name,
-      pattern,
-      toHref,
-      priority: options.priority,
+  if (config.linear !== undefined && config.linear !== "") {
+    rules.push({
+      name: "linear",
+      match: /\b([A-Z]{2,6}-\d+)\b/g,
+      to: ({ text }) => `https://linear.app/${config.linear}/issue/${text}`,
     });
   }
 
-  linear(
-    workspace: string,
-    options: { name?: string; priority?: number } = {}
-  ): this {
-    return this.custom(
-      /\b([A-Z]{2,6}-\d+)\b/g,
-      ({ match }) => `https://linear.app/${workspace}/issue/${match}`,
-      { name: options.name ?? "linear", priority: options.priority }
-    );
+  if (config.githubPrs !== undefined && config.githubPrs !== "") {
+    rules.push({
+      name: "github-prs",
+      match: /\bPR#(\d+)\b/g,
+      to: ({ groups }) =>
+        `https://github.com/${config.githubPrs}/pull/${groups[0] ?? ""}`,
+    });
   }
 
-  githubPr(
-    repository: string,
-    options: { name?: string; priority?: number } = {}
-  ): this {
-    return this.custom(
-      /\bPR#(\d+)\b/g,
-      ({ groups }) =>
-        `https://github.com/${repository}/pull/${groups[0] ?? ""}`,
-      { name: options.name ?? "github-pr", priority: options.priority }
-    );
+  rules.push(...(config.rules ?? []));
+
+  return rules.map(compileRule);
+}
+
+/**
+ * Compiled linker utility.
+ *
+ * Built-in presets cover the repo references used in this workspace.
+ * For one-off usage, prefer the top-level `linkText()` helper.
+ */
+export class Linker {
+  private readonly rules: CompiledRule[];
+
+  constructor(config: LinkerConfig = {}) {
+    this.rules = buildRules(config);
   }
 
-  apply(input: string, options: LinkerApplyOptions = {}): string {
-    return this.linkText(input, options);
-  }
-
-  linkText(input: string, options: LinkerApplyOptions = {}): string {
+  link(input: string, options: LinkOptions = {}): string {
     if (this.rules.length === 0 || input === "") {
       return input;
     }
 
-    const platform = resolvePlatform(options);
+    const style = options.for ?? "markdown";
     const protectedSpans = getProtectedSpans(input, {
-      skipCode: options.skipCode ?? true,
-      skipExistingLinks: options.skipExistingLinks ?? true,
+      ignoreCode: options.ignoreCode ?? true,
+      ignoreExistingLinks: options.ignoreExistingLinks ?? true,
     });
 
     const candidates: LinkCandidate[] = [];
     for (let ruleOrder = 0; ruleOrder < this.rules.length; ruleOrder++) {
       const rule = this.rules[ruleOrder];
-      const matcher = rule.pattern;
+      const matcher = rule.match;
       matcher.lastIndex = 0;
       let match: RegExpExecArray | null = matcher.exec(input);
       while (match !== null) {
@@ -318,7 +265,7 @@ export class Linker {
             text: matchedText,
             groups: match.slice(1),
             ruleOrder,
-            ruleName: rule.name,
+            name: rule.name,
             priority: rule.priority,
           });
         }
@@ -353,18 +300,14 @@ export class Linker {
     for (const candidate of selected) {
       output += input.slice(inputCursor, candidate.start);
       const rule = this.rules[candidate.ruleOrder];
-      const href = rule.toHref({
-        match: candidate.text,
+      const href = rule.to({
+        text: candidate.text,
         groups: candidate.groups,
-        ruleName: candidate.ruleName,
+        name: candidate.name,
         index: candidate.start,
         input,
       });
-      if (href === "") {
-        output += candidate.text;
-      } else {
-        output += formatLink(href, candidate.text, platform);
-      }
+      output += href === "" ? candidate.text : formatLink(href, candidate.text, style);
       inputCursor = candidate.end;
     }
     output += input.slice(inputCursor);
@@ -372,13 +315,24 @@ export class Linker {
   }
 }
 
-/**
- * Create a linker with optional initial rules.
- *
- * - `href` accepts template substitutions (`$0`/`$&`, `$1..$N`)
- * - `toHref` callback, when provided, takes precedence over `href`
- * - omitted `priority` defaults to `0`
- */
-export function createLinker(initialRules: LinkRule[] = []): Linker {
-  return new Linker(initialRules);
+export function createLinker(config: LinkerConfig = {}): Linker {
+  return new Linker(config);
+}
+
+export function linkText(input: string, options: LinkTextOptions = {}): string {
+  const {
+    linear,
+    githubPrs,
+    rules,
+    for: style,
+    ignoreCode,
+    ignoreExistingLinks,
+  } = options;
+
+  const linker = createLinker({ linear, githubPrs, rules });
+  return linker.link(input, {
+    for: style,
+    ignoreCode,
+    ignoreExistingLinks,
+  });
 }

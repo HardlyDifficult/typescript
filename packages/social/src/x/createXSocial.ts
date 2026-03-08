@@ -1,11 +1,11 @@
 import { duration } from "@hardlydifficult/date-time";
 
 import type {
-  CreateSocialOptions,
+  CreateSocialInput,
   LikeNotification,
   Social,
-  SocialListOptions,
   SocialPost,
+  WatchLikesInput,
   WatchLikesOptions,
 } from "../types.js";
 
@@ -38,14 +38,10 @@ interface XResponse {
 }
 
 /** Creates the X-backed social read client with token and limit fallbacks. */
-export function createXSocial(options: CreateSocialOptions = {}): Social {
-  const token =
-    options.token ?? options.bearerToken ?? process.env.X_BEARER_TOKEN ?? "";
-  const defaultLimit =
-    options.defaultLimit ??
-    options.limit ??
-    options.maxResults ??
-    DEFAULT_LIMIT;
+export function createXSocial(input: CreateSocialInput = {}): Social {
+  const options = resolveConfig(input);
+  const token = options.token ?? process.env.X_BEARER_TOKEN ?? "";
+  const defaultLimit = options.limit ?? DEFAULT_LIMIT;
 
   if (token.length === 0) {
     throw new Error("X bearer token is required. Set X_BEARER_TOKEN.");
@@ -77,52 +73,55 @@ export function createXSocial(options: CreateSocialOptions = {}): Social {
     return normalizeTweet(tweet, response.includes?.users ?? []);
   }
 
-  async function listTimeline(
-    options?: SocialListOptions
-  ): Promise<readonly SocialPost[]> {
+  async function listTimeline(limit = defaultLimit): Promise<readonly SocialPost[]> {
     const response = await request(
-      `/users/me/timelines/reverse_chronological${buildListQuery(resolveLimit(options, defaultLimit))}`
+      `/users/me/timelines/reverse_chronological${buildListQuery(limit)}`
     );
 
     return normalizeTweets(response);
   }
 
-  async function listLikes(
-    options?: SocialListOptions
-  ): Promise<readonly SocialPost[]> {
+  async function listLikes(limit = defaultLimit): Promise<readonly SocialPost[]> {
     const response = await request(
-      `/users/me/liked_tweets${buildListQuery(resolveLimit(options, defaultLimit))}`
+      `/users/me/liked_tweets${buildListQuery(limit)}`
     );
 
     return normalizeTweets(response);
   }
 
   return {
-    posts: {
-      get: getPost,
-    },
-    me: {
-      timeline: listTimeline,
-      likes: listLikes,
-      watchLikes(watchOptions: WatchLikesOptions = {}) {
-        return watchLikesStream({
-          everyMs:
-            watchOptions.everyMs ??
-            watchOptions.pollIntervalMs ??
-            DEFAULT_WATCH_INTERVAL_MS,
-          signal: watchOptions.signal,
-          listLikes,
-        });
-      },
+    post: getPost,
+    timeline: listTimeline,
+    likes: listLikes,
+    watchLikes(watchOptions: WatchLikesInput = {}) {
+      const options = resolveWatchLikesOptions(watchOptions);
+
+      return watchLikesStream({
+        everyMs: options.everyMs ?? DEFAULT_WATCH_INTERVAL_MS,
+        signal: options.signal,
+        listLikes,
+      });
     },
   };
 }
 
-function resolveLimit(
-  options: SocialListOptions | undefined,
-  defaultLimit: number
-): number {
-  return options?.limit ?? defaultLimit;
+function resolveConfig(input: CreateSocialInput): Readonly<{
+  token?: string;
+  limit?: number;
+}> {
+  if (typeof input === "string") {
+    return { token: input };
+  }
+
+  return input;
+}
+
+function resolveWatchLikesOptions(input: WatchLikesInput): WatchLikesOptions {
+  if (typeof input === "number") {
+    return { everyMs: input };
+  }
+
+  return input;
 }
 
 function buildPostQuery(): string {
@@ -205,9 +204,7 @@ async function* watchLikesStream({
 }: {
   readonly everyMs: number;
   readonly signal?: AbortSignal;
-  readonly listLikes: (
-    options?: SocialListOptions
-  ) => Promise<readonly SocialPost[]>;
+  readonly listLikes: (limit?: number) => Promise<readonly SocialPost[]>;
 }): AsyncGenerator<LikeNotification> {
   const knownLikeIds = new Set<string>();
   let seeded = false;

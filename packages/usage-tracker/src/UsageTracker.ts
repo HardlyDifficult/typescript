@@ -1,62 +1,91 @@
 import { StateTracker } from "@hardlydifficult/state-tracker";
 
+import { BudgetExceededError } from "./BudgetExceededError.js";
 import { extractCostFromDelta, findCostFieldPaths } from "./costFields.js";
 import { deepAdd } from "./deepAdd.js";
-import { SpendLimitExceededError } from "./SpendLimitExceededError.js";
 import type {
+  BudgetSnapshot,
+  BudgetStatus,
+  BudgetWindow,
   DeepPartial,
   NumericRecord,
   PersistedUsageState,
-  SpendLimit,
-  SpendStatus,
-  UsageTrackerOptions,
+  UsageTrackerOpenOptions,
 } from "./types.js";
 
+interface BudgetLimit {
+  window: BudgetWindow;
+  limitUsd: number;
+  windowMs: number;
+}
+
+const WINDOW_MS: Record<BudgetWindow, number> = {
+  minute: 60_000,
+  hour: 60 * 60_000,
+  day: 24 * 60 * 60_000,
+  week: 7 * 24 * 60 * 60_000,
+};
+
+const WINDOW_ORDER: readonly BudgetWindow[] = [
+  "minute",
+  "hour",
+  "day",
+  "week",
+];
+
+const DEFAULT_RETENTION_WINDOW_MS = WINDOW_MS.week;
+
+function normalizeBudget(options: UsageTrackerOpenOptions): readonly BudgetLimit[] {
+  const budget = options.budget ?? {};
+  return WINDOW_ORDER.flatMap((window) => {
+    const limitUsd = budget[window];
+    if (limitUsd === undefined) {
+      return [];
+    }
+    if (!Number.isFinite(limitUsd) || limitUsd < 0) {
+      throw new Error(`Budget for "${window}" must be a finite number >= 0`);
+    }
+    return [
+      {
+        window,
+        limitUsd,
+        windowMs: WINDOW_MS[window],
+      },
+    ];
+  });
+}
+
 /**
- * Accumulates numeric metrics over time with automatic session vs. cumulative
- * dual-tracking, backed by persistent storage via StateTracker.
- *
- * Cost-aware by convention: any leaf field ending with "CostUsd" in your
- * default metrics is automatically tracked in a time-series. This enables
- * trailing-window spend queries and optional spend limits.
- *
- * Type is inferred from the `default` value — no explicit interface needed.
- * Use the static `create()` factory to construct and load in one step.
+ * Tracks numeric usage counters with persisted totals, per-run counters, and
+ * automatic cost budgets based on any metric ending in "CostUsd".
  */
 export class UsageTracker<T extends NumericRecord> {
   private readonly tracker: StateTracker<PersistedUsageState<T>>;
-  private readonly defaultMetrics: T;
   private readonly costFieldPaths: string[];
-  private readonly spendLimits: readonly SpendLimit[];
-  private readonly onSpendLimitExceeded?: (status: SpendStatus) => void;
-  private readonly maxWindowMs: number;
-  private limitExceededStates: boolean[];
+  private readonly budgetLimits: readonly BudgetLimit[];
+  private readonly onBudgetExceeded?: (status: BudgetStatus) => void;
+  private readonly maxRetainedSpendWindowMs: number;
+  private budgetExceededStates: boolean[];
 
   private constructor(
-    options: UsageTrackerOptions<T>,
+    metrics: T,
+    options: UsageTrackerOpenOptions,
     tracker: StateTracker<PersistedUsageState<T>>
   ) {
-    this.defaultMetrics = structuredClone(options.default);
     this.tracker = tracker;
-    this.costFieldPaths = findCostFieldPaths(options.default);
-    this.spendLimits = options.spendLimits ?? [];
-    this.onSpendLimitExceeded = options.onSpendLimitExceeded;
-    this.maxWindowMs =
-      this.spendLimits.length > 0
-        ? Math.max(...this.spendLimits.map((l) => l.windowMs))
-        : 0;
-    this.limitExceededStates = this.spendLimits.map(
-      (limit) => this.statusForLimit(limit).exceeded
+    this.costFieldPaths = findCostFieldPaths(metrics);
+    this.budgetLimits = normalizeBudget(options);
+    this.onBudgetExceeded = options.onBudgetExceeded;
+    this.maxRetainedSpendWindowMs =
+      this.costFieldPaths.length > 0 ? DEFAULT_RETENTION_WINDOW_MS : 0;
+    this.budgetExceededStates = this.budgetLimits.map((limit) =>
+      this.statusForBudget(limit).exceeded
     );
   }
 
   /**
    * Recursively fills in missing keys in `target` from `defaults`.
-   * Only adds fields that are absent or undefined — never overwrites existing values.
-   *
-   * Uses `unknown` for intermediate values because persisted state loaded from disk
-   * may have `undefined` entries for keys added to the schema after the state was
-   * first written, even though the TypeScript type says `number | NumericRecord`.
+   * Only adds fields that are absent or undefined and never overwrites values.
    */
   private static mergeDefaults<U extends NumericRecord>(
     target: U,
@@ -64,152 +93,145 @@ export class UsageTracker<T extends NumericRecord> {
   ): U {
     const result = { ...target } as Record<string, unknown>;
     for (const key of Object.keys(defaults)) {
-      const targetVal: unknown = result[key];
-      const defaultVal: unknown = (defaults as Record<string, unknown>)[key];
-      if (targetVal === undefined) {
-        result[key] = structuredClone(defaultVal);
-      } else if (
-        typeof targetVal === "object" &&
-        targetVal !== null &&
-        typeof defaultVal === "object" &&
-        defaultVal !== null
+      const targetValue = result[key];
+      const defaultValue = (defaults as Record<string, unknown>)[key];
+      if (targetValue === undefined) {
+        result[key] = structuredClone(defaultValue);
+        continue;
+      }
+
+      if (
+        typeof targetValue === "object" &&
+        targetValue !== null &&
+        typeof defaultValue === "object" &&
+        defaultValue !== null
       ) {
         result[key] = UsageTracker.mergeDefaults(
-          targetVal as NumericRecord,
-          defaultVal as NumericRecord
+          targetValue as NumericRecord,
+          defaultValue as NumericRecord
         );
       }
     }
     return result as U;
   }
 
-  /** Create a UsageTracker, load persisted state, and start a new session. */
-  static async create<T extends NumericRecord>(
-    options: UsageTrackerOptions<T>
+  /** Open a tracker for `id`, load persisted totals, and start a fresh current run. */
+  static async open<T extends NumericRecord>(
+    id: string,
+    metrics: T,
+    options: UsageTrackerOpenOptions = {}
   ): Promise<UsageTracker<T>> {
     const now = new Date().toISOString();
     const tracker = new StateTracker<PersistedUsageState<T>>({
-      key: options.key,
+      key: id,
       default: {
-        cumulative: structuredClone(options.default),
-        session: structuredClone(options.default),
+        cumulative: structuredClone(metrics),
+        session: structuredClone(metrics),
         trackingSince: now,
         sessionStartedAt: now,
         spendEntries: [],
       },
-      stateDirectory: options.stateDirectory,
-      storageAdapter: options.storageAdapter,
+      stateDirectory: options.dir,
+      storageAdapter: options.storage,
       autoSaveMs: options.autoSaveMs,
       onEvent: options.onEvent,
     });
 
     await tracker.loadAsync();
 
-    // Backfill spendEntries for state files created before this feature
     if (!Array.isArray(tracker.state.spendEntries)) {
       tracker.update({ spendEntries: [] } as Partial<PersistedUsageState<T>>);
     }
 
-    // Backfill any fields added to the schema after the state was first persisted.
-    // StateTracker's v1 envelope format returns stored data as-is without merging
-    // defaults, so new top-level or nested keys will be missing in old state files.
-    const mergedCumulative = UsageTracker.mergeDefaults(
-      tracker.state.cumulative,
-      options.default
-    );
     tracker.update({
-      cumulative: mergedCumulative,
+      cumulative: UsageTracker.mergeDefaults(tracker.state.cumulative, metrics),
     } as Partial<PersistedUsageState<T>>);
 
-    const instance = new UsageTracker(options, tracker);
+    const instance = new UsageTracker(metrics, options, tracker);
 
-    // Reset session counters for the new session, preserving cumulative
     tracker.update({
-      session: structuredClone(options.default),
+      session: structuredClone(metrics),
       sessionStartedAt: new Date().toISOString(),
     } as Partial<PersistedUsageState<T>>);
 
-    // Prune stale entries from a prior session
-    instance.pruneEntries();
-    instance.syncLimitExceededStates();
+    instance.pruneSpendEntries();
+    instance.syncBudgetExceededStates();
 
     return instance;
   }
 
-  /** Current session metrics (since last create() call). */
-  get session(): Readonly<T> {
+  /** Metrics recorded since this tracker instance was opened. */
+  get current(): Readonly<T> {
     return this.tracker.state.session;
   }
 
-  /** All-time cumulative metrics. */
-  get cumulative(): Readonly<T> {
+  /** All-time metrics across every run that used the same id. */
+  get total(): Readonly<T> {
     return this.tracker.state.cumulative;
   }
 
-  /** ISO string of when the current session started. */
-  get sessionStartedAt(): string {
+  /** ISO timestamp for the current run. */
+  get startedAt(): string {
     return this.tracker.state.sessionStartedAt;
   }
 
-  /** ISO string of when cumulative tracking first started. */
+  /** ISO timestamp for when tracking for this id first began. */
   get trackingSince(): string {
     return this.tracker.state.trackingSince;
   }
 
-  /** Whether state is being persisted to disk. */
-  get isPersistent(): boolean {
+  /** Whether usage data is being persisted successfully. */
+  get persistent(): boolean {
     return this.tracker.isPersistent;
   }
 
-  /**
-   * Record metrics by deeply adding numeric values to both session and cumulative.
-   * Only provide the fields you are incrementing — unspecified fields are unchanged.
-   *
-   * If the delta contains *CostUsd fields, a timestamped entry is appended to the
-   * internal cost time-series. Configured spend limits are checked automatically.
-   */
-  record(values: DeepPartial<T>): void {
-    const { state } = this.tracker;
-    const newSession = structuredClone(state.session);
-    const newCumulative = structuredClone(state.cumulative);
+  /** Status for every configured budget keyed by window name. */
+  get budget(): BudgetSnapshot {
+    const snapshot: BudgetSnapshot = {};
+    for (const limit of this.budgetLimits) {
+      snapshot[limit.window] = this.statusForBudget(limit);
+    }
+    return snapshot;
+  }
 
-    deepAdd(newSession, values);
-    deepAdd(newCumulative, values);
+  /**
+   * Add numeric deltas into both the current run and the persisted total.
+   * Any `*CostUsd` delta is also recorded for spend queries and budget checks.
+   */
+  track(values: DeepPartial<T>): void {
+    const state = this.tracker.state;
+    const current = structuredClone(state.session);
+    const total = structuredClone(state.cumulative);
+
+    deepAdd(current, values);
+    deepAdd(total, values);
 
     const update: Partial<PersistedUsageState<T>> = {
-      session: newSession,
-      cumulative: newCumulative,
+      session: current,
+      cumulative: total,
     };
 
-    // Track cost in time-series if any CostUsd fields are present
     if (this.costFieldPaths.length > 0) {
       const cost = extractCostFromDelta(values, this.costFieldPaths);
       if (cost > 0) {
-        const entries = [
+        update.spendEntries = [
           ...state.spendEntries,
           { timestamp: Date.now(), amountUsd: cost },
         ];
-        update.spendEntries = entries;
       }
     }
 
     this.tracker.update(update);
 
-    // Prune and check limits after updating state
     if (update.spendEntries !== undefined) {
-      this.pruneEntries();
-      this.checkLimits();
+      this.pruneSpendEntries();
+      this.checkBudget();
     }
   }
 
-  /**
-   * Total cost (USD) recorded within a trailing window.
-   *
-   * Works for any window size — not limited to configured spend limits.
-   * Useful for dashboard spend-rate displays.
-   */
-  costInWindow(windowMs: number): number {
-    const cutoff = Date.now() - windowMs;
+  /** Spend recorded in the last supported named window. */
+  spend(window: BudgetWindow): number {
+    const cutoff = Date.now() - WINDOW_MS[window];
     let total = 0;
     for (const entry of this.tracker.state.spendEntries) {
       if (entry.timestamp >= cutoff) {
@@ -219,23 +241,12 @@ export class UsageTracker<T extends NumericRecord> {
     return total;
   }
 
-  /**
-   * Get status of all configured spend limits.
-   * Returns an empty array if no spend limits are configured.
-   */
-  spendStatus(): SpendStatus[] {
-    return this.spendLimits.map((limit) => this.statusForLimit(limit));
-  }
-
-  /**
-   * Throws SpendLimitExceededError if any configured limit is currently exceeded.
-   * No-op if no spend limits are configured.
-   */
-  assertWithinSpendLimits(): void {
-    for (const limit of this.spendLimits) {
-      const status = this.statusForLimit(limit);
+  /** Throws when any configured budget is currently exceeded. */
+  assertBudget(): void {
+    for (const limit of this.budgetLimits) {
+      const status = this.statusForBudget(limit);
       if (status.exceeded) {
-        throw new SpendLimitExceededError(status);
+        throw new BudgetExceededError(status);
       }
     }
   }
@@ -245,7 +256,7 @@ export class UsageTracker<T extends NumericRecord> {
     await this.tracker.saveAsync();
   }
 
-  private statusForLimit(limit: SpendLimit): SpendStatus {
+  private statusForBudget(limit: BudgetLimit): BudgetStatus {
     const now = Date.now();
     const cutoff = now - limit.windowMs;
     const entries = this.tracker.state.spendEntries;
@@ -257,13 +268,11 @@ export class UsageTracker<T extends NumericRecord> {
       }
     }
 
-    const exceeded = spentUsd > limit.maxSpendUsd;
+    const exceeded = spentUsd > limit.limitUsd;
     let resumesAt: Date | null = null;
 
     if (exceeded) {
-      // Find when enough old entries will drop out of the window to get back under the limit.
-      // Walk entries from oldest to newest, accumulating the "excess" to shed.
-      const excess = spentUsd - limit.maxSpendUsd;
+      const excess = spentUsd - limit.limitUsd;
       let shed = 0;
       for (const entry of entries) {
         if (entry.timestamp < cutoff) {
@@ -271,7 +280,6 @@ export class UsageTracker<T extends NumericRecord> {
         }
         shed += entry.amountUsd;
         if (shed >= excess) {
-          // This entry leaving the window brings us under the limit
           resumesAt = new Date(entry.timestamp + limit.windowMs);
           break;
         }
@@ -279,22 +287,22 @@ export class UsageTracker<T extends NumericRecord> {
     }
 
     return {
-      limit,
+      window: limit.window,
       spentUsd,
-      remainingUsd: Math.max(0, limit.maxSpendUsd - spentUsd),
+      limitUsd: limit.limitUsd,
+      remainingUsd: Math.max(0, limit.limitUsd - spentUsd),
       exceeded,
       resumesAt,
     };
   }
 
-  /** Remove entries older than the longest configured window. */
-  private pruneEntries(): void {
-    if (this.maxWindowMs <= 0) {
+  private pruneSpendEntries(): void {
+    if (this.maxRetainedSpendWindowMs <= 0) {
       return;
     }
-    const cutoff = Date.now() - this.maxWindowMs;
+    const cutoff = Date.now() - this.maxRetainedSpendWindowMs;
     const entries = this.tracker.state.spendEntries;
-    const pruned = entries.filter((e) => e.timestamp >= cutoff);
+    const pruned = entries.filter((entry) => entry.timestamp >= cutoff);
     if (pruned.length < entries.length) {
       this.tracker.update({ spendEntries: pruned } as Partial<
         PersistedUsageState<T>
@@ -302,26 +310,25 @@ export class UsageTracker<T extends NumericRecord> {
     }
   }
 
-  /** Fire onSpendLimitExceeded for any newly-exceeded limit. */
-  private checkLimits(): void {
-    for (const [index, limit] of this.spendLimits.entries()) {
-      const status = this.statusForLimit(limit);
-      const wasExceeded = this.limitExceededStates[index] ?? false;
-      this.limitExceededStates[index] = status.exceeded;
+  private checkBudget(): void {
+    for (const [index, limit] of this.budgetLimits.entries()) {
+      const status = this.statusForBudget(limit);
+      const wasExceeded = this.budgetExceededStates[index] ?? false;
+      this.budgetExceededStates[index] = status.exceeded;
 
       if (
-        this.onSpendLimitExceeded !== undefined &&
+        this.onBudgetExceeded !== undefined &&
         status.exceeded &&
         !wasExceeded
       ) {
-        this.onSpendLimitExceeded(status);
+        this.onBudgetExceeded(status);
       }
     }
   }
 
-  private syncLimitExceededStates(): void {
-    this.limitExceededStates = this.spendLimits.map(
-      (limit) => this.statusForLimit(limit).exceeded
+  private syncBudgetExceededStates(): void {
+    this.budgetExceededStates = this.budgetLimits.map((limit) =>
+      this.statusForBudget(limit).exceeded
     );
   }
 }

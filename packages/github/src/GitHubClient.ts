@@ -1,10 +1,5 @@
 import { Octokit } from "@octokit/rest";
 
-import {
-  parseGitHubPullRequestReference,
-  parseGitHubRepoReference,
-} from "./githubUrlParser.js";
-import { PRClient } from "./PRClient.js";
 import { PRWatcher } from "./PRWatcher.js";
 import { RepoClient } from "./RepoClient.js";
 import type {
@@ -16,6 +11,10 @@ import type {
 
 export { PRClient } from "./PRClient.js";
 export { RepoClient } from "./RepoClient.js";
+
+export function github(config: GitHubClientConfig = {}): GitHubClient {
+  return new GitHubClient(config);
+}
 
 /** Top-level GitHub API client that provides access to repositories, PR watching, and user contribution queries. */
 export class GitHubClient {
@@ -34,26 +33,8 @@ export class GitHubClient {
     this.octokit = new Octokit({ auth: resolvedToken });
   }
 
-  repo(repoRef: string): RepoClient {
-    const parsed = parseGitHubRepoReference(repoRef);
-    if (parsed === null) {
-      throw new Error(
-        `Invalid repository reference: ${repoRef}. Expected "owner/repo" or a GitHub repository URL.`
-      );
-    }
-
-    return new RepoClient(this.octokit, parsed.owner, parsed.repo);
-  }
-
-  pr(prRef: string): PRClient {
-    const parsed = parseGitHubPullRequestReference(prRef);
-    if (parsed === null) {
-      throw new Error(
-        `Invalid pull request reference: ${prRef}. Expected "owner/repo#123" or a GitHub pull request URL.`
-      );
-    }
-
-    return new PRClient(this.octokit, parsed.owner, parsed.repo, parsed.number);
+  repo(owner: string, repo: string): RepoClient {
+    return new RepoClient(this.octokit, owner, repo);
   }
 
   watch(options: WatchOptions): PRWatcher {
@@ -129,7 +110,7 @@ export class GitHubClient {
     return Array.from(repos.values());
   }
 
-  async myOpenPullRequests(): Promise<
+  async myOpenPRs(): Promise<
     readonly {
       readonly pr: PullRequest;
       readonly repo: { readonly owner: string; readonly name: string };
@@ -154,9 +135,7 @@ export class GitHubClient {
       const match = pattern.exec(repoUrl);
       if (match !== null) {
         const [, owner, name] = match;
-        const pr = await this.pr(
-          `${owner}/${name}#${String(item.number)}`
-        ).details();
+        const pr = await this.repo(owner, name).pr(item.number).get();
         results.push({ pr, repo: { owner, name } });
       }
     }

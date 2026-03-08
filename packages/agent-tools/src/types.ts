@@ -1,61 +1,68 @@
-/**
- * Configuration and result types for OpenCode-based agent sessions.
- */
+/** Streaming event emitted while an agent run is in progress. */
+export type AgentEvent =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "tool-start";
+      tool: string;
+      input: unknown;
+    }
+  | {
+      type: "tool-finish";
+      tool: string;
+      input: unknown;
+      output: string;
+      ok: boolean;
+    };
 
-/** Configuration for running an agent session. */
-export interface SessionConfig {
-  /** The user's prompt. */
-  prompt: string;
+/** Configuration for running a single agent task. */
+export interface RunAgentOptions {
+  /** What the agent should do. */
+  task: string;
 
-  /** Working directory for the session. */
-  cwd: string;
+  /** Directory the agent should operate in. */
+  directory: string;
 
   /**
-   * Model identifier in `provider/model` format.
+   * Model to use.
    *
-   * @example 'anthropic/claude-sonnet-4-20250514'
-   * @example 'openai/o3'
-   * @example 'ollama/qwen3-coder-next'
+   * Accepts either `provider/model` or just `model`.
+   * When only the model is provided, `OPENCODE_PROVIDER` is used if present
+   * and otherwise defaults to `anthropic`.
+   * When omitted entirely, `OPENCODE_MODEL` is used.
    */
-  model: string;
+  model?: string;
 
-  /** System prompt to prepend. */
-  systemPrompt?: string;
-
-  /** Restrict to read-only tools (analysis mode). Default: false. */
-  readOnly?: boolean;
+  /** Extra top-level instructions for the run. */
+  instructions?: string;
 
   /**
-   * Tool overrides — enable/disable specific OpenCode tools by name.
-   * When provided, only tools set to `true` are available.
+   * Execution mode.
    *
-   * @example { read: true, write: true, bash: true }
+   * `edit` uses the default OpenCode tool permissions.
+   * `read` restricts the run to read-only file tools.
    */
-  tools?: Partial<Record<string, boolean>>;
+  mode?: "edit" | "read";
 
   /** Abort signal for cancellation. */
-  abortSignal?: AbortSignal;
+  signal?: AbortSignal;
 
-  /** Max agent iterations before stopping. */
-  maxSteps?: number;
-
-  /** Called with each text chunk as the agent streams its response. */
-  onText?: (text: string) => void;
-
-  /** Called when a tool execution starts. */
-  onToolStart?: (toolName: string, input: unknown) => void;
-
-  /** Called when a tool execution completes. */
-  onToolEnd?: (toolName: string, output: string) => void;
+  /** Called for streamed text and tool lifecycle events. */
+  onEvent?: (event: AgentEvent) => void;
 }
 
-/** Result of a completed agent session. */
-export interface SessionResult {
-  /** Whether the session completed successfully. */
-  success: boolean;
+/** Result returned after the agent finishes or fails. */
+export interface RunAgentResult {
+  /** Whether the run completed without a session error. */
+  ok: boolean;
 
-  /** The agent's final text response. */
-  text: string;
+  /** The streamed text output from the assistant. */
+  output: string;
+
+  /** Session error, when one occurred. */
+  error?: string;
 
   /** Total wall-clock duration in milliseconds. */
   durationMs: number;

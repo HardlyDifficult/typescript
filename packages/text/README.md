@@ -21,8 +21,8 @@ import {
   buildFileTree,
   convertFormat,
   healYaml,
-  createLinker,
-  escapeFence,
+  linkText,
+  codeBlock,
   stripAnsi
 } from "@hardlydifficult/text";
 
@@ -63,13 +63,12 @@ healYaml('description: "Text with: colon"');
 // 'description: "Text with: colon"'
 
 // Linkify issue references
-const linker = createLinker().linear("fairmint");
-linker.apply("Fix ENG-533", { format: "slack" });
+linkText("Fix ENG-533", { linear: "fairmint", for: "slack" });
 // "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533>"
 
-// Escape markdown fences
-escapeFence("code with ``` backticks").fence;
-// "````"
+// Build a safe markdown code block
+codeBlock("code with ``` backticks", "ts");
+// "````ts\ncode with ``` backticks\n````"
 
 // Strip ANSI codes
 stripAnsi("\x1b[31mRed text\x1b[0m");
@@ -309,84 +308,88 @@ healYaml("description: Text: with colons");
 // 'description: "Text: with colons"'
 ```
 
-## Linker (Text Linkification)
+## Linkifying References
 
-Transforms text by replacing issue/PR references with formatted links.
+Turns issue and PR references into links without builder ceremony.
 
-### Linker
+### linkText
 
-Stateful linker with configurable rules, idempotent linkification, and multi-platform support.
+Best for one-off calls. Built-in presets cover the formats used in this repo.
 
 ```typescript
-import { createLinker, LinkerPlatform, LinkerApplyOptions } from "@hardlydifficult/text";
+import { linkText } from "@hardlydifficult/text";
 
-interface LinkerApplyOptions {
-  format?: LinkerPlatform; // "slack" | "discord" | "markdown" | "plaintext"
-  platform?: LinkerPlatform;
-  skipCode?: boolean; // default: true
-  skipExistingLinks?: boolean; // default: true
-  linkifyPlainHref?: boolean; // default: false
+linkText("Fix ENG-533 PR#42", {
+  linear: "fairmint",
+  githubPrs: "Fairmint/api",
+  for: "slack",
+});
+// "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> <https://github.com/Fairmint/api/pull/42|PR#42>"
+```
+
+```typescript
+interface LinkTextOptions {
+  linear?: string;
+  githubPrs?: string;
+  rules?: LinkRule[];
+  for?: LinkStyle; // "slack" | "discord" | "markdown" | "plain"
+  ignoreCode?: boolean; // default: true
+  ignoreExistingLinks?: boolean; // default: true
 }
 ```
 
 ### createLinker
 
-Creates a linker with optional initial rules.
+Use this when the same link rules are applied repeatedly.
 
 ```typescript
 import { createLinker } from "@hardlydifficult/text";
 
-const linker = createLinker();
+const linker = createLinker({
+  linear: "fairmint",
+  githubPrs: "Fairmint/api",
+  rules: [
+    {
+      name: "incident",
+      match: /\bINC-\d+\b/g,
+      to: ({ text }) => `https://incident.io/${text}`,
+    },
+  ],
+});
 
-// Fluent API
-linker
-  .linear("fairmint")
-  .githubPr("Fairmint/api")
-  .custom(/\bINC-\d+\b/g, ({ match }) => `https://incident.io/${match}`);
-
-// Linkify text
-linker.linkText("Fix ENG-533 PR#42 INC-99", { format: "slack" });
+linker.link("Fix ENG-533 PR#42 INC-99", { for: "slack" });
 // "Fix <https://linear.app/fairmint/issue/ENG-533|ENG-533> <https://github.com/Fairmint/api/pull/42|PR#42> <https://incident.io/INC-99|INC-99>"
 ```
 
-### Rule API
+### LinkRule
 
-Custom rules support patterns, href templates or callbacks, priorities, and match metadata.
+Custom rules are small and direct: match text, map it to a URL, optionally set a priority.
 
 ```typescript
 interface LinkRule {
-  id: string;
-  priority: number;
-  pattern: RegExp;
-  href: string | ((ctx: { match: string; groups?: string[] }) => string);
-  skipCode?: boolean;
-  skipExistingLinks?: boolean;
+  name?: string;
+  match: RegExp;
+  to: string | ((ctx: { text: string; groups: string[] }) => string);
+  priority?: number;
 }
 ```
-
-### Methods
-
-- `custom(pattern, href, options)`: Add custom rule
-- `linear(orgOrProject)`: Link Linear issues
-- `githubPr(repo)`: Link GitHub PRs
-- `apply(text, options)`: Linkify and preserve format
-- `linkText(text, options)`: Linkify plain text
-- `linkMarkdown(text, options)`: Linkify markdown content
-- `reset()`: Clear rules
 
 ## Markdown Utilities
 
 Tools for working with markdown fences and formatting.
 
-### escapeFence
+### codeBlock
 
-Selects the minimal fence length to safely escape content.
+Wraps content in a safe fenced code block and picks a longer fence automatically when needed.
 
 ```typescript
-import { escapeFence } from "@hardlydifficult/text";
+import { codeBlock } from "@hardlydifficult/text";
 
-escapeFence("hello");          // { fence: "```", content: "hello" }
-escapeFence("code ``` here");  // { fence: "````", content: "code ``` here" }
+codeBlock("hello");
+// "```\nhello\n```"
+
+codeBlock("const x = 1;", "ts");
+// "```ts\nconst x = 1;\n```"
 ```
 
 ### stripAnsi
