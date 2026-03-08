@@ -1,4 +1,4 @@
-export { GitHubClient, RepoClient, PRClient } from "./GitHubClient.js";
+export { github, GitHubClient, RepoClient, PRClient } from "./GitHubClient.js";
 export { PRWatcher } from "./PRWatcher.js";
 export { buildTimeline, formatTimeline } from "./timeline.js";
 export type { TimelineEntry, TimelineEntryKind } from "./timeline.js";

@@ -28,23 +28,23 @@ function isNotFoundError(err: unknown): boolean {
 export class RepoClient {
   private readonly octokit: Octokit;
   private readonly owner: string;
-  private readonly name: string;
+  private readonly repo: string;
 
   /** @internal */
-  constructor(octokit: Octokit, owner: string, name: string) {
+  constructor(octokit: Octokit, owner: string, repo: string) {
     this.octokit = octokit;
     this.owner = owner;
-    this.name = name;
+    this.repo = repo;
   }
 
-  pullRequest(number: number): PRClient {
-    return new PRClient(this.octokit, this.owner, this.name, number);
+  pr(number: number): PRClient {
+    return new PRClient(this.octokit, this.owner, this.repo, number);
   }
 
-  async openPullRequests(): Promise<readonly PullRequest[]> {
+  async openPRs(): Promise<readonly PullRequest[]> {
     const response = await this.octokit.pulls.list({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       state: "open",
       per_page: 100,
     });
@@ -52,10 +52,10 @@ export class RepoClient {
     return response.data as unknown as readonly PullRequest[];
   }
 
-  async details(): Promise<Repository> {
+  async get(): Promise<Repository> {
     const response = await this.octokit.repos.get({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
     });
 
     return response.data as unknown as Repository;
@@ -64,7 +64,7 @@ export class RepoClient {
   async tree(ref = "HEAD"): Promise<FileTreeResult> {
     const response = await this.octokit.git.getTree({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       tree_sha: ref,
       recursive: "1",
     });
@@ -78,7 +78,7 @@ export class RepoClient {
   async read(filePath: string, ref?: string): Promise<string> {
     const response = await this.octokit.repos.getContent({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       path: filePath,
       ...(ref !== undefined ? { ref } : {}),
     });
@@ -111,10 +111,10 @@ export class RepoClient {
 
   /** Fetch the HEAD commit SHA of the repository's default branch. */
   async defaultBranchSha(): Promise<string> {
-    const repo = await this.details();
+    const repo = await this.get();
     const { data: ref } = await this.octokit.git.getRef({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       ref: `heads/${repo.default_branch}`,
     });
     return ref.object.sha;
@@ -125,7 +125,7 @@ export class RepoClient {
     try {
       const { data: ref } = await this.octokit.git.getRef({
         owner: this.owner,
-        repo: this.name,
+        repo: this.repo,
         ref: `heads/${branch}`,
       });
       return ref.object.sha;
@@ -144,7 +144,7 @@ export class RepoClient {
   async mergeBranch(base: string, head: string): Promise<string | null> {
     const response = await this.octokit.repos.merge({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       base,
       head,
       commit_message: `Merge ${head} into ${base}`,
@@ -159,7 +159,7 @@ export class RepoClient {
   async createBranch(branch: string, sha: string): Promise<void> {
     await this.octokit.git.createRef({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       ref: `refs/heads/${branch}`,
       sha,
     });
@@ -169,7 +169,7 @@ export class RepoClient {
   async updateBranch(branch: string, sha: string): Promise<void> {
     await this.octokit.git.updateRef({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       ref: `heads/${branch}`,
       sha,
     });
@@ -179,17 +179,17 @@ export class RepoClient {
   async deleteBranch(branch: string): Promise<void> {
     await this.octokit.git.deleteRef({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       ref: `heads/${branch}`,
     });
   }
 
   /** Create a pull request. Throws on failure. */
-  async openPullRequest(options: OpenPullRequestOptions): Promise<CreatedPR> {
-    const base = options.base ?? (await this.details()).default_branch;
+  async openPR(options: OpenPullRequestOptions): Promise<CreatedPR> {
+    const base = options.base ?? (await this.get()).default_branch;
     const { data } = await this.octokit.pulls.create({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       head: options.head,
       base,
       title: options.title,
@@ -211,7 +211,7 @@ export class RepoClient {
     for (const file of options.files) {
       const { data: blob } = await this.octokit.git.createBlob({
         owner: this.owner,
-        repo: this.name,
+        repo: this.repo,
         content: file.content,
         encoding: "utf-8",
       });
@@ -221,7 +221,7 @@ export class RepoClient {
     // 2. Get the parent commit's tree SHA
     const { data: parentCommit } = await this.octokit.git.getCommit({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       commit_sha: parentSha,
     });
     const baseTreeSha = parentCommit.tree.sha;
@@ -229,7 +229,7 @@ export class RepoClient {
     // 3. Create tree
     const { data: tree } = await this.octokit.git.createTree({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       base_tree: baseTreeSha,
       tree: blobEntries.map((e) => ({
         path: e.path,
@@ -242,7 +242,7 @@ export class RepoClient {
     // 4. Create commit
     const { data: commit } = await this.octokit.git.createCommit({
       owner: this.owner,
-      repo: this.name,
+      repo: this.repo,
       message: options.message,
       tree: tree.sha,
       parents: [parentSha],

@@ -117,6 +117,45 @@ describe("SessionTracker", () => {
     });
   });
 
+  describe("session", () => {
+    it("creates a bound session helper with event methods", () => {
+      const session = tracker.session("chat/user-123");
+
+      session.start({ prompt: "hello" });
+      session.response({ text: "world" });
+
+      const entries = tracker.read("chat/user-123");
+      expect(entries).toHaveLength(2);
+      expect(entries[0]?.type).toBe("session_start");
+      expect(entries[1]?.type).toBe("ai_response");
+    });
+
+    it("records errors without forcing callers to shape the error payload", () => {
+      const session = tracker.session("chat/user-123");
+      session.error(new Error("timeout"), { model: "gpt" });
+
+      const entries = session.read();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.type).toBe("error");
+      expect(entries[0]?.data).toMatchObject({
+        model: "gpt",
+        error: {
+          name: "Error",
+          message: "timeout",
+        },
+      });
+    });
+
+    it("delegates session-level exists and delete helpers", () => {
+      const session = tracker.session("chat/user-123");
+      session.start();
+
+      expect(session.exists()).toBe(true);
+      expect(session.delete()).toBe(true);
+      expect(session.exists()).toBe(false);
+    });
+  });
+
   describe("read", () => {
     it("returns entries for an existing session", () => {
       tracker.append("sess-1", {

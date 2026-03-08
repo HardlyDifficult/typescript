@@ -1,6 +1,8 @@
 # @hardlydifficult/pr-analyzer
 
-A TypeScript package for analyzing GitHub pull requests and classifying them into actionable buckets.
+Opinionated pull request analysis for the way we actually use it.
+
+Configure it once, then work with PR numbers, PR refs, or "my open PRs" directly. Results already include status buckets and available actions, so client code stays small and expressive.
 
 ## Installation
 
@@ -12,201 +14,135 @@ npm install @hardlydifficult/pr-analyzer
 
 ```typescript
 import { GitHubClient } from "@hardlydifficult/github";
-import { scanSinglePR } from "@hardlydifficult/pr-analyzer";
+import { createPRAnalyzer } from "@hardlydifficult/pr-analyzer";
 
-// Create a GitHub client
-const client = new GitHubClient({ token: "ghp_..." });
+const client = new GitHubClient({ token: process.env.GITHUB_TOKEN });
 
-// Scan a PR
-const pr = await scanSinglePR(
+const prs = createPRAnalyzer({
   client,
-  "@cursor",
-  "owner",
-  "repo",
-  123
-);
+  repo: "owner/repo",
+});
 
-// Check status and available actions
-console.log(pr.status); // "ready_to_merge"
-console.log(pr.ciSummary); // "CI passed: 3 checks"
+const pr = await prs.analyze(123);
+pr.status; // "ready_to_merge"
+pr.actions; // [{ type: "merge", label: "Merge", ... }]
 
-import { getAvailableActions } from "@hardlydifficult/pr-analyzer";
-const actions = getAvailableActions(pr);
-// actions = [{ type: "merge", label: "Merge", description: "Squash and merge this PR" }]
+const inbox = await prs.mine();
+inbox.readyForHuman.map((item) => item.pr.number);
 ```
 
-## Core Features
+## Why This API
 
-### Scanning and Analyzing PRs
+- `repo` is configured once, so normal usage can just say `analyze(123)`.
+- `bot` defaults to `@cursor`, because that is the common case.
+- `analyze()` always returns an `ActionablePR`, so UI code does not need a second `getAvailableActions()` pass.
+- `inbox()` and `mine()` return already-bucketed results for human review, bot bumps, in-progress work, and blocked PRs.
+- `analyzeMany()` runs in parallel and skips failures instead of failing the whole batch.
 
-#### `analyzePR`
+## Main API
 
-Analyzes a single PR and returns its full status.
+### `createPRAnalyzer(config)`
 
 ```typescript
-import { analyzePR, analyzeAll } from "@hardlydifficult/pr-analyzer";
-
-const pr = await client.pr("owner/repo#123").details();
-const scanned = await analyzePR(client, "owner", "repo", pr, "@bot");
-
-scanned.status; // "ready_to_merge"
-scanned.hasConflicts; // false
-scanned.daysSinceUpdate; // 2
+const prs = createPRAnalyzer({
+  client,
+  repo: "owner/repo",
+  bot: "@cursor",
+});
 ```
 
-#### `analyzeAll`
+Config:
 
-Analyzes multiple PRs in parallel, logging failures.
+- `client`: GitHub client with `repo(...).pr(...).snapshot()` support.
+- `repo`: optional default repo. Required only if you want to analyze bare PR numbers.
+- `bot`: optional bot mention. Defaults to `@cursor`.
+- `hooks`: optional status override hook.
+- `classify`: optional custom status buckets.
+- `actions`: optional extra actions.
+- `actionContext`: optional flags passed to extra actions.
+- `logger`: optional logger used when bulk analysis skips failures.
 
-```typescript
-import type { DiscoveredPR } from "@hardlydifficult/pr-analyzer";
+Methods:
 
-const prs: readonly DiscoveredPR[] = [
-  { pr: pr1, repoOwner: "owner", repoName: "repo" },
-  { pr: pr2, repoOwner: "owner", repoName: "repo" },
-];
+- `analyze(ref)`: analyze one PR and return an `ActionablePR`.
+- `analyzeMany(refs)`: analyze many PRs in parallel.
+- `inbox(refs)`: analyze and bucket a set of PRs.
+- `mine()`: fetch and bucket your open PRs, optionally filtered to the configured repo.
+- `classify(prs)`: bucket already-scanned PRs using this analyzer's defaults.
+- `actionsFor(pr)`: compute actions for one scanned PR.
 
-const results = await analyzeAll(prs, client, "@bot");
-// results = [scannedPR1, scannedPR2]
-```
+Accepted refs:
 
-#### `scanSinglePR`
+- `123` when `repo` is configured
+- `"owner/repo#123"`
+- GitHub PR URL
+- raw `PullRequest`
+- `DiscoveredPR`
 
-Scans a single PR directly by repo and number (real-time event handling).
-
-```typescript
-import { scanSinglePR } from "@hardlydifficult/pr-analyzer";
-
-const pr = await scanSinglePR(client, "@cursor", "owner", "repo", 456);
-```
-
-### PR Status Determination
-
-PRs are classified into core statuses based on priority:
-
-1. `draft` — PR is a draft
-2. `ci_running` — CI checks are in progress
-3. `ci_failed` — At least one CI check failed
-4. `has_conflicts` — PR has merge conflicts
-5. `waiting_on_bot` — A bot was mentioned and hasn’t responded
-6. `changes_requested` — A reviewer requested changes
-7. `ready_to_merge` — CI passed and no conflicts
-8. `approved` — PR approved (but not all CI passed)
-9. `needs_review` — No reviews or approvals yet
-
-Extensions via `AnalyzerHooks.resolveStatus` allow custom statuses.
+## Custom Statuses And Actions
 
 ```typescript
-const hooks = {
-  resolveStatus: (coreStatus, details) => {
-    if (coreStatus === "ci_failed" && details.checks.some(c => c.name === "CI")) {
-      return "ai_processing";
-    }
-    return undefined; // keep core status
+import { createPRAnalyzer } from "@hardlydifficult/pr-analyzer";
+
+const prs = createPRAnalyzer({
+  client,
+  repo: "owner/repo",
+  hooks: {
+    resolveStatus: (coreStatus, details) => {
+      if (
+        coreStatus === "ci_failed" &&
+        details.checks.some((check) => check.name === "Cursor")
+      ) {
+        return "ai_processing";
+      }
+      return undefined;
+    },
   },
-};
-
-const pr = await analyzePR(client, "owner", "repo", pr, "@bot", hooks);
-console.log(pr.status); // e.g. "ai_processing"
+  classify: {
+    inProgress: ["ai_processing"],
+  },
+  actions: [
+    {
+      type: "fix_ci",
+      label: "Fix CI",
+      description: "Ask @cursor to repair CI",
+      when: (pr, flags) => pr.status === "ci_failed" && flags.work === true,
+    },
+  ],
+  actionContext: {
+    work: true,
+  },
+});
 ```
 
-### Classification
+## Result Shapes
 
-Classifies PRs into action buckets: `readyForHuman`, `needsBotBump`, `inProgress`, `blocked`.
+`ActionablePR` extends `ScannedPR` with:
 
 ```typescript
-import { classifyPRs } from "@hardlydifficult/pr-analyzer";
-
-const result = classifyPRs([scannedPR1, scannedPR2]);
-result.readyForHuman; // PRs needing human review/merge
-result.needsBotBump;  // PRs waiting on bot response
-result.inProgress;    // PRs with CI running
-result.blocked;       // PRs stalled (draft, failed CI, conflicts)
+{
+  actions: readonly PRActionDescriptor[];
+}
 ```
 
-#### ClassificationConfig
+`PRInbox` contains:
 
-Extend buckets with custom statuses:
+- `all`
+- `readyForHuman`
+- `needsBotBump`
+- `inProgress`
+- `blocked`
 
-```typescript
-const config = {
-  readyForHuman: ["custom_status"],
-  inProgress: ["ai_processing"],
-  blocked: ["custom_blocked"],
-  needsBotBump: ["custom_waiting"],
-};
+Each bucket contains `ActionablePR` items.
 
-const result = classifyPRs(prs, config);
-```
+## Low-Level Helpers
 
-### Available Actions
+The package still exports the smaller building blocks when you want them:
 
-Determines which actions are available for a PR based on its status.
+- `analyzePR(client, owner, repo, prOrNumber, botMention, hooks?)`
+- `analyzeAll(prs, client, botMention, logger?, hooks?)`
+- `scanSinglePR(client, botMention, owner, repo, prNumber, hooks?)`
+- `classifyPRs(prs, config?)`
+- `getAvailableActions(pr, extraActions?, actionContext?)`
 
-#### Core Actions
-
-- `merge` — Available for `ready_to_merge`, `approved`
-- `mark_ready` — Available for `draft` when CI passed and no conflicts
-- `enable_auto_merge` — Available for `ci_running`, `needs_review` when PR is not draft, not merged, no conflicts
-
-```typescript
-import { getAvailableActions, PR_ACTIONS } from "@hardlydifficult/pr-analyzer";
-
-const actions = getAvailableActions(pr);
-// [{ type: "merge", label: "Merge", description: "Squash and merge this PR" }]
-```
-
-#### Custom Actions
-
-Consumers can define extra actions with custom conditions.
-
-```typescript
-import { ActionDefinition } from "@hardlydifficult/pr-analyzer";
-
-const fixCiAction: ActionDefinition = {
-  type: "fix_ci",
-  label: "Fix CI",
-  description: "Post @cursor fix CI comment",
-  when: (pr, ctx) => pr.status === "ci_failed" && ctx["isWorkPR"] === true,
-};
-
-const actions = getAvailableActions(pr, [fixCiAction], { isWorkPR: true });
-```
-
-## Types and Interfaces
-
-| Type | Description |
-|------|-------------|
-| `ScannedPR` | A fully analyzed PR with status, CI summary, and metadata |
-| `ScanResult` | Classified PR buckets: `all`, `readyForHuman`, `needsBotBump`, `inProgress`, `blocked` |
-| `AnalyzerHooks` | Custom logic hook: `resolveStatus(coreStatus, details)` |
-| `ClassificationConfig` | Extend status buckets with custom statuses |
-| `ActionDefinition` | Define custom actions with conditional logic |
-| `CorePRStatus` | Core PR status enum (`draft`, `ci_running`, etc.) |
-| `CIStatus` | CI analysis: `isRunning`, `hasFailed`, `allPassed`, `summary` |
-| `Logger` | Logging interface (`info`, `error`) |
-
-## Appendix
-
-### Core Status Priority
-
-Status determination follows this priority:
-
-1. Draft PR → `"draft"`
-2. CI running → `"ci_running"`
-3. CI failed → `"ci_failed"`
-4. Merge conflicts → `"has_conflicts"`
-5. Waiting on bot → `"waiting_on_bot"`
-6. Changes requested → `"changes_requested"`
-7. CI passed and no conflicts → `"ready_to_merge"`
-8. At least one approval → `"approved"`
-9. Default → `"needs_review"`
-
-### CI Check Status Detection
-
-- **Running**: `status: "in_progress"` or `status: "queued"` or `conclusion: null`
-- **Failed**: `status: "completed"` and `conclusion` is `"failure"`, `"timed_out"`, `"cancelled"`, or `"action_required"`
-- **Passed**: `status: "completed"` and `conclusion` is `"success"`, `"skipped"`, or `"neutral"`
-- **Uncategorized checks**: Treated as running if no definitive state
-
-Bot detection includes common bots: `cursor`, `cursor-bot`, `github-actions`, `dependabot`, `renovate`, `codecov`, `vercel`, `claude`, plus any username ending in `[bot]` or containing `bot`.
+Use these when you need to plug the analyzer into an existing flow. Use `createPRAnalyzer()` when you want the cleanest client code.

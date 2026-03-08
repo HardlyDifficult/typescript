@@ -1,6 +1,15 @@
 # @hardlydifficult/usage-tracker
 
-Usage tracker with session/cumulative dual-tracking, cost monitoring, spend limits, and disk persistence.
+Persisted usage counters with a simple API:
+
+- `UsageTracker.open(id, metrics, options)`
+- `usage.track(delta)`
+- `usage.current` for this run
+- `usage.total` for all runs
+- `usage.spend("minute" | "hour" | "day" | "week")`
+- `usage.budget` for budget status
+
+Any metric ending in `CostUsd` is treated as spend automatically.
 
 ## Installation
 
@@ -13,275 +22,178 @@ npm install @hardlydifficult/usage-tracker
 ```typescript
 import { UsageTracker } from "@hardlydifficult/usage-tracker";
 
-// Define your metrics shape — any leaf ending in "CostUsd" is tracked for spend monitoring
-const defaults = {
-  api: { requests: 0, tokens: 0, costUsd: 0 },
-  audio: { durationSeconds: 0 },
-};
-
-// Create a tracker that persists state to disk
-const tracker = await UsageTracker.create({
-  key: "my-app",
-  default: defaults,
-  stateDirectory: "/path/to/state",
-});
-
-// Record usage — both session and cumulative metrics are incremented
-tracker.record({ api: { requests: 1, tokens: 1000, costUsd: 0.05 } });
-
-// Check session vs. cumulative metrics
-console.log(tracker.session.api.requests);   // 1 (session only)
-console.log(tracker.cumulative.api.requests); // 1 (all-time)
-```
-
-## Core Features
-
-### Session and Cumulative Tracking
-
-The tracker maintains two metric views: `session` (since last start) and `cumulative` (all-time). Both are updated simultaneously on `record()`.
-
-#### Properties
-
-| Property | Type | Description |
-|---|---|---|
-| `session` | `Readonly<T>` | Current session metrics |
-| `cumulative` | `Readonly<T>` | All-time metrics |
-| `sessionStartedAt` | `string` | ISO timestamp when the current session started |
-| `trackingSince` | `string` | ISO timestamp when cumulative tracking began |
-| `isPersistent` | `boolean` | Whether state is persisted to disk |
-
-```typescript
-const tracker = await UsageTracker.create({
-  key: "example",
-  default: { api: { requests: 0 } },
-  stateDirectory: "/tmp",
-});
-
-tracker.record({ api: { requests: 1 } });
-console.log(tracker.session.api.requests);   // 1
-console.log(tracker.cumulative.api.requests); // 1
-
-// After process restart, session resets but cumulative persists
-const tracker2 = await UsageTracker.create({
-  key: "example",
-  default: { api: { requests: 0 } },
-  stateDirectory: "/tmp",
-});
-console.log(tracker2.session.api.requests);   // 0
-console.log(tracker2.cumulative.api.requests); // 1
-```
-
-### Persistence
-
-State is automatically persisted to disk and survives restarts. Use `save()` to force immediate writes.
-
-```typescript
-await tracker.save();
-```
-
-### Record Method
-
-```typescript
-record(values: DeepPartial<T>): void;
-```
-
-Record metrics by deeply adding numeric values to both session and cumulative. Only provide the fields you are incrementing — unspecified fields are unchanged.
-
-```typescript
-tracker.record({ api: { requests: 1 } }); // increments only `requests`
-tracker.record({ api: { costUsd: 0.01 } }); // also tracks cost if field name ends with "CostUsd"
-```
-
-## Cost Monitoring
-
-Any leaf field ending with `costusd` (case-insensitive, e.g., `costUsd`, `estimatedCostUsd`, `totalCostUsd`) is automatically tracked in a time-series for spend monitoring.
-
-### Cost Field Detection
-
-```typescript
-import { findCostFieldPaths } from "@hardlydifficult/usage-tracker";
-
-const paths = findCostFieldPaths({
-  anthropic: { estimatedCostUsd: 0, tokens: 0 },
-  claudeCode: { totalCostUsd: 0 },
-});
-// ["anthropic.estimatedCostUsd", "claudeCode.totalCostUsd"]
-```
-
-### Extract Cost from Delta
-
-```typescript
-import { extractCostFromDelta } from "@hardlydifficult/usage-tracker";
-
-const cost = extractCostFromDelta(
-  { api: { estimatedCostUsd: 0.05 }, code: { totalCostUsd: 1.5 } },
-  ["api.estimatedCostUsd", "code.totalCostUsd"]
+const usage = await UsageTracker.open(
+  "assistant",
+  {
+    api: { requests: 0, tokens: 0, costUsd: 0 },
+    audio: { seconds: 0 },
+  },
+  {
+    dir: "/path/to/state",
+    budget: {
+      hour: 2,
+      day: 10,
+    },
+  }
 );
-// 1.55
-```
 
-### Trailing Window Cost
-
-```typescript
-costInWindow(windowMs: number): number;
-```
-
-Get total cost (USD) recorded within a trailing window.
-
-```typescript
-// Last 24 hours
-const dailySpend = tracker.costInWindow(24 * 60 * 60 * 1000);
-```
-
-## Spend Limits
-
-Configure trailing-window spend limits to enforce budgets. Limits automatically track `costUsd` fields and prune stale entries.
-
-### Configuration
-
-| Option | Type | Description |
-|---|---|---|
-| `windowMs` | `number` | Window duration in milliseconds |
-| `maxSpendUsd` | `number` | Maximum spend allowed in the window |
-| `label` | `string` | Human-readable label (e.g., `"24 hours"`) |
-
-### Usage
-
-```typescript
-const tracker = await UsageTracker.create({
-  key: "my-app",
-  default: {
-    api: { requests: 0, costUsd: 0 },
-    code: { sessions: 0, totalCostUsd: 0 },
-  },
-  stateDirectory: "/tmp",
-  spendLimits: [
-    { windowMs: 24 * 60 * 60 * 1000, maxSpendUsd: 10, label: "24 hours" },
-    { windowMs: 60 * 60 * 1000, maxSpendUsd: 2, label: "1 hour" },
-  ],
-  onSpendLimitExceeded: (status) => {
-    console.log(`Limit exceeded: ${status.spentUsd.toFixed(2)} / $${status.limit.maxSpendUsd}`);
-  },
+usage.track({
+  api: { requests: 1, tokens: 1200, costUsd: 0.04 },
 });
 
-tracker.record({ api: { costUsd: 12 } });
+console.log(usage.current.api.requests); // 1
+console.log(usage.total.api.requests); // 1
+console.log(usage.spend("day")); // 0.04
+console.log(usage.budget.day?.remainingUsd); // 9.96
+```
+
+## API
+
+### `UsageTracker.open(id, metrics, options?)`
+
+Open a tracker, load persisted totals, and start a fresh current run.
+
+```typescript
+const usage = await UsageTracker.open("my-app", {
+  api: { requests: 0, tokens: 0, costUsd: 0 },
+});
+```
+
+Arguments:
+
+- `id`: persistence key
+- `metrics`: zeroed metric shape
+- `options.dir`: directory for persisted state
+- `options.storage`: custom storage adapter
+- `options.autoSaveMs`: autosave interval
+- `options.budget`: budgets keyed by `minute`, `hour`, `day`, or `week`
+- `options.onBudgetExceeded`: fires once when a window crosses over budget
+
+### `usage.track(delta)`
+
+Add numeric deltas into both `current` and `total`.
+
+```typescript
+usage.track({
+  api: { requests: 1, tokens: 800, costUsd: 0.02 },
+});
+```
+
+### `usage.current`
+
+Metrics for the current process run.
+
+### `usage.total`
+
+Metrics across every run that used the same `id`.
+
+### `usage.startedAt`
+
+ISO timestamp for the current run.
+
+### `usage.trackingSince`
+
+ISO timestamp for when the tracker was first created.
+
+### `usage.persistent`
+
+Whether persistence is currently working.
+
+### `usage.spend(window)`
+
+Spend recorded in the trailing `minute`, `hour`, `day`, or `week`.
+
+```typescript
+const today = usage.spend("day");
+const thisWeek = usage.spend("week");
+```
+
+### `usage.budget`
+
+Live budget status keyed by window name.
+
+```typescript
+const usage = await UsageTracker.open(
+  "assistant",
+  {
+    api: { requests: 0, costUsd: 0 },
+  },
+  {
+    budget: { hour: 2, day: 10 },
+  }
+);
+
+usage.track({ api: { costUsd: 1.5 } });
+
+console.log(usage.budget.hour);
+// {
+//   window: "hour",
+//   spentUsd: 1.5,
+//   limitUsd: 2,
+//   remainingUsd: 0.5,
+//   exceeded: false,
+//   resumesAt: null
+// }
+```
+
+### `usage.assertBudget()`
+
+Throw if any configured budget is exceeded.
+
+```typescript
+import {
+  BudgetExceededError,
+  UsageTracker,
+} from "@hardlydifficult/usage-tracker";
 
 try {
-  tracker.assertWithinSpendLimits();
-} catch (err) {
-  if (err instanceof SpendLimitExceededError) {
-    console.log(err.message);
-    // Spend limit exceeded: $12.00 spent in trailing 24 hours (limit: $10.00)
+  usage.assertBudget();
+} catch (error) {
+  if (error instanceof BudgetExceededError) {
+    console.log(error.status.window);
+    console.log(error.status.spentUsd);
   }
 }
 ```
 
-### Status Queries
+### `usage.save()`
+
+Force an immediate write to storage.
 
 ```typescript
-spendStatus(): SpendStatus[];
+await usage.save();
 ```
 
-Get status of all configured limits.
+## Cost Detection
 
-| Field | Type | Description |
-|---|---|---|
-| `spentUsd` | `number` | Amount spent in the current window |
-| `remainingUsd` | `number` | How much more can be spent before hitting the limit |
-| `exceeded` | `boolean` | Whether the limit is currently exceeded |
-| `resumesAt` | `Date \| null` | When the window will have enough room again |
+Every numeric leaf whose name ends with `CostUsd` is counted as spend.
 
-```typescript
-const statuses = tracker.spendStatus();
-for (const status of statuses) {
-  console.log(`${status.limit.label}: $${status.spentUsd.toFixed(2)} / $${status.limit.maxSpendUsd.toFixed(2)}`);
-}
-```
+Examples:
 
-## Utility Functions
+- `costUsd`
+- `estimatedCostUsd`
+- `totalCostUsd`
 
-### deepAdd
+This works across nested metric groups:
 
 ```typescript
-deepAdd(target: T, source: DeepPartial<T>): void;
-```
-
-Recursively adds numeric values from `source` into `target`, mutating `target` in place.
-
-```typescript
-const target = { api: { requests: 1 } };
-deepAdd(target, { api: { requests: 2, costUsd: 0.01 } });
-console.log(target); // { api: { requests: 3, costUsd: 0.01 } }
-```
-
-### findCostFieldPaths
-
-```typescript
-findCostFieldPaths(obj: NumericRecord): string[];
-```
-
-Returns an array of dot-notation paths to all leaf fields ending in `CostUsd` (case-insensitive).
-
-### extractCostFromDelta
-
-```typescript
-extractCostFromDelta(delta: DeepPartial<T>, paths: string[]): number;
-```
-
-Sums cost values from a delta object using provided paths.
-
-## Error Handling
-
-### SpendLimitExceededError
-
-```typescript
-class SpendLimitExceededError extends Error {
-  readonly status: SpendStatus;
-  constructor(status: SpendStatus);
-}
-```
-
-Thrown when a spend limit is exceeded and `assertWithinSpendLimits()` is called.
-
-```typescript
-try {
-  tracker.assertWithinSpendLimits();
-} catch (err) {
-  if (err instanceof SpendLimitExceededError) {
-    console.log(err.status.spentUsd);  // Amount spent
-    console.log(err.status.remainingUsd); // 0 (exceeded)
-  }
-}
+const usage = await UsageTracker.open("providers", {
+  anthropic: { tokens: 0, estimatedCostUsd: 0 },
+  openai: { tokens: 0, estimatedCostUsd: 0 },
+  claudeCode: { sessions: 0, totalCostUsd: 0 },
+});
 ```
 
 ## Types
 
 ```typescript
 import type {
-  NumericRecord,
+  Budget,
+  BudgetSnapshot,
+  BudgetStatus,
+  BudgetWindow,
   DeepPartial,
-  SpendLimit,
-  SpendStatus,
-  SpendEntry,
+  NumericRecord,
+  UsageTrackerOpenOptions,
 } from "@hardlydifficult/usage-tracker";
-
-// Constrain T to a nested object where every leaf is a number
-interface NumericRecord {
-  [key: string]: number | NumericRecord;
-}
-
-// Recursive partial — only provide the fields you are incrementing
-type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends number
-    ? number
-    : T[K] extends NumericRecord
-      ? DeepPartial<T[K]>
-      : never;
-};
-
-// A single timestamped spend entry
-interface SpendEntry {
-  timestamp: number;
-  amountUsd: number;
-}
 ```

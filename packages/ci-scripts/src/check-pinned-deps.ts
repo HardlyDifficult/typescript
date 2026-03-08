@@ -11,6 +11,8 @@
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 
+import { findWorkspaceRoot } from "./workspace.js";
+
 const DEPENDENCY_FIELDS = [
   "dependencies",
   "devDependencies",
@@ -27,11 +29,34 @@ interface PackageJson {
   optionalDependencies?: Record<string, string>;
 }
 
-interface DependencyError {
+export interface CheckPinnedDependenciesOptions {
+  rootDir?: string;
+}
+
+export interface UnpinnedDependency {
   file: string;
   field: string;
-  package: string;
+  packageName: string;
   version: string;
+}
+
+export interface PinnedDependenciesResult {
+  rootDir: string;
+  packageFiles: string[];
+  issues: UnpinnedDependency[];
+}
+
+/**
+ *
+ */
+export class PinnedDependenciesError extends Error {
+  readonly issues: UnpinnedDependency[];
+
+  constructor(result: PinnedDependenciesResult) {
+    super(formatPinnedDependenciesFailure(result.issues));
+    this.name = "PinnedDependenciesError";
+    this.issues = result.issues;
+  }
 }
 
 function findPackageJsonFiles(dir: string, files: string[] = []): string[] {
@@ -56,10 +81,10 @@ function findPackageJsonFiles(dir: string, files: string[] = []): string[] {
   return files;
 }
 
-function checkPackageJson(filePath: string): DependencyError[] {
+function checkPackageJson(filePath: string): UnpinnedDependency[] {
   const content = readFileSync(filePath, "utf-8");
   const pkg = JSON.parse(content) as PackageJson;
-  const errors: DependencyError[] = [];
+  const issues: UnpinnedDependency[] = [];
 
   for (const field of DEPENDENCY_FIELDS) {
     const deps = pkg[field];
@@ -69,49 +94,92 @@ function checkPackageJson(filePath: string): DependencyError[] {
 
     for (const [name, version] of Object.entries(deps)) {
       if (UNPINNED_PATTERN.test(version)) {
-        errors.push({
+        issues.push({
           file: filePath,
           field,
-          package: name,
+          packageName: name,
           version,
         });
       }
     }
   }
 
-  return errors;
+  return issues;
 }
 
-function main(): void {
-  const rootDir = process.cwd();
-  const packageFiles = findPackageJsonFiles(rootDir);
-  const allErrors: DependencyError[] = [];
+function formatPinnedDependenciesFailure(issues: UnpinnedDependency[]): string {
+  const lines = ["Found unpinned dependencies:", ""];
 
-  for (const file of packageFiles) {
-    const errors = checkPackageJson(file);
-    allErrors.push(...errors);
-  }
-
-  if (allErrors.length > 0) {
-    console.error("Found unpinned dependencies:\n");
-
-    for (const error of allErrors) {
-      console.error(
-        `  ${error.file}\n    ${error.field}.${error.package}: "${error.version}"\n`
-      );
-    }
-
-    console.error(
-      "\nAll dependencies must use exact versions (no ^ or ~ prefixes)."
+  for (const issue of issues) {
+    lines.push(`  ${issue.file}`);
+    lines.push(
+      `    ${issue.field}.${issue.packageName}: "${issue.version}"`,
+      ""
     );
-    console.error("Fix by removing the ^ or ~ prefix from each version.\n");
-    process.exit(1);
   }
 
-  // eslint-disable-next-line no-console
-  console.log(
-    `Checked ${String(packageFiles.length)} package.json file(s) - all dependencies are pinned.`
-  );
+  lines.push("All dependencies must use exact versions (no ^ or ~ prefixes).");
+  lines.push("Fix by removing the ^ or ~ prefix from each version.");
+
+  return lines.join("\n");
 }
 
-main();
+/**
+ * Scan workspace package.json files for dependencies that are not exact versions.
+ */
+export function checkPinnedDependencies(
+  options: CheckPinnedDependenciesOptions = {}
+): PinnedDependenciesResult {
+  const rootDir = findWorkspaceRoot(options.rootDir);
+  const packageFiles = findPackageJsonFiles(rootDir);
+  const issues = packageFiles.flatMap((filePath) => checkPackageJson(filePath));
+
+  return {
+    rootDir,
+    packageFiles,
+    issues,
+  };
+}
+
+/**
+ * Assert that all workspace dependencies are pinned to exact versions.
+ */
+export function assertPinnedDependencies(
+  options: CheckPinnedDependenciesOptions = {}
+): PinnedDependenciesResult {
+  const result = checkPinnedDependencies(options);
+
+  if (result.issues.length > 0) {
+    throw new PinnedDependenciesError(result);
+  }
+
+  return result;
+}
+
+/**
+ * Format a human-readable success message for pinned dependency validation.
+ */
+export function formatPinnedDependenciesSuccess(
+  result: PinnedDependenciesResult
+): string {
+  return `Checked ${String(result.packageFiles.length)} package.json file(s) under ${result.rootDir} - all dependencies are pinned.`;
+}
+
+/**
+ * CLI entrypoint for pinned dependency checks.
+ */
+export function runCheckPinnedDependenciesCli(): number {
+  try {
+    const result = assertPinnedDependencies();
+    // eslint-disable-next-line no-console
+    console.log(formatPinnedDependenciesSuccess(result));
+    return 0;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+if (require.main === module) {
+  process.exitCode = runCheckPinnedDependenciesCli();
+}

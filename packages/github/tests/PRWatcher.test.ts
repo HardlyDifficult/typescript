@@ -1841,32 +1841,37 @@ describe("PRWatcher", () => {
   });
 
   describe("throttle", () => {
-    it("calls throttle.wait before API calls", async () => {
+    it("runs API calls through the throttle", async () => {
       const pr = makePR();
       (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
         data: [pr],
       });
       stubEmptyActivity();
 
-      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      const mockThrottle = {
+        run: vi.fn(
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
+        ),
+      };
       watcher = new PRWatcher(mockOctokit, "testuser", {
         repos: ["owner/repo"],
         throttle: mockThrottle,
       });
       await watcher.start();
 
-      // throttle.wait should have been called for:
+      // throttle.run should have been called for:
       // 1. pulls.list (weight 1 in fetchWatchedPRs)
       // 2. fetchPRActivity full fetch (weight 3)
-      expect(mockThrottle.wait).toHaveBeenCalled();
-      const weights = mockThrottle.wait.mock.calls.map(
-        (call: unknown[]) => call[0] as number
+      expect(mockThrottle.run).toHaveBeenCalled();
+      const weights = mockThrottle.run.mock.calls.map(
+        (call: unknown[]) => call[1] as number
       );
       expect(weights).toContain(1); // pulls.list
       expect(weights).toContain(3); // full activity fetch
     });
 
-    it("calls throttle.wait with weight 0 when activity is cached", async () => {
+    it("skips extra throttled work when activity is cached", async () => {
       const pr = makePR();
       const checkRun = makeCheckRun({ id: 301 });
       (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -1874,7 +1879,12 @@ describe("PRWatcher", () => {
       });
       stubActivity([], [], [checkRun]);
 
-      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      const mockThrottle = {
+        run: vi.fn(
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
+        ),
+      };
       watcher = new PRWatcher(mockOctokit, "testuser", {
         repos: ["owner/repo"],
         intervalMs: 1000,
@@ -1882,26 +1892,31 @@ describe("PRWatcher", () => {
       });
       await watcher.start();
 
-      mockThrottle.wait.mockClear();
+      mockThrottle.run.mockClear();
 
       await vi.advanceTimersByTimeAsync(1000);
 
-      // On second poll with unchanged PR: pulls.list (1) + cache hit (no wait call for 0)
-      const weights = mockThrottle.wait.mock.calls.map(
-        (call: unknown[]) => call[0] as number
+      // On second poll with unchanged PR: pulls.list (1) + cache hit (no full activity fetch)
+      const weights = mockThrottle.run.mock.calls.map(
+        (call: unknown[]) => call[1] as number
       );
       expect(weights).toContain(1); // pulls.list
       expect(weights).not.toContain(3); // no full fetch
     });
 
-    it("calls throttle.wait for removed PR lookup", async () => {
+    it("runs removed PR lookups through the throttle", async () => {
       const pr = makePR();
       (mockOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
         data: [pr],
       });
       stubEmptyActivity();
 
-      const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+      const mockThrottle = {
+        run: vi.fn(
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
+        ),
+      };
       watcher = new PRWatcher(mockOctokit, "testuser", {
         repos: ["owner/repo"],
         intervalMs: 1000,
@@ -1921,13 +1936,13 @@ describe("PRWatcher", () => {
         data: freshPR,
       });
 
-      mockThrottle.wait.mockClear();
+      mockThrottle.run.mockClear();
 
       await vi.advanceTimersByTimeAsync(1000);
 
       // Should have throttle calls including weight 1 for pulls.get
-      const weights = mockThrottle.wait.mock.calls.map(
-        (call: unknown[]) => call[0] as number
+      const weights = mockThrottle.run.mock.calls.map(
+        (call: unknown[]) => call[1] as number
       );
       expect(
         weights.filter((w: number) => w === 1).length

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const constructorMock = vi.fn();
+const githubMock = vi.fn();
 const repoMock = vi.fn();
 
 vi.mock("@hardlydifficult/github", async () => {
@@ -8,24 +8,19 @@ vi.mock("@hardlydifficult/github", async () => {
     typeof import("@hardlydifficult/github")
   >("@hardlydifficult/github");
 
-  class MockGitHubClient {
-    constructor(config: unknown) {
-      constructorMock(config);
-    }
-
-    repo = repoMock;
-  }
-
   return {
     ...actual,
-    GitHubClient: MockGitHubClient,
+    github: githubMock,
   };
 });
 
 describe("RepoProcessor.open", () => {
   beforeEach(() => {
-    constructorMock.mockReset();
+    githubMock.mockReset();
     repoMock.mockReset();
+    githubMock.mockReturnValue({
+      repo: repoMock,
+    });
     repoMock.mockReturnValue({
       tree: vi.fn(),
       read: vi.fn(),
@@ -48,8 +43,8 @@ describe("RepoProcessor.open", () => {
       },
     });
 
-    expect(constructorMock).toHaveBeenCalledWith({ token: undefined });
-    expect(repoMock).toHaveBeenCalledWith("owner/source");
+    expect(githubMock).toHaveBeenCalledWith({ token: undefined });
+    expect(repoMock).toHaveBeenCalledWith("owner", "source");
     expect(processor.repo).toBe("owner/source");
   });
 
@@ -67,7 +62,7 @@ describe("RepoProcessor.open", () => {
       },
     });
 
-    expect(repoMock).toHaveBeenCalledWith("hardlydifficult/typescript");
+    expect(repoMock).toHaveBeenCalledWith("hardlydifficult", "typescript");
   });
 
   it("falls back from GH_PAT to GITHUB_TOKEN", async () => {
@@ -85,6 +80,6 @@ describe("RepoProcessor.open", () => {
       },
     });
 
-    expect(constructorMock).toHaveBeenCalledWith({ token: "github-token" });
+    expect(githubMock).toHaveBeenCalledWith({ token: "github-token" });
   });
 });

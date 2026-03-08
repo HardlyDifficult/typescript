@@ -26,13 +26,24 @@ type Story = StoryObj<typeof Page>;
 export const Overview: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
-    <Page>
+    <Page
+      title="Engineering overview"
+      description="Page owns the shell so the content can stay focused on actual UI."
+      actions={<Button size="sm">Refresh</Button>}
+    >
       <Stack direction="vertical" gap="md">
         <Text variant="caption" color="muted">
-          Page provides the outer shell: a max-width container, consistent padding, and a title bar.
-          Everything inside is your content.
+          Page provides the outer shell: a max-width container, consistent
+          padding, and a header that uses the same prop names as the other
+          layout primitives.
         </Text>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-4)" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "var(--space-4)",
+          }}
+        >
           <StatCard label="Open PRs" value="12" />
           <StatCard label="Merged today" value="5" trend="up" />
           <StatCard label="Failed checks" value="2" trend="down" />
@@ -56,21 +67,29 @@ export const Overview: Story = {
   ),
 };
 
-export const WithHeaderActions: Story = {
+export const WithActions: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
-    <Page headerActions={
-      <Stack direction="horizontal" gap="sm">
-        <Button variant="secondary" size="sm">Cancel</Button>
-        <Button size="sm">Save changes</Button>
-      </Stack>
-    }>
+    <Page
+      title="Project settings"
+      description="Use `actions` instead of a one-off header prop name."
+      actions={
+        <Stack direction="horizontal" gap="sm">
+          <Button variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button size="sm">Save changes</Button>
+        </Stack>
+      }
+    >
       <Section title="General">
         <Card>
-          <Text variant="body">headerActions places buttons in the top-right corner, aligned with the page title.</Text>
+          <Text variant="body">
+            `actions` places buttons in the top-right corner, aligned with the
+            page title.
+          </Text>
         </Card>
       </Section>
     </Page>
   ),
 };
-

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DataTable } from "../src/index.js";
+import { Badge } from "../src/index.js";
 
 const meta: Meta<typeof DataTable> = {
   title: "Data/DataTable",
@@ -7,9 +8,8 @@ const meta: Meta<typeof DataTable> = {
   argTypes: {
     columns: { control: "object" },
     rows: { control: "object" },
-    rowKey: { control: "text" },
     selectable: { control: "boolean" },
-    emptyMessage: { control: "text" },
+    empty: { control: "text" },
     onSelectionChange: { action: "onSelectionChange" },
   },
 };
@@ -25,25 +25,34 @@ const sampleRows = [
 
 export const Default: Story = {
   args: {
-    columns: [
-      { key: "name", header: "Name" },
-      { key: "role", header: "Role" },
-      { key: "status", header: "Status" },
-    ],
     rows: sampleRows,
-    rowKey: "id",
+  },
+};
+
+export const CustomColumns: Story = {
+  parameters: { controls: { disable: true } },
+  args: {
+    rows: sampleRows,
+    columns: [
+      "name",
+      "role",
+      {
+        key: "status",
+        cell: (row) => (
+          <Badge variant={row.status === "Active" ? "success" : "default"}>
+            {String(row.status)}
+          </Badge>
+        ),
+      },
+    ],
   },
 };
 
 export const Empty: Story = {
   parameters: { controls: { disable: true } },
   args: {
-    columns: [
-      { key: "name", header: "Name" },
-      { key: "role", header: "Role" },
-    ],
+    columns: ["name", "role"],
     rows: [],
-    rowKey: "id",
-    emptyMessage: "No team members found",
+    empty: "No team members found",
   },
 };

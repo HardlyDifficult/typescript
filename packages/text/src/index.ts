@@ -13,12 +13,15 @@ export { healYaml } from "./healYaml.js";
 export {
   Linker,
   createLinker,
+  linkText,
   type LinkRule,
-  type LinkHrefBuilder,
-  type LinkMatchContext,
-  type LinkerApplyOptions,
-  type LinkerPlatform,
+  type LinkTarget,
+  type LinkContext,
+  type LinkerConfig,
+  type LinkOptions,
+  type LinkStyle,
+  type LinkTextOptions,
 } from "./linker.js";
-export { escapeFence } from "./escapeFence.js";
+export { codeBlock } from "./codeBlock.js";
 export { stripAnsi } from "./stripAnsi.js";
 export { isWaitingForInput } from "./questionDetection.js";

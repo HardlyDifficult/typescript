@@ -26,7 +26,7 @@ export class PRClient {
     this.number = number;
   }
 
-  async details(): Promise<PullRequest> {
+  async get(): Promise<PullRequest> {
     const response = await this.octokit.pulls.get({
       owner: this.owner,
       repo: this.repo,
@@ -113,13 +113,13 @@ export class PRClient {
     return timeline;
   }
 
-  async load(): Promise<PullRequestSnapshot> {
+  async snapshot(): Promise<PullRequestSnapshot> {
     const { pullRequest, comments, reviews, checks, timeline } =
       await this.loadActivity({ includeTimeline: true });
 
     return {
-      pullRequest,
-      repository: pullRequest.base.repo,
+      pr: pullRequest,
+      repo: pullRequest.base.repo,
       comments,
       reviews,
       checks,
@@ -127,7 +127,7 @@ export class PRClient {
     };
   }
 
-  async merge(title: string): Promise<void> {
+  async squash(title: string): Promise<void> {
     await this.octokit.pulls.merge({
       owner: this.owner,
       repo: this.repo,
@@ -137,7 +137,7 @@ export class PRClient {
     });
   }
 
-  async markReady(): Promise<void> {
+  async ready(): Promise<void> {
     await this.octokit.pulls.update({
       owner: this.owner,
       repo: this.repo,
@@ -146,9 +146,7 @@ export class PRClient {
     });
   }
 
-  async enableAutoMerge(
-    mergeMethod: "SQUASH" | "MERGE" | "REBASE" = "SQUASH"
-  ): Promise<void> {
+  async enableAutoMerge(): Promise<void> {
     // Get PR node ID (needed for GraphQL)
     const { data: pr } = await this.octokit.pulls.get({
       owner: this.owner,
@@ -170,7 +168,7 @@ export class PRClient {
       }`,
       {
         prId: pr.node_id,
-        mergeMethod,
+        mergeMethod: "SQUASH",
       }
     );
   }
@@ -186,7 +184,7 @@ export class PRClient {
     checks: readonly CheckRun[];
     timeline: readonly TimelineEntry[];
   }> {
-    const pullRequest = await this.details();
+    const pullRequest = await this.get();
     const [comments, reviews, checks, commits] = await Promise.all([
       this.comments(),
       this.reviews(),

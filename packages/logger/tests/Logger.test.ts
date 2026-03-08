@@ -4,11 +4,11 @@ import type { LogEntry, LoggerPlugin } from "../src/types.js";
 
 function createSpyPlugin(): LoggerPlugin & {
   log: ReturnType<typeof vi.fn>;
-  notify: ReturnType<typeof vi.fn>;
+  alert: ReturnType<typeof vi.fn>;
 } {
   return {
     log: vi.fn(),
-    notify: vi.fn(),
+    alert: vi.fn(),
   };
 }
 
@@ -109,9 +109,9 @@ describe("Logger", () => {
     });
   });
 
-  describe("withContext", () => {
+  describe("child", () => {
     it("merges bound context with per-call context", () => {
-      const scoped = logger.withContext({
+      const scoped = logger.child({
         service: "billing",
         region: "us-east-1",
       });
@@ -126,7 +126,7 @@ describe("Logger", () => {
     });
 
     it("does not mutate the parent logger context", () => {
-      const scoped = logger.withContext({ service: "billing" });
+      const scoped = logger.child({ service: "billing" });
       scoped.info("scoped");
       logger.info("plain");
 
@@ -168,7 +168,7 @@ describe("Logger", () => {
     it("swallows notify errors", () => {
       const brokenPlugin: LoggerPlugin = {
         log: vi.fn(),
-        notify: vi.fn(() => {
+        alert: vi.fn(() => {
           throw new Error("boom");
         }),
       };
@@ -178,22 +178,27 @@ describe("Logger", () => {
       safeLogger.use(brokenPlugin);
       safeLogger.use(goodPlugin);
 
-      expect(() => safeLogger.notify("test")).not.toThrow();
-      expect(goodPlugin.notify).toHaveBeenCalledOnce();
+      expect(() => safeLogger.alert("test")).not.toThrow();
+      expect(goodPlugin.alert).toHaveBeenCalledOnce();
     });
   });
 
-  describe("notify", () => {
-    it("calls plugin.notify with the message", () => {
-      logger.notify("hello discord");
-      expect(plugin.notify).toHaveBeenCalledWith("hello discord");
+  describe("alert", () => {
+    it("calls plugin.alert with the message", () => {
+      logger.alert("hello discord");
+      expect(plugin.alert).toHaveBeenCalledWith("hello discord");
     });
 
-    it("skips plugins without notify", () => {
-      const noNotifyPlugin: LoggerPlugin = { log: vi.fn() };
-      const notifyLogger = new Logger("info");
-      notifyLogger.use(noNotifyPlugin);
-      expect(() => notifyLogger.notify("test")).not.toThrow();
+    it("keeps notify as a compatibility alias", () => {
+      logger.notify("legacy");
+      expect(plugin.alert).toHaveBeenCalledWith("legacy");
+    });
+
+    it("skips plugins without alert", () => {
+      const noAlertPlugin: LoggerPlugin = { log: vi.fn() };
+      const alertLogger = new Logger("info");
+      alertLogger.use(noAlertPlugin);
+      expect(() => alertLogger.alert("test")).not.toThrow();
     });
   });
 

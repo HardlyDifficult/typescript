@@ -1,7 +1,7 @@
 import { bottomUp, inBatches } from "@hardlydifficult/collections";
 import {
   diffTree,
-  GitHubClient,
+  github,
   parseGitHubRepoReference,
   type TreeEntry,
 } from "@hardlydifficult/github";
@@ -65,8 +65,8 @@ export class RepoProcessor<TFileResult = unknown, TDirResult = never> {
     );
     const githubToken =
       options.githubToken ?? process.env.GH_PAT ?? process.env.GITHUB_TOKEN;
-    const github = new GitHubClient({ token: githubToken });
-    const sourceRepo = github.repo(repo.fullName);
+    const gh = github({ token: githubToken });
+    const sourceRepo = gh.repo(repo.owner, repo.name);
     const { processDirectory } = options;
     const store = new GitYamlStore({
       sourceRepo: repo,

@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 
+import { runWithThrottle } from "../runWithThrottle.js";
 import type {
   CheckRun,
   PullRequestComment,
@@ -69,25 +70,26 @@ export async function fetchPRActivitySelective(
   throttle: WatchThrottle | undefined
 ): Promise<SelectiveResult> {
   if (previous?.updatedAt !== updatedAt || previous.headSha !== headSha) {
-    await throttle?.wait(3);
-    const activity = await fetchPRActivity(
-      octokit,
-      owner,
-      name,
-      number,
-      headSha
+    const activity = await runWithThrottle(
+      throttle,
+      () => fetchPRActivity(octokit, owner, name, number, headSha),
+      3
     );
     return { activity, apiCalls: 3 };
   }
 
   if (previous.hasIncompleteChecks) {
-    await throttle?.wait(1);
-    const checksRes = await octokit.checks.listForRef({
-      owner,
-      repo: name,
-      ref: headSha,
-      per_page: 100,
-    });
+    const checksRes = await runWithThrottle(
+      throttle,
+      () =>
+        octokit.checks.listForRef({
+          owner,
+          repo: name,
+          ref: headSha,
+          per_page: 100,
+        }),
+      1
+    );
     return {
       activity: {
         comments: previous.cachedActivity.comments,

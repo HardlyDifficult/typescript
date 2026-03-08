@@ -30,8 +30,8 @@ describe("DiscordPlugin", () => {
       // No error thrown, no sender called
     });
 
-    it("does nothing for notify", () => {
-      plugin.notify!("test");
+    it("does nothing for alert", () => {
+      plugin.alert("test");
       // No error thrown
     });
   });
@@ -106,10 +106,16 @@ describe("DiscordPlugin", () => {
     });
   });
 
-  describe("notify", () => {
+  describe("alert", () => {
     it("sends message directly via sender", () => {
       plugin.setSender(sender);
-      plugin.notify!("direct notification");
+      plugin.alert("direct notification");
+      expect(sender).toHaveBeenCalledWith("direct notification");
+    });
+
+    it("keeps notify as a compatibility alias", () => {
+      plugin.setSender(sender);
+      plugin.notify("direct notification");
       expect(sender).toHaveBeenCalledWith("direct notification");
     });
   });
@@ -125,12 +131,12 @@ describe("DiscordPlugin", () => {
       ).not.toThrow();
     });
 
-    it("swallows sender errors in notify", () => {
+    it("swallows sender errors in alert", () => {
       const throwingSender = vi.fn(() => {
         throw new Error("discord down");
       });
       plugin.setSender(throwingSender);
-      expect(() => plugin.notify!("should not throw")).not.toThrow();
+      expect(() => plugin.alert("should not throw")).not.toThrow();
     });
   });
 });

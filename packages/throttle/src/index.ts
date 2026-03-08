@@ -1,7 +1,8 @@
 export {
   Throttle,
+  throttle,
   type ThrottleOptions,
-  type ThrottleSleepInfo,
+  type ThrottleDelayInfo,
 } from "./Throttle.js";
 
 export {
@@ -26,4 +27,4 @@ export {
   type EventRequestOptions,
 } from "./eventRequest.js";
 
-export { retry, type RetryOptions } from "./retry.js";
+export { retry, type RetryInfo, type RetryOptions } from "./retry.js";

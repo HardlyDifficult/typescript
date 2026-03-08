@@ -15,6 +15,7 @@ import {
 } from "./polling/processSnapshot.js";
 import { classifyAndDetectChange } from "./polling/statusTracker.js";
 import { PRWatcherBase } from "./PRWatcherBase.js";
+import { runWithThrottle } from "./runWithThrottle.js";
 import type {
   ClassifyPR,
   DiscoverRepos,
@@ -338,12 +339,16 @@ export class PRWatcher extends PRWatcherBase {
       }
 
       try {
-        await this.throttle?.wait(1);
-        const response = await this.octokit.pulls.get({
-          owner: snapshot.owner,
-          repo: snapshot.name,
-          pull_number: snapshot.pr.number,
-        });
+        const response = await runWithThrottle(
+          this.throttle,
+          () =>
+            this.octokit.pulls.get({
+              owner: snapshot.owner,
+              repo: snapshot.name,
+              pull_number: snapshot.pr.number,
+            }),
+          1
+        );
         const freshPR = response.data as unknown as PullRequest;
         const repo = { owner: snapshot.owner, name: snapshot.name };
 

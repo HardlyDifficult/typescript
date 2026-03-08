@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { Throttle } from "../src/Throttle";
+import { Throttle, throttle } from "../src/Throttle";
 
 describe("Throttle", () => {
   let testDir: string;
@@ -20,44 +20,48 @@ describe("Throttle", () => {
   });
 
   describe("constructor", () => {
-    it("should throw for non-positive unitsPerSecond", () => {
-      expect(() => new Throttle({ unitsPerSecond: 0 })).toThrow(
-        "positive unitsPerSecond"
+    it("should throw for non-positive perSecond", () => {
+      expect(() => new Throttle({ perSecond: 0 })).toThrow(
+        "positive perSecond"
       );
-      expect(() => new Throttle({ unitsPerSecond: -10 })).toThrow(
-        "positive unitsPerSecond"
+      expect(() => new Throttle({ perSecond: -10 })).toThrow(
+        "positive perSecond"
       );
-      expect(() => new Throttle({ unitsPerSecond: NaN })).toThrow(
-        "positive unitsPerSecond"
+      expect(() => new Throttle({ perSecond: NaN })).toThrow(
+        "positive perSecond"
       );
     });
 
-    it("should accept positive unitsPerSecond", () => {
-      expect(() => new Throttle({ unitsPerSecond: 100 })).not.toThrow();
-      expect(() => new Throttle({ unitsPerSecond: 0.5 })).not.toThrow();
+    it("should accept positive perSecond", () => {
+      expect(() => new Throttle({ perSecond: 100 })).not.toThrow();
+      expect(() => new Throttle({ perSecond: 0.5 })).not.toThrow();
+    });
+
+    it("creates throttles through the factory", () => {
+      expect(() => throttle({ perSecond: 100 })).not.toThrow();
     });
   });
 
   describe("wait with default weight", () => {
     it("should resolve immediately on first call", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 1, onSleep });
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 1, onDelay });
 
       await throttle.wait();
 
-      expect(onSleep).not.toHaveBeenCalled();
+      expect(onDelay).not.toHaveBeenCalled();
     });
 
     it("should delay subsequent calls", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 1, onSleep });
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 1, onDelay });
 
       const promise1 = throttle.wait();
       await vi.runAllTimersAsync();
       await promise1;
 
       const promise2 = throttle.wait();
-      expect(onSleep).toHaveBeenCalledWith(
+      expect(onDelay).toHaveBeenCalledWith(
         1000,
         expect.objectContaining({ weight: 1 })
       );
@@ -67,47 +71,47 @@ describe("Throttle", () => {
     });
 
     it("should handle concurrent calls in sequence", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 10, onSleep });
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 10, onDelay });
 
       const promises = [throttle.wait(), throttle.wait(), throttle.wait()];
 
       await vi.runAllTimersAsync();
       await Promise.all(promises);
 
-      expect(onSleep).toHaveBeenCalledTimes(2);
+      expect(onDelay).toHaveBeenCalledTimes(2);
     });
   });
 
   describe("wait with explicit weight", () => {
     it("should not delay when weight is 0", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 100, onSleep });
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 100, onDelay });
 
       await throttle.wait(0);
 
-      expect(onSleep).not.toHaveBeenCalled();
+      expect(onDelay).not.toHaveBeenCalled();
     });
 
     it("should not delay when weight is negative", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 100, onSleep });
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 100, onDelay });
 
       await throttle.wait(-10);
 
-      expect(onSleep).not.toHaveBeenCalled();
+      expect(onDelay).not.toHaveBeenCalled();
     });
 
-    it("should calculate delay based on weight / unitsPerSecond", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 10, onSleep });
+    it("should calculate delay based on weight / perSecond", async () => {
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 10, onDelay });
 
       const promise1 = throttle.wait(10);
       await vi.runAllTimersAsync();
       await promise1;
 
       const promise2 = throttle.wait(10);
-      expect(onSleep).toHaveBeenCalledWith(
+      expect(onDelay).toHaveBeenCalledWith(
         1000,
         expect.objectContaining({ weight: 10 })
       );
@@ -116,20 +120,20 @@ describe("Throttle", () => {
       await promise2;
     });
 
-    it("should call onSleep with correct info", async () => {
-      const onSleep = vi.fn();
-      const throttle = new Throttle({ unitsPerSecond: 50, onSleep });
+    it("should call onDelay with correct info", async () => {
+      const onDelay = vi.fn();
+      const throttle = new Throttle({ perSecond: 50, onDelay });
 
       await throttle.wait(25);
       await vi.runAllTimersAsync();
 
       const promise = throttle.wait(25);
 
-      expect(onSleep).toHaveBeenCalledWith(
+      expect(onDelay).toHaveBeenCalledWith(
         expect.any(Number),
         expect.objectContaining({
           weight: 25,
-          limitPerSecond: 50,
+          perSecond: 50,
           scheduledStart: expect.any(Number),
         })
       );
@@ -140,8 +144,8 @@ describe("Throttle", () => {
 
     it("should queue multiple waits correctly", async () => {
       const delays: number[] = [];
-      const onSleep = vi.fn((ms: number) => delays.push(ms));
-      const throttle = new Throttle({ unitsPerSecond: 10, onSleep });
+      const onDelay = vi.fn((ms: number) => delays.push(ms));
+      const throttle = new Throttle({ perSecond: 10, onDelay });
 
       const promise1 = throttle.wait(10);
       await vi.runAllTimersAsync();
@@ -157,6 +161,22 @@ describe("Throttle", () => {
 
       expect(delays).toEqual([1000, 1000]);
     });
+
+    it("runs tasks after waiting", async () => {
+      const task = vi.fn().mockResolvedValue("ok");
+      const throttle = new Throttle({ perSecond: 1 });
+
+      const first = throttle.run(task);
+      await vi.runAllTimersAsync();
+      await expect(first).resolves.toBe("ok");
+
+      const second = throttle.run(task, 1);
+      expect(task).toHaveBeenCalledTimes(1);
+
+      await vi.runAllTimersAsync();
+      await expect(second).resolves.toBe("ok");
+      expect(task).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("persistence", () => {
@@ -168,10 +188,10 @@ describe("Throttle", () => {
       vi.useFakeTimers();
     });
 
-    it("should persist state when persistKey provided", async () => {
+    it("should persist state when a name is provided", async () => {
       const throttle = new Throttle({
-        unitsPerSecond: 100,
-        persistKey: "test-throttle",
+        perSecond: 100,
+        name: "test-throttle",
         stateDirectory: testDir,
       });
 
@@ -189,16 +209,16 @@ describe("Throttle", () => {
 
     it("should resume from persisted state after restart", async () => {
       const throttle1 = new Throttle({
-        unitsPerSecond: 10,
-        persistKey: "persist-test",
+        perSecond: 10,
+        name: "persist-test",
         stateDirectory: testDir,
       });
 
       await throttle1.wait(10);
 
       const throttle2 = new Throttle({
-        unitsPerSecond: 10,
-        persistKey: "persist-test",
+        perSecond: 10,
+        name: "persist-test",
         stateDirectory: testDir,
       });
 
@@ -221,8 +241,8 @@ describe("Throttle", () => {
       };
 
       const throttle = new Throttle({
-        unitsPerSecond: 100,
-        persistKey: "adapter-throttle",
+        perSecond: 100,
+        name: "adapter-throttle",
         storageAdapter: adapter,
       });
 
@@ -243,7 +263,7 @@ describe("Throttle", () => {
     });
 
     it("should actually delay execution", async () => {
-      const throttle = new Throttle({ unitsPerSecond: 100 });
+      const throttle = new Throttle({ perSecond: 100 });
 
       await throttle.wait(10);
 

@@ -9,42 +9,39 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
-export interface ThrottleSleepInfo {
+export interface ThrottleDelayInfo {
   weight: number;
-  limitPerSecond: number;
+  perSecond: number;
   scheduledStart: number;
 }
 
 export interface ThrottleOptions {
-  unitsPerSecond: number;
-  persistKey?: string;
+  perSecond: number;
+  name?: string;
   stateDirectory?: string;
   storageAdapter?: StorageAdapter;
-  onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
+  onDelay?: (delayMs: number, info: ThrottleDelayInfo) => void;
 }
 
 /** Rate limiter that enforces a maximum throughput by sleeping between calls, with optional persistent state. */
 export class Throttle {
   private nextAvailableAt: number;
-  private readonly unitsPerSecond: number;
+  private readonly perSecond: number;
   private readonly stateTracker?: StateTracker<number>;
-  private readonly onSleep?: (delayMs: number, info: ThrottleSleepInfo) => void;
+  private readonly onDelay?: (delayMs: number, info: ThrottleDelayInfo) => void;
   private stateLoaded = false;
 
   constructor(options: ThrottleOptions) {
-    this.unitsPerSecond = options.unitsPerSecond;
-    this.onSleep = options.onSleep;
+    this.perSecond = options.perSecond;
+    this.onDelay = options.onDelay;
 
-    if (!Number.isFinite(this.unitsPerSecond) || this.unitsPerSecond <= 0) {
-      throw new Error("Throttle requires a positive unitsPerSecond value");
+    if (!Number.isFinite(this.perSecond) || this.perSecond <= 0) {
+      throw new Error("Throttle requires a positive perSecond value");
     }
 
-    if (
-      options.persistKey !== undefined ||
-      options.storageAdapter !== undefined
-    ) {
+    if (options.name !== undefined || options.storageAdapter !== undefined) {
       this.stateTracker = new StateTracker({
-        key: options.persistKey ?? "throttle",
+        key: options.name ?? "throttle",
         default: Date.now(),
         stateDirectory: options.stateDirectory,
         storageAdapter: options.storageAdapter,
@@ -68,7 +65,7 @@ export class Throttle {
     const now = Date.now();
     const startAt = Math.max(now, this.nextAvailableAt);
     const processingWindowMs = duration({
-      seconds: weight / this.unitsPerSecond,
+      seconds: weight / this.perSecond,
     });
     const delayMs = startAt - now;
     const newNextAvailableAt = startAt + processingWindowMs;
@@ -80,12 +77,24 @@ export class Throttle {
     this.nextAvailableAt = newNextAvailableAt;
 
     if (delayMs > 0) {
-      this.onSleep?.(delayMs, {
+      this.onDelay?.(delayMs, {
         weight,
-        limitPerSecond: this.unitsPerSecond,
+        perSecond: this.perSecond,
         scheduledStart: startAt,
       });
       await sleep(delayMs);
     }
   }
+
+  async run<T>(task: () => Promise<T> | T, weight = 1): Promise<T> {
+    await this.wait(weight);
+    return task();
+  }
+}
+
+/**
+ * Convenience factory for constructing a Throttle instance.
+ */
+export function throttle(options: ThrottleOptions): Throttle {
+  return new Throttle(options);
 }

@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe("social read APIs", () => {
-  it("posts.get fetches and normalizes a post", async () => {
+  it("post fetches and normalizes a post", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -40,7 +40,7 @@ describe("social read APIs", () => {
     globalThis.fetch = fetchMock as typeof fetch;
     const social = createSocial({ token: "token" });
 
-    const post = await social.posts.get("123");
+    const post = await social.post("123");
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/tweets/123?"),
@@ -64,16 +64,16 @@ describe("social read APIs", () => {
     });
   });
 
-  it("me.timeline uses per-call limit when provided", async () => {
+  it("timeline uses a numeric per-call limit", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
     });
 
     globalThis.fetch = fetchMock as typeof fetch;
-    const social = createSocial({ token: "token", defaultLimit: 25 });
+    const social = createSocial({ token: "token", limit: 25 });
 
-    await social.me.timeline({ limit: 10 });
+    await social.timeline(10);
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("max_results=10"),
@@ -81,7 +81,7 @@ describe("social read APIs", () => {
     );
   });
 
-  it("me.likes falls back to defaultLimit, then 25", async () => {
+  it("likes falls back to the configured limit, then 25", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -95,17 +95,17 @@ describe("social read APIs", () => {
 
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const withDefaultLimit = createSocial({ token: "token", defaultLimit: 12 });
-    await withDefaultLimit.me.likes();
+    const withDefaultLimit = createSocial({ token: "token", limit: 12 });
+    await withDefaultLimit.likes();
 
     const withBuiltInDefault = createSocial({ token: "token" });
-    await withBuiltInDefault.me.likes();
+    await withBuiltInDefault.likes();
 
     expect(fetchMock.mock.calls[0]?.[0]).toContain("max_results=12");
     expect(fetchMock.mock.calls[1]?.[0]).toContain("max_results=25");
   });
 
-  it("accepts maxResults as an alias for defaultLimit", async () => {
+  it("timeline uses the configured default limit", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
@@ -113,8 +113,8 @@ describe("social read APIs", () => {
 
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const social = createSocial({ token: "token", maxResults: 7 });
-    await social.me.timeline();
+    const social = createSocial({ token: "token", limit: 7 });
+    await social.timeline();
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("max_results=7"),

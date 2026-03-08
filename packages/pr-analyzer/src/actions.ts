@@ -8,7 +8,7 @@
  * Consumers can provide extra actions via ActionDefinition[].
  */
 
-import type { ActionDefinition, ScannedPR } from "./types.js";
+import type { ActionContext, ActionDefinition, ScannedPR } from "./types.js";
 
 /**
  * Core action types built into the package.
@@ -55,7 +55,7 @@ export const PR_ACTIONS: Record<
 export function getAvailableActions(
   pr: ScannedPR,
   extraActions?: readonly ActionDefinition[],
-  context?: Record<string, boolean>
+  context?: ActionContext
 ): PRActionDescriptor[] {
   const actions: PRActionDescriptor[] = [];
   const { status } = pr;

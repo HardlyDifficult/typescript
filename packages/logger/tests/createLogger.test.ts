@@ -41,11 +41,11 @@ describe("createLogger", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  it("can suppress the default console logger", () => {
+  it("can disable console output while still writing to a file", () => {
     const filePath = join(tempDir, "logs", "app.jsonl");
     const logger = createLogger({
-      suppressConsole: true,
-      filePath,
+      console: false,
+      file: filePath,
     });
 
     logger.info("server started");
@@ -56,20 +56,36 @@ describe("createLogger", () => {
     expect(existsSync(filePath)).toBe(true);
   });
 
-  it("binds the logger name into every entry", () => {
-    const logger = createLogger({ name: "api" });
+  it("binds scope from the string shorthand", () => {
+    const logger = createLogger("api");
     const plugin = createSpyPlugin();
     logger.use(plugin);
 
     logger.info("request complete");
 
     const entry: LogEntry = plugin.log.mock.calls[0][0];
-    expect(entry.context).toEqual({ name: "api" });
+    expect(entry.context).toEqual({ scope: "api" });
   });
 
-  it("mirrors entries to a JSONL file when filePath is provided", () => {
+  it("merges additional context with the scope shorthand", () => {
+    const logger = createLogger("api", {
+      context: { region: "us-east-1" },
+    });
+    const plugin = createSpyPlugin();
+    logger.use(plugin);
+
+    logger.info("request complete");
+
+    const entry: LogEntry = plugin.log.mock.calls[0][0];
+    expect(entry.context).toEqual({
+      region: "us-east-1",
+      scope: "api",
+    });
+  });
+
+  it("mirrors entries to a JSONL file when file is provided", () => {
     const filePath = join(tempDir, "logs", "app.jsonl");
-    const logger = createLogger({ filePath });
+    const logger = createLogger({ file: filePath });
 
     logger.warn("disk nearly full", { freePercent: 8 });
 
@@ -81,9 +97,9 @@ describe("createLogger", () => {
     expect(entry.context).toEqual({ freePercent: 8 });
   });
 
-  it("sends warn and error entries to Discord when configured", () => {
+  it("sends warn and error entries to the configured alert sender", () => {
     const sender = vi.fn();
-    const logger = createLogger({ discord: sender });
+    const logger = createLogger({ alert: sender });
 
     logger.info("ignored");
     logger.error("database unavailable");

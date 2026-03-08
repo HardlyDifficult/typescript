@@ -1,6 +1,9 @@
 # @hardlydifficult/agent-tools
 
-A utility package providing configuration-driven limits, path parsing for GitHub-style file references, and error-handling helpers for safe, predictable agent tool execution.
+A small wrapper around OpenCode for two things:
+
+- running one agent task with a concise, stream-friendly API
+- parsing GitHub-style file references into a shape that reads well in client code
 
 ## Installation
 
@@ -12,127 +15,114 @@ npm install @hardlydifficult/agent-tools
 
 ```typescript
 import {
-  parsePath,
-  MAX_READ_BYTES,
-  executeWithErrorHandling,
-  toArray,
+  parseFileReference,
+  runAgent,
 } from "@hardlydifficult/agent-tools";
 
-// Parse a GitHub-style path with line range
-const result = parsePath("src/index.ts#L10-L20");
-// { filePath: "src/index.ts", startLine: 10, endLine: 20 }
+const file = parseFileReference("src/index.ts#L10-L20");
+// { path: "src/index.ts", lines: { start: 10, end: 20 } }
 
-// Normalize inputs to arrays
-const items = toArray("single"); // ["single"]
-const itemsArray = toArray(["a", "b"]); // ["a", "b"]
+const result = await runAgent({
+  task: "Explain why the tests are failing.",
+  directory: process.cwd(),
+  model: "openai/o3",
+  onEvent(event) {
+    if (event.type === "text") {
+      process.stdout.write(event.text);
+    }
+  },
+});
 
-// Safely handle async operations with error messages
-const safeRead = await executeWithErrorHandling(
-  () => Promise.resolve("data"),
-  "read_file failed"
-);
-// "data"
+console.log(result.output);
 ```
 
-## Path Parsing
+## `runAgent()`
 
-Parses GitHub-style file paths with optional line ranges into structured objects.
+`runAgent()` is the package's main entrypoint. It starts or reuses an OpenCode server, creates a session, sends one task, and streams back text/tool events through a single callback.
 
-### `parsePath(path: string): ParsedPath`
+### `runAgent(options: RunAgentOptions): Promise<RunAgentResult>`
 
-Parses paths like `file.ts`, `file.ts#L10`, or `file.ts#L10-L20`. Line numbers must be positive integers, and reversed ranges are normalized.
+```typescript
+import { runAgent } from "@hardlydifficult/agent-tools";
 
-**Parameters:**
+const result = await runAgent({
+  task: "Review the latest diff and suggest one small cleanup.",
+  directory: "/Users/nick/Documents/code/typescript",
+  model: "o3",
+  instructions: "Be concise and actionable.",
+  mode: "read",
+  onEvent(event) {
+    switch (event.type) {
+      case "text":
+        process.stdout.write(event.text);
+        break;
+      case "tool-start":
+        console.log(`\n[tool:start] ${event.tool}`);
+        break;
+      case "tool-finish":
+        console.log(`\n[tool:end] ${event.tool} ok=${event.ok}`);
+        break;
+    }
+  },
+});
 
-| Name | Type | Description |
+console.log(result.ok, result.output, result.error);
+```
+
+### Options
+
+| Field | Type | Description |
 |------|------|-------------|
-| `path` | `string` | GitHub-style file path with optional `#L...` line range |
+| `task` | `string` | What the agent should do |
+| `directory` | `string` | Working directory for the run |
+| `model?` | `string` | `provider/model` or just `model` |
+| `instructions?` | `string` | Extra top-level instructions |
+| `mode?` | `"edit" \| "read"` | `read` restricts the run to read-only file tools |
+| `signal?` | `AbortSignal` | Cancels the run |
+| `onEvent?` | `(event) => void` | Receives streamed text and tool events |
 
-**Returns:**
+### Model resolution
 
-| Name | Type | Description |
+- If `model` is omitted, `OPENCODE_MODEL` is used.
+- If `model` is just a model name such as `"o3"`, `OPENCODE_PROVIDER` is used when present.
+- If `OPENCODE_PROVIDER` is not set, the provider defaults to `"anthropic"`.
+
+### Result
+
+| Field | Type | Description |
 |------|------|-------------|
-| `filePath` | `string` | The path to the file |
-| `startLine?` | `number` | Starting line (1-indexed) |
-| `endLine?` | `number` | Ending line (inclusive) |
+| `ok` | `boolean` | `true` when the run completed without a session error |
+| `output` | `string` | Collected assistant text |
+| `error?` | `string` | Session error message, when one occurred |
+| `durationMs` | `number` | Total wall-clock duration |
+| `sessionId` | `string` | OpenCode session identifier |
+
+## `parseFileReference()`
+
+Parses GitHub-style file references into a structured shape:
 
 ```typescript
-import { parsePath } from "@hardlydifficult/agent-tools";
+import { parseFileReference } from "@hardlydifficult/agent-tools";
 
-parsePath("src/index.ts"); // { filePath: "src/index.ts" }
-parsePath("src/index.ts#L5"); // { filePath: "src/index.ts", startLine: 5, endLine: 5 }
-parsePath("src/index.ts#L5-L15"); // { filePath: "src/index.ts", startLine: 5, endLine: 15 }
-parsePath("src/index.ts#L15-L5"); // { filePath: "src/index.ts", startLine: 5, endLine: 15 }
-parsePath("src/index.ts#L0"); // { filePath: "src/index.ts#L0" }
+parseFileReference("src/index.ts");
+// { path: "src/index.ts" }
+
+parseFileReference("src/index.ts#L5");
+// { path: "src/index.ts", lines: { start: 5, end: 5 } }
+
+parseFileReference("src/index.ts#L15-L5");
+// { path: "src/index.ts", lines: { start: 5, end: 15 } }
+
+parseFileReference("src/index.ts#L0");
+// { path: "src/index.ts#L0" }
 ```
 
-## Configuration Constants
+## Shutdown
 
-Configuration values used to enforce safe limits in agent tool operations.
-
-| Constant | Type | Default | Description |
-|----------|------|---------|-------------|
-| `MAX_READ_BYTES` | `number` | `100_000` | Max bytes to return from read operations before truncation |
-| `MAX_GREP_FILE_SIZE` | `number` | `102_400` | Max file size (bytes) to scan during content search |
-| `MAX_SEARCH_RESULTS` | `number` | `100` | Max total matches returned by search operations |
-| `MAX_CONTEXT_LINES` | `number` | `3` | Lines of context to show around each edit in write output |
-| `VERIFY_TIMEOUT` | `number` | `120_000` | Timeout (ms) for verify tool commands |
+If you keep a worker process alive and want to clean up the shared OpenCode subprocess explicitly:
 
 ```typescript
-import {
-  MAX_READ_BYTES,
-  MAX_GREP_FILE_SIZE,
-} from "@hardlydifficult/agent-tools";
+import { shutdownAgentServer } from "@hardlydifficult/agent-tools";
 
-// Max readable file size
-console.log(MAX_READ_BYTES); // 100000
-
-// Skip scanning files larger than this
-console.log(MAX_GREP_FILE_SIZE); // 102400
-```
-
-## Utility Helpers
-
-Support functions for input normalization, error handling, and result formatting.
-
-### `toArray<T>(input: T | T[]): T[]`
-
-Normalizes a value (single item or array) into an array.
-
-```typescript
-import { toArray } from "@hardlydifficult/agent-tools";
-
-toArray("single"); // ["single"]
-toArray(["a", "b"]); // ["a", "b"]
-```
-
-### `executeWithErrorHandling<T>(operation: () => Promise<T>, errorPrefix: string): Promise<T \| string>`
-
-Wraps async operations in try-catch and returns either the result or an error string.
-
-```typescript
-import { executeWithErrorHandling } from "@hardlydifficult/agent-tools";
-
-const result = await executeWithErrorHandling(
-  () => Promise.resolve("success"),
-  "Operation failed"
-);
-// "success"
-
-const errorResult = await executeWithErrorHandling(
-  () => Promise.reject(new Error("Boom")),
-  "Operation failed"
-);
-// "Operation failed: Boom"
-```
-
-### `formatArrayResult(items: string[], emptyMessage: string): string`
-
-Formats array results: joins items with newlines or returns a custom message if empty.
-
-```typescript
-import { formatArrayResult } from "@hardlydifficult/agent-tools";
-
-formatArrayResult(["a", "b"], "No items"); // "a\nb"
-formatArrayResult([], "No items"); // "No items"
+shutdownAgentServer();
 ```

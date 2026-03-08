@@ -1,6 +1,12 @@
 # @hardlydifficult/throttle
 
-A TypeScript utility package providing rate limiting, exponential backoff, connection error detection, and throttled update batching.
+Opinionated helpers for rate-limited work, retries, backoff, and event-driven request flows.
+
+The package now prefers task-oriented APIs:
+
+- Throttles should run the work for you.
+- Retries should own the sleep/backoff path for you.
+- Low-level primitives still exist, but they are the escape hatch.
 
 ## Installation
 
@@ -11,164 +17,173 @@ npm install @hardlydifficult/throttle
 ## Quick Start
 
 ```typescript
-import { Throttle, getBackoffDelay, sleep, retry, createThrottledUpdater, isConnectionError } from "@hardlydifficult/throttle";
+import {
+  throttle,
+  retry,
+  isTransientNetworkError,
+} from "@hardlydifficult/throttle";
 
-// Rate limit function calls to 10 per second
-const throttle = new Throttle({ unitsPerSecond: 10 });
-await throttle.wait(); // Sleeps if necessary to respect limit
+const githubApi = throttle({ perSecond: 5 });
 
-// Exponential backoff for retries
-const delay = getBackoffDelay(2); // 4000ms (2^2 * 1000)
-await sleep(delay);
+const pullRequests = await githubApi.run(() =>
+  octokit.pulls.list({
+    owner: "hardlydifficult",
+    repo: "typescript",
+    state: "open",
+  })
+);
 
-// Retry a function with exponential backoff
 const result = await retry(
-  async () => { throw new Error("fail"); },
-  { maxAttempts: 3 }
+  () => fetch("https://api.example.com/data"),
+  {
+    attempts: 3,
+    backoff: true,
+    when: isTransientNetworkError,
+  }
 );
-
-// Throttled message updater
-const updater = createThrottledUpdater(
-  (text) => console.log(text),
-  1000
-);
-updater.update("Fast update 1");
-updater.update("Fast update 2"); // Only final update is sent
-await updater.flush(); // Flush pending update immediately
-updater.stop();
-
-// Detect connection errors
-if (isConnectionError(error)) {
-  console.log("Connection failed - restart service or retry later");
-}
 ```
 
 ## Throttling
 
-### Throttle Class
+### `throttle(options)`
 
-A rate limiter that enforces a maximum throughput by sleeping between calls, with optional persistent state.
+Creates a `Throttle` instance with a clean, task-oriented API.
 
 ```typescript
-import { Throttle } from "@hardlydifficult/throttle";
+import { throttle } from "@hardlydifficult/throttle";
 
-// Create a rate limiter for 5 requests per second
-const throttle = new Throttle({ unitsPerSecond: 5 });
+const githubApi = throttle({
+  perSecond: 5,
+  onDelay(delayMs, info) {
+    console.log(`Waiting ${delayMs}ms before ${info.weight} units`);
+  },
+});
 
-// Wait for permission to proceed (sleeps if needed)
-await throttle.wait();
-
-// Use weight for multi-unit operations (e.g., batch size)
-await throttle.wait(3); // Slower when weight > unitsPerSecond
+const response = await githubApi.run(
+  () =>
+    octokit.checks.listForRef({
+      owner,
+      repo,
+      ref: sha,
+    }),
+  1
+);
 ```
 
-#### ThrottleOptions
+### `new Throttle(options)`
+
+Still available when you want the class directly.
+
+### `ThrottleOptions`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `unitsPerSecond` | `number` | Maximum throughput (must be positive) |
-| `persistKey?` | `string` | Key for state persistence (enables resume across restarts) |
-| `stateDirectory?` | `string` | Directory for persisted state (default: OS temp dir) |
-| `onSleep?` | `(delayMs: number, info: ThrottleSleepInfo) => void` | Callback when throttling occurs |
+| `perSecond` | `number` | Maximum throughput |
+| `name?` | `string` | Persistence key when sharing throttle state across restarts |
+| `stateDirectory?` | `string` | Directory for persisted state |
+| `storageAdapter?` | `StorageAdapter` | Custom persistence adapter |
+| `onDelay?` | `(delayMs, info) => void` | Called before the throttle sleeps |
 
-#### ThrottleSleepInfo
+### `Throttle` methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `run` | `<T>(task: () => Promise<T> \| T, weight?: number) => Promise<T>` | Waits, then executes the task |
+| `wait` | `(weight?: number) => Promise<void>` | Low-level primitive when you need to separate waiting from the work |
+
+### `ThrottleDelayInfo`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `weight` | `number` | Weight of the wait call |
-| `limitPerSecond` | `number` | configured `unitsPerSecond` |
-| `scheduledStart` | `number` | Timestamp when sleep was scheduled |
+| `weight` | `number` | Units charged for the task |
+| `perSecond` | `number` | Configured rate limit |
+| `scheduledStart` | `number` | Timestamp when the task was scheduled to start |
 
-### createThrottledUpdater
+## Retry
 
-Batch rapid updates to respect rate limits while ensuring final state delivery.
+`retry` is now meant to be the main entry point. It supports fixed delays, exponential backoff, and retry predicates without forcing callers to wire `sleep()` manually.
+
+```typescript
+import { retry, isTransientNetworkError } from "@hardlydifficult/throttle";
+
+const response = await retry(
+  () => fetch("https://api.example.com/data"),
+  {
+    attempts: 4,
+    backoff: { initialDelayMs: 250, maxDelayMs: 4_000 },
+    when: isTransientNetworkError,
+    onRetry(error, info) {
+      console.log(
+        `Attempt ${info.attempt} failed: ${error.message}. Retrying in ${info.delayMs}ms.`
+      );
+    },
+  }
+);
+```
+
+### `RetryOptions`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `attempts` | `number` | Total attempts, including the first call |
+| `backoff?` | `true \| number \| BackoffOptions` | `true` for default exponential backoff, a number for fixed delay, or custom backoff options |
+| `when?` | `(error, attempt) => boolean \| Promise<boolean>` | Return `false` to stop retrying |
+| `onRetry?` | `(error, info) => void \| Promise<void>` | Runs before the retry sleep |
+
+### `RetryInfo`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `attempt` | `number` | 1-based attempt that failed |
+| `attempts` | `number` | Total configured attempts |
+| `delayMs` | `number` | Delay before the next attempt |
+| `retriesLeft` | `number` | Remaining attempts after the current failure |
+
+## Backoff Utilities
+
+Low-level helpers are still exported when you need them.
+
+```typescript
+import {
+  getBackoffDelay,
+  getRandomDelay,
+  sleep,
+} from "@hardlydifficult/throttle";
+
+const delay = getBackoffDelay(2, {
+  initialDelayMs: 500,
+  maxDelayMs: 30_000,
+});
+
+await sleep(delay);
+const jitter = getRandomDelay(500, 1_000);
+```
+
+## Throttled Updates
+
+Use `createThrottledUpdater` when you want rapid updates to collapse into the latest value.
 
 ```typescript
 import { createThrottledUpdater } from "@hardlydifficult/throttle";
 
 const updater = createThrottledUpdater(
-  async (text) => console.log(text), // Update function
-  1000 // Minimum interval between updates (ms)
-);
-
-updater.update("First update");
-updater.update("Second update"); // Batches with first
-updater.update("Final update");  // Replaces pending update
-
-await updater.flush(); // Immediately send pending update
-updater.stop(); // Stop future updates
-```
-
-#### Methods
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `update` | `(text: string) => void` | Queue an update (immediate if interval elapsed) |
-| `flush` | `() => Promise<void>` | Immediately send any pending update |
-| `stop` | `() => void` | Cancel all scheduled updates and cleanup |
-
-## Exponential Backoff
-
-Utilities for retry logic with exponential delay growth.
-
-```typescript
-import { getBackoffDelay, sleep, getRandomDelay } from "@hardlydifficult/throttle";
-
-// Calculate delay: initial * 2^attempt, capped at maxDelay
-const delay1 = getBackoffDelay(0); // 1000ms
-const delay2 = getBackoffDelay(1); // 2000ms
-const delay3 = getBackoffDelay(2); // 4000ms
-
-// Custom options
-const delayCustom = getBackoffDelay(3, {
-  initialDelayMs: 500, // 500ms * 2^3 = 4000ms
-  maxDelayMs: 30000    // capped to 30000ms
-});
-
-// Randomized delay for jitter
-const jittered = getRandomDelay(1000, 2000); // e.g., 1473ms
-```
-
-#### BackoffOptions
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `initialDelayMs?` | `number` | `1000` | Starting delay in ms |
-| `maxDelayMs?` | `number` | `60000` | Maximum delay cap in ms |
-
-## Retry Logic
-
-Retry an async function with optional backoff and hooks.
-
-```typescript
-import { retry, sleep, getBackoffDelay } from "@hardlydifficult/throttle";
-
-const result = await retry(
-  async () => {
-    // Your async operation
-    return fetch("/api/data");
+  async (text) => {
+    await message.edit(text);
   },
-  {
-    maxAttempts: 3,
-    onRetry: async (error, attempt) => {
-      // Backoff delay between attempts (1-based)
-      const delay = getBackoffDelay(attempt - 1);
-      await sleep(delay);
-    }
-  }
+  1_000
 );
+
+updater.update("Step 1...");
+updater.update("Step 2...");
+updater.update("Step 3...");
+
+await updater.flush();
+updater.stop();
 ```
-
-#### RetryOptions
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `maxAttempts` | `number` | Maximum number of attempts (must be ≥ 1) |
-| `onRetry?` | `(error: Error, attempt: number) => void \| Promise<void>` | Called before each retry with 1-based attempt number |
 
 ## Event-Driven Requests
 
-Wrap event-based request/response patterns in promises.
+`eventRequest` wraps subscribe/filter/cleanup request flows in a single promise.
 
 ```typescript
 import { eventRequest } from "@hardlydifficult/throttle";
@@ -179,66 +194,25 @@ const result = await eventRequest({
   on: {
     complete: (cb) => manager.onComplete(cb),
     error: (cb) => manager.onError(cb),
-    data: (cb) => manager.onOutput(cb), // Optional streaming
+    data: (cb) => manager.onOutput(cb),
   },
   onData: (output) => stream.append(output.content),
 });
-
-// subscriptions are cleaned up automatically
 ```
-
-#### EventRequestOptions
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `send` | `() => void` | Called after subscriptions are set up to send the request |
-| `match` | `(event: T) => boolean` | Predicate to filter relevant events |
-| `on.complete` | `EventSubscriber<T>` | Resolves the promise with the event |
-| `on.error` | `EventSubscriber<T>` | Rejects the promise with the event |
-| `on.data?` | `EventSubscriber<T>` | Optional streaming data events |
-| `onData?` | `(event: T) => void` | Called for each matching data event |
-
-#### EventSubscriber
-
-```typescript
-type EventSubscriber<T> = (handler: (event: T) => void) => () => void;
-```
-
-Returns an unsubscribe function.
 
 ## Error Detection
 
-### Connection Errors
-
-Detect service-unreachable errors like `ECONNREFUSED`.
-
 ```typescript
-import { isConnectionError } from "@hardlydifficult/throttle";
+import {
+  isConnectionError,
+  isTransientNetworkError,
+} from "@hardlydifficult/throttle";
 
-const error1 = new Error("connect ECONNREFUSED 127.0.0.1:11434");
-console.log(isConnectionError(error1)); // true
+if (isConnectionError(error)) {
+  console.error("The service is unavailable.");
+}
 
-const error2 = new Error("File not found");
-console.log(isConnectionError(error2)); // false
-```
-
-**Detected Patterns:**
-- Error message contains `"econnrefused"` or `"cannot connect to api"`
-- `error.code === "ECONNREFUSED"`
-- Nested errors via `cause`, `lastError`, or `errors[]` array
-
-### Transient Network Errors
-
-Detect temporary network failures safe to retry.
-
-```typescript
-import { isTransientNetworkError } from "@hardlydifficult/throttle";
-
-const errors = [
-  new Error("Recv failure: Connection was reset"),
-  new Error("ETIMEDOUT"),
-  new Error("Could not resolve host"),
-];
-
-errors.forEach(e => console.log(isTransientNetworkError(e))); // true, true, true
+if (isTransientNetworkError(error)) {
+  console.error("This request is worth retrying.");
+}
 ```

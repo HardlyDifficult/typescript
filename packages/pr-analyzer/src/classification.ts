@@ -37,10 +37,10 @@ const NEEDS_BOT_BUMP_STATUSES: readonly string[] = ["waiting_on_bot"];
  * @param prs - The PRs to classify
  * @param config - Optional extra statuses to include in each bucket
  */
-export function classifyPRs(
-  prs: readonly ScannedPR[],
+export function classifyPRs<T extends ScannedPR>(
+  prs: readonly T[],
   config?: ClassificationConfig
-): ScanResult {
+): ScanResult<T> {
   const readyForHuman = mergeStatuses(
     READY_FOR_HUMAN_STATUSES,
     config?.readyForHuman

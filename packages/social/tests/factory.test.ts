@@ -32,7 +32,7 @@ describe("social factories", () => {
 
     try {
       const client = createSocial();
-      await client.me.timeline();
+      await client.timeline();
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/timelines/reverse_chronological"),
@@ -47,7 +47,7 @@ describe("social factories", () => {
     }
   });
 
-  it("accepts bearerToken as an alias for token", async () => {
+  it("accepts a bare token string", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
@@ -55,8 +55,8 @@ describe("social factories", () => {
 
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const client = createSocial({ bearerToken: "token-from-options" });
-    await client.me.likes();
+    const client = createSocial("token-from-options");
+    await client.likes();
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/liked_tweets"),
@@ -78,7 +78,7 @@ describe("social factories", () => {
     process.env.X_BEARER_TOKEN = "token-from-env";
 
     const client = createSocial({ token: "token-from-options" });
-    await client.me.likes();
+    await client.likes();
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/liked_tweets"),

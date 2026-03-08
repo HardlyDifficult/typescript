@@ -25,6 +25,12 @@ export { Checkbox } from "./inputs/Checkbox.js";
 
 // data
 export { DataTable } from "./data/DataTable.js";
+export type {
+  DataTableProps,
+  DataTableRow,
+  DataTableColumn,
+  DataTableColumnKey,
+} from "./data/DataTable.js";
 export { StatCard } from "./data/StatCard.js";
 export { KeyValue } from "./data/KeyValue.js";
 export { ActivityItem } from "./data/ActivityItem.js";

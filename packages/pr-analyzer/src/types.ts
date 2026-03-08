@@ -43,12 +43,12 @@ export interface ScannedPR {
 /**
  * Result of scanning all PRs, classified into buckets
  */
-export interface ScanResult {
-  readonly all: readonly ScannedPR[];
-  readonly readyForHuman: readonly ScannedPR[];
-  readonly needsBotBump: readonly ScannedPR[];
-  readonly inProgress: readonly ScannedPR[];
-  readonly blocked: readonly ScannedPR[];
+export interface ScanResult<T extends ScannedPR = ScannedPR> {
+  readonly all: readonly T[];
+  readonly readyForHuman: readonly T[];
+  readonly needsBotBump: readonly T[];
+  readonly inProgress: readonly T[];
+  readonly blocked: readonly T[];
 }
 
 /**
@@ -69,6 +69,33 @@ export interface DiscoveredPR {
   readonly repoOwner: string;
   readonly repoName: string;
 }
+
+export interface PullRequestActivitySnapshot {
+  readonly pr: PullRequest;
+  readonly repo: Repository;
+  readonly comments: readonly PullRequestComment[];
+  readonly reviews: readonly PullRequestReview[];
+  readonly checks: readonly CheckRun[];
+}
+
+export interface PRAnalyzerClient {
+  repo(
+    owner: string,
+    repo: string
+  ): {
+    pr(number: number): {
+      snapshot(): Promise<PullRequestActivitySnapshot>;
+    };
+  };
+  myOpenPRs?(): Promise<
+    readonly {
+      readonly pr: PullRequest;
+      readonly repo: { readonly owner: string; readonly name: string };
+    }[]
+  >;
+}
+
+export type ActionContext = Record<string, boolean>;
 
 /**
  * Logger interface for pr-analyzer consumers to implement
@@ -122,5 +149,5 @@ export interface ActionDefinition {
   readonly type: string;
   readonly label: string;
   readonly description: string;
-  readonly when: (pr: ScannedPR, context: Record<string, boolean>) => boolean;
+  readonly when: (pr: ScannedPR, context: ActionContext) => boolean;
 }

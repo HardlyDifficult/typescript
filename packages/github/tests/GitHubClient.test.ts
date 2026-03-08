@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GitHubClient } from "../src/GitHubClient.js";
+import { github, GitHubClient } from "../src/GitHubClient.js";
 import { formatTimeline } from "../src/timeline.js";
 import type {
   CheckRun,
@@ -210,6 +210,12 @@ describe("GitHubClient", () => {
   });
 
   describe("constructor", () => {
+    it("supports the github() factory", () => {
+      github({ token: "test-token" });
+
+      expect(octokitConfigs).toEqual([{ auth: "test-token" }]);
+    });
+
     it("uses the explicit token and does not eagerly resolve the username", () => {
       new GitHubClient({ token: "test-token" });
 
@@ -239,35 +245,18 @@ describe("GitHubClient", () => {
     });
   });
 
-  describe("refs", () => {
-    it("accepts repo refs and repo URLs", async () => {
+  describe("resource chaining", () => {
+    it("creates repo and PR clients from explicit coordinates", async () => {
       const client = new GitHubClient({ token: "test-token" });
       const repo = makeRepository();
-      mockOctokit.repos.get.mockResolvedValue({ data: repo });
-
-      await expect(client.repo("owner/repo").details()).resolves.toEqual(repo);
-      await expect(
-        client.repo("https://github.com/owner/repo").details()
-      ).resolves.toEqual(repo);
-    });
-
-    it("rejects PR URLs as repo refs", () => {
-      const client = new GitHubClient({ token: "test-token" });
-
-      expect(() =>
-        client.repo("https://github.com/owner/repo/pull/42")
-      ).toThrow("Invalid repository reference");
-    });
-
-    it("accepts PR refs and PR URLs", async () => {
-      const client = new GitHubClient({ token: "test-token" });
       const pr = makePullRequest();
+      mockOctokit.repos.get.mockResolvedValue({ data: repo });
       mockOctokit.pulls.get.mockResolvedValue({ data: pr });
 
-      await expect(client.pr("owner/repo#42").details()).resolves.toEqual(pr);
-      await expect(
-        client.pr("https://github.com/owner/repo/pull/42/files").details()
-      ).resolves.toEqual(pr);
+      await expect(client.repo("owner", "repo").get()).resolves.toEqual(repo);
+      await expect(client.repo("owner", "repo").pr(42).get()).resolves.toEqual(
+        pr
+      );
     });
   });
 
@@ -277,7 +266,7 @@ describe("GitHubClient", () => {
       const pr = makePullRequest();
       mockOctokit.pulls.list.mockResolvedValue({ data: [pr] });
 
-      const result = await client.repo("owner/repo").openPullRequests();
+      const result = await client.repo("owner", "repo").openPRs();
 
       expect(result).toEqual([pr]);
       expect(mockOctokit.pulls.list).toHaveBeenCalledWith({
@@ -300,12 +289,12 @@ describe("GitHubClient", () => {
         data: { content: Buffer.from("hello").toString("base64") },
       });
 
-      await expect(client.repo("owner/repo").tree("main")).resolves.toEqual({
+      await expect(client.repo("owner", "repo").tree("main")).resolves.toEqual({
         entries: [{ path: "README.md", sha: "sha1", type: "blob" }],
         rootSha: "root-sha",
       });
       await expect(
-        client.repo("owner/repo").read("README.md", "main")
+        client.repo("owner", "repo").read("README.md", "main")
       ).resolves.toBe("hello");
     });
 
@@ -328,7 +317,7 @@ describe("GitHubClient", () => {
           data: { content: Buffer.from("package").toString("base64") },
         });
 
-      const result = await client.repo("owner/repo").context({
+      const result = await client.repo("owner", "repo").context({
         files: ["README.md", "package.json", "missing.md"],
         maxChars: 4,
         ref: "main",
@@ -352,11 +341,11 @@ describe("GitHubClient", () => {
         data: { object: { sha: "branch-sha" } },
       });
 
-      await expect(client.repo("owner/repo").defaultBranchSha()).resolves.toBe(
-        "branch-sha"
-      );
       await expect(
-        client.repo("owner/repo").branchSha("feature")
+        client.repo("owner", "repo").defaultBranchSha()
+      ).resolves.toBe("branch-sha");
+      await expect(
+        client.repo("owner", "repo").branchSha("feature")
       ).resolves.toBe("branch-sha");
     });
 
@@ -365,7 +354,7 @@ describe("GitHubClient", () => {
       mockOctokit.git.getRef.mockRejectedValue({ status: 404 });
 
       await expect(
-        client.repo("owner/repo").branchSha("missing")
+        client.repo("owner", "repo").branchSha("missing")
       ).resolves.toBe(null);
     });
 
@@ -376,7 +365,7 @@ describe("GitHubClient", () => {
         data: { number: 42, html_url: "https://github.com/owner/repo/pull/42" },
       });
 
-      const result = await client.repo("owner/repo").openPullRequest({
+      const result = await client.repo("owner", "repo").openPR({
         head: "feature",
         title: "Add feature",
       });
@@ -413,7 +402,7 @@ describe("GitHubClient", () => {
         data: { sha: "commit-sha" },
       });
 
-      const result = await client.repo("owner/repo").commit({
+      const result = await client.repo("owner", "repo").commit({
         branch: "feature",
         files: [{ path: "README.md", content: "hello" }],
         message: "Update README",
@@ -457,7 +446,7 @@ describe("GitHubClient", () => {
         data: { sha: "commit-sha" },
       });
 
-      const result = await client.repo("owner/repo").commit({
+      const result = await client.repo("owner", "repo").commit({
         branch: "feature",
         files: [{ path: "README.md", content: "hello" }],
         message: "Update README",
@@ -506,8 +495,8 @@ describe("GitHubClient", () => {
       mockOctokit.pulls.listReviews.mockResolvedValue({ data: reviews });
       mockOctokit.issues.listComments.mockResolvedValue({ data: comments });
 
-      const prClient = client.pr("owner/repo#42");
-      await expect(prClient.details()).resolves.toEqual(pr);
+      const prClient = client.repo("owner", "repo").pr(42);
+      await expect(prClient.get()).resolves.toEqual(pr);
       await expect(prClient.files()).resolves.toEqual(files);
       await expect(prClient.commits()).resolves.toEqual(commits);
       await expect(prClient.reviews()).resolves.toEqual(reviews);
@@ -518,11 +507,11 @@ describe("GitHubClient", () => {
       const client = new GitHubClient({ token: "test-token" });
       mockOctokit.pulls.get.mockResolvedValue({ data: "diff --git a b" });
 
-      await expect(client.pr("owner/repo#42").diff()).resolves.toBe(
+      await expect(client.repo("owner", "repo").pr(42).diff()).resolves.toBe(
         "diff --git a b"
       );
 
-      await client.pr("owner/repo#42").comment("Great work");
+      await client.repo("owner", "repo").pr(42).comment("Great work");
 
       expect(mockOctokit.issues.createComment).toHaveBeenCalledWith({
         owner: "owner",
@@ -547,13 +536,13 @@ describe("GitHubClient", () => {
         data: { check_runs: checks },
       });
 
-      const prClient = client.pr("owner/repo#42");
+      const prClient = client.repo("owner", "repo").pr(42);
       await expect(prClient.checks()).resolves.toEqual(checks);
 
-      const snapshot = await prClient.load();
+      const snapshot = await prClient.snapshot();
       expect(snapshot).toEqual({
-        pullRequest: pr,
-        repository: pr.base.repo,
+        pr,
+        repo: pr.base.repo,
         comments,
         reviews,
         checks,
@@ -613,7 +602,7 @@ describe("GitHubClient", () => {
       await expect(client.contributedRepositories(30)).resolves.toEqual([
         { owner: "owner", name: "repo", fullName: "owner/repo" },
       ]);
-      await expect(client.myOpenPullRequests()).resolves.toEqual([
+      await expect(client.myOpenPRs()).resolves.toEqual([
         {
           pr: makePullRequest(),
           repo: { owner: "owner", name: "repo" },

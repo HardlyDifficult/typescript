@@ -23,6 +23,72 @@ export interface SessionTrackerOptions {
   maxAgeMs?: number;
 }
 
+type SessionData = Record<string, unknown>;
+
+/**
+ *
+ */
+export class TrackedSession {
+  readonly id: string;
+  private readonly tracker: SessionTracker;
+
+  constructor(tracker: SessionTracker, id: string) {
+    this.tracker = tracker;
+    this.id = id;
+  }
+
+  append(type: SessionEntryType, data: SessionData = {}): void {
+    this.tracker.append(this.id, { type, data });
+  }
+
+  start(data: SessionData = {}): void {
+    this.append("session_start", data);
+  }
+
+  request(data: SessionData): void {
+    this.append("ai_request", data);
+  }
+
+  response(data: SessionData): void {
+    this.append("ai_response", data);
+  }
+
+  toolCall(data: SessionData): void {
+    this.append("tool_call", data);
+  }
+
+  toolResult(data: SessionData): void {
+    this.append("tool_result", data);
+  }
+
+  metadata(data: SessionData): void {
+    this.append("metadata", data);
+  }
+
+  error(error: unknown, data: SessionData = {}): void {
+    this.append("error", {
+      ...data,
+      error,
+    });
+  }
+
+  end(data: SessionData = {}): void {
+    this.append("session_end", data);
+  }
+
+  read(): SessionEntry[] {
+    return this.tracker.read(this.id);
+  }
+
+  exists(): boolean {
+    return this.tracker.has(this.id);
+  }
+
+  delete(): boolean {
+    return this.tracker.delete(this.id);
+  }
+}
+
 const DEFAULT_SUBDIRECTORY = "sessions";
 const DEFAULT_MAX_AGE_MS = duration({ days: 7 });
 const JSONL_EXTENSION = ".jsonl";
@@ -31,8 +97,8 @@ const JSONL_EXTENSION = ".jsonl";
  * Append-only session logger that writes structured entries to per-session JSONL files.
  *
  * Each session is stored as `{stateDirectory}/{subdirectory}/{sessionId}.jsonl`
- * with one JSON object per line. Designed for debug/analysis — capture full
- * AI interactions (prompts, responses, tool calls) and download via API.
+ * with one JSON object per line. Prefer `session(sessionId)` in client code so
+ * events read like domain actions instead of raw JSONL writes.
  */
 export class SessionTracker {
   private readonly directory: string;
@@ -50,6 +116,11 @@ export class SessionTracker {
     } catch {
       /* swallow — directory may already exist or be unwritable */
     }
+  }
+
+  /** Returns a bound session helper for expressive event-style writes. */
+  session(sessionId: string): TrackedSession {
+    return new TrackedSession(this, sessionId);
   }
 
   /** Append an entry to a session's JSONL file. Creates the file if needed. */

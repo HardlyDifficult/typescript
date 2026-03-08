@@ -151,15 +151,19 @@ describe("BranchHeadTracker", () => {
     expect(mockOctokit.repos.get).toHaveBeenCalledOnce();
   });
 
-  it("calls throttle.wait before API calls", async () => {
+  it("runs API calls through the throttle", async () => {
     tracker.harvestDefaultBranch("owner/repo", "main");
     stubGetRef("aaa111");
 
-    const mockThrottle = { wait: vi.fn().mockResolvedValue(undefined) };
+    const mockThrottle = {
+      run: vi.fn(
+        async <T>(task: () => Promise<T> | T): Promise<T> => await task()
+      ),
+    };
 
     await tracker.check(mockOctokit, ["owner/repo"], mockThrottle);
 
-    expect(mockThrottle.wait).toHaveBeenCalledWith(1);
+    expect(mockThrottle.run).toHaveBeenCalledWith(expect.any(Function), 1);
   });
 
   it("handles multiple repos in a single check", async () => {
