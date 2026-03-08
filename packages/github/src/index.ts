@@ -12,6 +12,7 @@ export {
 export type { FileManifest, TreeDiff, TreeChild } from "./treeDiff.js";
 export type {
   PullRequest,
+  PullRequestSnapshot,
   Repository,
   User,
   CheckRun,
@@ -38,13 +39,15 @@ export type {
   PRWatcherEvent,
   TreeEntry,
   FileTreeResult,
+  GitHubClientConfig,
   RepoContext,
   KeyFile,
+  RepoContextOptions,
   CommitAuthor,
   CommitFile,
-  CommitFilesOptions,
+  CommitOptions,
   CommitResult,
-  CreatePROptions,
+  OpenPullRequestOptions,
   CreatedPR,
 } from "./types.js";
 
@@ -55,4 +58,6 @@ export {
   type GitHubDirectoryInfo,
   parseGitHubRepoReference,
   type GitHubRepoInfo,
+  parseGitHubPullRequestReference,
+  type GitHubPullRequestInfo,
 } from "./githubUrlParser.js";

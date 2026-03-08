@@ -3,215 +3,201 @@ import {
   StatusNotFoundError,
   TaskNotFoundError,
 } from "./errors.js";
+import {
+  findByCaseInsensitiveName,
+  matchesCaseInsensitive,
+} from "./resolvers.js";
 import { Task } from "./Task.js";
 import type {
   CreateLabelOptions,
-  CreateTaskOptions,
+  CreateProjectTaskInput,
   Label,
+  ProjectSnapshot,
   Status,
   TaskContext,
   TaskFilter,
-  UpdateTaskParams,
 } from "./types.js";
 
-/**
- * Result of a bulk update operation
- */
 export interface BulkUpdateResult {
   readonly updated: readonly Task[];
   readonly count: number;
 }
 
 /**
- * A project (Trello Board, Linear Project) with task creation capability.
- * Statuses and labels are exposed as rich objects for enumeration and CRUD.
- * Tasks are eagerly loaded and can be filtered in memory via getTasks().
+ *
  */
 export class Project {
-  readonly id: string;
-  readonly name: string;
-  readonly url: string;
-  readonly statuses: readonly Status[];
-  readonly labels: readonly Label[];
-  readonly tasks: readonly Task[];
+  id: string;
+  name: string;
+  url: string;
+  statuses: readonly Status[];
+  labels: readonly Label[];
 
-  private readonly context: TaskContext;
-  private readonly defaultStatusId: string;
+  private context: TaskContext;
+  private taskEntries: Task[];
 
-  constructor(
-    info: { id: string; name: string; url: string },
-    statusEntries: readonly { id: string; name: string }[],
-    tasks: readonly Task[],
-    labelEntries: readonly { id: string; name: string; color: string }[],
-    context: TaskContext
-  ) {
-    this.id = info.id;
-    this.name = info.name;
-    this.url = info.url;
-    this.statuses = statusEntries.map((s) => ({ id: s.id, name: s.name }));
-    this.labels = labelEntries.map((l) => ({
-      id: l.id,
-      name: l.name,
-      color: l.color,
-    }));
-    this.tasks = tasks;
-    this.context = context;
-    this.defaultStatusId = statusEntries[0]?.id ?? "";
+  constructor(snapshot: ProjectSnapshot) {
+    this.id = snapshot.info.id;
+    this.name = snapshot.info.name;
+    this.url = snapshot.info.url;
+    this.statuses = snapshot.statuses.map((status) => ({ ...status }));
+    this.labels = snapshot.labels.map((label) => ({ ...label }));
+    this.context = snapshot.context;
+    this.taskEntries = snapshot.tasks.map(
+      (task) => new Task({ task, context: snapshot.context })
+    );
   }
 
-  /**
-   * Create a new task in this project.
-   * @param name - Task name/title
-   * @param options - Optional description, labels, status, and priority
-   * @returns The created Task
-   */
-  async createTask(name: string, options?: CreateTaskOptions): Promise<Task> {
-    const statusId =
-      options?.status !== undefined && options.status !== ""
-        ? this.context.resolveStatusId(options.status)
-        : this.defaultStatusId;
-
-    const labelIds = options?.labels
-      ? options.labels.map((n) => this.context.resolveLabelId(n))
-      : undefined;
-
-    const priority =
-      options?.priority !== undefined && this.context.resolvePriority
-        ? this.context.resolvePriority(options.priority)
-        : undefined;
-
-    const data = await this.context.createTask({
-      statusId,
-      projectId: this.id,
-      name,
-      description: options?.description,
-      labelIds,
-      priority,
-    });
-    return new Task(data, this.context);
-  }
-
-  /**
-   * Find a task by ID within the loaded tasks.
-   * @param taskId - Task ID to find
-   * @returns The matching Task
-   * @throws Error if no task matches
-   */
-  findTask(taskId: string): Task {
-    const task = this.tasks.find((t) => t.id === taskId);
-    if (!task) {
-      throw new TaskNotFoundError(taskId, this.name);
-    }
-    return task;
-  }
-
-  /**
-   * Filter the loaded tasks by criteria.
-   * All provided filter fields must match (AND logic).
-   * @param filter - Optional filter criteria. If omitted, returns all tasks.
-   */
-  getTasks(filter?: TaskFilter): readonly Task[] {
+  tasks(filter?: TaskFilter): readonly Task[] {
     if (!filter) {
-      return this.tasks;
+      return [...this.taskEntries];
     }
 
-    return this.tasks.filter((task) => {
-      if (filter.status !== undefined) {
-        if (!task.status.toLowerCase().includes(filter.status.toLowerCase())) {
-          return false;
-        }
+    return this.taskEntries.filter((task) => {
+      if (
+        filter.status !== undefined &&
+        !matchesCaseInsensitive(task.status, filter.status)
+      ) {
+        return false;
       }
+
       if (filter.label !== undefined) {
         const filterLabel = filter.label;
-        if (
-          !task.labels.some((l) =>
-            l.toLowerCase().includes(filterLabel.toLowerCase())
-          )
-        ) {
+        const hasLabel = task.labels.some((label) =>
+          matchesCaseInsensitive(label, filterLabel)
+        );
+        if (!hasLabel) {
           return false;
         }
       }
+
       if (filter.labels !== undefined) {
-        for (const required of filter.labels) {
-          if (
-            !task.labels.some((l) => l.toLowerCase() === required.toLowerCase())
-          ) {
+        for (const requiredLabel of filter.labels) {
+          const hasLabel = task.labels.some((label) =>
+            matchesCaseInsensitive(label, requiredLabel)
+          );
+          if (!hasLabel) {
             return false;
           }
         }
       }
-      if (filter.priority !== undefined) {
-        if (task.priority !== filter.priority) {
-          return false;
-        }
+
+      if (filter.priority !== undefined && task.priority !== filter.priority) {
+        return false;
       }
+
       return true;
     });
   }
 
-  /**
-   * Update all tasks matching the filter.
-   * @param filter - Criteria to select tasks
-   * @param changes - Fields to update on each matching task
-   * @returns The updated tasks and count
-   */
+  async createTask(input: CreateProjectTaskInput): Promise<Task> {
+    const statusId =
+      input.status !== undefined && input.status !== ""
+        ? this.context.resolveStatusId(input.status)
+        : (this.statuses[0]?.id ?? "");
+
+    const labelIds = input.labels?.map((name) =>
+      this.context.resolveLabelId(name)
+    );
+    const priority =
+      input.priority !== undefined && this.context.resolvePriority
+        ? this.context.resolvePriority(input.priority)
+        : undefined;
+
+    const snapshot = await this.context.createTask({
+      projectId: this.id,
+      title: input.title,
+      statusId,
+      description: input.description,
+      labelIds,
+      priority,
+    });
+
+    const task = new Task(snapshot);
+    this.taskEntries = [...this.taskEntries, task];
+    return task;
+  }
+
+  findTask(taskId: string): Task {
+    const task = this.taskEntries.find((entry) => entry.id === taskId);
+    if (!task) {
+      throw new TaskNotFoundError(
+        taskId,
+        this.name,
+        this.taskEntries.map((entry) => entry.id)
+      );
+    }
+    return task;
+  }
+
   async updateTasks(
     filter: TaskFilter,
-    changes: UpdateTaskParams
+    changes: Parameters<Task["update"]>[0]
   ): Promise<BulkUpdateResult> {
-    const matching = this.getTasks(filter);
+    const matchingTasks = this.tasks(filter);
     const updated: Task[] = [];
-    for (const task of matching) {
+
+    for (const task of matchingTasks) {
       updated.push(await task.update(changes));
     }
+
     return { updated, count: updated.length };
   }
 
-  /**
-   * Create a new label for this project/team.
-   * Linear: creates a team-level label. Trello: creates a board-level label.
-   */
   async createLabel(
     name: string,
     options?: CreateLabelOptions
   ): Promise<Label> {
-    return this.context.createLabel(name, options?.color);
+    const label = await this.context.createLabel(name, options?.color);
+    await this.refresh();
+    return label;
   }
 
-  /**
-   * Delete a label by name.
-   * @throws Error if the label is not found
-   */
   async deleteLabel(name: string): Promise<void> {
     const label = this.findLabel(name);
-    return this.context.deleteLabel(label.id);
+    await this.context.deleteLabel(label.id);
+    await this.refresh();
   }
 
-  /**
-   * Find a status by name (case-insensitive partial match).
-   * @throws Error if no status matches
-   */
   findStatus(name: string): Status {
-    const lower = name.toLowerCase();
-    const status = this.statuses.find((s) =>
-      s.name.toLowerCase().includes(lower)
-    );
+    const status = findByCaseInsensitiveName(this.statuses, name);
     if (!status) {
-      throw new StatusNotFoundError(name, this.name);
+      throw new StatusNotFoundError(
+        name,
+        this.name,
+        this.statuses.map((entry) => entry.name)
+      );
     }
     return status;
   }
 
-  /**
-   * Find a label by name (case-insensitive partial match).
-   * @throws Error if no label matches
-   */
   findLabel(name: string): Label {
-    const lower = name.toLowerCase();
-    const label = this.labels.find((l) => l.name.toLowerCase().includes(lower));
+    const label = findByCaseInsensitiveName(this.labels, name);
     if (!label) {
-      throw new LabelNotFoundError(name, this.name);
+      throw new LabelNotFoundError(
+        name,
+        this.name,
+        this.labels.map((entry) => entry.name)
+      );
     }
     return label;
+  }
+
+  async refresh(): Promise<this> {
+    const snapshot = await this.context.fetchProject(this.id);
+    this.applySnapshot(snapshot);
+    return this;
+  }
+
+  private applySnapshot(snapshot: ProjectSnapshot): void {
+    this.context = snapshot.context;
+    this.id = snapshot.info.id;
+    this.name = snapshot.info.name;
+    this.url = snapshot.info.url;
+    this.statuses = snapshot.statuses.map((status) => ({ ...status }));
+    this.labels = snapshot.labels.map((label) => ({ ...label }));
+    this.taskEntries = snapshot.tasks.map(
+      (task) => new Task({ task, context: snapshot.context })
+    );
   }
 }

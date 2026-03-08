@@ -10,7 +10,7 @@
  * Custom status logic can be injected via AnalyzerHooks.resolveStatus.
  */
 
-import { MILLISECONDS_PER_DAY } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 import type {
   CheckRun,
   GitHubClient,
@@ -56,21 +56,25 @@ export async function analyzePR(
   botMention: string,
   hooks?: AnalyzerHooks
 ): Promise<ScannedPR> {
-  // Fetch all required data in parallel
-  const repoClient = client.repo(owner, repo);
-  const prClient = repoClient.pr(pr.number);
-  const [checks, comments, reviews, repoInfo] = await Promise.all([
-    prClient.getCheckRuns(),
-    prClient.getComments(),
-    prClient.getReviews(),
-    repoClient.get(),
-  ]);
+  const snapshot = await client
+    .pr(`${owner}/${repo}#${String(pr.number)}`)
+    .load();
+  const currentPr = snapshot.pullRequest;
+  const { checks } = snapshot;
+  const { comments } = snapshot;
+  const { reviews } = snapshot;
+  const repoInfo = snapshot.repository;
 
   // Analyze the fetched data
   const ciStatus = analyzeCIStatus(checks);
   const waitingOnBot = isWaitingOnBot(comments, botMention);
-  const conflicting = hasConflicts(pr);
-  const coreStatus = determineStatus(pr, ciStatus, reviews, waitingOnBot);
+  const conflicting = hasConflicts(currentPr);
+  const coreStatus = determineStatus(
+    currentPr,
+    ciStatus,
+    reviews,
+    waitingOnBot
+  );
 
   // Allow hook to override status
   const status =
@@ -83,10 +87,10 @@ export async function analyzePR(
       waitingOnBot,
     }) ?? coreStatus;
 
-  const daysSinceUpdate = calculateDaysSinceUpdate(pr.updated_at);
+  const daysSinceUpdate = calculateDaysSinceUpdate(currentPr.updated_at);
 
   return {
-    pr,
+    pr: currentPr,
     repo: repoInfo,
     status,
     ciStatus,
@@ -334,6 +338,6 @@ function hasConflicts(pr: PullRequest): boolean {
 
 function calculateDaysSinceUpdate(updatedAt: string): number {
   return Math.floor(
-    (Date.now() - new Date(updatedAt).getTime()) / MILLISECONDS_PER_DAY
+    (Date.now() - new Date(updatedAt).getTime()) / duration({ days: 1 })
   );
 }

@@ -46,7 +46,7 @@ Analyzes a single PR and returns its full status.
 ```typescript
 import { analyzePR, analyzeAll } from "@hardlydifficult/pr-analyzer";
 
-const pr = await client.repo("owner", "repo").pr(123).get();
+const pr = await client.pr("owner/repo#123").details();
 const scanned = await analyzePR(client, "owner", "repo", pr, "@bot");
 
 scanned.status; // "ready_to_merge"

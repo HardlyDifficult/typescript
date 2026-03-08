@@ -1,3 +1,10 @@
+function formatAvailable(items: readonly string[] | undefined): string {
+  if (!items || items.length === 0) {
+    return "";
+  }
+  return ` Available: ${items.join(", ")}`;
+}
+
 /**
  *
  */
@@ -32,10 +39,13 @@ export class UnknownTaskListProviderError extends TaskListError {
  *
  */
 export class TaskListProviderNotConfiguredError extends TaskListError {
-  constructor() {
+  constructor(provider: "linear" | "trello", missing: readonly string[] = []) {
     super(
-      "No task list provider configured. Set LINEAR_API_KEY or TRELLO_API_KEY.",
-      "PROVIDER_NOT_CONFIGURED"
+      provider === "linear"
+        ? `Linear provider is not configured.${formatAvailable(missing)}`
+        : `Trello provider is not configured.${formatAvailable(missing)}`,
+      "PROVIDER_NOT_CONFIGURED",
+      { provider, missing }
     );
   }
 }
@@ -44,8 +54,12 @@ export class TaskListProviderNotConfiguredError extends TaskListError {
  *
  */
 export class ProjectNotFoundError extends TaskListError {
-  constructor(name: string) {
-    super(`Project "${name}" not found`, "PROJECT_NOT_FOUND", { name });
+  constructor(name: string, availableProjects: readonly string[] = []) {
+    super(
+      `Project "${name}" not found.${formatAvailable(availableProjects)}`,
+      "PROJECT_NOT_FOUND",
+      { name, availableProjects }
+    );
   }
 }
 
@@ -53,11 +67,15 @@ export class ProjectNotFoundError extends TaskListError {
  *
  */
 export class TaskNotFoundError extends TaskListError {
-  constructor(taskId: string, projectName: string) {
+  constructor(
+    taskId: string,
+    projectName: string,
+    availableTaskIds: readonly string[] = []
+  ) {
     super(
-      `Task "${taskId}" not found in project "${projectName}"`,
+      `Task "${taskId}" not found in project "${projectName}".${formatAvailable(availableTaskIds)}`,
       "TASK_NOT_FOUND",
-      { taskId, projectName }
+      { taskId, projectName, availableTaskIds }
     );
   }
 }
@@ -66,13 +84,17 @@ export class TaskNotFoundError extends TaskListError {
  *
  */
 export class StatusNotFoundError extends TaskListError {
-  constructor(name: string, projectName?: string) {
+  constructor(
+    name: string,
+    projectName?: string,
+    availableStatuses: readonly string[] = []
+  ) {
     super(
       projectName !== undefined
-        ? `Status "${name}" not found in project "${projectName}"`
-        : `Status "${name}" not found`,
+        ? `Status "${name}" not found in project "${projectName}".${formatAvailable(availableStatuses)}`
+        : `Status "${name}" not found.${formatAvailable(availableStatuses)}`,
       "STATUS_NOT_FOUND",
-      { name, projectName }
+      { name, projectName, availableStatuses }
     );
   }
 }
@@ -81,8 +103,12 @@ export class StatusNotFoundError extends TaskListError {
  *
  */
 export class StatusIdNotFoundError extends TaskListError {
-  constructor(id: string) {
-    super(`Status with ID "${id}" not found`, "STATUS_ID_NOT_FOUND", { id });
+  constructor(id: string, availableStatuses: readonly string[] = []) {
+    super(
+      `Status with ID "${id}" not found.${formatAvailable(availableStatuses)}`,
+      "STATUS_ID_NOT_FOUND",
+      { id, availableStatuses }
+    );
   }
 }
 
@@ -90,13 +116,17 @@ export class StatusIdNotFoundError extends TaskListError {
  *
  */
 export class LabelNotFoundError extends TaskListError {
-  constructor(name: string, projectName?: string) {
+  constructor(
+    name: string,
+    projectName?: string,
+    availableLabels: readonly string[] = []
+  ) {
     super(
       projectName !== undefined
-        ? `Label "${name}" not found in project "${projectName}"`
-        : `Label "${name}" not found`,
+        ? `Label "${name}" not found in project "${projectName}".${formatAvailable(availableLabels)}`
+        : `Label "${name}" not found.${formatAvailable(availableLabels)}`,
       "LABEL_NOT_FOUND",
-      { name, projectName }
+      { name, projectName, availableLabels }
     );
   }
 }
@@ -107,7 +137,7 @@ export class LabelNotFoundError extends TaskListError {
 export class TeamNotFoundError extends TaskListError {
   constructor(teamName: string, availableTeams: readonly string[]) {
     super(
-      `Team "${teamName}" not found. Available teams: ${availableTeams.join(", ")}`,
+      `Team "${teamName}" not found.${formatAvailable(availableTeams)}`,
       "TEAM_NOT_FOUND",
       { teamName, availableTeams }
     );
@@ -129,19 +159,10 @@ export class NoTeamsFoundError extends TaskListError {
 export class MultipleTeamsFoundError extends TaskListError {
   constructor(availableTeams: readonly string[]) {
     super(
-      `Multiple teams found. Specify team name or ID. Available teams: ${availableTeams.join(", ")}`,
+      `Multiple teams found. Specify a team or teamId.${formatAvailable(availableTeams)}`,
       "MULTIPLE_TEAMS_FOUND",
       { availableTeams }
     );
-  }
-}
-
-/**
- *
- */
-export class TeamNotResolvedError extends TaskListError {
-  constructor() {
-    super("Team not resolved. Call resolveTeam() first.", "TEAM_NOT_RESOLVED");
   }
 }
 

@@ -1,26 +1,52 @@
 import { describe, expect, it, vi } from "vitest";
-import { Task } from "../src/Task.js";
+
 import { Project } from "../src/Project.js";
+import { Task } from "../src/Task.js";
 import {
   LabelNotFoundError,
   StatusNotFoundError,
   TaskNotFoundError,
 } from "../src/errors.js";
-import type { TaskContext, TaskData } from "../src/types.js";
+import type {
+  Label,
+  ProjectSnapshot,
+  Status,
+  TaskContext,
+  TaskData,
+  TaskSnapshot,
+} from "../src/types.js";
+
+const statuses: readonly Status[] = [
+  { id: "status-1", name: "To Do" },
+  { id: "status-2", name: "Done" },
+];
+
+const labels: readonly Label[] = [
+  { id: "label-1", name: "Bug", color: "#ff0000" },
+  { id: "label-2", name: "Feature", color: "#00ff00" },
+];
 
 function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
-  return {
+  const context: TaskContext = {
     createTask: vi.fn(),
     updateTask: vi.fn(),
-    addTaskLabel: vi.fn(),
-    removeTaskLabel: vi.fn(),
+    fetchTask: vi.fn(),
+    fetchProject: vi.fn(),
     createLabel: vi.fn(),
     deleteLabel: vi.fn(),
-    resolveStatusId: vi.fn((name: string) => `status-id-for-${name}`),
-    resolveStatusName: vi.fn((id: string) =>
-      id === "status-1" ? "To Do" : "Unknown"
-    ),
-    resolveLabelId: vi.fn((name: string) => `label-id-for-${name}`),
+    resolveStatusId: vi.fn((name: string) => {
+      if (name.toLowerCase() === "to do") return "status-1";
+      if (name.toLowerCase() === "done") return "status-2";
+      return `status-${name}`;
+    }),
+    resolveStatusName: vi.fn((id: string) => {
+      return id === "status-2" ? "Done" : "To Do";
+    }),
+    resolveLabelId: vi.fn((name: string) => {
+      if (name.toLowerCase() === "bug") return "label-1";
+      if (name.toLowerCase() === "feature") return "label-2";
+      return `label-${name}`;
+    }),
     resolvePriority: vi.fn((name: string) => {
       const map: Record<string, number> = {
         none: 0,
@@ -31,561 +57,347 @@ function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
       };
       return map[name.toLowerCase()] ?? 0;
     }),
-    labels: [
-      { id: "l1", name: "Bug", color: "#ff0000" },
-      { id: "l2", name: "Feature", color: "#00ff00" },
-    ],
-    statuses: [
-      { id: "status-1", name: "To Do" },
-      { id: "status-2", name: "Done" },
-    ],
+    labels,
+    statuses,
     ...overrides,
   };
+
+  return context;
 }
 
 const baseTaskData: TaskData = {
   id: "task-1",
-  name: "Original name",
-  description: "Original desc",
+  title: "Original title",
+  description: "Original description",
   statusId: "status-1",
   projectId: "project-1",
-  labels: [{ id: "l1", name: "Bug", color: "#ff0000" }],
-  url: "https://example.com/t/1",
+  labels: [labels[0]!],
+  url: "https://example.com/tasks/1",
   priority: 2,
 };
 
+function createTaskSnapshot(
+  data: TaskData = baseTaskData,
+  context: TaskContext = createMockContext()
+): TaskSnapshot {
+  return {
+    task: data,
+    context,
+  };
+}
+
+function createProjectSnapshot(
+  taskData: readonly TaskData[] = [],
+  context: TaskContext = createMockContext()
+): ProjectSnapshot {
+  return {
+    info: {
+      id: "project-1",
+      name: "Alpha",
+      url: "https://example.com/projects/1",
+    },
+    statuses,
+    labels,
+    tasks: taskData,
+    context,
+  };
+}
+
 describe("Task", () => {
-  it("exposes all fields with resolved names", () => {
-    const ctx = createMockContext();
-    const task = new Task(baseTaskData, ctx);
+  it("exposes resolved, user-facing fields", () => {
+    const context = createMockContext();
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
 
     expect(task.id).toBe("task-1");
-    expect(task.name).toBe("Original name");
-    expect(task.description).toBe("Original desc");
+    expect(task.title).toBe("Original title");
+    expect(task.description).toBe("Original description");
     expect(task.status).toBe("To Do");
     expect(task.projectId).toBe("project-1");
     expect(task.labels).toEqual(["Bug"]);
-    expect(task.url).toBe("https://example.com/t/1");
+    expect(task.url).toBe("https://example.com/tasks/1");
     expect(task.priority).toBe("High");
   });
 
-  it("resolves status name from ID via context", () => {
-    const ctx = createMockContext();
-    new Task(baseTaskData, ctx);
-    expect(ctx.resolveStatusName).toHaveBeenCalledWith("status-1");
-  });
-
-  it("maps priority undefined when not in TaskData", () => {
-    const ctx = createMockContext();
-    const dataWithoutPriority: TaskData = {
-      ...baseTaskData,
-      priority: undefined,
-    };
-    const task = new Task(dataWithoutPriority, ctx);
-    expect(task.priority).toBeUndefined();
-  });
-
-  it("update() resolves status and label names to IDs", async () => {
+  it("update() mutates the current task and returns the same instance", async () => {
     const updatedData: TaskData = {
       ...baseTaskData,
-      name: "Updated name",
+      title: "Updated title",
       statusId: "status-2",
-      labels: [{ id: "l2", name: "Feature", color: "#00ff00" }],
+      labels: [labels[1]!],
     };
-    const ctx = createMockContext({
-      updateTask: vi.fn().mockResolvedValue(updatedData),
-      resolveStatusId: vi.fn().mockReturnValue("status-2"),
-      resolveStatusName: vi.fn((id: string) =>
-        id === "status-2" ? "Done" : "To Do"
-      ),
-      resolveLabelId: vi.fn().mockReturnValue("l2"),
+    const context = createMockContext({
+      updateTask: vi
+        .fn()
+        .mockResolvedValue(
+          createTaskSnapshot(updatedData, createMockContext())
+        ),
     });
-    const task = new Task(baseTaskData, ctx);
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
 
     const updated = await task.update({
-      name: "Updated name",
+      title: "Updated title",
       status: "Done",
       labels: ["Feature"],
     });
 
-    expect(ctx.resolveStatusId).toHaveBeenCalledWith("Done");
-    expect(ctx.resolveLabelId).toHaveBeenCalledWith("Feature");
-    expect(ctx.updateTask).toHaveBeenCalledWith({
+    expect(updated).toBe(task);
+    expect(context.resolveStatusId).toHaveBeenCalledWith("Done");
+    expect(context.resolveLabelId).toHaveBeenCalledWith("Feature");
+    expect(context.updateTask).toHaveBeenCalledWith({
       taskId: "task-1",
-      name: "Updated name",
+      title: "Updated title",
       description: undefined,
       statusId: "status-2",
-      labelIds: ["l2"],
+      labelIds: ["label-2"],
       priority: undefined,
     });
-    expect(updated).toBeInstanceOf(Task);
-    expect(updated.name).toBe("Updated name");
-    expect(updated.status).toBe("Done");
+    expect(task.title).toBe("Updated title");
+    expect(task.status).toBe("Done");
+    expect(task.labels).toEqual(["Feature"]);
   });
 
-  it("update() passes undefined for omitted fields", async () => {
-    const ctx = createMockContext({
-      updateTask: vi.fn().mockResolvedValue(baseTaskData),
+  it("update() resolves priority names", async () => {
+    const context = createMockContext({
+      updateTask: vi
+        .fn()
+        .mockResolvedValue(
+          createTaskSnapshot({ ...baseTaskData, priority: 1 })
+        ),
     });
-    const task = new Task(baseTaskData, ctx);
-
-    await task.update({ name: "New name" });
-
-    expect(ctx.updateTask).toHaveBeenCalledWith({
-      taskId: "task-1",
-      name: "New name",
-      description: undefined,
-      statusId: undefined,
-      labelIds: undefined,
-      priority: undefined,
-    });
-  });
-
-  it("update() resolves priority", async () => {
-    const ctx = createMockContext({
-      updateTask: vi.fn().mockResolvedValue({ ...baseTaskData, priority: 1 }),
-    });
-    const task = new Task(baseTaskData, ctx);
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
 
     await task.update({ priority: "Urgent" });
 
-    expect(ctx.resolvePriority).toHaveBeenCalledWith("Urgent");
-    expect(ctx.updateTask).toHaveBeenCalledWith(
+    expect(context.resolvePriority).toHaveBeenCalledWith("Urgent");
+    expect(context.updateTask).toHaveBeenCalledWith(
       expect.objectContaining({ priority: 1 })
+    );
+    expect(task.priority).toBe("Urgent");
+  });
+
+  it("tag() appends labels without duplicating existing entries", async () => {
+    const updatedData: TaskData = {
+      ...baseTaskData,
+      labels,
+    };
+    const context = createMockContext({
+      updateTask: vi
+        .fn()
+        .mockResolvedValue(
+          createTaskSnapshot(updatedData, createMockContext())
+        ),
+    });
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
+
+    const updated = await task.tag("Feature", "Bug");
+
+    expect(updated).toBe(task);
+    expect(task.labels).toEqual(["Bug", "Feature"]);
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: ["label-1", "label-2"] })
     );
   });
 
-  it("original task is unchanged after update", async () => {
-    const updatedData: TaskData = {
-      ...baseTaskData,
-      name: "Updated",
-    };
-    const ctx = createMockContext({
-      updateTask: vi.fn().mockResolvedValue(updatedData),
-    });
-    const task = new Task(baseTaskData, ctx);
-
-    await task.update({ name: "Updated" });
-
-    expect(task.name).toBe("Original name");
-  });
-
-  it("addLabel() resolves name and calls addTaskLabel", async () => {
-    const updatedData: TaskData = {
-      ...baseTaskData,
-      labels: [
-        { id: "l1", name: "Bug", color: "#ff0000" },
-        { id: "l2", name: "Feature", color: "#00ff00" },
-      ],
-    };
-    const ctx = createMockContext({
-      addTaskLabel: vi.fn().mockResolvedValue(updatedData),
-      resolveLabelId: vi.fn().mockReturnValue("l2"),
-    });
-    const task = new Task(baseTaskData, ctx);
-
-    const updated = await task.addLabel("Feature");
-
-    expect(ctx.resolveLabelId).toHaveBeenCalledWith("Feature");
-    expect(ctx.addTaskLabel).toHaveBeenCalledWith("task-1", "l2");
-    expect(updated.labels).toEqual(["Bug", "Feature"]);
-  });
-
-  it("removeLabel() resolves name and calls removeTaskLabel", async () => {
-    const updatedData: TaskData = {
-      ...baseTaskData,
-      labels: [],
-    };
-    const ctx = createMockContext({
-      removeTaskLabel: vi.fn().mockResolvedValue(updatedData),
-      resolveLabelId: vi.fn().mockReturnValue("l1"),
-    });
-    const task = new Task(baseTaskData, ctx);
-
-    const updated = await task.removeLabel("Bug");
-
-    expect(ctx.resolveLabelId).toHaveBeenCalledWith("Bug");
-    expect(ctx.removeTaskLabel).toHaveBeenCalledWith("task-1", "l1");
-    expect(updated.labels).toEqual([]);
-  });
-
-  it("setStatus() delegates to update()", async () => {
-    const updatedData: TaskData = {
-      ...baseTaskData,
-      statusId: "status-2",
-    };
-    const ctx = createMockContext({
-      updateTask: vi.fn().mockResolvedValue(updatedData),
-      resolveStatusId: vi.fn().mockReturnValue("status-2"),
-      resolveStatusName: vi.fn((id: string) =>
-        id === "status-2" ? "Done" : "To Do"
+  it("untag() removes labels by exact case-insensitive name", async () => {
+    const context = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(
+        createTaskSnapshot({
+          ...baseTaskData,
+          labels: [],
+        })
       ),
     });
-    const task = new Task(baseTaskData, ctx);
+    const task = new Task(
+      createTaskSnapshot(
+        {
+          ...baseTaskData,
+          labels,
+        },
+        context
+      )
+    );
 
-    const updated = await task.setStatus("Done");
+    await task.untag("feature", "bug");
 
-    expect(ctx.resolveStatusId).toHaveBeenCalledWith("Done");
-    expect(updated.status).toBe("Done");
+    expect(task.labels).toEqual([]);
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: [] })
+    );
+  });
+
+  it("moveTo() delegates through update()", async () => {
+    const context = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(
+        createTaskSnapshot({
+          ...baseTaskData,
+          statusId: "status-2",
+        })
+      ),
+    });
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
+
+    await task.moveTo("Done");
+
+    expect(task.status).toBe("Done");
+    expect(context.resolveStatusId).toHaveBeenCalledWith("Done");
+  });
+
+  it("refresh() reloads the current task in place", async () => {
+    const refreshedData: TaskData = {
+      ...baseTaskData,
+      title: "Fresh title",
+    };
+    const context = createMockContext({
+      fetchTask: vi
+        .fn()
+        .mockResolvedValue(
+          createTaskSnapshot(refreshedData, createMockContext())
+        ),
+    });
+    const task = new Task(createTaskSnapshot(baseTaskData, context));
+
+    const refreshed = await task.refresh();
+
+    expect(refreshed).toBe(task);
+    expect(context.fetchTask).toHaveBeenCalledWith("task-1");
+    expect(task.title).toBe("Fresh title");
   });
 });
 
 describe("Project", () => {
-  it("exposes statuses and labels as objects", () => {
-    const ctx = createMockContext();
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "https://example.com/p/1" },
-      [
-        { id: "s1", name: "To Do" },
-        { id: "s2", name: "Done" },
-      ],
-      [],
-      [{ id: "l1", name: "Bug", color: "#ff0000" }],
-      ctx
-    );
-
-    expect(project.id).toBe("p1");
-    expect(project.name).toBe("Alpha");
-    expect(project.url).toBe("https://example.com/p/1");
-    expect(project.statuses).toEqual([
-      { id: "s1", name: "To Do" },
-      { id: "s2", name: "Done" },
-    ]);
-    expect(project.labels).toEqual([
-      { id: "l1", name: "Bug", color: "#ff0000" },
-    ]);
-    expect(project.tasks).toEqual([]);
-  });
-
-  it("createTask() with name only uses default status", async () => {
-    const ctx = createMockContext({
-      createTask: vi.fn().mockResolvedValue(baseTaskData),
+  it("createTask() uses the default status when none is provided", async () => {
+    const context = createMockContext({
+      createTask: vi.fn().mockResolvedValue(createTaskSnapshot(baseTaskData)),
     });
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [{ id: "s1", name: "To Do" }],
-      [],
-      [],
-      ctx
-    );
+    const project = new Project(createProjectSnapshot([], context));
 
-    const task = await project.createTask("Fix bug");
+    const task = await project.createTask({ title: "Fix login" });
 
-    expect(ctx.createTask).toHaveBeenCalledWith({
-      statusId: "s1",
-      projectId: "p1",
-      name: "Fix bug",
+    expect(task).toBeInstanceOf(Task);
+    expect(context.createTask).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "Fix login",
+      statusId: "status-1",
       description: undefined,
       labelIds: undefined,
       priority: undefined,
     });
-    expect(task).toBeInstanceOf(Task);
   });
 
-  it("createTask() with status and labels resolves names", async () => {
-    const ctx = createMockContext({
-      createTask: vi.fn().mockResolvedValue(baseTaskData),
-      resolveStatusId: vi.fn().mockReturnValue("s2"),
-      resolveLabelId: vi.fn().mockReturnValue("l1"),
+  it("createTask() resolves labels, statuses, and priority", async () => {
+    const context = createMockContext({
+      createTask: vi.fn().mockResolvedValue(createTaskSnapshot(baseTaskData)),
     });
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [
-        { id: "s1", name: "To Do" },
-        { id: "s2", name: "In Progress" },
-      ],
-      [],
-      [{ id: "l1", name: "Bug", color: "#ff0000" }],
-      ctx
-    );
+    const project = new Project(createProjectSnapshot([], context));
 
-    await project.createTask("Fix bug", {
-      description: "Details",
-      status: "In Progress",
+    await project.createTask({
+      title: "Fix login",
+      description: "Users are blocked",
+      status: "Done",
       labels: ["Bug"],
+      priority: "High",
     });
 
-    expect(ctx.resolveStatusId).toHaveBeenCalledWith("In Progress");
-    expect(ctx.resolveLabelId).toHaveBeenCalledWith("Bug");
-    expect(ctx.createTask).toHaveBeenCalledWith({
-      statusId: "s2",
-      projectId: "p1",
-      name: "Fix bug",
-      description: "Details",
-      labelIds: ["l1"],
-      priority: undefined,
+    expect(context.resolveStatusId).toHaveBeenCalledWith("Done");
+    expect(context.resolveLabelId).toHaveBeenCalledWith("Bug");
+    expect(context.resolvePriority).toHaveBeenCalledWith("High");
+    expect(context.createTask).toHaveBeenCalledWith({
+      projectId: "project-1",
+      title: "Fix login",
+      statusId: "status-2",
+      description: "Users are blocked",
+      labelIds: ["label-1"],
+      priority: 2,
     });
   });
 
-  it("createTask() with priority", async () => {
-    const ctx = createMockContext({
-      createTask: vi.fn().mockResolvedValue(baseTaskData),
-    });
+  it("tasks() filters by exact, case-insensitive status, label, and priority", () => {
+    const context = createMockContext();
     const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [{ id: "s1", name: "To Do" }],
-      [],
-      [],
-      ctx
+      createProjectSnapshot(
+        [
+          baseTaskData,
+          {
+            ...baseTaskData,
+            id: "task-2",
+            title: "Ship feature",
+            statusId: "status-2",
+            labels: [labels[1]!],
+            priority: 4,
+          },
+        ],
+        context
+      )
     );
 
-    await project.createTask("Fix bug", { priority: "High" });
-
-    expect(ctx.resolvePriority).toHaveBeenCalledWith("High");
-    expect(ctx.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ priority: 2 })
-    );
+    expect(project.tasks({ status: "to do" })).toHaveLength(1);
+    expect(project.tasks({ label: "feature" })).toHaveLength(1);
+    expect(project.tasks({ labels: ["Bug"] })).toHaveLength(1);
+    expect(project.tasks({ priority: "Low" })).toHaveLength(1);
+    expect(project.tasks({ status: "to", label: "Bug" })).toHaveLength(0);
   });
 
-  it("findTask() finds a task by ID", () => {
-    const ctx = createMockContext();
-    const task = new Task(baseTaskData, ctx);
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [{ id: "s1", name: "To Do" }],
-      [task],
-      [],
-      ctx
-    );
+  it("findTask() throws with available task ids when missing", () => {
+    const project = new Project(createProjectSnapshot([baseTaskData]));
 
-    expect(project.findTask("task-1").name).toBe("Original name");
+    expect(() => project.findTask("missing")).toThrow(TaskNotFoundError);
+    expect(() => project.findTask("missing")).toThrow(/task-1/);
   });
 
-  it("findTask() throws when not found", () => {
-    const ctx = createMockContext();
-    const project = new Project(
-      { id: "p1", name: "Alpha", url: "" },
-      [],
-      [],
-      [],
-      ctx
-    );
+  it("findStatus() and findLabel() use exact case-insensitive matching", () => {
+    const project = new Project(createProjectSnapshot());
 
-    expect(() => project.findTask("nonexistent")).toThrow(TaskNotFoundError);
-    try {
-      project.findTask("nonexistent");
-    } catch (error) {
-      expect(error).toBeInstanceOf(TaskNotFoundError);
-      expect((error as TaskNotFoundError).code).toBe("TASK_NOT_FOUND");
-    }
+    expect(project.findStatus("to do")).toEqual(statuses[0]);
+    expect(project.findLabel("bug")).toEqual(labels[0]);
+    expect(() => project.findStatus("do")).toThrow(StatusNotFoundError);
+    expect(() => project.findLabel("bu")).toThrow(LabelNotFoundError);
   });
 
-  describe("getTasks", () => {
-    function buildProjectWithTasks() {
-      const ctx = createMockContext();
-      const task1 = new Task(baseTaskData, ctx);
-      const task2 = new Task(
-        {
-          ...baseTaskData,
-          id: "task-2",
-          name: "Add feature",
-          statusId: "status-2",
-          labels: [{ id: "l2", name: "Feature", color: "#00ff00" }],
-          priority: 4,
-        },
-        {
-          ...ctx,
-          resolveStatusName: (id: string) =>
-            id === "status-1" ? "To Do" : "Done",
-        }
-      );
-      return new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [
-          { id: "status-1", name: "To Do" },
-          { id: "status-2", name: "Done" },
-        ],
-        [task1, task2],
-        [
-          { id: "l1", name: "Bug", color: "#ff0000" },
-          { id: "l2", name: "Feature", color: "#00ff00" },
-        ],
-        ctx
-      );
-    }
-
-    it("returns all tasks when no filter", () => {
-      const project = buildProjectWithTasks();
-      expect(project.getTasks()).toHaveLength(2);
+  it("refresh() replaces the loaded project snapshot in place", async () => {
+    const refreshedSnapshot = createProjectSnapshot([
+      {
+        ...baseTaskData,
+        id: "task-2",
+        title: "Fresh task",
+      },
+    ]);
+    const context = createMockContext({
+      fetchProject: vi.fn().mockResolvedValue(refreshedSnapshot),
     });
+    const project = new Project(createProjectSnapshot([baseTaskData], context));
 
-    it("filters by status", () => {
-      const project = buildProjectWithTasks();
-      const tasks = project.getTasks({ status: "To Do" });
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0]!.name).toBe("Original name");
-    });
+    const refreshed = await project.refresh();
 
-    it("filters by label", () => {
-      const project = buildProjectWithTasks();
-      const tasks = project.getTasks({ label: "Feature" });
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0]!.name).toBe("Add feature");
-    });
-
-    it("filters by labels (AND)", () => {
-      const project = buildProjectWithTasks();
-      const tasks = project.getTasks({ labels: ["Bug"] });
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0]!.name).toBe("Original name");
-    });
-
-    it("filters by priority", () => {
-      const project = buildProjectWithTasks();
-      const tasks = project.getTasks({ priority: "High" });
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0]!.name).toBe("Original name");
-    });
-
-    it("combines filters with AND logic", () => {
-      const project = buildProjectWithTasks();
-      const tasks = project.getTasks({ status: "To Do", label: "Feature" });
-      expect(tasks).toHaveLength(0);
-    });
+    expect(refreshed).toBe(project);
+    expect(context.fetchProject).toHaveBeenCalledWith("project-1");
+    expect(project.tasks()).toHaveLength(1);
+    expect(project.tasks()[0]!.title).toBe("Fresh task");
   });
 
-  describe("findStatus / findLabel", () => {
-    it("findStatus finds by partial name", () => {
-      const ctx = createMockContext();
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [
-          { id: "s1", name: "To Do" },
-          { id: "s2", name: "Done" },
-        ],
-        [],
-        [],
-        ctx
-      );
-
-      expect(project.findStatus("do")).toEqual({ id: "s1", name: "To Do" });
+  it("createLabel() and deleteLabel() refresh project state", async () => {
+    const refreshedContext = createMockContext();
+    const refreshedSnapshot = createProjectSnapshot([], refreshedContext);
+    refreshedContext.deleteLabel = vi.fn().mockResolvedValue(undefined);
+    refreshedContext.fetchProject = vi
+      .fn()
+      .mockResolvedValue(refreshedSnapshot);
+    const context = createMockContext({
+      createLabel: vi.fn().mockResolvedValue({
+        id: "label-3",
+        name: "Chore",
+        color: "#0000ff",
+      }),
+      deleteLabel: vi.fn().mockResolvedValue(undefined),
+      fetchProject: vi.fn().mockResolvedValue(refreshedSnapshot),
     });
+    const project = new Project(createProjectSnapshot([], context));
 
-    it("findStatus throws when not found", () => {
-      const ctx = createMockContext();
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [],
-        [],
-        [],
-        ctx
-      );
+    await project.createLabel("Chore");
+    await project.deleteLabel("Bug");
 
-      expect(() => project.findStatus("Missing")).toThrow(StatusNotFoundError);
-      try {
-        project.findStatus("Missing");
-      } catch (error) {
-        expect(error).toBeInstanceOf(StatusNotFoundError);
-        expect((error as StatusNotFoundError).code).toBe("STATUS_NOT_FOUND");
-      }
-    });
-
-    it("findLabel finds by partial name", () => {
-      const ctx = createMockContext();
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [],
-        [],
-        [{ id: "l1", name: "Bug", color: "#ff0000" }],
-        ctx
-      );
-
-      expect(project.findLabel("bug")).toEqual({
-        id: "l1",
-        name: "Bug",
-        color: "#ff0000",
-      });
-    });
-
-    it("findLabel throws when not found", () => {
-      const ctx = createMockContext();
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [],
-        [],
-        [],
-        ctx
-      );
-
-      expect(() => project.findLabel("Missing")).toThrow(LabelNotFoundError);
-      try {
-        project.findLabel("Missing");
-      } catch (error) {
-        expect(error).toBeInstanceOf(LabelNotFoundError);
-        expect((error as LabelNotFoundError).code).toBe("LABEL_NOT_FOUND");
-      }
-    });
-  });
-
-  describe("label CRUD", () => {
-    it("createLabel delegates to context", async () => {
-      const ctx = createMockContext({
-        createLabel: vi
-          .fn()
-          .mockResolvedValue({ id: "l3", name: "New", color: "#0000ff" }),
-      });
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [],
-        [],
-        [],
-        ctx
-      );
-
-      const label = await project.createLabel("New", { color: "#0000ff" });
-      expect(ctx.createLabel).toHaveBeenCalledWith("New", "#0000ff");
-      expect(label).toEqual({ id: "l3", name: "New", color: "#0000ff" });
-    });
-
-    it("deleteLabel resolves name and delegates", async () => {
-      const ctx = createMockContext({
-        deleteLabel: vi.fn().mockResolvedValue(undefined),
-      });
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [],
-        [],
-        [{ id: "l1", name: "Bug", color: "#ff0000" }],
-        ctx
-      );
-
-      await project.deleteLabel("Bug");
-      expect(ctx.deleteLabel).toHaveBeenCalledWith("l1");
-    });
-  });
-
-  describe("updateTasks", () => {
-    it("updates matching tasks and returns result", async () => {
-      const ctx = createMockContext({
-        updateTask: vi.fn().mockResolvedValue({
-          ...baseTaskData,
-          statusId: "status-2",
-        }),
-        resolveStatusId: vi.fn().mockReturnValue("status-2"),
-        resolveStatusName: vi.fn((id: string) =>
-          id === "status-2" ? "Done" : "To Do"
-        ),
-      });
-      const task = new Task(baseTaskData, ctx);
-      const project = new Project(
-        { id: "p1", name: "Alpha", url: "" },
-        [
-          { id: "status-1", name: "To Do" },
-          { id: "status-2", name: "Done" },
-        ],
-        [task],
-        [{ id: "l1", name: "Bug", color: "#ff0000" }],
-        ctx
-      );
-
-      const result = await project.updateTasks(
-        { label: "Bug" },
-        { status: "Done" }
-      );
-
-      expect(result.count).toBe(1);
-      expect(result.updated).toHaveLength(1);
-      expect(result.updated[0]!.status).toBe("Done");
-    });
+    expect(context.createLabel).toHaveBeenCalledWith("Chore", undefined);
+    expect(refreshedContext.deleteLabel).toHaveBeenCalledWith("label-1");
+    expect(context.fetchProject).toHaveBeenCalledTimes(1);
+    expect(refreshedContext.fetchProject).toHaveBeenCalledTimes(1);
   });
 });

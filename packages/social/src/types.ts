@@ -1,15 +1,16 @@
-export type Provider = "x";
-
-export interface SocialOptions {
+export interface CreateSocialOptions {
   readonly type?: "x";
+  readonly token?: string;
   readonly bearerToken?: string;
+  readonly defaultLimit?: number;
   readonly limit?: number;
   readonly maxResults?: number;
 }
 
-export type XConfig = SocialOptions;
-
-export type SocialConfig = SocialOptions;
+export type Provider = "x";
+export type SocialOptions = CreateSocialOptions;
+export type XConfig = CreateSocialOptions;
+export type SocialConfig = CreateSocialOptions;
 
 export interface SocialListOptions {
   readonly limit?: number;
@@ -44,8 +45,18 @@ export interface LikeNotification {
 export interface WatchLikesOptions {
   readonly everyMs?: number;
   readonly pollIntervalMs?: number;
-  readonly onLike: (notification: LikeNotification) => void;
-  readonly onError?: (error: Error) => void;
+  readonly signal?: AbortSignal;
+}
+
+export interface Social {
+  readonly posts: {
+    get(postId: string): Promise<SocialPost | null>;
+  };
+  readonly me: {
+    timeline(options?: SocialListOptions): Promise<readonly SocialPost[]>;
+    likes(options?: SocialListOptions): Promise<readonly SocialPost[]>;
+    watchLikes(options?: WatchLikesOptions): AsyncIterable<LikeNotification>;
+  };
 }
 
 export type LikeWatcherOptions = WatchLikesOptions;

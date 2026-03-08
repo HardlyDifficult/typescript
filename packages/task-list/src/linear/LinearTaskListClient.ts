@@ -1,24 +1,29 @@
-import { Throttle } from "@hardlydifficult/throttle";
-
 import {
   InvalidPriorityError,
   LinearGraphQLError,
   MultipleTeamsFoundError,
   NoTeamsFoundError,
   TaskListApiError,
+  TaskListProviderNotConfiguredError,
   TeamNotFoundError,
-  TeamNotResolvedError,
 } from "../errors.js";
 import { Project } from "../Project.js";
-import { buildContextResolvers } from "../resolvers.js";
+import { buildContextResolvers, matchesCaseInsensitive } from "../resolvers.js";
 import { Task } from "../Task.js";
 import { TaskListClient } from "../TaskListClient.js";
-import type { LinearConfig, TaskContext, TaskData } from "../types.js";
+import type {
+  Label,
+  LinearConfig,
+  ProjectSnapshot,
+  Status,
+  TaskContext,
+  TaskData,
+  TaskSnapshot,
+} from "../types.js";
 
 import {
   type GraphQLResponse,
   ISSUE_CREATE_MUTATION,
-  ISSUE_FETCH_QUERY,
   ISSUE_FIELDS,
   ISSUE_UPDATE_MUTATION,
   type IssueCreateData,
@@ -29,6 +34,7 @@ import {
   type LabelCreateData,
   type LinearIssue,
   type LinearIssueLabel,
+  type LinearProject,
   type LinearWorkflowState,
   PRIORITY_NAME_TO_NUMBER,
   type ProjectQueryData,
@@ -39,15 +45,15 @@ import {
 const LINEAR_API_URL = "https://api.linear.app/graphql";
 
 /**
- * Linear implementation of TaskListClient.
- * Team is auto-detected for single-team workspaces, or can be specified by name or ID.
+ *
  */
 export class LinearTaskListClient extends TaskListClient {
+  readonly provider = "linear" as const;
+
   private readonly apiKey: string;
   private teamId: string | undefined;
   private readonly teamName: string | undefined;
-  private readonly throttle = new Throttle({ unitsPerSecond: 0.4 });
-  private teamResolved = false;
+  private teamResolutionPromise: Promise<void> | null = null;
 
   private static proxyConfigured = false;
 
@@ -55,7 +61,9 @@ export class LinearTaskListClient extends TaskListClient {
     if (LinearTaskListClient.proxyConfigured) {
       return;
     }
+
     LinearTaskListClient.proxyConfigured = true;
+
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const undici = require("undici") as {
@@ -63,76 +71,148 @@ export class LinearTaskListClient extends TaskListClient {
         setGlobalDispatcher: (dispatcher: unknown) => void;
       };
       const proxy = process.env.https_proxy ?? process.env.HTTPS_PROXY;
+
       if (proxy !== undefined) {
         undici.setGlobalDispatcher(new undici.ProxyAgent(proxy));
       }
     } catch {
-      // undici not available — proxy not configured
+      // undici not available
     }
   }
 
   constructor(config: LinearConfig) {
-    super(config);
+    super({ provider: "linear", ...config });
     LinearTaskListClient.configureProxy();
     this.apiKey = config.apiKey ?? process.env.LINEAR_API_KEY ?? "";
     this.teamId = config.teamId;
     this.teamName = config.team;
   }
 
-  /**
-   * Resolve the team ID. Called during async initialization.
-   * - If teamId already provided → skip (no API call)
-   * - If team name provided → look up by name
-   * - If neither → auto-detect for single-team workspaces
-   */
-  async resolveTeam(): Promise<void> {
-    if (this.teamResolved) {
-      return;
-    }
-
-    if (this.teamId !== undefined) {
-      this.teamResolved = true;
-      return;
-    }
-
-    const data = await this.request<TeamsQueryData>(
-      `query { teams { nodes { id name } } }`
-    );
-    const teams = data.teams.nodes;
-
-    if (this.teamName !== undefined) {
-      const lower = this.teamName.toLowerCase();
-      const match = teams.find((t) => t.name.toLowerCase().includes(lower));
-      if (!match) {
-        throw new TeamNotFoundError(
-          this.teamName,
-          teams.map((t) => t.name)
-        );
-      }
-      this.teamId = match.id;
-    } else if (teams.length === 1) {
-      this.teamId = teams[0].id;
-    } else if (teams.length === 0) {
-      throw new NoTeamsFoundError();
-    } else {
-      throw new MultipleTeamsFoundError(teams.map((t) => t.name));
-    }
-
-    this.teamResolved = true;
+  async initialize(): Promise<void> {
+    this.assertConfigured();
+    await this.resolveTeam();
   }
 
-  private getTeamId(): string {
-    if (this.teamId === undefined) {
-      throw new TeamNotResolvedError();
+  async resolveTeam(): Promise<void> {
+    await this.ensureTeamResolved();
+  }
+
+  async getProjects(): Promise<Project[]> {
+    await this.initialize();
+
+    const teamId = this.teamId!;
+    const data = await this.request<ProjectsQueryData>(
+      `query($teamId: String!, $teamIdFilter: ID!) {
+        organization { urlKey }
+        team(id: $teamId) {
+          projects(first: 25) {
+            nodes {
+              id name url
+              issues(first: 50, filter: { team: { id: { eq: $teamIdFilter } } }) {
+                nodes { ${ISSUE_FIELDS} }
+              }
+            }
+          }
+          states { nodes { id name } }
+          labels { nodes { id name color } }
+        }
+      }`,
+      { teamId, teamIdFilter: teamId }
+    );
+
+    const statuses = this.toStatuses(data.team.states.nodes);
+    const labels = this.toLabels(data.team.labels.nodes);
+    const context = this.createContext(statuses, labels);
+
+    return data.team.projects.nodes.map((project) => {
+      return new Project(
+        this.toProjectSnapshot(
+          project,
+          project.issues.nodes,
+          context,
+          statuses,
+          labels
+        )
+      );
+    });
+  }
+
+  async getProject(projectId: string): Promise<Project> {
+    return new Project(await this.fetchProjectSnapshot(projectId));
+  }
+
+  async getTask(taskId: string): Promise<Task> {
+    return new Task(await this.fetchTaskSnapshot(taskId));
+  }
+
+  private assertConfigured(): void {
+    if (this.apiKey !== "") {
+      return;
     }
-    return this.teamId;
+
+    throw new TaskListProviderNotConfiguredError("linear", [
+      "Set LINEAR_API_KEY",
+      "Pass { apiKey }",
+    ]);
+  }
+
+  private async ensureTeamResolved(): Promise<void> {
+    if (this.teamId !== undefined) {
+      return;
+    }
+
+    if (this.teamResolutionPromise !== null) {
+      await this.teamResolutionPromise;
+      return;
+    }
+
+    this.teamResolutionPromise = (async () => {
+      const data = await this.request<TeamsQueryData>(
+        `query { teams { nodes { id name } } }`
+      );
+      const teams = data.teams.nodes;
+
+      if (this.teamName !== undefined) {
+        const team = teams.find((entry) =>
+          matchesCaseInsensitive(entry.name, this.teamName!)
+        );
+
+        if (!team) {
+          throw new TeamNotFoundError(
+            this.teamName,
+            teams.map((entry) => entry.name)
+          );
+        }
+
+        this.teamId = team.id;
+        return;
+      }
+
+      if (teams.length === 1) {
+        this.teamId = teams[0]?.id;
+        return;
+      }
+
+      if (teams.length === 0) {
+        throw new NoTeamsFoundError();
+      }
+
+      throw new MultipleTeamsFoundError(teams.map((entry) => entry.name));
+    })();
+
+    try {
+      await this.teamResolutionPromise;
+    } finally {
+      this.teamResolutionPromise = null;
+    }
   }
 
   private async request<T>(
     query: string,
     variables?: Record<string, unknown>
   ): Promise<T> {
-    await this.throttle.wait();
+    this.assertConfigured();
+
     const response = await fetch(LINEAR_API_URL, {
       method: "POST",
       headers: {
@@ -155,43 +235,74 @@ export class LinearTaskListClient extends TaskListClient {
     return json.data;
   }
 
-  // --- Mappers: Linear API shapes → platform-agnostic types ---
+  private toStatuses(
+    states: readonly LinearWorkflowState[]
+  ): readonly Status[] {
+    return states.map((state) => ({ id: state.id, name: state.name }));
+  }
+
+  private toLabels(labels: readonly LinearIssueLabel[]): readonly Label[] {
+    return labels.map((label) => ({
+      id: label.id,
+      name: label.name,
+      color: label.color,
+    }));
+  }
 
   private toTaskData(issue: LinearIssue): TaskData {
     return {
       id: issue.id,
-      name: issue.title,
+      title: issue.title,
       description: issue.description ?? "",
       statusId: issue.state.id,
       projectId: issue.project?.id ?? "",
-      labels: issue.labels.nodes.map((l) => ({
-        id: l.id,
-        name: l.name,
-        color: l.color,
+      labels: issue.labels.nodes.map((label) => ({
+        id: label.id,
+        name: label.name,
+        color: label.color,
       })),
       url: issue.url,
       priority: issue.priority,
     };
   }
 
-  // --- Context object wired into domain classes ---
+  private toProjectSnapshot(
+    project: LinearProject,
+    issues: readonly LinearIssue[],
+    context: TaskContext,
+    statuses: readonly Status[],
+    labels: readonly Label[]
+  ): ProjectSnapshot {
+    return {
+      info: {
+        id: project.id,
+        name: project.name,
+        url: project.url,
+      },
+      statuses,
+      labels,
+      tasks: issues.map((issue) => this.toTaskData(issue)),
+      context,
+    };
+  }
 
   private createContext(
-    states: readonly LinearWorkflowState[],
-    labels: readonly LinearIssueLabel[]
+    statuses: readonly Status[],
+    labels: readonly Label[]
   ): TaskContext {
-    return {
-      ...buildContextResolvers(states, labels),
+    const context: TaskContext = {
+      ...buildContextResolvers(statuses, labels),
 
-      createTask: async (params): Promise<TaskData> => {
+      createTask: async (params): Promise<TaskSnapshot> => {
+        await this.initialize();
+
         const input: Record<string, unknown> = {
-          teamId: this.getTeamId(),
+          teamId: this.teamId,
+          projectId: params.projectId,
           stateId: params.statusId,
-          title: params.name,
+          title: params.title,
         };
-        if (params.projectId) {
-          input.projectId = params.projectId;
-        }
+
         if (params.description !== undefined) {
           input.description = params.description;
         }
@@ -206,13 +317,18 @@ export class LinearTaskListClient extends TaskListClient {
           ISSUE_CREATE_MUTATION,
           { input }
         );
-        return this.toTaskData(result.issueCreate.issue);
+
+        return {
+          task: this.toTaskData(result.issueCreate.issue),
+          context,
+        };
       },
 
-      updateTask: async (params): Promise<TaskData> => {
+      updateTask: async (params): Promise<TaskSnapshot> => {
         const input: Record<string, unknown> = {};
-        if (params.name !== undefined) {
-          input.title = params.name;
+
+        if (params.title !== undefined) {
+          input.title = params.title;
         }
         if (params.description !== undefined) {
           input.description = params.description;
@@ -231,63 +347,44 @@ export class LinearTaskListClient extends TaskListClient {
           ISSUE_UPDATE_MUTATION,
           { id: params.taskId, input }
         );
-        return this.toTaskData(result.issueUpdate.issue);
+
+        return {
+          task: this.toTaskData(result.issueUpdate.issue),
+          context,
+        };
       },
 
-      addTaskLabel: async (
-        taskId: string,
-        labelId: string
-      ): Promise<TaskData> => {
-        const issueData = await this.request<{ issue: LinearIssue }>(
-          ISSUE_FETCH_QUERY,
-          { id: taskId }
-        );
-        const currentIds = issueData.issue.labels.nodes.map((l) => l.id);
-        if (!currentIds.includes(labelId)) {
-          currentIds.push(labelId);
-        }
-        const result = await this.request<IssueUpdateData>(
-          ISSUE_UPDATE_MUTATION,
-          { id: taskId, input: { labelIds: currentIds } }
-        );
-        return this.toTaskData(result.issueUpdate.issue);
+      fetchTask: async (taskId: string): Promise<TaskSnapshot> => {
+        return this.fetchTaskSnapshot(taskId);
       },
 
-      removeTaskLabel: async (
-        taskId: string,
-        labelId: string
-      ): Promise<TaskData> => {
-        const issueData = await this.request<{ issue: LinearIssue }>(
-          ISSUE_FETCH_QUERY,
-          { id: taskId }
-        );
-        const currentIds = issueData.issue.labels.nodes
-          .map((l) => l.id)
-          .filter((id) => id !== labelId);
-        const result = await this.request<IssueUpdateData>(
-          ISSUE_UPDATE_MUTATION,
-          { id: taskId, input: { labelIds: currentIds } }
-        );
-        return this.toTaskData(result.issueUpdate.issue);
+      fetchProject: async (projectId: string): Promise<ProjectSnapshot> => {
+        return this.fetchProjectSnapshot(projectId);
       },
 
-      createLabel: async (
-        name: string,
-        color?: string
-      ): Promise<{ id: string; name: string; color: string }> => {
+      createLabel: async (name: string, color?: string): Promise<Label> => {
+        await this.initialize();
+
         const input: Record<string, unknown> = {
-          teamId: this.getTeamId(),
+          teamId: this.teamId,
           name,
         };
+
         if (color !== undefined) {
           input.color = color;
         }
+
         const result = await this.request<LabelCreateData>(
           LABEL_CREATE_MUTATION,
           { input }
         );
-        const l = result.issueLabelCreate.issueLabel;
-        return { id: l.id, name: l.name, color: l.color };
+        const label = result.issueLabelCreate.issueLabel;
+
+        return {
+          id: label.id,
+          name: label.name,
+          color: label.color,
+        };
       },
 
       deleteLabel: async (labelId: string): Promise<void> => {
@@ -296,59 +393,24 @@ export class LinearTaskListClient extends TaskListClient {
 
       resolvePriority: (name: string): number => {
         const value = PRIORITY_NAME_TO_NUMBER[name.toLowerCase()];
+
         if (value === undefined) {
           throw new InvalidPriorityError(name);
         }
+
         return value;
       },
     };
+
+    return context;
   }
 
-  // --- Abstract method implementations ---
+  private async fetchProjectSnapshot(
+    projectId: string
+  ): Promise<ProjectSnapshot> {
+    await this.initialize();
 
-  async getProjects(): Promise<Project[]> {
-    const teamId = this.getTeamId();
-    const data = await this.request<ProjectsQueryData>(
-      `query($teamId: String!, $teamIdFilter: ID!) {
-        organization { urlKey }
-        team(id: $teamId) {
-          projects(first: 25) {
-            nodes {
-              id name url
-              issues(first: 50, filter: { team: { id: { eq: $teamIdFilter } } }) {
-                nodes { ${ISSUE_FIELDS} }
-              }
-            }
-          }
-          states { nodes { id name } }
-          labels { nodes { id name color } }
-        }
-      }`,
-      { teamId, teamIdFilter: teamId }
-    );
-
-    const ctx = this.createContext(
-      data.team.states.nodes,
-      data.team.labels.nodes
-    );
-
-    return data.team.projects.nodes.map((p) => {
-      return new Project(
-        { id: p.id, name: p.name, url: p.url },
-        data.team.states.nodes.map((s) => ({ id: s.id, name: s.name })),
-        p.issues.nodes.map((i) => new Task(this.toTaskData(i), ctx)),
-        data.team.labels.nodes.map((l) => ({
-          id: l.id,
-          name: l.name,
-          color: l.color,
-        })),
-        ctx
-      );
-    });
-  }
-
-  async getProject(projectId: string): Promise<Project> {
-    const teamId = this.getTeamId();
+    const teamId = this.teamId!;
     const data = await this.request<ProjectQueryData>(
       `query($projectId: String!, $teamId: String!, $teamIdFilter: ID!) {
         organization { urlKey }
@@ -366,26 +428,22 @@ export class LinearTaskListClient extends TaskListClient {
       { projectId, teamId, teamIdFilter: teamId }
     );
 
-    const ctx = this.createContext(
-      data.team.states.nodes,
-      data.team.labels.nodes
-    );
+    const statuses = this.toStatuses(data.team.states.nodes);
+    const labels = this.toLabels(data.team.labels.nodes);
+    const context = this.createContext(statuses, labels);
 
-    return new Project(
-      { id: data.project.id, name: data.project.name, url: data.project.url },
-      data.team.states.nodes.map((s) => ({ id: s.id, name: s.name })),
-      data.project.issues.nodes.map((i) => new Task(this.toTaskData(i), ctx)),
-      data.team.labels.nodes.map((l) => ({
-        id: l.id,
-        name: l.name,
-        color: l.color,
-      })),
-      ctx
+    return this.toProjectSnapshot(
+      data.project,
+      data.project.issues.nodes,
+      context,
+      statuses,
+      labels
     );
   }
 
-  async getTask(taskId: string): Promise<Task> {
-    const teamId = this.getTeamId();
+  private async fetchTaskSnapshot(taskId: string): Promise<TaskSnapshot> {
+    await this.initialize();
+
     const data = await this.request<IssueQueryData>(
       `query($id: String!, $teamId: String!) {
         issue(id: $id) { ${ISSUE_FIELDS} }
@@ -394,13 +452,16 @@ export class LinearTaskListClient extends TaskListClient {
           labels { nodes { id name color } }
         }
       }`,
-      { id: taskId, teamId }
+      { id: taskId, teamId: this.teamId }
     );
 
-    const ctx = this.createContext(
-      data.team.states.nodes,
-      data.team.labels.nodes
-    );
-    return new Task(this.toTaskData(data.issue), ctx);
+    const statuses = this.toStatuses(data.team.states.nodes);
+    const labels = this.toLabels(data.team.labels.nodes);
+    const context = this.createContext(statuses, labels);
+
+    return {
+      task: this.toTaskData(data.issue),
+      context,
+    };
   }
 }

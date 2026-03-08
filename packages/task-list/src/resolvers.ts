@@ -3,7 +3,23 @@ import {
   StatusIdNotFoundError,
   StatusNotFoundError,
 } from "./errors.js";
-import type { TaskContext } from "./types.js";
+import type { Label, Status, TaskContext } from "./types.js";
+
+/** Compares two strings case-insensitively. */
+export function matchesCaseInsensitive(
+  value: string,
+  expected: string
+): boolean {
+  return value.toLowerCase() === expected.toLowerCase();
+}
+
+/** Finds the first item whose `name` matches `name` case-insensitively. */
+export function findByCaseInsensitiveName<T extends { name: string }>(
+  items: readonly T[],
+  name: string
+): T | undefined {
+  return items.find((item) => matchesCaseInsensitive(item.name, name));
+}
 
 type ContextResolvers = Pick<
   TaskContext,
@@ -14,41 +30,53 @@ type ContextResolvers = Pick<
   | "resolveLabelId"
 >;
 
-/**
- * Build the shared resolver portion of a TaskContext.
- * These resolvers are identical across all providers — case-insensitive
- * partial matching for names, exact matching for IDs.
- */
+/** Builds status/label resolver helpers for task mutation operations. */
 export function buildContextResolvers(
-  statuses: readonly { id: string; name: string }[],
-  labels: readonly { id: string; name: string; color: string }[]
+  statuses: readonly Status[],
+  labels: readonly Label[]
 ): ContextResolvers {
   return {
-    labels: labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
-    statuses: statuses.map((s) => ({ id: s.id, name: s.name })),
+    labels: labels.map((label) => ({
+      id: label.id,
+      name: label.name,
+      color: label.color,
+    })),
+    statuses: statuses.map((status) => ({
+      id: status.id,
+      name: status.name,
+    })),
 
     resolveStatusId(name: string): string {
-      const lower = name.toLowerCase();
-      const status = statuses.find((s) => s.name.toLowerCase().includes(lower));
+      const status = findByCaseInsensitiveName(statuses, name);
       if (!status) {
-        throw new StatusNotFoundError(name);
+        throw new StatusNotFoundError(
+          name,
+          undefined,
+          statuses.map((entry) => entry.name)
+        );
       }
       return status.id;
     },
 
     resolveStatusName(id: string): string {
-      const status = statuses.find((s) => s.id === id);
+      const status = statuses.find((entry) => entry.id === id);
       if (!status) {
-        throw new StatusIdNotFoundError(id);
+        throw new StatusIdNotFoundError(
+          id,
+          statuses.map((entry) => entry.name)
+        );
       }
       return status.name;
     },
 
     resolveLabelId(name: string): string {
-      const lower = name.toLowerCase();
-      const label = labels.find((l) => l.name.toLowerCase().includes(lower));
+      const label = findByCaseInsensitiveName(labels, name);
       if (!label) {
-        throw new LabelNotFoundError(name);
+        throw new LabelNotFoundError(
+          name,
+          undefined,
+          labels.map((entry) => entry.name)
+        );
       }
       return label.id;
     },

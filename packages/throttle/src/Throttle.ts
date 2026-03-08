@@ -1,4 +1,4 @@
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 import {
   StateTracker,
   type StorageAdapter,
@@ -67,9 +67,9 @@ export class Throttle {
 
     const now = Date.now();
     const startAt = Math.max(now, this.nextAvailableAt);
-    const processingWindowMs = secondsToMilliseconds(
-      weight / this.unitsPerSecond
-    );
+    const processingWindowMs = duration({
+      seconds: weight / this.unitsPerSecond,
+    });
     const delayMs = startAt - now;
     const newNextAvailableAt = startAt + processingWindowMs;
 

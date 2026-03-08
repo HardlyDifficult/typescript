@@ -1,9 +1,18 @@
 import { Octokit } from "@octokit/rest";
 
-import { parseGitHubRepoReference } from "./githubUrlParser.js";
+import {
+  parseGitHubPullRequestReference,
+  parseGitHubRepoReference,
+} from "./githubUrlParser.js";
+import { PRClient } from "./PRClient.js";
 import { PRWatcher } from "./PRWatcher.js";
 import { RepoClient } from "./RepoClient.js";
-import type { ContributionRepo, PullRequest, WatchOptions } from "./types.js";
+import type {
+  ContributionRepo,
+  GitHubClientConfig,
+  PullRequest,
+  WatchOptions,
+} from "./types.js";
 
 export { PRClient } from "./PRClient.js";
 export { RepoClient } from "./RepoClient.js";
@@ -11,45 +20,47 @@ export { RepoClient } from "./RepoClient.js";
 /** Top-level GitHub API client that provides access to repositories, PR watching, and user contribution queries. */
 export class GitHubClient {
   private readonly octokit: Octokit;
-  private readonly username: string;
+  private usernamePromise: Promise<string> | undefined;
 
-  private constructor(octokit: Octokit, username: string) {
-    this.octokit = octokit;
-    this.username = username;
-  }
-
-  static async create(token?: string): Promise<GitHubClient> {
-    const resolvedToken = token ?? process.env.GH_PAT;
+  constructor(config: GitHubClientConfig = {}) {
+    const resolvedToken =
+      config.token ?? process.env.GH_PAT ?? process.env.GITHUB_TOKEN;
     if (resolvedToken === undefined || resolvedToken === "") {
-      throw new Error("GitHub token is required (pass token or set GH_PAT)");
+      throw new Error(
+        "GitHub token is required (pass token or set GH_PAT/GITHUB_TOKEN)"
+      );
     }
 
-    const octokit = new Octokit({ auth: resolvedToken });
-    const { data } = await octokit.users.getAuthenticated();
-
-    return new GitHubClient(octokit, data.login);
+    this.octokit = new Octokit({ auth: resolvedToken });
   }
 
-  repo(ownerOrRepoRef: string, name?: string): RepoClient {
-    if (name !== undefined) {
-      return new RepoClient(this.octokit, ownerOrRepoRef, name);
-    }
-
-    const parsed = parseGitHubRepoReference(ownerOrRepoRef);
+  repo(repoRef: string): RepoClient {
+    const parsed = parseGitHubRepoReference(repoRef);
     if (parsed === null) {
       throw new Error(
-        `Invalid repository reference: ${ownerOrRepoRef}. Expected "owner/repo" or a GitHub URL.`
+        `Invalid repository reference: ${repoRef}. Expected "owner/repo" or a GitHub repository URL.`
       );
     }
 
     return new RepoClient(this.octokit, parsed.owner, parsed.repo);
   }
 
-  watch(options: WatchOptions): PRWatcher {
-    return new PRWatcher(this.octokit, this.username, options);
+  pr(prRef: string): PRClient {
+    const parsed = parseGitHubPullRequestReference(prRef);
+    if (parsed === null) {
+      throw new Error(
+        `Invalid pull request reference: ${prRef}. Expected "owner/repo#123" or a GitHub pull request URL.`
+      );
+    }
+
+    return new PRClient(this.octokit, parsed.owner, parsed.repo, parsed.number);
   }
 
-  async getOwnerRepos(owner: string): Promise<readonly ContributionRepo[]> {
+  watch(options: WatchOptions): PRWatcher {
+    return new PRWatcher(this.octokit, () => this.getUsername(), options);
+  }
+
+  async ownerRepositories(owner: string): Promise<readonly ContributionRepo[]> {
     const repos: ContributionRepo[] = [];
 
     try {
@@ -85,13 +96,14 @@ export class GitHubClient {
     return repos;
   }
 
-  async getContributedRepos(
+  async contributedRepositories(
     days: number
   ): Promise<readonly ContributionRepo[]> {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const query = `author:${this.username} created:>=${since.toISOString().split("T")[0]}`;
+    const username = await this.getUsername();
+    const query = `author:${username} created:>=${since.toISOString().split("T")[0]}`;
     const repos = new Map<string, ContributionRepo>();
 
     const pattern = /repos\/([^/]+)\/([^/]+)$/;
@@ -117,16 +129,17 @@ export class GitHubClient {
     return Array.from(repos.values());
   }
 
-  async getMyOpenPRs(): Promise<
+  async myOpenPullRequests(): Promise<
     readonly {
       readonly pr: PullRequest;
       readonly repo: { readonly owner: string; readonly name: string };
     }[]
   > {
+    const username = await this.getUsername();
     const pattern = /repos\/([^/]+)\/([^/]+)$/;
 
     const response = await this.octokit.search.issuesAndPullRequests({
-      q: `is:pr is:open author:${this.username}`,
+      q: `is:pr is:open author:${username}`,
       per_page: 100,
       sort: "updated",
     });
@@ -141,11 +154,20 @@ export class GitHubClient {
       const match = pattern.exec(repoUrl);
       if (match !== null) {
         const [, owner, name] = match;
-        const pr = await this.repo(owner, name).pr(item.number).get();
+        const pr = await this.pr(
+          `${owner}/${name}#${String(item.number)}`
+        ).details();
         results.push({ pr, repo: { owner, name } });
       }
     }
 
     return results;
+  }
+
+  private getUsername(): Promise<string> {
+    this.usernamePromise ??= this.octokit.users
+      .getAuthenticated()
+      .then(({ data }) => data.login);
+    return this.usernamePromise;
   }
 }

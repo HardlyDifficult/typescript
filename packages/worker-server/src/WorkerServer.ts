@@ -10,11 +10,13 @@ import { type WebSocket, WebSocketServer } from "ws";
 
 import { ConnectionHandler } from "./ConnectionHandler.js";
 import type {
+  DispatchedRequest,
   HttpRequestHandler,
   WebSocketConnectionHandler,
   WorkerConnectedHandler,
   WorkerDisconnectedHandler,
   WorkerInfo,
+  WorkerMessage,
   WorkerMessageHandler,
   WorkerServerLogger,
   WorkerServerOptions,
@@ -41,18 +43,12 @@ const NO_OP_LOGGER: WorkerServerLogger = {
 /**
  * WebSocket server for managing remote worker connections.
  *
- * Handles all transport-level concerns:
- * - HTTP + WebSocket server with path-based routing
- * - Worker registration with optional auth
- * - Heartbeat protocol and health checks
- * - Message routing by `type` field to registered handlers
- * - Worker pool management (selection, request tracking)
- *
- * Consumers register handlers for domain-specific messages
- * via `onWorkerMessage()` and interact with workers via `send()`.
+ * Handles transport concerns, worker registration, health monitoring,
+ * message routing, and the opinionated request dispatch lifecycle.
  */
 export class WorkerServer {
-  private readonly port: number;
+  private readonly configuredPort: number;
+  private currentPort: number;
   private readonly heartbeatTimeoutMs: number;
   private readonly healthCheckIntervalMs: number;
   private readonly logger: WorkerServerLogger;
@@ -70,7 +66,8 @@ export class WorkerServer {
   private readonly connectionHandler: ConnectionHandler;
 
   constructor(options: WorkerServerOptions) {
-    this.port = options.port;
+    this.configuredPort = options.port;
+    this.currentPort = options.port;
     this.heartbeatTimeoutMs =
       options.heartbeatTimeoutMs ?? DEFAULTS.heartbeatTimeoutMs;
     this.healthCheckIntervalMs =
@@ -86,8 +83,13 @@ export class WorkerServer {
         heartbeatIntervalMs:
           options.heartbeatIntervalMs ?? DEFAULTS.heartbeatIntervalMs,
       },
+      (requestId) => this.createRequestSettlement(requestId),
       this.logger
     );
+  }
+
+  get port(): number {
+    return this.currentPort;
   }
 
   // ========== Lifecycle Events ==========
@@ -107,72 +109,72 @@ export class WorkerServer {
    * Messages are routed by the `type` field in the parsed JSON.
    * Returns an unsubscribe function.
    */
-  onWorkerMessage<T = Record<string, unknown>>(
+  onWorkerMessage<T extends WorkerMessage = WorkerMessage>(
     type: string,
     handler: WorkerMessageHandler<T>
   ): () => void {
     return this.connectionHandler.onMessage(type, handler);
   }
 
-  // ========== Send Messages ==========
+  // ========== Dispatch ==========
 
-  /** Send a JSON message to a specific worker. Returns false if failed. */
-  send(workerId: string, message: Record<string, unknown>): boolean {
-    return this.pool.send(workerId, message);
+  /**
+   * Pick an eligible worker, send the message, and begin tracking its request.
+   * Returns null when there is no worker that can accept the work.
+   */
+  dispatch<T extends WorkerMessage & { requestId: string }>(options: {
+    model?: string;
+    category?: string;
+    message: T;
+  }): DispatchedRequest<T> | null {
+    const candidates = this.pool.getDispatchCandidates({
+      model: options.model,
+      category: options.category,
+    });
+
+    for (const candidate of candidates) {
+      if (!this.pool.send(candidate.id, options.message)) {
+        this.logger.warn("Failed to send dispatched message to worker", {
+          workerId: candidate.id,
+          requestId: options.message.requestId,
+          type: options.message.type,
+        });
+        continue;
+      }
+
+      this.pool.trackRequest(
+        candidate.id,
+        options.message.requestId,
+        options.category
+      );
+      const trackedWorker = this.pool.get(candidate.id) ?? candidate;
+
+      return Object.freeze({
+        worker: toWorkerInfo(trackedWorker),
+        message: options.message,
+        requestId: options.message.requestId,
+        ...this.createRequestSettlement(options.message.requestId),
+      });
+    }
+
+    return null;
   }
 
   /** Broadcast a JSON message to all connected workers. */
-  broadcast(message: Record<string, unknown>): void {
+  broadcast(message: WorkerMessage): void {
     this.pool.broadcast(message);
   }
 
-  // ========== Pool Queries ==========
-
-  /** Get the least-loaded available worker supporting the given model. */
-  getAvailableWorker(model: string, category?: string): WorkerInfo | null {
-    const worker = this.pool.getAvailableWorker(model, category);
-    return worker !== null ? toWorkerInfo(worker) : null;
-  }
-
-  /** Get any available worker (model-agnostic). */
-  getAnyAvailableWorker(): WorkerInfo | null {
-    const worker = this.pool.getAnyAvailableWorker();
-    return worker !== null ? toWorkerInfo(worker) : null;
-  }
-
-  /** Total connected worker count. */
-  getWorkerCount(): number {
-    return this.pool.getCount();
-  }
-
-  /** Available worker count. */
-  getAvailableWorkerCount(): number {
-    return this.pool.getAvailableCount();
-  }
-
-  /** Count total free slots for the given model across all available workers. */
-  getAvailableSlotCount(model: string, category?: string): number {
-    return this.pool.getAvailableSlotCount(model, category);
-  }
+  // ========== Read APIs ==========
 
   /** Get public info about all connected workers. */
-  getWorkerInfo(): WorkerInfo[] {
+  listWorkers(): WorkerInfo[] {
     return this.pool.getWorkerInfoList();
   }
 
-  // ========== Request Tracking ==========
-
-  /** Track a request as assigned to a worker. */
-  trackRequest(workerId: string, requestId: string, category?: string): void {
-    this.pool.trackRequest(workerId, requestId, category);
-  }
-
-  /** Release a tracked request. */
-  releaseRequest(
-    requestId: string,
-    options?: { incrementCompleted?: boolean }
-  ): void {
-    this.pool.releaseRequest(requestId, options);
+  /** Count total free slots for the given model across all available workers. */
+  availableSlots(model: string, category?: string): number {
+    return this.pool.getAvailableSlotCount(model, category);
   }
 
   // ========== HTTP & WebSocket Extensibility ==========
@@ -225,14 +227,12 @@ export class WorkerServer {
         });
       });
 
-      // Route WebSocket upgrades by URL path
       this.httpServer.on(
         "upgrade",
         (request: IncomingMessage, socket: Duplex, head: Buffer) => {
           const pathname = request.url ?? "/";
-
-          // Check additional endpoints first
           const endpoint = this.additionalEndpoints.get(pathname);
+
           if (endpoint !== undefined) {
             endpoint.wss.handleUpgrade(request, socket, head, (ws) => {
               endpoint.wss.emit("connection", ws, request);
@@ -240,7 +240,6 @@ export class WorkerServer {
             return;
           }
 
-          // Default: worker connections
           const wss = this.workerWss;
           if (wss !== null) {
             wss.handleUpgrade(request, socket, head, (ws) => {
@@ -255,9 +254,10 @@ export class WorkerServer {
         reject(error);
       });
 
-      this.httpServer.listen(this.port, () => {
+      this.httpServer.listen(this.configuredPort, () => {
+        this.currentPort = this.resolveBoundPort();
         this.logger.debug("HTTP + WebSocket server started", {
-          port: this.port,
+          port: this.currentPort,
         });
 
         this.healthCheckInterval = setInterval(() => {
@@ -303,20 +303,61 @@ export class WorkerServer {
 
   // ========== Private ==========
 
+  private createRequestSettlement(requestId: string | null): {
+    complete(): void;
+    fail(): void;
+  } {
+    let settled = false;
+
+    const settle = (incrementCompleted: boolean): void => {
+      if (settled || requestId === null) {
+        return;
+      }
+
+      settled = true;
+      this.pool.releaseRequest(requestId, { incrementCompleted });
+    };
+
+    return {
+      complete: () => {
+        settle(true);
+      },
+      fail: () => {
+        settle(false);
+      },
+    };
+  }
+
+  private resolveBoundPort(): number {
+    const address = this.httpServer?.address();
+    if (
+      address !== null &&
+      address !== undefined &&
+      typeof address === "object"
+    ) {
+      return address.port;
+    }
+
+    return this.configuredPort;
+  }
+
   private runHealthCheck(): void {
     const deadWorkerIds = this.pool.checkHealth(this.heartbeatTimeoutMs);
 
     for (const workerId of deadWorkerIds) {
       const worker = this.pool.get(workerId);
-      if (worker !== undefined) {
-        this.logger.warn("Worker connection presumed dead, closing", {
-          workerId,
-        });
-        try {
-          worker.websocket.close(4003, "Heartbeat timeout");
-        } catch {
-          // Ignore close errors
-        }
+      if (worker === undefined) {
+        continue;
+      }
+
+      this.logger.warn("Worker connection presumed dead, closing", {
+        workerId,
+      });
+
+      try {
+        worker.websocket.close(4003, "Heartbeat timeout");
+      } catch {
+        // Ignore close errors
       }
     }
   }
@@ -331,9 +372,9 @@ export class WorkerServer {
         if (handled) {
           return;
         }
-      } catch (err) {
+      } catch (error) {
         this.logger.error("HTTP handler error", {
-          error: err instanceof Error ? err.message : String(err),
+          error: error instanceof Error ? error.message : String(error),
           url: req.url,
         });
       }

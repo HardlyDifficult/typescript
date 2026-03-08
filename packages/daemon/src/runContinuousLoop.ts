@@ -1,4 +1,4 @@
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 
 /**
  * Shared utilities for graceful shutdown and continuous loop execution.
@@ -233,7 +233,7 @@ export async function runContinuousLoop<TResult = unknown>(
   } = options;
 
   const defaultDelayMs = normalizeDelayMs(
-    secondsToMilliseconds(intervalSeconds),
+    duration({ seconds: intervalSeconds }),
     "intervalSeconds"
   );
 

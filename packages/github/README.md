@@ -13,8 +13,9 @@ npm install @hardlydifficult/github
 ```typescript
 import { GitHubClient } from "@hardlydifficult/github";
 
-const client = await GitHubClient.create("ghp_...");
-const repo = client.repo("owner", "repo");
+const client = new GitHubClient({ token: "ghp_..." });
+const repo = client.repo("owner/repo");
+const pr = client.pr("owner/repo#123");
 const watcher = client.watch({ repos: ["owner/repo"] });
 
 // Listen for new PRs
@@ -30,25 +31,36 @@ await watcher.start();
 
 The `GitHubClient` provides top-level access to repositories, PR watching, and user contribution queries.
 
-### GitHubClient.create(token)
+### new GitHubClient({ token? })
 
-Creates a new client instance from a personal access token. Falls back to `GH_PAT` environment variable if no token is provided.
+Creates a new client instance from a personal access token. Falls back to `GH_PAT`, then `GITHUB_TOKEN`, when no token is provided.
 
 ```typescript
 import { GitHubClient } from "@hardlydifficult/github";
 
-const client = await GitHubClient.create(); // reads from GH_PAT
-const client2 = await GitHubClient.create("ghp_..."); // explicit token
+const client = new GitHubClient(); // reads GH_PAT, then GITHUB_TOKEN
+const client2 = new GitHubClient({ token: "ghp_..." }); // explicit token
 ```
 
-### client.repo(owner, name) / client.repo(repoRef)
+### client.repo(repoRef)
 
 Returns a `RepoClient` for repository-specific operations.
 
 ```typescript
-const repo = client.repo("owner", "repo");
+const repo = client.repo("owner/repo");
 const sameRepo = client.repo("hardlydifficult/typescript");
-const fromUrl = client.repo("https://github.com/hardlydifficult/typescript/pull/123");
+const fromUrl = client.repo("https://github.com/hardlydifficult/typescript");
+```
+
+### client.pr(prRef)
+
+Returns a `PRClient` for a pull request reference.
+
+```typescript
+const pr = client.pr("hardlydifficult/typescript#123");
+const fromUrl = client.pr(
+  "https://github.com/hardlydifficult/typescript/pull/123"
+);
 ```
 
 ### client.watch(options)
@@ -60,37 +72,37 @@ const watcher = client.watch({
   // `repos` accepts either "owner/repo" or GitHub URLs.
   repos: [
     "hardlydifficult/typescript",
-    "https://github.com/hardlydifficult/typescript/pull/123"
+    "https://github.com/hardlydifficult/repo-processor"
   ],
   myPRs: true,
   intervalMs: 60_000
 });
 ```
 
-### client.getOwnerRepos(owner)
+### client.ownerRepositories(owner)
 
 Fetches all public repositories for an owner (user or organization).
 
 ```typescript
-const repos = await client.getOwnerRepos("hardlydifficult");
+const repos = await client.ownerRepositories("hardlydifficult");
 // => [{ owner: "hardlydifficult", name: "typescript", fullName: "hardlydifficult/typescript" }, ...]
 ```
 
-### client.getContributedRepos(days)
+### client.contributedRepositories(days)
 
 Returns repositories where the authenticated user made PR commits in the last N days.
 
 ```typescript
-const repos = await client.getContributedRepos(30);
+const repos = await client.contributedRepositories(30);
 // => Repos where user contributed in past 30 days
 ```
 
-### client.getMyOpenPRs()
+### client.myOpenPullRequests()
 
 Returns all open PRs authored by the authenticated user.
 
 ```typescript
-const results = await client.getMyOpenPRs();
+const results = await client.myOpenPullRequests();
 // => [{ pr: PullRequest, repo: { owner, name } }, ...]
 ```
 
@@ -98,72 +110,75 @@ const results = await client.getMyOpenPRs();
 
 `RepoClient` provides methods to inspect and modify a specific repository.
 
-### repo.pr(number)
+### repo.pullRequest(number)
 
 Returns a `PRClient` for interacting with a specific pull request.
 
 ```typescript
-const prClient = repo.pr(42);
+const prClient = repo.pullRequest(42);
 await prClient.markReady(); // Mark PR #42 as ready for review
 ```
 
-### repo.getOpenPRs()
+### repo.openPullRequests()
 
 Fetches all open pull requests in the repository.
 
 ```typescript
-const prs = await repo.getOpenPRs();
+const prs = await repo.openPullRequests();
 ```
 
-### repo.get()
+### repo.details()
 
 Fetches repository metadata.
 
 ```typescript
-const repoInfo = await repo.get();
+const repoInfo = await repo.details();
 // => { id, name, full_name, owner, html_url, default_branch, description, ... }
 ```
 
-### repo.getFileTree(sha)
+### repo.tree(ref)
 
 Retrieves the file tree for a given commit SHA (default: `HEAD`).
 
 ```typescript
-const { entries, rootSha } = await repo.getFileTree();
+const { entries, rootSha } = await repo.tree();
 // entries: [{ path: "src/index.ts", type: "blob", sha: "...", size: 1234 }, ...]
 ```
 
-### repo.getFileContent(filePath, ref)
+### repo.read(filePath, ref)
 
 Returns the content of a file as a string.
 
 ```typescript
-const content = await repo.getFileContent("README.md", "main");
+const content = await repo.read("README.md", "main");
 ```
 
-### repo.gatherContext(filesToFetch, maxFileChars)
+### repo.context({ files, maxChars, ref? })
 
 Fetches the file tree and specific key files for AI context gathering.
 
 ```typescript
-const context = await repo.gatherContext(["src/index.ts", "tsconfig.json"], 10_000);
+const context = await repo.context({
+  files: ["src/index.ts", "tsconfig.json"],
+  maxChars: 10_000,
+});
 // => { filePaths: [...], keyFiles: [{ path, content }, ...] }
 ```
 
-### repo.getDefaultBranchHeadSha()
+### repo.defaultBranchSha()
 
 Returns the HEAD commit SHA of the repository's default branch.
 
 ```typescript
-const sha = await repo.getDefaultBranchHeadSha();
+const sha = await repo.defaultBranchSha();
 ```
 
-### repo.getBranchSha(branch)
+### repo.branchSha(branch)
 
 Returns the SHA of a branch, or `null` if the branch does not exist.
 
 ```typescript
-const sha = await repo.getBranchSha("feature/branch");
+const sha = await repo.branchSha("feature/branch");
 ```
 
 ### repo.mergeBranch(base, head)
@@ -198,30 +213,28 @@ Deletes a branch reference.
 await repo.deleteBranch("feature/branch");
 ```
 
-### repo.createPR(options)
+### repo.openPullRequest(options)
 
 Creates a new pull request.
 
 ```typescript
-const pr = await repo.createPR({
+const pr = await repo.openPullRequest({
   head: "feature/branch",
-  base: "main",
   title: "Add new feature",
-  body: "This PR adds..."
+  body: "This PR adds...",
 });
 // => { number: 42, url: "https://github.com/owner/repo/pull/42" }
 ```
 
-### repo.commitFiles(options)
+### repo.commit(options)
 
-Creates a commit with file changes and updates or creates the target branch.
+Creates a commit with file changes and updates or creates the target branch. The parent SHA is chosen automatically from the branch head or default branch.
 
 ```typescript
-const result = await repo.commitFiles({
+const result = await repo.commit({
   branch: "feature/branch",
   files: [{ path: "README.md", content: "Hello" }],
   message: "Update README",
-  parentSha: "abc123",
   author: { name: "Alice", email: "alice@example.com" }
 });
 // => { commitSha: "def456", branchCreated: true }
@@ -231,78 +244,87 @@ const result = await repo.commitFiles({
 
 `PRClient` provides high-level methods for working with a specific pull request.
 
-### prClient.get()
+### prClient.details()
 
 Fetches the full pull request details.
 
 ```typescript
-const pr = await prClient.get();
+const pr = await prClient.details();
 ```
 
-### prClient.getDiff()
+### prClient.diff()
 
 Fetches the PR diff in text format.
 
 ```typescript
-const diff = await prClient.getDiff();
+const diff = await prClient.diff();
 ```
 
-### prClient.getFiles()
+### prClient.files()
 
 Lists files modified in the PR.
 
 ```typescript
-const files = await prClient.getFiles();
+const files = await prClient.files();
 // => [{ sha, filename, status, additions, deletions, changes, ... }, ...]
 ```
 
-### prClient.getCommits()
+### prClient.commits()
 
 Lists commits in the PR.
 
 ```typescript
-const commits = await prClient.getCommits();
+const commits = await prClient.commits();
 ```
 
-### prClient.getReviews()
+### prClient.reviews()
 
 Lists review objects on the PR.
 
 ```typescript
-const reviews = await prClient.getReviews();
+const reviews = await prClient.reviews();
 ```
 
-### prClient.getComments()
+### prClient.comments()
 
 Lists comments on the PR.
 
 ```typescript
-const comments = await prClient.getComments();
+const comments = await prClient.comments();
 ```
 
-### prClient.getCheckRuns()
+### prClient.checks()
 
 Lists check runs associated with the PR's head SHA.
 
 ```typescript
-const checkRuns = await prClient.getCheckRuns();
+const checkRuns = await prClient.checks();
 ```
 
-### prClient.postComment(body)
+### prClient.comment(body)
 
 Adds a comment to the PR.
 
 ```typescript
-await prClient.postComment(" LGTM!");
+await prClient.comment(" LGTM!");
 ```
 
-### prClient.getTimeline()
+### prClient.timeline()
 
 Fetches comments, reviews, and commits in parallel and merges them into a chronologically sorted timeline.
 
 ```typescript
-const timeline = await prClient.getTimeline();
+const timeline = await prClient.timeline();
 // => TimelineEntry[]
+```
+
+### prClient.load()
+
+Loads the PR details plus comments, reviews, checks, and a prebuilt timeline in one call.
+
+```typescript
+const snapshot = await prClient.load();
+// => { pullRequest, repository, comments, reviews, checks, timeline }
 ```
 
 ### prClient.formatTimeline(entries)
@@ -464,9 +486,13 @@ Fires when a user-defined status changes (requires `classifyPR` option).
 ```typescript
 const watcher = client.watch({
   repos: ["owner/repo"],
-  classifyPR: async ({ pr }) => {
-    const checks = await prClient.getCheckRuns();
-    return checks.every(c => c.conclusion === "success") ? "green" : "red";
+  classifyPR: async ({ pr, repo }) => {
+    const checks = await client
+      .pr(`${repo.owner}/${repo.name}#${String(pr.number)}`)
+      .checks();
+    return checks.every((check) => check.conclusion === "success")
+      ? "green"
+      : "red";
   }
 });
 
@@ -552,10 +578,10 @@ watcher.onStatusChanged(({ previousStatus, status, pr }) => {
 const watcher = client.watch({
   repos: ["owner/main-repo"],
   discoverRepos: async () => {
-    const { data: repositories } = await client.getOwnerRepos("owner");
+    const repositories = await client.ownerRepositories("owner");
     return repositories
-      .filter(repo => repo.fork === false && repo.language === "TypeScript")
-      .map(repo => repo.fullName);
+      .map((repo) => repo.fullName)
+      .filter((fullName) => fullName.endsWith("-ts"));
   },
 });
 ```
@@ -705,20 +731,21 @@ All exported types are included below:
 
 - `CommitAuthor`: Name and email
 - `CommitFile`: Path and content
-- `CommitFilesOptions`: Parameters for `repo.commitFiles`
+- `CommitOptions`: Parameters for `repo.commit`
 - `CommitResult`: Result of a file commit
-- `CreatePROptions`: Parameters for `repo.createPR`
+- `OpenPullRequestOptions`: Parameters for `repo.openPullRequest`
 - `CreatedPR`: Result of PR creation
+- `PullRequestSnapshot`: Result of `prClient.load()`
 
 ## Setup
 
-You must provide a GitHub personal access token via the `token` parameter or `GH_PAT` environment variable. The token requires `repo` scope for full read/write access.
+You must provide a GitHub personal access token via the `token` parameter, `GH_PAT`, or `GITHUB_TOKEN`. The token requires `repo` scope for full read/write access.
 
 ## Appendix
 
 | Operation | Rate Limiting | Notes |
 |------|---|-----|
-| `getOwnerRepos` | Uses `repos.listForOrg` or `repos.listForUser` | Falls back to user if org is not found |
+| `ownerRepositories` | Uses `repos.listForOrg` or `repos.listForUser` | Falls back to user if org is not found |
 | `fetchWatchedPRs` | 1 call per repo + 1 for `myPRs` if enabled | De-duplicates PRs |
 | `fetchPRActivitySelective` | Caches comments/reviews; checks check runs only when PR changed | Reduces API calls by up to 2/3 |
 | `branchHeadTracker` | Zero-cost if default branch was harvested from PR data | otherwise 1 call per repo |

@@ -4,10 +4,10 @@ Opinionated social read client for X.
 
 This package is intentionally narrow:
 
-- One provider: X
 - One factory: `createSocial()`
-- Terse methods: `post()`, `timeline()`, `likes()`
-- Like watching that starts immediately
+- One authenticated account: `me`
+- Small resource tree: `posts.get()`, `me.timeline()`, `me.likes()`
+- Like watching as an async stream
 
 ## Installation
 
@@ -21,127 +21,110 @@ npm install @hardlydifficult/social
 import { createSocial } from "@hardlydifficult/social";
 
 const social = createSocial({
-  bearerToken: process.env.X_BEARER_TOKEN,
+  token: process.env.X_BEARER_TOKEN,
 });
 
-const posts = await social.timeline(10);
-const liked = await social.likes(10);
-const post = await social.post("1234567890");
+const timeline = await social.me.timeline({ limit: 10 });
+const liked = await social.me.likes();
+const post = await social.posts.get("1234567890");
 ```
 
-If you omit `bearerToken`, the client reads `X_BEARER_TOKEN` from the environment.
+If you omit `token`, the client reads `X_BEARER_TOKEN` from the environment.
+`bearerToken` is accepted as a compatibility alias.
 
 ## API
 
 ### `createSocial(options?)`
 
-Creates the default client. X is the only supported provider today, so the options are X-specific without extra nesting.
+Creates the social client.
 
 ```ts
 const social = createSocial({
-  bearerToken: process.env.X_BEARER_TOKEN,
-  limit: 25,
+  token: process.env.X_BEARER_TOKEN,
+  defaultLimit: 25,
 });
 ```
 
 Options:
 
+- `token?: string`
 - `bearerToken?: string`
+- `defaultLimit?: number`
 - `limit?: number`
+- `maxResults?: number`
+- `type?: "x"`
 
-`maxResults` is still accepted as a compatibility alias for `limit`.
+`bearerToken`, `limit`, and `maxResults` are accepted as compatibility aliases.
+`type` is optional because X is the only supported provider.
 
-### `social.post(id)`
+### `social.posts.get(id)`
 
 Fetch a single post.
 
 ```ts
-const post = await social.post("123");
+const post = await social.posts.get("123");
 ```
 
-### `social.timeline(limitOrOptions?)`
+### `social.me.timeline(options?)`
 
 Fetch the authenticated user timeline.
 
 ```ts
-const recent = await social.timeline();
-const firstTen = await social.timeline(10);
-const custom = await social.timeline({ limit: 5 });
+const recent = await social.me.timeline();
+const firstTen = await social.me.timeline({ limit: 10 });
 ```
 
-### `social.likes(limitOrOptions?)`
+### `social.me.likes(options?)`
 
 Fetch posts liked by the authenticated user.
 
 ```ts
-const liked = await social.likes();
-const latestLiked = await social.likes(20);
+const liked = await social.me.likes();
+const latestLiked = await social.me.likes({ limit: 20 });
 ```
 
-### `social.watchLikes(onLike, options?)`
+### `social.me.watchLikes(options?)`
 
-Starts polling immediately and returns a watcher you can stop later.
+Returns an async stream of newly liked posts. The first poll seeds the current
+likes and emits nothing, so iteration only yields likes discovered after the
+stream starts.
 
 ```ts
-const watcher = social.watchLikes(
-  ({ post, seenAt }) => {
-    console.log(`[${seenAt}] ${post.url}`);
-  },
-  { everyMs: 30_000 }
-);
+const controller = new AbortController();
 
-// later
-watcher.stop();
+for await (const like of social.me.watchLikes({
+  everyMs: 30_000,
+  signal: controller.signal,
+})) {
+  console.log(`[${like.seenAt}] ${like.post.url}`);
+}
 ```
 
 Options:
 
 - `everyMs?: number`
-- `onError?: (error: Error) => void`
+- `pollIntervalMs?: number`
+- `signal?: AbortSignal`
 
-You can also use the object form if you prefer:
-
-```ts
-const watcher = social.watchLikes({
-  everyMs: 30_000,
-  onLike: ({ post }) => {
-    console.log(post.text);
-  },
-});
-```
-
-## Watcher
-
-`watchLikes()` returns a `SocialLikeWatcher`.
-
-Methods:
-
-- `start()` starts polling and returns the watcher
-- `stop()` stops polling
-- `poll()` runs one polling cycle manually
-
-The first poll seeds known likes and does not emit notifications for existing liked posts.
+`pollIntervalMs` is accepted as a compatibility alias for `everyMs`.
 
 ## Types
 
 Core types exported by the package:
 
+- `CreateSocialOptions`
+- `Provider`
+- `XConfig`
 - `SocialOptions`
+- `SocialConfig`
+- `Social`
 - `SocialListOptions`
 - `SocialPost`
 - `SocialAuthor`
 - `SocialPostMetrics`
 - `LikeNotification`
 - `WatchLikesOptions`
-
-## Compatibility Aliases
-
-These still exist, but they are no longer the preferred style:
-
-- `createSocialClient()` delegates to `createSocial()`
-- `client.getPost()` delegates to `client.post()`
-- `client.likedPosts()` delegates to `client.likes()`
-- `pollIntervalMs` is accepted as an alias for `everyMs`
+- `LikeWatcherOptions`
 
 ## Scope
 

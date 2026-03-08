@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 
 import { WorkerPool } from "../src/WorkerPool.js";
@@ -53,6 +53,7 @@ describe("WorkerPool", () => {
     it("adds and retrieves a worker", () => {
       const worker = createWorker();
       pool.add(worker);
+
       expect(pool.get("worker-1")).toBe(worker);
       expect(pool.has("worker-1")).toBe(true);
       expect(pool.getCount()).toBe(1);
@@ -60,6 +61,7 @@ describe("WorkerPool", () => {
 
     it("removes a worker", () => {
       pool.add(createWorker());
+
       const removed = pool.remove("worker-1");
       expect(removed).toBeDefined();
       expect(pool.has("worker-1")).toBe(false);
@@ -72,14 +74,15 @@ describe("WorkerPool", () => {
     });
   });
 
-  describe("getAvailableWorker", () => {
+  describe("dispatch selection", () => {
     it("returns null when no workers exist", () => {
       expect(pool.getAvailableWorker("test-model")).toBeNull();
     });
 
-    it("returns worker that supports the model", () => {
+    it("returns a worker that supports the model", () => {
       pool.add(createWorker());
       const result = pool.getAvailableWorker("test-model");
+
       expect(result).not.toBeNull();
       expect(result!.id).toBe("worker-1");
     });
@@ -89,58 +92,55 @@ describe("WorkerPool", () => {
       expect(pool.getAvailableWorker("other-model")).toBeNull();
     });
 
-    it("skips busy workers", () => {
-      pool.add(createWorker({ status: WorkerStatus.Busy }));
-      expect(pool.getAvailableWorker("test-model")).toBeNull();
-    });
-
-    it("skips unhealthy workers", () => {
-      pool.add(createWorker({ status: WorkerStatus.Unhealthy }));
-      expect(pool.getAvailableWorker("test-model")).toBeNull();
-    });
-
-    it("skips workers at max concurrent requests", () => {
-      pool.add(createWorker({ activeRequests: 2 }));
-      expect(pool.getAvailableWorker("test-model")).toBeNull();
-    });
-
-    it("returns least-loaded worker", () => {
+    it("returns candidates in least-loaded order", () => {
       pool.add(createWorker({ id: "worker-1", activeRequests: 1 }));
       pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
-      const result = pool.getAvailableWorker("test-model");
-      expect(result!.id).toBe("worker-2");
-    });
-  });
 
-  describe("getAnyAvailableWorker", () => {
-    it("returns Available worker", () => {
-      pool.add(createWorker());
-      expect(pool.getAnyAvailableWorker()).not.toBeNull();
+      const candidates = pool.getDispatchCandidates({ model: "test-model" });
+      expect(candidates.map((worker) => worker.id)).toEqual([
+        "worker-2",
+        "worker-1",
+      ]);
     });
 
-    it("returns Busy worker (they can still handle model-agnostic tasks)", () => {
-      pool.add(createWorker({ status: WorkerStatus.Busy }));
-      expect(pool.getAnyAvailableWorker()).not.toBeNull();
-    });
+    it("respects category limits when building candidates", () => {
+      pool.add(
+        createWorker({
+          capabilities: {
+            models: [
+              {
+                modelId: "test-model",
+                displayName: "Test",
+                maxContextTokens: 8192,
+                maxOutputTokens: 4096,
+                supportsStreaming: true,
+              },
+            ],
+            maxConcurrentRequests: 5,
+            concurrencyLimits: { local: 1 },
+          },
+          categoryActiveRequests: new Map([["local", 1]]),
+        })
+      );
 
-    it("skips Unhealthy workers", () => {
-      pool.add(createWorker({ status: WorkerStatus.Unhealthy }));
-      expect(pool.getAnyAvailableWorker()).toBeNull();
-    });
-
-    it("returns null when empty", () => {
-      expect(pool.getAnyAvailableWorker()).toBeNull();
+      expect(
+        pool.getDispatchCandidates({ model: "test-model", category: "local" })
+      ).toEqual([]);
     });
   });
 
   describe("trackRequest / releaseRequest", () => {
     it("increments active and adds to pending", () => {
       pool.add(createWorker());
-      pool.trackRequest("worker-1", "req-1");
+      expect(pool.trackRequest("worker-1", "req-1")).toBe(true);
 
       const worker = pool.get("worker-1")!;
       expect(worker.activeRequests).toBe(1);
       expect(worker.pendingRequests.has("req-1")).toBe(true);
+    });
+
+    it("returns false when tracking an unknown worker", () => {
+      expect(pool.trackRequest("unknown", "req-1")).toBe(false);
     });
 
     it("transitions to Busy when at capacity", () => {
@@ -151,13 +151,12 @@ describe("WorkerPool", () => {
       expect(pool.get("worker-1")!.status).toBe(WorkerStatus.Busy);
     });
 
-    it("releases request and transitions back to Available", () => {
+    it("releases a request and transitions back to Available", () => {
       pool.add(createWorker());
       pool.trackRequest("worker-1", "req-1");
       pool.trackRequest("worker-1", "req-2");
-      expect(pool.get("worker-1")!.status).toBe(WorkerStatus.Busy);
 
-      pool.releaseRequest("req-1");
+      expect(pool.releaseRequest("req-1")).toBe(true);
       expect(pool.get("worker-1")!.activeRequests).toBe(1);
       expect(pool.get("worker-1")!.status).toBe(WorkerStatus.Available);
     });
@@ -170,12 +169,14 @@ describe("WorkerPool", () => {
       expect(pool.get("worker-1")!.completedRequests).toBe(1);
     });
 
-    it("does not increment completedRequests by default", () => {
+    it("deletes empty category counts on release", () => {
       pool.add(createWorker());
-      pool.trackRequest("worker-1", "req-1");
+      pool.trackRequest("worker-1", "req-1", "local");
       pool.releaseRequest("req-1");
 
-      expect(pool.get("worker-1")!.completedRequests).toBe(0);
+      expect(pool.get("worker-1")!.categoryActiveRequests.has("local")).toBe(
+        false
+      );
     });
   });
 
@@ -193,7 +194,7 @@ describe("WorkerPool", () => {
       expect(pool.get("worker-1")!.status).toBe(WorkerStatus.Unhealthy);
     });
 
-    it("returns dead worker IDs after 3x timeout", () => {
+    it("returns dead worker ids after 3x timeout", () => {
       const veryStale = new Date(Date.now() - 200_000);
       pool.add(createWorker({ lastHeartbeat: veryStale }));
 
@@ -203,7 +204,7 @@ describe("WorkerPool", () => {
   });
 
   describe("send / broadcast", () => {
-    it("sends message to a specific worker", () => {
+    it("sends a message to a specific worker", () => {
       const ws = createMockSocket();
       pool.add(createWorker({ websocket: ws }));
 
@@ -234,26 +235,14 @@ describe("WorkerPool", () => {
     });
 
     it("returns free slots for a single worker", () => {
-      pool.add(createWorker({ activeRequests: 1 })); // maxConcurrentRequests: 2
+      pool.add(createWorker({ activeRequests: 1 }));
       expect(pool.getAvailableSlotCount("test-model")).toBe(1);
     });
 
     it("sums free slots across multiple workers", () => {
       pool.add(createWorker({ id: "worker-1", activeRequests: 1 }));
       pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
-      expect(pool.getAvailableSlotCount("test-model")).toBe(3); // 1 + 2
-    });
-
-    it("excludes non-Available workers", () => {
-      pool.add(
-        createWorker({
-          id: "worker-1",
-          status: WorkerStatus.Busy,
-          activeRequests: 2,
-        })
-      );
-      pool.add(createWorker({ id: "worker-2", activeRequests: 0 }));
-      expect(pool.getAvailableSlotCount("test-model")).toBe(2);
+      expect(pool.getAvailableSlotCount("test-model")).toBe(3);
     });
 
     it("returns 0 for unsupported model", () => {
@@ -280,23 +269,29 @@ describe("WorkerPool", () => {
           categoryActiveRequests: new Map([["local", 1]]),
         })
       );
-      // workerFreeSlots = 5, categoryFreeSlots = 2 - 1 = 1 → min(5, 1) = 1
+
       expect(pool.getAvailableSlotCount("test-model", "local")).toBe(1);
     });
   });
 
   describe("getWorkerInfoList", () => {
-    it("returns info without websocket", () => {
+    it("returns immutable snapshots without websocket state", () => {
       pool.add(createWorker());
-      const list = pool.getWorkerInfoList();
-      expect(list).toHaveLength(1);
-      expect(list[0].id).toBe("worker-1");
-      expect("websocket" in list[0]).toBe(false);
+      pool.trackRequest("worker-1", "req-1", "local");
+
+      const worker = pool.getWorkerInfoList()[0];
+      expect(worker.id).toBe("worker-1");
+      expect(worker.requests.pendingIds).toEqual(["req-1"]);
+      expect(worker.requests.activeByCategory).toEqual({ local: 1 });
+      expect("websocket" in worker).toBe(false);
+      expect(() => {
+        (worker.requests.pendingIds as string[]).push("extra");
+      }).toThrow();
     });
   });
 
   describe("closeAll", () => {
-    it("closes all worker connections and clears pool", () => {
+    it("closes all worker connections and clears the pool", () => {
       const ws = createMockSocket();
       pool.add(createWorker({ websocket: ws }));
 

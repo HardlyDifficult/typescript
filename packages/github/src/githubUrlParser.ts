@@ -21,6 +21,33 @@ export interface GitHubRepoInfo {
   repo: string;
 }
 
+export interface GitHubPullRequestInfo {
+  owner: string;
+  repo: string;
+  number: number;
+}
+
+function normalizeGitHubUrl(value: string): URL | null {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  const normalized = trimmed.startsWith("github.com/")
+    ? `https://${trimmed}`
+    : trimmed;
+  if (!/^https?:\/\//.test(normalized)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(normalized);
+    return url.hostname === "github.com" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse a GitHub repo reference from one of these formats:
  * - owner/repo
@@ -39,37 +66,76 @@ export function parseGitHubRepoReference(value: string): GitHubRepoInfo | null {
     return { owner: direct[1], repo: direct[2] };
   }
 
-  let normalized: string | null;
-  if (trimmed.startsWith("github.com/")) {
-    normalized = `https://${trimmed}`;
-  } else if (/^https?:\/\//.test(trimmed)) {
-    normalized = trimmed;
-  } else {
-    normalized = null;
-  }
-  if (normalized === null) {
+  const url = normalizeGitHubUrl(trimmed);
+  if (url === null) {
     return null;
   }
 
-  try {
-    const url = new URL(normalized);
-    if (url.hostname !== "github.com") {
-      return null;
-    }
-
-    const [owner, rawRepo] = url.pathname
-      .split("/")
-      .filter((segment) => segment !== "")
-      .slice(0, 2);
-    if (!owner || !rawRepo) {
-      return null;
-    }
-
-    const repo = rawRepo.endsWith(".git") ? rawRepo.slice(0, -4) : rawRepo;
-    return repo === "" ? null : { owner, repo };
-  } catch {
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length !== 2) {
     return null;
   }
+
+  const [owner, rawRepo] = segments;
+  if (!owner || !rawRepo) {
+    return null;
+  }
+
+  const repo = rawRepo.endsWith(".git") ? rawRepo.slice(0, -4) : rawRepo;
+  return repo === "" ? null : { owner, repo };
+}
+
+/**
+ * Parse a GitHub pull request reference from one of these formats:
+ * - owner/repo#123
+ * - github.com/owner/repo/pull/123
+ * - https://github.com/owner/repo/pull/123
+ * - https://github.com/owner/repo/pull/123/files
+ */
+export function parseGitHubPullRequestReference(
+  value: string
+): GitHubPullRequestInfo | null {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+
+  const direct = /^([^/\s]+)\/([^#/\s]+)#(\d+)$/.exec(trimmed);
+  if (direct) {
+    return {
+      owner: direct[1],
+      repo: direct[2],
+      number: Number.parseInt(direct[3], 10),
+    };
+  }
+
+  const url = normalizeGitHubUrl(trimmed);
+  if (url === null) {
+    return null;
+  }
+
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length < 4) {
+    return null;
+  }
+  const owner = segments[0];
+  const rawRepo = segments[1];
+  const kind = segments[2];
+  const rawNumber = segments[3];
+  if (kind !== "pull") {
+    return null;
+  }
+
+  const number = Number.parseInt(rawNumber, 10);
+  if (!Number.isInteger(number) || number <= 0) {
+    return null;
+  }
+
+  return {
+    owner,
+    repo: rawRepo.endsWith(".git") ? rawRepo.slice(0, -4) : rawRepo,
+    number,
+  };
 }
 
 /**

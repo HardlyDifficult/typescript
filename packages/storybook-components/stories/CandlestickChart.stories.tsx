@@ -3,6 +3,7 @@ import {
   CandlestickChart,
   type CandlestickChartCandle,
   type CandlestickChartOrder,
+  type CandlestickChartType,
 } from "../src/index.js";
 
 const NOW = new Date("2025-01-01T12:00:00.000Z");
@@ -82,6 +83,10 @@ const meta: Meta<typeof CandlestickChart> = {
     visibleCandles: { control: "number" },
     currentPrice: { control: "number" },
     orders: { control: "object" },
+    type: {
+      control: "select",
+      options: ["candlestick", "line", "area", "bar"] satisfies CandlestickChartType[],
+    },
   },
 };
 export default meta;
@@ -105,6 +110,39 @@ export const WithOrders: Story = {
       orders={orders}
       currentPrice={currentPrice80}
       height={300}
+    />
+  ),
+};
+
+export const LineChart: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <CandlestickChart
+      candles={candles120}
+      height={300}
+      type="line"
+    />
+  ),
+};
+
+export const AreaChart: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <CandlestickChart
+      candles={candles120}
+      height={300}
+      type="area"
+    />
+  ),
+};
+
+export const BarChart: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <CandlestickChart
+      candles={candles120}
+      height={300}
+      type="bar"
     />
   ),
 };

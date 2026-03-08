@@ -16,7 +16,7 @@
 
 import { execSync } from "child_process";
 
-import { secondsToMilliseconds } from "@hardlydifficult/date-time";
+import { duration } from "@hardlydifficult/date-time";
 
 function exec(command: string, ignoreError = false): string {
   console.log(`$ ${command}`);
@@ -60,10 +60,9 @@ async function pushWithRetry(branch: string): Promise<void> {
       if (attempt === 4) {
         throw new Error("Failed to push after 4 attempts");
       }
-      const delay = secondsToMilliseconds(Math.pow(2, attempt));
-      console.log(
-        `Push failed, retrying in ${String(delay / secondsToMilliseconds(1))}s...`
-      );
+      const delaySeconds = Math.pow(2, attempt);
+      const delay = duration({ seconds: delaySeconds });
+      console.log(`Push failed, retrying in ${String(delaySeconds)}s...`);
       await sleep(delay);
     }
   }

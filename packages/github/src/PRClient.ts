@@ -8,6 +8,7 @@ import type {
   PullRequestCommit,
   PullRequestFile,
   PullRequestReview,
+  PullRequestSnapshot,
 } from "./types.js";
 
 /** Client for interacting with a specific GitHub pull request (comments, reviews, check runs, merging). */
@@ -25,7 +26,7 @@ export class PRClient {
     this.number = number;
   }
 
-  async get(): Promise<PullRequest> {
+  async details(): Promise<PullRequest> {
     const response = await this.octokit.pulls.get({
       owner: this.owner,
       repo: this.repo,
@@ -35,7 +36,7 @@ export class PRClient {
     return response.data as unknown as PullRequest;
   }
 
-  async getDiff(): Promise<string> {
+  async diff(): Promise<string> {
     const response = await this.octokit.pulls.get({
       owner: this.owner,
       repo: this.repo,
@@ -48,7 +49,7 @@ export class PRClient {
     return response.data as unknown as string;
   }
 
-  async getFiles(): Promise<readonly PullRequestFile[]> {
+  async files(): Promise<readonly PullRequestFile[]> {
     const response = await this.octokit.pulls.listFiles({
       owner: this.owner,
       repo: this.repo,
@@ -59,7 +60,7 @@ export class PRClient {
     return response.data as unknown as readonly PullRequestFile[];
   }
 
-  async getCommits(): Promise<readonly PullRequestCommit[]> {
+  async commits(): Promise<readonly PullRequestCommit[]> {
     const response = await this.octokit.pulls.listCommits({
       owner: this.owner,
       repo: this.repo,
@@ -70,7 +71,7 @@ export class PRClient {
     return response.data as unknown as readonly PullRequestCommit[];
   }
 
-  async getReviews(): Promise<readonly PullRequestReview[]> {
+  async reviews(): Promise<readonly PullRequestReview[]> {
     const response = await this.octokit.pulls.listReviews({
       owner: this.owner,
       repo: this.repo,
@@ -81,7 +82,7 @@ export class PRClient {
     return response.data as unknown as readonly PullRequestReview[];
   }
 
-  async getComments(): Promise<readonly PullRequestComment[]> {
+  async comments(): Promise<readonly PullRequestComment[]> {
     const response = await this.octokit.issues.listComments({
       owner: this.owner,
       repo: this.repo,
@@ -92,19 +93,12 @@ export class PRClient {
     return response.data as unknown as readonly PullRequestComment[];
   }
 
-  async getCheckRuns(): Promise<readonly CheckRun[]> {
-    const pr = await this.get();
-    const response = await this.octokit.checks.listForRef({
-      owner: this.owner,
-      repo: this.repo,
-      ref: pr.head.sha,
-      per_page: 100,
-    });
-
-    return response.data.check_runs as unknown as readonly CheckRun[];
+  async checks(): Promise<readonly CheckRun[]> {
+    const { checks } = await this.loadActivity();
+    return checks;
   }
 
-  async postComment(body: string): Promise<void> {
+  async comment(body: string): Promise<void> {
     await this.octokit.issues.createComment({
       owner: this.owner,
       repo: this.repo,
@@ -114,13 +108,23 @@ export class PRClient {
   }
 
   /** Fetch comments, reviews, and commits in parallel, then merge into a sorted timeline. */
-  async getTimeline(): Promise<readonly TimelineEntry[]> {
-    const [comments, reviews, commits] = await Promise.all([
-      this.getComments(),
-      this.getReviews(),
-      this.getCommits(),
-    ]);
-    return buildTimeline(comments, reviews, commits);
+  async timeline(): Promise<readonly TimelineEntry[]> {
+    const { timeline } = await this.loadActivity({ includeTimeline: true });
+    return timeline;
+  }
+
+  async load(): Promise<PullRequestSnapshot> {
+    const { pullRequest, comments, reviews, checks, timeline } =
+      await this.loadActivity({ includeTimeline: true });
+
+    return {
+      pullRequest,
+      repository: pullRequest.base.repo,
+      comments,
+      reviews,
+      checks,
+      timeline,
+    };
   }
 
   async merge(title: string): Promise<void> {
@@ -169,5 +173,44 @@ export class PRClient {
         mergeMethod,
       }
     );
+  }
+
+  private async loadActivity(
+    options: {
+      includeTimeline?: boolean;
+    } = {}
+  ): Promise<{
+    pullRequest: PullRequest;
+    comments: readonly PullRequestComment[];
+    reviews: readonly PullRequestReview[];
+    checks: readonly CheckRun[];
+    timeline: readonly TimelineEntry[];
+  }> {
+    const pullRequest = await this.details();
+    const [comments, reviews, checks, commits] = await Promise.all([
+      this.comments(),
+      this.reviews(),
+      this.listChecks(pullRequest.head.sha),
+      options.includeTimeline === true ? this.commits() : Promise.resolve([]),
+    ]);
+
+    return {
+      pullRequest,
+      comments,
+      reviews,
+      checks,
+      timeline: buildTimeline(comments, reviews, commits),
+    };
+  }
+
+  private async listChecks(headSha: string): Promise<readonly CheckRun[]> {
+    const response = await this.octokit.checks.listForRef({
+      owner: this.owner,
+      repo: this.repo,
+      ref: headSha,
+      per_page: 100,
+    });
+
+    return response.data.check_runs as unknown as readonly CheckRun[];
   }
 }

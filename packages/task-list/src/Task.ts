@@ -1,8 +1,9 @@
+import { matchesCaseInsensitive } from "./resolvers.js";
 import type {
   Priority,
   TaskContext,
-  TaskData,
-  UpdateTaskParams,
+  TaskSnapshot,
+  UpdateTaskInput,
 } from "./types.js";
 
 const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
@@ -14,87 +15,113 @@ const PRIORITY_NUMBER_TO_NAME: Record<number, Priority> = {
 };
 
 /**
- * A task (Trello Card, Linear Issue) with update capability.
- * Status and labels are exposed as human-readable names.
+ *
  */
 export class Task {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string;
-  readonly status: string;
-  readonly projectId: string;
-  readonly labels: readonly string[];
-  readonly url: string;
-  readonly priority: Priority | undefined;
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  projectId: string;
+  labels: string[];
+  url: string;
+  priority: Priority | undefined;
 
-  /** @internal */
-  readonly context: TaskContext;
+  private context: TaskContext;
 
-  constructor(data: TaskData, context: TaskContext) {
-    this.id = data.id;
-    this.name = data.name;
-    this.description = data.description;
-    this.status = context.resolveStatusName(data.statusId);
-    this.projectId = data.projectId;
-    this.labels = data.labels.map((l) => l.name);
-    this.url = data.url;
+  constructor(snapshot: TaskSnapshot) {
+    this.id = snapshot.task.id;
+    this.title = snapshot.task.title;
+    this.description = snapshot.task.description;
+    this.status = snapshot.context.resolveStatusName(snapshot.task.statusId);
+    this.projectId = snapshot.task.projectId;
+    this.labels = snapshot.task.labels.map((label) => label.name);
+    this.url = snapshot.task.url;
     this.priority =
-      data.priority !== undefined
-        ? PRIORITY_NUMBER_TO_NAME[data.priority]
+      snapshot.task.priority !== undefined
+        ? PRIORITY_NUMBER_TO_NAME[snapshot.task.priority]
         : undefined;
-    this.context = context;
+    this.context = snapshot.context;
   }
 
-  /**
-   * Update this task. Returns a new Task with the updated data.
-   * @param params - Fields to update. Status and labels are referenced by name.
-   * @returns New Task reflecting the server state after update
-   */
-  async update(params: UpdateTaskParams): Promise<Task> {
-    const data = await this.context.updateTask({
+  async update(params: UpdateTaskInput): Promise<this> {
+    const snapshot = await this.context.updateTask({
       taskId: this.id,
-      name: params.name,
+      title: params.title,
       description: params.description,
       statusId:
         params.status !== undefined && params.status !== ""
           ? this.context.resolveStatusId(params.status)
           : undefined,
-      labelIds: params.labels
-        ? params.labels.map((n) => this.context.resolveLabelId(n))
-        : undefined,
+      labelIds: params.labels?.map((name) => this.context.resolveLabelId(name)),
       priority:
         params.priority !== undefined && this.context.resolvePriority
           ? this.context.resolvePriority(params.priority)
           : undefined,
     });
-    return new Task(data, this.context);
+    this.applySnapshot(snapshot);
+    return this;
   }
 
-  /**
-   * Add a label to this task by name.
-   * @returns New Task with the label added
-   */
-  async addLabel(name: string): Promise<Task> {
-    const labelId = this.context.resolveLabelId(name);
-    const data = await this.context.addTaskLabel(this.id, labelId);
-    return new Task(data, this.context);
+  async moveTo(status: string): Promise<this> {
+    return this.update({ status });
   }
 
-  /**
-   * Remove a label from this task by name.
-   * @returns New Task with the label removed
-   */
-  async removeLabel(name: string): Promise<Task> {
-    const labelId = this.context.resolveLabelId(name);
-    const data = await this.context.removeTaskLabel(this.id, labelId);
-    return new Task(data, this.context);
+  async tag(...labels: readonly string[]): Promise<this> {
+    const nextLabels = [...this.labels];
+
+    for (const labelName of labels) {
+      const labelId = this.context.resolveLabelId(labelName);
+      const canonicalLabel =
+        this.context.labels.find((label) => label.id === labelId)?.name ??
+        labelName;
+
+      if (
+        !nextLabels.some((currentLabel) =>
+          matchesCaseInsensitive(currentLabel, canonicalLabel)
+        )
+      ) {
+        nextLabels.push(canonicalLabel);
+      }
+    }
+
+    return this.update({ labels: nextLabels });
   }
 
-  /**
-   * Set the task's status by name.
-   * @returns New Task with the updated status
-   */
-  async setStatus(name: string): Promise<Task> {
-    return this.update({ status: name });
+  async untag(...labels: readonly string[]): Promise<this> {
+    const toRemove = new Set(
+      labels.map((labelName) => this.context.resolveLabelId(labelName))
+    );
+    const nextLabels = this.context.labels
+      .filter((label) => !toRemove.has(label.id))
+      .map((label) => label.name)
+      .filter((labelName) =>
+        this.labels.some((currentLabel) =>
+          matchesCaseInsensitive(currentLabel, labelName)
+        )
+      );
+
+    return this.update({ labels: nextLabels });
+  }
+
+  async refresh(): Promise<this> {
+    const snapshot = await this.context.fetchTask(this.id);
+    this.applySnapshot(snapshot);
+    return this;
+  }
+
+  private applySnapshot(snapshot: TaskSnapshot): void {
+    this.context = snapshot.context;
+    this.id = snapshot.task.id;
+    this.title = snapshot.task.title;
+    this.description = snapshot.task.description;
+    this.status = snapshot.context.resolveStatusName(snapshot.task.statusId);
+    this.projectId = snapshot.task.projectId;
+    this.labels = snapshot.task.labels.map((label) => label.name);
+    this.url = snapshot.task.url;
+    this.priority =
+      snapshot.task.priority !== undefined
+        ? PRIORITY_NUMBER_TO_NAME[snapshot.task.priority]
+        : undefined;
   }
 }
