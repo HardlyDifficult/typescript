@@ -8,9 +8,7 @@ describe("codeBlock", () => {
   });
 
   it("includes the language when provided", () => {
-    expect(codeBlock("const x = 1;", "ts")).toBe(
-      "```ts\nconst x = 1;\n```"
-    );
+    expect(codeBlock("const x = 1;", "ts")).toBe("```ts\nconst x = 1;\n```");
   });
 
   it("uses a longer fence when content already contains triple backticks", () => {

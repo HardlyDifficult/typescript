@@ -26,16 +26,13 @@ const WINDOW_MS: Record<BudgetWindow, number> = {
   week: 7 * 24 * 60 * 60_000,
 };
 
-const WINDOW_ORDER: readonly BudgetWindow[] = [
-  "minute",
-  "hour",
-  "day",
-  "week",
-];
+const WINDOW_ORDER: readonly BudgetWindow[] = ["minute", "hour", "day", "week"];
 
 const DEFAULT_RETENTION_WINDOW_MS = WINDOW_MS.week;
 
-function normalizeBudget(options: UsageTrackerOpenOptions): readonly BudgetLimit[] {
+function normalizeBudget(
+  options: UsageTrackerOpenOptions
+): readonly BudgetLimit[] {
   const budget = options.budget ?? {};
   return WINDOW_ORDER.flatMap((window) => {
     const limitUsd = budget[window];
@@ -78,8 +75,8 @@ export class UsageTracker<T extends NumericRecord> {
     this.onBudgetExceeded = options.onBudgetExceeded;
     this.maxRetainedSpendWindowMs =
       this.costFieldPaths.length > 0 ? DEFAULT_RETENTION_WINDOW_MS : 0;
-    this.budgetExceededStates = this.budgetLimits.map((limit) =>
-      this.statusForBudget(limit).exceeded
+    this.budgetExceededStates = this.budgetLimits.map(
+      (limit) => this.statusForBudget(limit).exceeded
     );
   }
 
@@ -199,7 +196,7 @@ export class UsageTracker<T extends NumericRecord> {
    * Any `*CostUsd` delta is also recorded for spend queries and budget checks.
    */
   track(values: DeepPartial<T>): void {
-    const state = this.tracker.state;
+    const { state } = this.tracker;
     const current = structuredClone(state.session);
     const total = structuredClone(state.cumulative);
 
@@ -327,8 +324,8 @@ export class UsageTracker<T extends NumericRecord> {
   }
 
   private syncBudgetExceededStates(): void {
-    this.budgetExceededStates = this.budgetLimits.map((limit) =>
-      this.statusForBudget(limit).exceeded
+    this.budgetExceededStates = this.budgetLimits.map(
+      (limit) => this.statusForBudget(limit).exceeded
     );
   }
 }

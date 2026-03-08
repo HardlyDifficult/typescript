@@ -1,7 +1,7 @@
-import type { PullRequest } from "@hardlydifficult/github";
 import {
   parseGitHubPullRequestReference,
   parseGitHubRepoReference,
+  type PullRequest,
 } from "@hardlydifficult/github";
 
 import { getAvailableActions, type PRActionDescriptor } from "./actions.js";
@@ -55,6 +55,9 @@ interface RepoContext {
   readonly repo: string;
 }
 
+/**
+ * Create a PR analyzer with optional repo scoping, classification, and actions.
+ */
 export function createPRAnalyzer(config: PRAnalyzerConfig): PRAnalyzer {
   const repo = resolveConfiguredRepo(config.repo);
   const bot = config.bot ?? DEFAULT_BOT_MENTION;
@@ -68,7 +71,9 @@ export function createPRAnalyzer(config: PRAnalyzerConfig): PRAnalyzer {
   });
 
   const analyze = async (ref: PRReference): Promise<ActionablePR> =>
-    withActions(await analyzeReference(config.client, ref, repo, bot, config.hooks));
+    withActions(
+      await analyzeReference(config.client, ref, repo, bot, config.hooks)
+    );
 
   const analyzeMany = async (
     refs: readonly PRReference[]
@@ -173,7 +178,14 @@ async function analyzeReference(
       );
     }
 
-    return analyzePR(client, parsed.owner, parsed.repo, parsed.number, bot, hooks);
+    return analyzePR(
+      client,
+      parsed.owner,
+      parsed.repo,
+      parsed.number,
+      bot,
+      hooks
+    );
   }
 
   if (isDiscoveredPR(ref)) {
@@ -220,7 +232,6 @@ function requireConfiguredRepo(repo: RepoContext | undefined): RepoContext {
 function isDiscoveredPR(ref: PRReference): ref is DiscoveredPR {
   return (
     typeof ref === "object" &&
-    ref !== null &&
     "pr" in ref &&
     "repoOwner" in ref &&
     "repoName" in ref
@@ -247,9 +258,7 @@ function describeReference(ref: PRReference | undefined): string {
   return `${ref.base.repo.full_name}#${String(ref.number)}`;
 }
 
-async function listMyOpenPRs(
-  client: PRAnalyzerClient
-): Promise<
+async function listMyOpenPRs(client: PRAnalyzerClient): Promise<
   readonly {
     readonly pr: PullRequest;
     readonly repo: { readonly owner: string; readonly name: string };

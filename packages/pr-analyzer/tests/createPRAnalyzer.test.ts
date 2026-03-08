@@ -140,9 +140,7 @@ function makeClient(options: {
     };
   });
 
-  const myOpenPRsMock = vi
-    .fn()
-    .mockResolvedValue(options.myOpenPRs ?? []);
+  const myOpenPRsMock = vi.fn().mockResolvedValue(options.myOpenPRs ?? []);
 
   const repoMock = vi.fn((owner: string, repo: string) => ({
     pr: (number: number) => prMock(number, owner, repo),
@@ -218,9 +216,9 @@ describe("createPRAnalyzer", () => {
     const inbox = await analyzer.inbox([3, 4]);
 
     expect(inbox.readyForHuman).toHaveLength(1);
-    expect(inbox.readyForHuman[0]?.actions.map((action) => action.type)).toEqual(
-      ["merge"]
-    );
+    expect(
+      inbox.readyForHuman[0]?.actions.map((action) => action.type)
+    ).toEqual(["merge"]);
     expect(inbox.inProgress).toHaveLength(1);
     expect(inbox.inProgress[0]?.actions.map((action) => action.type)).toEqual([
       "enable_auto_merge",

@@ -25,6 +25,9 @@ export interface SessionTrackerOptions {
 
 type SessionData = Record<string, unknown>;
 
+/**
+ *
+ */
 export class TrackedSession {
   readonly id: string;
   private readonly tracker: SessionTracker;

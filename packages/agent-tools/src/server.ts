@@ -8,18 +8,40 @@
  * dynamic import() and untyped handles to avoid moduleResolution issues.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
+export interface OpencodeClient {
+  session: {
+    create: (
+      options: Record<string, never>
+    ) => Promise<{ id: string | number }>;
+    abort: (options: { path: { id: string } }) => Promise<unknown>;
+    prompt: (options: {
+      path: { id: string };
+      body: Record<string, unknown>;
+    }) => Promise<unknown>;
+  };
+  event: {
+    subscribe: () => Promise<AsyncIterable<unknown>>;
+  };
+}
 
-/** Opaque handle to the OpenCode client (typed dynamically at runtime). */
-export type OpencodeClient = any;
+interface OpencodeServer {
+  url: string;
+  close: () => void;
+}
+
+interface OpencodeSdk {
+  createOpencodeServer: (options: {
+    port: number;
+    timeout: number;
+  }) => Promise<OpencodeServer>;
+  createOpencodeClient: (options?: {
+    baseUrl?: string;
+    directory?: string;
+  }) => OpencodeClient;
+}
 
 interface ServerHandle {
-  sdk: {
-    createOpencodeClient: (options?: {
-      baseUrl?: string;
-      directory?: string;
-    }) => OpencodeClient;
-  };
+  sdk: Pick<OpencodeSdk, "createOpencodeClient">;
   url: string;
   close: () => void;
 }
@@ -43,19 +65,50 @@ async function getOrCreateServer(): Promise<ServerHandle> {
     return _instance;
   }
 
-  _starting ??= startServer();
-  _instance = await _starting;
-  _starting = undefined;
-  return _instance;
+  _starting ??= startServer()
+    .then((server) => {
+      _instance = server;
+      return server;
+    })
+    .finally(() => {
+      _starting = undefined;
+    });
+
+  return _starting;
 }
 
 async function startServer(): Promise<ServerHandle> {
   const sdkModule = "@opencode-ai/sdk";
-  const sdk: any = await import(/* webpackIgnore: true */ sdkModule);
+  const sdk = (await import(/* webpackIgnore: true */ sdkModule)) as unknown;
+  const resolvedSdk = resolveSdk(sdk);
+
+  const server = await resolvedSdk.createOpencodeServer({
+    port: 0,
+    timeout: 15_000,
+  });
+
+  return {
+    sdk: { createOpencodeClient: resolvedSdk.createOpencodeClient },
+    url: server.url,
+    close: () => {
+      server.close();
+    },
+  };
+}
+
+function resolveSdk(sdk: unknown): OpencodeSdk {
+  const maybeSdk = sdk as {
+    createOpencodeServer?: unknown;
+    createOpencodeClient?: unknown;
+    default?: {
+      createOpencodeServer?: unknown;
+      createOpencodeClient?: unknown;
+    };
+  };
   const createOpencodeServer =
-    sdk.createOpencodeServer ?? sdk.default?.createOpencodeServer;
+    maybeSdk.createOpencodeServer ?? maybeSdk.default?.createOpencodeServer;
   const createOpencodeClient =
-    sdk.createOpencodeClient ?? sdk.default?.createOpencodeClient;
+    maybeSdk.createOpencodeClient ?? maybeSdk.default?.createOpencodeClient;
 
   if (
     typeof createOpencodeServer !== "function" ||
@@ -66,15 +119,11 @@ async function startServer(): Promise<ServerHandle> {
     );
   }
 
-  const server = await createOpencodeServer({
-    port: 0,
-    timeout: 15_000,
-  });
-
   return {
-    sdk: { createOpencodeClient },
-    url: server.url,
-    close: () => server.close(),
+    createOpencodeServer:
+      createOpencodeServer as OpencodeSdk["createOpencodeServer"],
+    createOpencodeClient:
+      createOpencodeClient as OpencodeSdk["createOpencodeClient"],
   };
 }
 

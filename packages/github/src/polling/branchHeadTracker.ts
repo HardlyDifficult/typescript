@@ -32,21 +32,25 @@ export class BranchHeadTracker {
       const [owner, name] = repoSpec.split("/");
       const repoKey = `${owner}/${name}`;
       try {
-        let branch = this.defaultBranches.get(repoKey);
-        if (branch === undefined) {
-          const { data } = await runWithThrottle(
-            throttle,
-            () =>
-              octokit.repos.get({
-                owner,
-                repo: name,
-              }),
-            1
-          );
-          branch = (data as unknown as { default_branch: string })
-            .default_branch;
-          this.defaultBranches.set(repoKey, branch);
-        }
+        const cachedBranch = this.defaultBranches.get(repoKey);
+        const branch =
+          cachedBranch ??
+          (await (async () => {
+            const { data } = await runWithThrottle(
+              throttle,
+              () =>
+                octokit.repos.get({
+                  owner,
+                  repo: name,
+                }),
+              1
+            );
+            const discoveredBranch = (
+              data as unknown as { default_branch: string }
+            ).default_branch;
+            this.defaultBranches.set(repoKey, discoveredBranch);
+            return discoveredBranch;
+          })());
 
         const { data: ref } = await runWithThrottle(
           throttle,

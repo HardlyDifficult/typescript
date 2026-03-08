@@ -12,7 +12,7 @@ interface RootPackageJson {
 export function findWorkspaceRoot(startDir = process.cwd()): string {
   let currentDir = resolve(startDir);
 
-  while (true) {
+  for (;;) {
     const packageJsonPath = join(currentDir, "package.json");
     if (existsSync(packageJsonPath)) {
       const packageJson = JSON.parse(

@@ -73,7 +73,9 @@ export function createXSocial(input: CreateSocialInput = {}): Social {
     return normalizeTweet(tweet, response.includes?.users ?? []);
   }
 
-  async function listTimeline(limit = defaultLimit): Promise<readonly SocialPost[]> {
+  async function listTimeline(
+    limit = defaultLimit
+  ): Promise<readonly SocialPost[]> {
     const response = await request(
       `/users/me/timelines/reverse_chronological${buildListQuery(limit)}`
     );
@@ -81,7 +83,9 @@ export function createXSocial(input: CreateSocialInput = {}): Social {
     return normalizeTweets(response);
   }
 
-  async function listLikes(limit = defaultLimit): Promise<readonly SocialPost[]> {
+  async function listLikes(
+    limit = defaultLimit
+  ): Promise<readonly SocialPost[]> {
     const response = await request(
       `/users/me/liked_tweets${buildListQuery(limit)}`
     );

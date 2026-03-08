@@ -13,10 +13,7 @@ export interface RetryOptions {
   /** Return false to stop retrying and throw immediately. */
   when?: (error: Error, attempt: number) => boolean | Promise<boolean>;
   /** Called before sleeping and retrying. */
-  onRetry?: (
-    error: Error,
-    info: RetryInfo
-  ) => void | Promise<void>;
+  onRetry?: (error: Error, info: RetryInfo) => void | Promise<void>;
 }
 
 export interface RetryInfo {

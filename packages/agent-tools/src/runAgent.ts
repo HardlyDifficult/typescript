@@ -66,7 +66,8 @@ export async function runAgent(
     options.signal.addEventListener("abort", abortHandler, { once: true });
   }
 
-  const eventStream = (await client.event.subscribe()) as AsyncIterable<OpencodeEvent>;
+  const eventStream =
+    (await client.event.subscribe()) as AsyncIterable<OpencodeEvent>;
   const eventPump = processSessionEvents(
     eventStream,
     sessionId,
@@ -101,10 +102,7 @@ export async function runAgent(
     shouldStop = true;
   }
 
-  await Promise.race([
-    eventPump,
-    wait(promptAccepted ? 2_000 : 500),
-  ]);
+  await Promise.race([eventPump, wait(promptAccepted ? 2_000 : 500)]);
 
   if (abortHandler !== undefined && options.signal !== undefined) {
     options.signal.removeEventListener("abort", abortHandler);
@@ -142,8 +140,8 @@ async function processSessionEvents(
             part?: TextPart | ToolPart;
             delta?: string;
           };
-          const part = payload.part;
-          if (part === undefined || part.sessionID !== sessionId) {
+          const { part } = payload;
+          if (part?.sessionID !== sessionId) {
             break;
           }
 
@@ -156,9 +154,7 @@ async function processSessionEvents(
             break;
           }
 
-          if (part.type === "tool") {
-            emitToolEvent(part, previousToolStatusByPart, onEvent);
-          }
+          emitToolEvent(part, previousToolStatusByPart, onEvent);
           break;
         }
 
@@ -200,7 +196,10 @@ function emitToolEvent(
   onEvent: ((event: AgentEvent) => void) | undefined
 ): void {
   const status = part.state?.status;
-  if (status === undefined || previousToolStatusByPart.get(part.id) === status) {
+  if (
+    status === undefined ||
+    previousToolStatusByPart.get(part.id) === status
+  ) {
     return;
   }
 

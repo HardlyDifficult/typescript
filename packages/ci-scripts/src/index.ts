@@ -8,9 +8,9 @@ import {
 import {
   assertPackageMetadata,
   checkPackageMetadata,
+  type CheckPackageMetadataOptions,
   formatPackageMetadataSuccess,
   PackageMetadataError,
-  type CheckPackageMetadataOptions,
   type PackageMetadataIssue,
   type PackageMetadataResult,
   runCheckPackageMetadataCli,
@@ -18,17 +18,17 @@ import {
 import {
   assertPinnedDependencies,
   checkPinnedDependencies,
+  type CheckPinnedDependenciesOptions,
   formatPinnedDependenciesSuccess,
   PinnedDependenciesError,
-  type CheckPinnedDependenciesOptions,
   type PinnedDependenciesResult,
-  type UnpinnedDependency,
   runCheckPinnedDependenciesCli,
+  type UnpinnedDependency,
 } from "./check-pinned-deps.js";
 import {
   parsePublishArgs,
-  publishPackages,
   type PublishedPackage,
+  publishPackages,
   type PublishPackagesOptions,
   type PublishPackagesResult,
   runPublishCli,

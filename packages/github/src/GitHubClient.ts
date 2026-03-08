@@ -12,6 +12,9 @@ import type {
 export { PRClient } from "./PRClient.js";
 export { RepoClient } from "./RepoClient.js";
 
+/**
+ * Create a configured GitHub client instance.
+ */
 export function github(config: GitHubClientConfig = {}): GitHubClient {
   return new GitHubClient(config);
 }

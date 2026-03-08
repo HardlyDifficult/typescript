@@ -1850,10 +1850,8 @@ describe("PRWatcher", () => {
 
       const mockThrottle = {
         run: vi.fn(
-          async <T>(
-            task: () => Promise<T> | T,
-            _weight?: number
-          ): Promise<T> => await task()
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
         ),
       };
       watcher = new PRWatcher(mockOctokit, "testuser", {
@@ -1883,10 +1881,8 @@ describe("PRWatcher", () => {
 
       const mockThrottle = {
         run: vi.fn(
-          async <T>(
-            task: () => Promise<T> | T,
-            _weight?: number
-          ): Promise<T> => await task()
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
         ),
       };
       watcher = new PRWatcher(mockOctokit, "testuser", {
@@ -1917,10 +1913,8 @@ describe("PRWatcher", () => {
 
       const mockThrottle = {
         run: vi.fn(
-          async <T>(
-            task: () => Promise<T> | T,
-            _weight?: number
-          ): Promise<T> => await task()
+          async <T>(task: () => Promise<T> | T, _weight?: number): Promise<T> =>
+            await task()
         ),
       };
       watcher = new PRWatcher(mockOctokit, "testuser", {

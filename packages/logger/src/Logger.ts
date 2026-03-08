@@ -57,10 +57,18 @@ export class Logger {
 
   alert(message: string): void {
     for (const { plugin } of this.plugins) {
-      const sendAlert = plugin.alert ?? plugin.notify;
-      if (sendAlert) {
+      if (plugin.alert !== undefined) {
         try {
-          sendAlert(message);
+          plugin.alert(message);
+        } catch {
+          /* swallow */
+        }
+        continue;
+      }
+
+      if (plugin.notify !== undefined) {
+        try {
+          plugin.notify(message);
         } catch {
           /* swallow */
         }

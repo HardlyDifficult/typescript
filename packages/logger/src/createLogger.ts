@@ -42,15 +42,9 @@ interface NormalizedCreateLoggerOptions {
  * always logs to console, optionally mirrors to a file, and can forward alerts
  * to Discord. Use Logger directly only when you need custom plugins.
  */
-export function createLogger(): Logger;
 export function createLogger(
-  scope: string,
-  options?: CreateLoggerOverrides
-): Logger;
-export function createLogger(options: CreateLoggerOptions): Logger;
-export function createLogger(
-  scopeOrOptions: string | CreateLoggerOptions = {},
-  overrides: CreateLoggerOverrides = {}
+  scopeOrOptions?: string | CreateLoggerOptions,
+  overrides?: CreateLoggerOverrides
 ): Logger {
   const options = normalizeCreateLoggerOptions(scopeOrOptions, overrides);
   const logger = new Logger(options.level);
@@ -77,15 +71,17 @@ export function createLogger(
 }
 
 function normalizeCreateLoggerOptions(
-  scopeOrOptions: string | CreateLoggerOptions,
-  overrides: CreateLoggerOverrides
+  scopeOrOptions: string | CreateLoggerOptions | undefined,
+  overrides: CreateLoggerOverrides | undefined
 ): NormalizedCreateLoggerOptions {
-  const inlineOptions =
-    typeof scopeOrOptions === "string" ? overrides : scopeOrOptions;
+  const inlineOptions: CreateLoggerOverrides =
+    typeof scopeOrOptions === "string"
+      ? (overrides ?? {})
+      : (scopeOrOptions ?? {});
   const scope =
     typeof scopeOrOptions === "string"
       ? scopeOrOptions
-      : scopeOrOptions.scope ?? scopeOrOptions.name;
+      : (scopeOrOptions?.scope ?? scopeOrOptions?.name);
   const context = mergeContexts(
     inlineOptions.context,
     typeof scope === "string" && scope.length > 0 ? { scope } : undefined

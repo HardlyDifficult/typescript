@@ -43,7 +43,7 @@ export interface DataTableColumn<Row extends DataTableRow> {
 }
 
 export interface DataTableProps<Row extends DataTableRow> {
-  columns?: Array<DataTableColumnKey<Row> | DataTableColumn<Row>>;
+  columns?: (DataTableColumnKey<Row> | DataTableColumn<Row>)[];
   rows: Row[];
   selectable?: boolean;
   empty?: ReactNode;
@@ -59,10 +59,10 @@ interface NormalizedDataTableColumn<Row extends DataTableRow> {
 function inferColumns<Row extends DataTableRow>(
   rows: Row[]
 ): DataTableColumnKey<Row>[] {
-  const firstRow = rows[0];
-  if (firstRow === undefined) {
+  if (rows.length === 0) {
     return [];
   }
+  const firstRow = rows[0];
 
   return Object.keys(firstRow).filter(
     (key) => key !== "id"
@@ -70,7 +70,7 @@ function inferColumns<Row extends DataTableRow>(
 }
 
 function normalizeColumns<Row extends DataTableRow>(
-  columns: Array<DataTableColumnKey<Row> | DataTableColumn<Row>> | undefined,
+  columns: (DataTableColumnKey<Row> | DataTableColumn<Row>)[] | undefined,
   rows: Row[]
 ): NormalizedDataTableColumn<Row>[] {
   const resolvedColumns = columns ?? inferColumns(rows);

@@ -411,22 +411,30 @@ describe("UsageTracker", () => {
 
     it("does not fire onBudgetExceeded immediately from persisted over-budget state", async () => {
       const firstExceeded = vi.fn();
-      const usage1 = await UsageTracker.open("persisted-over-budget", spendMetrics, {
-        dir: testDir,
-        budget: { minute: 1 },
-        onBudgetExceeded: firstExceeded,
-      });
+      const usage1 = await UsageTracker.open(
+        "persisted-over-budget",
+        spendMetrics,
+        {
+          dir: testDir,
+          budget: { minute: 1 },
+          onBudgetExceeded: firstExceeded,
+        }
+      );
 
       usage1.track({ api: { estimatedCostUsd: 1.5 } });
       expect(firstExceeded).toHaveBeenCalledOnce();
       await usage1.save();
 
       const secondExceeded = vi.fn();
-      const usage2 = await UsageTracker.open("persisted-over-budget", spendMetrics, {
-        dir: testDir,
-        budget: { minute: 1 },
-        onBudgetExceeded: secondExceeded,
-      });
+      const usage2 = await UsageTracker.open(
+        "persisted-over-budget",
+        spendMetrics,
+        {
+          dir: testDir,
+          budget: { minute: 1 },
+          onBudgetExceeded: secondExceeded,
+        }
+      );
 
       usage2.track({ api: { estimatedCostUsd: 0.1 } });
       expect(secondExceeded).not.toHaveBeenCalled();

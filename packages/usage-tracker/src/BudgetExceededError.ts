@@ -1,5 +1,8 @@
 import type { BudgetStatus } from "./types.js";
 
+/**
+ *
+ */
 export class BudgetExceededError extends Error {
   readonly status: BudgetStatus;
 

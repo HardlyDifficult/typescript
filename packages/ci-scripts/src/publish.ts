@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable max-lines */
 
 /**
  * Publishes packages that have changed since the last publish.
@@ -70,6 +71,9 @@ export interface PublishPackagesResult {
   skipped: SkippedPackage[];
 }
 
+/**
+ * Parse CLI arguments for publish execution.
+ */
 export function parsePublishArgs(
   args: string[] = process.argv.slice(2)
 ): PublishPackagesOptions {
@@ -356,6 +360,9 @@ function updateInternalDependencies(
   return updated;
 }
 
+/**
+ * Publish changed packages and tag each successful release.
+ */
 export function publishPackages(
   options: PublishPackagesOptions = {}
 ): PublishPackagesResult {
@@ -501,6 +508,9 @@ export function publishPackages(
   };
 }
 
+/**
+ * CLI entrypoint for monorepo package publishing.
+ */
 export function runPublishCli(args: string[] = process.argv.slice(2)): number {
   try {
     publishPackages(parsePublishArgs(args));

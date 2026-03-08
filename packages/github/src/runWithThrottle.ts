@@ -1,5 +1,8 @@
 import type { WatchThrottle } from "./types.js";
 
+/**
+ * Run a task directly or through the provided throttle when available.
+ */
 export async function runWithThrottle<T>(
   throttle: WatchThrottle | undefined,
   task: () => Promise<T> | T,

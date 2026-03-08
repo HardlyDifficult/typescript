@@ -92,12 +92,18 @@ async function pushWithRetry(
   }
 }
 
+/**
+ * Resolve the target branch from CI environment variables.
+ */
 export function resolveCiBranch(
   env: NodeJS.ProcessEnv = process.env
 ): string | undefined {
   return env.BRANCH ?? env.GITHUB_HEAD_REF ?? env.GITHUB_REF_NAME;
 }
 
+/**
+ * Commit and push working tree fixes, returning whether CI should be re-run.
+ */
 export async function autoCommitFixes(
   options: AutoCommitFixesOptions = {}
 ): Promise<AutoCommitFixesResult> {
@@ -174,6 +180,9 @@ export async function autoCommitFixes(
   };
 }
 
+/**
+ * CLI entrypoint for auto-commit-fixes.
+ */
 export async function runAutoCommitFixesCli(): Promise<number> {
   try {
     const result = await autoCommitFixes();

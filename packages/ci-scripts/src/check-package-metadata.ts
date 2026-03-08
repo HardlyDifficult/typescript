@@ -60,6 +60,9 @@ export interface PackageMetadataResult {
   issues: PackageMetadataIssue[];
 }
 
+/**
+ *
+ */
 export class PackageMetadataError extends Error {
   readonly issues: PackageMetadataIssue[];
 
@@ -148,6 +151,9 @@ function formatPackageMetadataFailure(issues: PackageMetadataIssue[]): string {
   return lines.join("\n");
 }
 
+/**
+ * Scan workspace package.json files for required scripts and metadata consistency.
+ */
 export function checkPackageMetadata(
   options: CheckPackageMetadataOptions = {}
 ): PackageMetadataResult {
@@ -166,6 +172,9 @@ export function checkPackageMetadata(
   };
 }
 
+/**
+ * Assert package metadata validity and throw when violations are found.
+ */
 export function assertPackageMetadata(
   options: CheckPackageMetadataOptions = {}
 ): PackageMetadataResult {
@@ -178,12 +187,18 @@ export function assertPackageMetadata(
   return result;
 }
 
+/**
+ * Format a human-readable success message for metadata validation.
+ */
 export function formatPackageMetadataSuccess(
   result: PackageMetadataResult
 ): string {
   return `Validated ${String(result.packageFiles.length)} package.json file(s) under ${result.rootDir}: metadata and Node baseline (${result.nodeEngineBaseline}) are consistent.`;
 }
 
+/**
+ * CLI entrypoint for package metadata checks.
+ */
 export function runCheckPackageMetadataCli(): number {
   try {
     const result = assertPackageMetadata();

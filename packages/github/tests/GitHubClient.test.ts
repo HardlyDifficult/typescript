@@ -341,9 +341,9 @@ describe("GitHubClient", () => {
         data: { object: { sha: "branch-sha" } },
       });
 
-      await expect(client.repo("owner", "repo").defaultBranchSha()).resolves.toBe(
-        "branch-sha"
-      );
+      await expect(
+        client.repo("owner", "repo").defaultBranchSha()
+      ).resolves.toBe("branch-sha");
       await expect(
         client.repo("owner", "repo").branchSha("feature")
       ).resolves.toBe("branch-sha");

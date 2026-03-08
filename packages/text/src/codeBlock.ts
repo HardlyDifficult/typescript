@@ -19,7 +19,8 @@ function pickFence(content: string): string {
  */
 export function codeBlock(content: string, language?: string): string {
   const fence = pickFence(content);
-  const openingLine = language ? `${fence}${language}` : fence;
+  const openingLine =
+    language !== undefined && language !== "" ? `${fence}${language}` : fence;
   const closingPrefix = content.endsWith("\n") ? "" : "\n";
   return `${openingLine}\n${content}${closingPrefix}${fence}`;
 }

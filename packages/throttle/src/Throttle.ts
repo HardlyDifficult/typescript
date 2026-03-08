@@ -92,6 +92,9 @@ export class Throttle {
   }
 }
 
+/**
+ * Convenience factory for constructing a Throttle instance.
+ */
 export function throttle(options: ThrottleOptions): Throttle {
   return new Throttle(options);
 }

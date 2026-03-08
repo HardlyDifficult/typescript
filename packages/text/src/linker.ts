@@ -196,21 +196,23 @@ function formatLink(href: string, text: string, style: LinkStyle): string {
 
 function buildRules(config: LinkerConfig): CompiledRule[] {
   const rules: LinkRule[] = [];
+  const linearWorkspace = config.linear;
+  const githubRepo = config.githubPrs;
 
-  if (config.linear !== undefined && config.linear !== "") {
+  if (linearWorkspace !== undefined && linearWorkspace !== "") {
     rules.push({
       name: "linear",
       match: /\b([A-Z]{2,6}-\d+)\b/g,
-      to: ({ text }) => `https://linear.app/${config.linear}/issue/${text}`,
+      to: ({ text }) => `https://linear.app/${linearWorkspace}/issue/${text}`,
     });
   }
 
-  if (config.githubPrs !== undefined && config.githubPrs !== "") {
+  if (githubRepo !== undefined && githubRepo !== "") {
     rules.push({
       name: "github-prs",
       match: /\bPR#(\d+)\b/g,
       to: ({ groups }) =>
-        `https://github.com/${config.githubPrs}/pull/${groups[0] ?? ""}`,
+        `https://github.com/${githubRepo}/pull/${groups[0] ?? ""}`,
     });
   }
 
@@ -307,7 +309,8 @@ export class Linker {
         index: candidate.start,
         input,
       });
-      output += href === "" ? candidate.text : formatLink(href, candidate.text, style);
+      output +=
+        href === "" ? candidate.text : formatLink(href, candidate.text, style);
       inputCursor = candidate.end;
     }
     output += input.slice(inputCursor);
@@ -315,10 +318,16 @@ export class Linker {
   }
 }
 
+/**
+ * Create a reusable text linker with compiled matching rules.
+ */
 export function createLinker(config: LinkerConfig = {}): Linker {
   return new Linker(config);
 }
 
+/**
+ * Link known ticket/PR references in text using one-shot linker options.
+ */
 export function linkText(input: string, options: LinkTextOptions = {}): string {
   const {
     linear,

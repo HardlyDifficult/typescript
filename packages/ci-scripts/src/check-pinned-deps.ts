@@ -46,6 +46,9 @@ export interface PinnedDependenciesResult {
   issues: UnpinnedDependency[];
 }
 
+/**
+ *
+ */
 export class PinnedDependenciesError extends Error {
   readonly issues: UnpinnedDependency[];
 
@@ -121,6 +124,9 @@ function formatPinnedDependenciesFailure(issues: UnpinnedDependency[]): string {
   return lines.join("\n");
 }
 
+/**
+ * Scan workspace package.json files for dependencies that are not exact versions.
+ */
 export function checkPinnedDependencies(
   options: CheckPinnedDependenciesOptions = {}
 ): PinnedDependenciesResult {
@@ -135,6 +141,9 @@ export function checkPinnedDependencies(
   };
 }
 
+/**
+ * Assert that all workspace dependencies are pinned to exact versions.
+ */
 export function assertPinnedDependencies(
   options: CheckPinnedDependenciesOptions = {}
 ): PinnedDependenciesResult {
@@ -147,12 +156,18 @@ export function assertPinnedDependencies(
   return result;
 }
 
+/**
+ * Format a human-readable success message for pinned dependency validation.
+ */
 export function formatPinnedDependenciesSuccess(
   result: PinnedDependenciesResult
 ): string {
   return `Checked ${String(result.packageFiles.length)} package.json file(s) under ${result.rootDir} - all dependencies are pinned.`;
 }
 
+/**
+ * CLI entrypoint for pinned dependency checks.
+ */
 export function runCheckPinnedDependenciesCli(): number {
   try {
     const result = assertPinnedDependencies();

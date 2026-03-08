@@ -125,16 +125,14 @@ export async function analyzeAll(
     }
 
     const failed = prs[index];
-    if (failed !== undefined) {
-      logger?.error("Failed to analyze PR", {
-        repo: `${failed.repoOwner}/${failed.repoName}`,
-        pr: failed.pr.number,
-        error:
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason),
-      });
-    }
+    logger?.error("Failed to analyze PR", {
+      repo: `${failed.repoOwner}/${failed.repoName}`,
+      pr: failed.pr.number,
+      error:
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason),
+    });
   }
 
   return results;
