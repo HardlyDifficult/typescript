@@ -1,35 +1,42 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createSessionId } from "../src/sessionId.js";
 
 describe("createSessionId", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("starts with the given prefix", () => {
     const id = createSessionId("test");
     expect(id.startsWith("test-")).toBe(true);
   });
 
-  it("has three parts separated by hyphens after the prefix", () => {
-    const id = createSessionId("pfx");
-    // prefix-timestamp-random
+  it("contains three hyphen-separated parts", () => {
+    const id = createSessionId("abc");
     const parts = id.split("-");
     expect(parts.length).toBe(3);
-    expect(parts[0]).toBe("pfx");
+    expect(parts[0]).toBe("abc");
   });
 
-  it("contains a base-36 timestamp", () => {
-    vi.spyOn(Date, "now").mockReturnValue(1000000);
-    const id = createSessionId("s");
+  it("second part is a base-36 timestamp", () => {
+    const before = Date.now();
+    const id = createSessionId("t");
+    const after = Date.now();
+
     const parts = id.split("-");
-    expect(parts[1]).toBe((1000000).toString(36));
+    const timestamp = parseInt(parts[1], 36);
+    expect(timestamp).toBeGreaterThanOrEqual(before);
+    expect(timestamp).toBeLessThanOrEqual(after);
   });
 
-  it("generates unique IDs on consecutive calls", () => {
-    const id1 = createSessionId("a");
-    const id2 = createSessionId("a");
-    expect(id1).not.toBe(id2);
+  it("third part is a random suffix of base-36 characters", () => {
+    const id = createSessionId("t");
+    const parts = id.split("-");
+    const suffix = parts[2];
+    expect(suffix.length).toBeGreaterThan(0);
+    expect(suffix.length).toBeLessThanOrEqual(6);
+    expect(/^[0-9a-z]+$/.test(suffix)).toBe(true);
+  });
+
+  it("generates unique IDs", () => {
+    const ids = new Set(Array.from({ length: 100 }, () => createSessionId("u")));
+    expect(ids.size).toBe(100);
   });
 
   it("works with empty prefix", () => {
