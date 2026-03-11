@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  evaluateCondition,
-  extractVariables,
-} from "../src/conditionParser.js";
+import { evaluateCondition, extractVariables } from "../src/conditionParser.js";
 
 describe("evaluateCondition", () => {
   describe("simple comparisons", () => {
@@ -69,25 +66,17 @@ describe("evaluateCondition", () => {
 
   describe("logical operators", () => {
     it("evaluates AND", () => {
-      expect(evaluateCondition("x > 5 AND y < 10", { x: 7, y: 3 })).toBe(
-        true
-      );
-      expect(evaluateCondition("x > 5 AND y < 10", { x: 3, y: 3 })).toBe(
-        false
-      );
+      expect(evaluateCondition("x > 5 AND y < 10", { x: 7, y: 3 })).toBe(true);
+      expect(evaluateCondition("x > 5 AND y < 10", { x: 3, y: 3 })).toBe(false);
       expect(evaluateCondition("x > 5 AND y < 10", { x: 7, y: 15 })).toBe(
         false
       );
     });
 
     it("evaluates OR", () => {
-      expect(evaluateCondition("x > 5 OR y < 10", { x: 7, y: 15 })).toBe(
-        true
-      );
+      expect(evaluateCondition("x > 5 OR y < 10", { x: 7, y: 15 })).toBe(true);
       expect(evaluateCondition("x > 5 OR y < 10", { x: 3, y: 3 })).toBe(true);
-      expect(evaluateCondition("x > 5 OR y < 10", { x: 3, y: 15 })).toBe(
-        false
-      );
+      expect(evaluateCondition("x > 5 OR y < 10", { x: 3, y: 15 })).toBe(false);
     });
 
     it("AND has higher precedence than OR", () => {
@@ -124,9 +113,7 @@ describe("evaluateCondition", () => {
     });
 
     it("handles nested parentheses", () => {
-      expect(
-        evaluateCondition("((x > 0))", { x: 1 })
-      ).toBe(true);
+      expect(evaluateCondition("((x > 0))", { x: 1 })).toBe(true);
     });
   });
 
