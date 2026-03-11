@@ -94,6 +94,9 @@ export {
 // Agent runner types
 export type { AgentEvent, RunAgentOptions, RunAgentResult } from "./types.js";
 
+// Tool logging
+export { sanitizeToolInput, truncateString } from "./toolLogging.js";
+
 // Utilities
 export {
   executeWithErrorHandling,
