@@ -25,3 +25,5 @@ export {
 export { codeBlock } from "./codeBlock.js";
 export { stripAnsi } from "./stripAnsi.js";
 export { isWaitingForInput } from "./questionDetection.js";
+export { createSessionId } from "./sessionId.js";
+export { evaluateCondition, extractVariables } from "./conditionParser.js";
