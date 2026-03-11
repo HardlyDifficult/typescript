@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { JsonTree } from "../data/JsonTree.js";
 import { Input } from "../inputs/Input.js";
@@ -17,6 +18,8 @@ interface TextViewerProps {
   defaultMode?: ViewMode;
   placeholder?: string;
   autoScroll?: boolean;
+  /** When true, hides the Markdown tab to prevent markdown rendering of plain text content */
+  disableMarkdown?: boolean;
 }
 
 function tryParseJson(content: string): unknown {
@@ -66,6 +69,7 @@ export function TextViewer({
   defaultMode = json !== undefined ? "json" : "text",
   placeholder,
   autoScroll = false,
+  disableMarkdown = false,
 }: TextViewerProps): ReactNode {
   const [mode, setMode] = useState<ViewMode>(defaultMode);
   const [copied, setCopied] = useState(false);
@@ -80,7 +84,7 @@ export function TextViewer({
   const resolvedContent = content ?? "";
   const parsedJson: unknown = json ?? tryParseJson(resolvedContent);
   const showJsonTab = parsedJson !== null;
-  const showMarkdownTab = json === undefined;
+  const showMarkdownTab = json === undefined && !disableMarkdown;
 
   // In text mode, show the formatted JSON when json prop is the source
   const displayText = json !== undefined ? JSON.stringify(json, null, 2) : resolvedContent;
@@ -113,7 +117,7 @@ export function TextViewer({
     body = (
       <div ref={scrollRef} style={scrollStyle}>
         <div className={markdownClass}>
-          <ReactMarkdown>{resolvedContent}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{resolvedContent}</ReactMarkdown>
         </div>
       </div>
     );
