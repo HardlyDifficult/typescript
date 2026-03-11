@@ -15,7 +15,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.2.21"
+    "@hardlydifficult/ai": "file:../ai",
+    "@hardlydifficult/text": "file:../text",
+    "@hardlydifficult/throttle": "file:../throttle",
+    "@opencode-ai/sdk": "1.2.21",
+    "simple-git": "3.32.3",
+    "tinyglobby": "0.2.15",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/node": "25.3.5",
