@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  formatBytes,
-  getToolSummary,
-} from "../src/tools/summaryFormatters.js";
+import { formatBytes, getToolSummary } from "../src/tools/summaryFormatters.js";
 
 describe("formatBytes", () => {
   it("formats bytes", () => {

@@ -148,9 +148,7 @@ describe("parseWriteFileOutput", () => {
   });
 
   it("parses updated lines range format", () => {
-    expect(
-      parseWriteFileOutput("Updated src/index.ts lines 10-20")
-    ).toEqual({
+    expect(parseWriteFileOutput("Updated src/index.ts lines 10-20")).toEqual({
       filename: "src/index.ts",
       lines: "10-20",
     });
@@ -163,7 +161,9 @@ describe("parseWriteFileOutput", () => {
 
 describe("parseAgentBrowserCommand", () => {
   it("extracts action and target from command", () => {
-    expect(parseAgentBrowserCommand({ command: "navigate https://example.com" })).toEqual({
+    expect(
+      parseAgentBrowserCommand({ command: "navigate https://example.com" })
+    ).toEqual({
       action: "navigate",
       target: "https://example.com",
     });

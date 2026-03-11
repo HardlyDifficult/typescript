@@ -56,9 +56,9 @@ describe("evaluateCondition", () => {
     });
 
     it("handles negative number after logical operator", () => {
-      expect(
-        evaluateCondition("sma_7 > 100 AND -1 < macd_signal", vars)
-      ).toBe(true);
+      expect(evaluateCondition("sma_7 > 100 AND -1 < macd_signal", vars)).toBe(
+        true
+      );
     });
   });
 
@@ -78,27 +78,27 @@ describe("evaluateCondition", () => {
     });
 
     it("evaluates AND (both true)", () => {
-      expect(
-        evaluateCondition("sma_7 > sma_30 AND rsi_14 < 70", vars)
-      ).toBe(true);
+      expect(evaluateCondition("sma_7 > sma_30 AND rsi_14 < 70", vars)).toBe(
+        true
+      );
     });
 
     it("evaluates AND (one false)", () => {
-      expect(
-        evaluateCondition("sma_7 > sma_30 AND rsi_14 < 30", vars)
-      ).toBe(false);
+      expect(evaluateCondition("sma_7 > sma_30 AND rsi_14 < 30", vars)).toBe(
+        false
+      );
     });
 
     it("evaluates OR (one true)", () => {
-      expect(
-        evaluateCondition("sma_7 < sma_30 OR rsi_14 < 70", vars)
-      ).toBe(true);
+      expect(evaluateCondition("sma_7 < sma_30 OR rsi_14 < 70", vars)).toBe(
+        true
+      );
     });
 
     it("evaluates OR (both false)", () => {
-      expect(
-        evaluateCondition("sma_7 < sma_30 OR rsi_14 > 70", vars)
-      ).toBe(false);
+      expect(evaluateCondition("sma_7 < sma_30 OR rsi_14 > 70", vars)).toBe(
+        false
+      );
     });
 
     it("chains multiple ANDs", () => {
@@ -112,10 +112,7 @@ describe("evaluateCondition", () => {
 
     it("chains multiple ORs", () => {
       expect(
-        evaluateCondition(
-          "sma_7 < 50 OR rsi_14 > 90 OR macd_signal > 0",
-          vars
-        )
+        evaluateCondition("sma_7 < 50 OR rsi_14 > 90 OR macd_signal > 0", vars)
       ).toBe(true);
     });
   });
@@ -124,7 +121,8 @@ describe("evaluateCondition", () => {
     it("AND has higher precedence than OR", () => {
       // "a OR b AND c" should be "a OR (b AND c)"
       expect(
-        evaluateCondition("sma_7 < sma_30 AND rsi_14 < 70 OR macd_signal > 0",
+        evaluateCondition(
+          "sma_7 < sma_30 AND rsi_14 < 70 OR macd_signal > 0",
           vars
         )
       ).toBe(true);
@@ -210,9 +208,9 @@ describe("evaluateCondition", () => {
     });
 
     it("throws on subtraction operator", () => {
-      expect(() =>
-        evaluateCondition("sma_7 - sma_30 > 0", vars)
-      ).toThrow("Subtraction is not supported");
+      expect(() => evaluateCondition("sma_7 - sma_30 > 0", vars)).toThrow(
+        "Subtraction is not supported"
+      );
     });
 
     it("throws on unclosed parenthesis", () => {
@@ -226,9 +224,9 @@ describe("evaluateCondition", () => {
     });
 
     it("throws on trailing tokens", () => {
-      expect(() =>
-        evaluateCondition("sma_7 > 100 sma_30", vars)
-      ).toThrow("Unexpected token at position");
+      expect(() => evaluateCondition("sma_7 > 100 sma_30", vars)).toThrow(
+        "Unexpected token at position"
+      );
     });
   });
 });

@@ -35,7 +35,9 @@ describe("createSessionId", () => {
   });
 
   it("generates unique IDs", () => {
-    const ids = new Set(Array.from({ length: 100 }, () => createSessionId("u")));
+    const ids = new Set(
+      Array.from({ length: 100 }, () => createSessionId("u"))
+    );
     expect(ids.size).toBe(100);
   });
 
