@@ -104,19 +104,10 @@ describe("convertFormat - invalid input", () => {
     expect(result).toContain("name: Bob");
   });
 
-  it("throws when input is neither valid JSON nor YAML (line 18)", () => {
-    // YAML parse throws on duplicate mapping keys with strict mode, or
-    // on certain control characters. Use a string with a tab indentation
-    // error that YAML strict parsers reject.
-    // The yaml library throws on certain structural errors:
-    const badYaml = "key: value\n  bad: indent\nkey: duplicate";
-    // Some YAML parsers throw on duplicate keys - let's try that
-    try {
-      convertFormat(badYaml, "json");
-      // If it doesn't throw, YAML was lenient — that's ok, just verify output
-    } catch (err) {
-      expect(err).toBeInstanceOf(Error);
-    }
+  it("throws when input is neither valid JSON nor YAML (line 18 - YAML parse fail)", () => {
+    // Trigger YAML parse failure with tab-indented content (YAML disallows tabs as indent)
+    const invalidYaml = "\t bad: indent";
+    expect(() => convertFormat(invalidYaml, "json")).toThrow();
   });
 });
 

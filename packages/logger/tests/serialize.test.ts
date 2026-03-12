@@ -95,6 +95,57 @@ describe("safeJsonStringify", () => {
     expect(result.self).toBe("[Circular]");
   });
 
+  it("omits stack when error.stack is empty string", () => {
+    const error = new Error("no stack");
+    error.stack = "";
+    const result = JSON.parse(safeJsonStringify(error)) as Record<
+      string,
+      unknown
+    >;
+    expect("stack" in result).toBe(false);
+    expect(result.message).toBe("no stack");
+  });
+
+  it("omits cause when error has no cause property", () => {
+    // Plain Error without cause
+    const error = new Error("plain error");
+    const result = JSON.parse(safeJsonStringify(error)) as Record<
+      string,
+      unknown
+    >;
+    // Should not have cause key
+    expect("cause" in result).toBe(false);
+  });
+
+  it("omits cause when error.cause is explicitly undefined", () => {
+    // Error where cause property exists but is undefined
+    const error = new Error("no real cause", { cause: undefined });
+    const result = JSON.parse(safeJsonStringify(error)) as Record<
+      string,
+      unknown
+    >;
+    expect("cause" in result).toBe(false);
+  });
+
+  it("omits enumerable error property when it serializes to undefined", () => {
+    const error = new Error("test");
+    // Add an enumerable property with a symbol value that serializes to a string
+    // We want serializeValue to return undefined, which happens for... nothing useful
+    // Actually serializeValue never returns undefined for common types.
+    // Let's use a symbol, which returns its string representation.
+    // Wait - we need it to return undefined. Only typeof === undefined does.
+    // So set an enumerable undefined property:
+    Object.defineProperty(error, "undefinedProp", {
+      value: undefined,
+      enumerable: true,
+    });
+    const result = JSON.parse(safeJsonStringify(error)) as Record<
+      string,
+      unknown
+    >;
+    expect("undefinedProp" in result).toBe(false);
+  });
+
   it("serializes arrays", () => {
     expect(safeJsonStringify([1, 2, 3])).toBe("[1,2,3]");
   });
@@ -131,6 +182,14 @@ describe("safeJsonStringify", () => {
     const result = JSON.parse(safeJsonStringify(map)) as [string, unknown][];
     // The map entry's value is circular, so the second element is "[Circular]"
     expect(result[0]![1]).toBe("[Circular]");
+  });
+
+  it("serializes Map with undefined key as null", () => {
+    const map = new Map<unknown, string>();
+    map.set(undefined, "value-for-undefined-key");
+    const result = JSON.parse(safeJsonStringify(map)) as [unknown, string][];
+    expect(result[0]![0]).toBeNull();
+    expect(result[0]![1]).toBe("value-for-undefined-key");
   });
 
   it("serializes Sets as arrays", () => {
