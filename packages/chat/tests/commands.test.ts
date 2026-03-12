@@ -430,4 +430,215 @@ describe("CommandDispatcher", () => {
       "user-001"
     );
   });
+
+  it("skips empty input (line 79-81)", async () => {
+    const execute = vi.fn();
+    registry.register("meta", makeCommand("help"));
+    const dispatcher = makeDispatcher();
+
+    // Empty content (e.g., voice message) - should not execute any command
+    const msg = makeMessage("");
+    await dispatcher.handleMessage(msg as never);
+
+    expect(execute).not.toHaveBeenCalled();
+    // Still calls endTyping after completeInFlight
+    expect(channel.endTyping).toHaveBeenCalled();
+  });
+
+  it("calls onParseError callback when provided", async () => {
+    registry.register("agent", {
+      prefix: "task",
+      description: "run a task",
+      args: { type: "rest", argName: "prompt" },
+      execute: vi.fn(),
+    });
+
+    const onParseError = vi.fn();
+    const dispatcher = new CommandDispatcher({
+      channel: channel as never,
+      registry,
+      state,
+      ownerUsername: "owner",
+      onParseError,
+    });
+
+    await dispatcher.handleMessage(makeMessage("task") as never);
+
+    expect(onParseError).toHaveBeenCalledWith(expect.stringContaining("Usage"));
+  });
+
+  it("sendDismissable uses postMessage when ownerId is undefined (line 129)", async () => {
+    const dispatcher = new CommandDispatcher({
+      channel: channel as never,
+      registry,
+      state,
+      ownerUsername: "owner",
+      // no ownerUserId
+    });
+
+    // Use a message with no author.id to prevent ownerUserId from being captured
+    const msg = {
+      content: "unknown",
+      author: { username: "owner", id: undefined },
+      id: "msg-001",
+      channelId: "ch-001",
+      delete: vi.fn().mockResolvedValue(undefined),
+      startThread: vi.fn().mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
+    };
+    await dispatcher.handleMessage(msg as never);
+
+    expect(channel.postMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Unrecognized command")
+    );
+    expect(channel.postDismissable).not.toHaveBeenCalled();
+  });
+
+  it("createContext functions: send, sendMessage, sendDismissable, sendFile, startThread", async () => {
+    const capturedCtx: Record<string, unknown> = {};
+    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
+      capturedCtx.ctx = ctx;
+    });
+    registry.register("meta", { ...makeCommand("help"), execute });
+
+    const dispatcher = new CommandDispatcher({
+      channel: channel as never,
+      registry,
+      state,
+      ownerUsername: "owner",
+      ownerUserId: "user-001",
+    });
+
+    const msg = makeMessage("help");
+    await dispatcher.handleMessage(msg as never);
+
+    expect(execute).toHaveBeenCalledOnce();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = (execute.mock.calls[0] as any)[0];
+
+    // Test send
+    ctx.send("hello");
+    expect(channel.postMessage).toHaveBeenCalledWith("hello");
+
+    // Test sendMessage
+    await ctx.sendMessage("world");
+    expect(channel.postMessage).toHaveBeenCalledWith("world");
+
+    // Test sendDismissable (with ownerId)
+    await ctx.sendDismissable("warning");
+    expect(channel.postDismissable).toHaveBeenCalledWith("warning", "user-001");
+
+    // Test sendFile with string content
+    ctx.sendFile("file content", "file.txt", "Optional message");
+    expect(channel.postMessage).toHaveBeenCalledWith(
+      "Optional message",
+      expect.objectContaining({ files: [expect.objectContaining({ name: "file.txt" })] })
+    );
+
+    // Test sendFile with Buffer content
+    ctx.sendFile(Buffer.from("buf"), "buf.bin");
+    expect(channel.postMessage).toHaveBeenCalledWith(
+      "",
+      expect.objectContaining({ files: [expect.objectContaining({ name: "buf.bin" })] })
+    );
+  });
+
+  it("createContext.sendDismissable uses postMessage when no ownerId", async () => {
+    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ctx as any).sendDismissable("message");
+    });
+    registry.register("meta", { ...makeCommand("help"), execute });
+
+    // No ownerUserId, and message has no author.id to prevent auto-capture
+    const dispatcher = new CommandDispatcher({
+      channel: channel as never,
+      registry,
+      state,
+      ownerUsername: "owner",
+    });
+
+    const msg = {
+      content: "help",
+      author: { username: "owner", id: undefined },
+      id: "msg-001",
+      channelId: "ch-001",
+      delete: vi.fn().mockResolvedValue(undefined),
+      startThread: vi.fn().mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
+    };
+    await dispatcher.handleMessage(msg as never);
+
+    expect(channel.postMessage).toHaveBeenCalledWith("message");
+  });
+
+  it("createContext.startThread adds message to messagesWithThreads", async () => {
+    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ctx as any).startThread("My Thread");
+    });
+    registry.register("meta", { ...makeCommand("help"), execute });
+
+    const dispatcher = makeDispatcher();
+    const msg = makeMessage("help");
+    await dispatcher.handleMessage(msg as never);
+
+    // When a thread is started, the message should NOT be deleted
+    expect(msg.delete).not.toHaveBeenCalled();
+  });
+});
+
+// ── CommandRegistry edge cases ──────────────────────────────────────────────
+
+describe("CommandRegistry - additional coverage", () => {
+  let registry: CommandRegistry;
+
+  beforeEach(() => {
+    registry = new CommandRegistry();
+  });
+
+  it("rest type: returns null when bare prefix doesn't match (line 69)", () => {
+    registry.register("agent", {
+      prefix: "task",
+      description: "run a task",
+      args: { type: "rest", argName: "prompt", optional: false },
+      execute: vi.fn(),
+    });
+
+    // Input that doesn't match prefix at all
+    const result = registry.match("other command");
+    expect(result).toBeNull();
+  });
+
+  it("throws for unknown arg type (line 77)", () => {
+    expect(() => {
+      registry.register("agent", {
+        prefix: "cmd",
+        description: "test",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        args: { type: "unknown" } as any,
+        execute: vi.fn(),
+      });
+    }).toThrow("Unknown arg type: unknown");
+  });
+
+  it("match() continues when parsers.get returns undefined (line 122)", () => {
+    // Register a command normally
+    registry.register("meta", makeCommand("help"));
+    // Manually corrupt parsers by deleting an entry
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (registry as any).parsers.delete("help");
+
+    // Should return null since parser is missing
+    const result = registry.match("help");
+    expect(result).toBeNull();
+  });
+
+  it("getAllCommands returns all registered commands (line 150)", () => {
+    registry.register("meta", makeCommand("help"));
+    registry.register("meta", makeCommand("cancel"));
+    registry.register("ai", makeCommand("ask"));
+
+    const all = registry.getAllCommands();
+    expect(all).toHaveLength(3);
+    expect(all.map((c) => c.prefix)).toEqual(["help", "cancel", "ask"]);
+  });
 });

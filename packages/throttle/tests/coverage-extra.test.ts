@@ -13,6 +13,7 @@ import { Throttle } from "../src/Throttle.js";
 import { createThrottledUpdater } from "../src/ThrottledUpdater.js";
 import { eventRequest, type EventSubscriber } from "../src/eventRequest.js";
 import { isConnectionError } from "../src/isConnectionError.js";
+import { retry } from "../src/retry.js";
 
 // ─── Throttle - name ?? "throttle" fallback (line 44) ────────────────────────
 
@@ -102,22 +103,24 @@ describe("eventRequest - non-matching error event returns early (line 79)", () =
     let completeHandler: ((event: Ev) => void) | null = null;
     let errorHandler: ((event: Ev) => void) | null = null;
 
-    const on = {
-      complete: ((cb: (event: Ev) => void) => {
-        completeHandler = cb;
-        return () => {
-          completeHandler = null;
-        };
-      }) as EventSubscriber<Ev>,
-      error: ((cb: (event: Ev) => void) => {
-        errorHandler = cb;
-        return () => {
-          errorHandler = null;
-        };
-      }) as EventSubscriber<Ev>,
-    };
-
-    const promise = eventRequest<Ev, Ev>(on, (ev) => ev.requestId === "req-1");
+    const promise = eventRequest<Ev, Ev>({
+      send: () => undefined,
+      match: (ev) => (ev as Ev).requestId === "req-1",
+      on: {
+        complete: (cb) => {
+          completeHandler = cb;
+          return () => {
+            completeHandler = null;
+          };
+        },
+        error: (cb) => {
+          errorHandler = cb;
+          return () => {
+            errorHandler = null;
+          };
+        },
+      },
+    });
 
     // Emit a non-matching error event (requestId !== "req-1") → !match → return
     errorHandler!({ requestId: "req-999", error: "other error" });
@@ -128,6 +131,31 @@ describe("eventRequest - non-matching error event returns early (line 79)", () =
 
     const result = await promise;
     expect(result.requestId).toBe("req-1");
+  });
+});
+
+// ─── retry.ts - backoff===true branch (line 46) ──────────────────────────────
+
+describe("retry - backoff: true actually retries (covers backoff===true ternary branch)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("uses exponential backoff when backoff=true and retry actually happens", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("fail"))
+      .mockResolvedValue("ok");
+
+    // backoff: true causes getRetryDelayMs to hit line 46 with backoff === true → uses {}
+    const promise = retry(fn, { attempts: 2, backoff: true });
+
+    // Advance time past initial backoff delay (default is at least a few ms)
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await promise;
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 });
 
