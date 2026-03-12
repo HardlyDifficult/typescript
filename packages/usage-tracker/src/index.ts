@@ -9,3 +9,5 @@ export type {
   BudgetStatus,
   BudgetSnapshot,
 } from "./types.js";
+export { calculateAnthropicCost } from "./anthropicCost.js";
+export type { AnthropicModelPricing } from "./anthropicCost.js";

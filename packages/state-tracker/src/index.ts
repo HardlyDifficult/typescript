@@ -14,3 +14,10 @@ export {
   type StateTrackerOpenOptions,
   type StateTrackerSaveMeta,
 } from "./StateTracker.js";
+
+/** Persistent boolean flag that auto-expires after a configurable duration. */
+export {
+  TimedFlag,
+  type TimedFlagOptions,
+  type TimedFlagState,
+} from "./TimedFlag.js";
