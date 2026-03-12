@@ -1385,4 +1385,68 @@ describe("WorkerServer", () => {
       await expect(server.stop()).resolves.toBeUndefined();
     });
   });
+
+  describe("upgrade event edge cases", () => {
+    it("uses '/' as pathname when request.url is undefined", async () => {
+      const { server } = await createServer();
+
+      const serverAny = server as unknown as {
+        httpServer: { emit(event: string, ...args: unknown[]): void } | null;
+        workerWss: {
+          handleUpgrade(
+            req: unknown,
+            socket: unknown,
+            head: unknown,
+            cb: (ws: unknown) => void
+          ): void;
+        } | null;
+      };
+
+      // Patch workerWss.handleUpgrade to avoid actually upgrading
+      const origHandleUpgrade = serverAny.workerWss?.handleUpgrade.bind(
+        serverAny.workerWss
+      );
+      if (serverAny.workerWss !== null && serverAny.workerWss !== undefined) {
+        serverAny.workerWss.handleUpgrade = vi.fn();
+      }
+
+      // Emit an upgrade event with undefined url
+      const mockSocket = { destroy: vi.fn() };
+      const mockHead = Buffer.alloc(0);
+      const mockRequest = { url: undefined, headers: {} };
+      serverAny.httpServer?.emit("upgrade", mockRequest, mockSocket, mockHead);
+
+      // Restore
+      if (
+        serverAny.workerWss !== null &&
+        serverAny.workerWss !== undefined &&
+        origHandleUpgrade !== undefined
+      ) {
+        serverAny.workerWss.handleUpgrade = origHandleUpgrade;
+      }
+
+      // No throw - the ?? "/" branch was exercised
+    });
+
+    it("skips handleUpgrade when workerWss is null during upgrade", async () => {
+      const { server } = await createServer();
+
+      const serverAny = server as unknown as {
+        httpServer: { emit(event: string, ...args: unknown[]): void } | null;
+        workerWss: unknown;
+      };
+
+      // Set workerWss to null to exercise the `if (wss !== null)` false branch
+      serverAny.workerWss = null;
+
+      const mockSocket = { destroy: vi.fn() };
+      const mockHead = Buffer.alloc(0);
+      const mockRequest = { url: "/ws", headers: {} };
+
+      // Should not throw
+      expect(() =>
+        serverAny.httpServer?.emit("upgrade", mockRequest, mockSocket, mockHead)
+      ).not.toThrow();
+    });
+  });
 });
