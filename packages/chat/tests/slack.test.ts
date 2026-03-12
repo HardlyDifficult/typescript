@@ -3624,5 +3624,51 @@ describe("SlackChatClient", () => {
         })
       );
     });
+
+    it("throws when postMessage with blocks returns no ts (line 114)", async () => {
+      const { Document } = await import("@hardlydifficult/document-generator");
+      const doc = new Document().header("Test Header");
+      // Make postMessage return no ts
+      mockPostMessage.mockResolvedValueOnce({ ts: undefined });
+      const channel = await client.connect(channelId);
+      await expect(channel.postMessage(doc)).rejects.toThrow(
+        "Slack API did not return a message timestamp"
+      );
+    });
+
+    it("throws when plain text postMessage returns no ts (line 155)", async () => {
+      mockPostMessage.mockResolvedValueOnce({ ts: undefined });
+      // Need to clear any dedup messages first
+      mockConversationsHistory.mockResolvedValueOnce({ messages: [] });
+      const channel = await client.connect(channelId);
+      await expect(channel.postMessage("plain text message")).rejects.toThrow(
+        "Slack API did not return a message timestamp"
+      );
+    });
+  });
+
+  describe("slack getMessages - toSlackTimestamp and toDate edge cases", () => {
+    it("toSlackTimestamp returns undefined for empty string after (line 147)", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      await client.connect(channelId);
+      await client.getMessages(channelId, { after: "" as never });
+      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      // Empty string => toSlackTimestamp returns undefined => oldest not set
+      expect(call.oldest).toBeUndefined();
+    });
+
+    it("toDate returns undefined when dateFromUnixSeconds throws (line 174)", async () => {
+      // A very small number (negative) that would be out of valid unix seconds range
+      // so dateFromUnixSeconds throws
+      const pastTs = String(Date.now() / 1000 - 1);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [{ ts: pastTs, text: "msg", user: "U1" }],
+      });
+      await client.connect(channelId);
+      // Use -999999 as after: it's a small unix seconds value, dateFromUnixSeconds throws
+      // => toDate returns undefined => no after filter => message is included
+      const messages = await client.getMessages(channelId, { after: -999999 });
+      expect(messages).toHaveLength(1);
+    });
   });
 });

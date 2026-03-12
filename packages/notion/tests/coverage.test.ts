@@ -592,6 +592,14 @@ describe("markdown/richText.ts coverage", () => {
     expect(result[0]?.text?.link?.url).toBe("https://example.com");
   });
 
+  it("richTextFromMarkdown - empty inline code hits pushText early return (line 85)", () => {
+    // Empty inline code: `pushText` is called with "" content for the code literal
+    // This triggers the `if (content.length === 0) return;` branch
+    const result = richTextFromMarkdown("``");
+    // Empty code produces no rich text segments
+    expect(result).toEqual([]);
+  });
+
   it("richTextFromMarkdown - findLink returns null when ] not followed by ](", () => {
     const result = richTextFromMarkdown("[text]http://url");
     expect(result.length).toBeGreaterThanOrEqual(1);
@@ -2211,6 +2219,35 @@ describe("NotionClient additional coverage", () => {
     expect(err instanceof NotionApiError).toBe(true);
   });
 
+  it("createPage draft without title uses only properties", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ id: "page-no-title", url: "" }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    // Draft with NO title - covers the `title !== undefined ? ... : {}` false branch
+    await client.createPage({
+      parent: notionParent.database("db-123"),
+      properties: { Name: notionProperty.title("Via Properties") },
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("createPage draft with content (no blocks) calls toPageBody", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ id: "page-content", url: "" }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    // Draft with content string and no explicit blocks - covers `blocks ?? toPageBody(content)` right side
+    await client.createPage({
+      parent: notionParent.database("db-123"),
+      title: "Content Page",
+      content: "Some body text",
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.children).toBeDefined();
+  });
+
   it("NotionClient with explicit apiVersion uses it", async () => {
     const mockFetch = vi.fn().mockResolvedValue(
       makeJsonResponse({ id: "page-123", url: "" })
@@ -2350,6 +2387,21 @@ describe("NotionClient additional coverage", () => {
     expect(result.unknownBlockIds).toEqual([]);
   });
 
+  it("readPage with neither markdown nor content returns empty string", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        url: "https://notion.so/page-123",
+        properties: {},
+        // no markdown, no content
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const result = await client.readPage("page-123");
+    expect(result.markdown).toBe("");
+  });
+
   it("readPage falls back to blocks on content_format error", async () => {
     const mockFetch = vi
       .fn()
@@ -2389,6 +2441,24 @@ describe("NotionClient additional coverage", () => {
       insert_content: { content: "new" },
     });
     expect(result.markdown).toBe("# Content from content field");
+    expect(result.truncated).toBe(false);
+    expect(result.unknown_block_ids).toEqual([]);
+  });
+
+  it("updatePageMarkdown normalizes legacy response with neither markdown nor content", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        // no markdown, no content, no truncated, no unknown_block_ids
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const result = await client.updatePageMarkdown("page-123", {
+      type: "insert_content",
+      insert_content: { content: "new" },
+    });
+    expect(result.markdown).toBe("");
     expect(result.truncated).toBe(false);
     expect(result.unknown_block_ids).toEqual([]);
   });

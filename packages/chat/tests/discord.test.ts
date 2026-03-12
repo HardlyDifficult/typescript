@@ -3413,8 +3413,9 @@ describe("DiscordChatClient", () => {
       await client.connect(channelId);
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
+      // subscribeToReactions on DiscordChatClient takes (channelId, callback)
       const throwingCallback = vi.fn().mockRejectedValue(new Error("reaction cb error"));
-      await client.subscribeToReactions("msg-react", channelId, throwingCallback);
+      client.subscribeToReactions(channelId, throwingCallback);
 
       const handler = getReactionHandler();
       expect(handler).not.toBeNull();
@@ -3518,11 +3519,8 @@ describe("DiscordChatClient", () => {
     it("returns undefined from toDate when dateFromUnixSeconds throws (lines 91-92)", async () => {
       const channel = await client.connect(channelId);
 
-      const pastDate = new Date("2023-06-01T00:00:00Z");
       const futureDate = new Date("2024-06-01T00:00:00Z");
 
-      // Use a very small unix timestamp that dateFromUnixSeconds will reject
-      // The timestamp 0 (epoch) might throw if out of range
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
           [
@@ -3538,10 +3536,10 @@ describe("DiscordChatClient", () => {
         ])
       );
 
-      // Pass a numeric unix seconds value that's very small (out of normal range)
-      // dateFromUnixSeconds(-999999) should throw, returning undefined for afterDate
-      const messages = await channel.getMessages({ after: -999999 });
-      // If toDate returned undefined, no filtering is applied and msg is included
+      // NaN is a number but dateFromUnixSeconds(NaN) throws
+      // toDate: typeof NaN === "number", NaN > 10^10 is false, so tries dateFromUnixSeconds
+      // which throws => catch returns undefined => no filter => msg is included
+      const messages = await channel.getMessages({ after: NaN as never });
       expect(messages).toHaveLength(1);
     });
 
@@ -3569,7 +3567,7 @@ describe("DiscordChatClient", () => {
     });
 
     it("normalizeAuthorFilter returns mention ID for mention format (line 110)", async () => {
-      const channel = await client.connect(channelId);
+      await client.connect(channelId);
 
       const targetUserId = "u_target";
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
@@ -3597,8 +3595,9 @@ describe("DiscordChatClient", () => {
         ])
       );
 
-      // Pass a mention string - normalizeAuthorFilter extracts the ID
-      const messages = await channel.getMessages({ author: `<@${targetUserId}>` });
+      // Call client.getMessages directly to bypass Channel's mention-stripping logic
+      // This passes the mention string directly to discord/getMessages.ts normalizeAuthorFilter
+      const messages = await client.getMessages(channelId, { author: `<@${targetUserId}>` });
       expect(messages).toHaveLength(1);
       expect(messages[0].author.id).toBe(targetUserId);
     });

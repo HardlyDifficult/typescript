@@ -658,6 +658,27 @@ describe("Message", () => {
         1440
       );
     });
+
+    it("should truncate very long inferred thread names to 80 chars with ellipsis", async () => {
+      const mockOperations = createMockOperations();
+      const longContent = "A".repeat(100); // > 80 chars
+      const msg = new Message(
+        {
+          id: "msg-1",
+          channelId: "ch-1",
+          platform: "slack",
+          content: longContent,
+        },
+        mockOperations
+      );
+
+      await msg.startThread();
+
+      const callArgs = (mockOperations.startThread as Mock).mock.calls[0];
+      const threadName: string = callArgs[2];
+      expect(threadName).toHaveLength(80);
+      expect(threadName.endsWith("...")).toBe(true);
+    });
   });
 });
 

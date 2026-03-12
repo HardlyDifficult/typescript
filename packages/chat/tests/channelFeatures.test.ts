@@ -6,6 +6,7 @@ import { Message } from "../src/Message.js";
 import { MessageBatch } from "../src/MessageBatch.js";
 import type { MessageData } from "../src/types.js";
 import {
+  withChannelBatch,
   withChannelBatchFromArgs,
   createChannelBatchAdapter,
 } from "../src/ChannelBatchHelpers.js";
@@ -371,7 +372,7 @@ describe("ChannelBatchHelpers edge cases", () => {
     expect(result).toBeNull();
   });
 
-  it("withChannelBatch throws when called with options but no callback", () => {
+  it("withChannelBatch throws when called with options but no callback (via withChannelBatchFromArgs)", () => {
     const adapter = createChannelBatchAdapter(
       "channel-y",
       "slack",
@@ -382,6 +383,19 @@ describe("ChannelBatchHelpers edge cases", () => {
       // @ts-expect-error intentional - testing runtime guard
       withChannelBatchFromArgs(adapter, { key: "test" }, undefined)
     ).toThrow("withBatch requires a callback");
+  });
+
+  it("withChannelBatch throws when called directly with options but no callback (line 142)", async () => {
+    const adapter = createChannelBatchAdapter(
+      "channel-y2",
+      "slack",
+      vi.fn().mockReturnValue({ then: vi.fn() } as unknown as Message & PromiseLike<Message>),
+      vi.fn()
+    );
+    await expect(
+      // @ts-expect-error intentional - testing runtime guard
+      withChannelBatch(adapter, { key: "test" }, undefined)
+    ).rejects.toThrow("withBatch requires a callback");
   });
 
   it("withChannelBatchFromArgs with function dispatches to withChannelBatch", async () => {
