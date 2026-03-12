@@ -676,4 +676,50 @@ describe("Document", () => {
       expect(Document.truncate("hello", 6)).toBe("hello");
     });
   });
+
+  describe("render() unsupported format (line 445-446)", () => {
+    it("throws for unsupported format", () => {
+      const document = new Document().text("Hello");
+      expect(() =>
+        document.render("html" as "markdown")
+      ).toThrow("Unsupported output format");
+    });
+  });
+
+  describe("section() empty list with no emptyText (line 235)", () => {
+    it("renders only heading for empty list with no emptyText option", () => {
+      const document = new Document().section("Blockers", []);
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "**Blockers**" },
+      ]);
+    });
+
+    it("renders only heading for empty list with empty string emptyText", () => {
+      const document = new Document().section("Blockers", [], { emptyText: "" });
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "**Blockers**" },
+      ]);
+    });
+  });
+
+  describe("linkify() with apply-style transformer (line 38-41 in Document.ts)", () => {
+    it("uses apply-style transformers", () => {
+      const apply = vi
+        .fn()
+        .mockImplementation((value: string) => value.replace("ENG-1", "LINKED"));
+
+      const document = new Document().text("ENG-1");
+      document.linkify({ apply }, { platform: "markdown" });
+
+      expect(apply).toHaveBeenCalledWith("ENG-1", { platform: "markdown" });
+      expect(document.getBlocks()).toEqual([{ type: "text", content: "LINKED" }]);
+    });
+
+    it("throws for invalid link transformer (line 42-44 in Document.ts)", () => {
+      const document = new Document().text("ENG-1");
+      expect(() =>
+        document.linkify({} as Parameters<typeof document.linkify>[0])
+      ).toThrow("Invalid link transformer");
+    });
+  });
 });

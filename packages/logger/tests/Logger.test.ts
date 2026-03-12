@@ -218,4 +218,57 @@ describe("Logger", () => {
       expect(plugin2.log).toHaveBeenCalledOnce();
     });
   });
+
+  describe("withContext", () => {
+    it("is an alias for child", () => {
+      const scoped = logger.withContext({ service: "test" });
+      scoped.info("scoped message");
+      const entry: LogEntry = plugin.log.mock.calls[0][0];
+      expect(entry.context).toEqual({ service: "test" });
+    });
+  });
+
+  describe("plugin minLevel filtering", () => {
+    it("skips plugins whose minLevel is higher than the log level", () => {
+      const warnPlugin = createSpyPlugin();
+      const freshLogger = new Logger("debug");
+      freshLogger.use(warnPlugin, { minLevel: "warn" });
+      freshLogger.info("should be skipped by warnPlugin");
+      expect(warnPlugin.log).not.toHaveBeenCalled();
+    });
+
+    it("sends to plugins whose minLevel is met", () => {
+      const warnPlugin = createSpyPlugin();
+      const freshLogger = new Logger("debug");
+      freshLogger.use(warnPlugin, { minLevel: "warn" });
+      freshLogger.warn("should reach warnPlugin");
+      expect(warnPlugin.log).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("alert with notify fallback", () => {
+    it("calls plugin.notify if plugin.alert is undefined", () => {
+      const notifyPlugin: LoggerPlugin & { notify: ReturnType<typeof vi.fn> } =
+        {
+          log: vi.fn(),
+          notify: vi.fn(),
+        };
+      const freshLogger = new Logger("info");
+      freshLogger.use(notifyPlugin);
+      freshLogger.alert("hello notify");
+      expect(notifyPlugin.notify).toHaveBeenCalledWith("hello notify");
+    });
+
+    it("swallows errors thrown by notify", () => {
+      const notifyPlugin: LoggerPlugin & { notify: () => never } = {
+        log: vi.fn(),
+        notify: () => {
+          throw new Error("notify boom");
+        },
+      };
+      const freshLogger = new Logger("info");
+      freshLogger.use(notifyPlugin);
+      expect(() => freshLogger.alert("test")).not.toThrow();
+    });
+  });
 });
