@@ -1,5 +1,6 @@
 export { NotionClient, type NotionClientOptions } from "./NotionClient.js";
 export { NotionApiError } from "./NotionApiError.js";
+export { extractNotionPageId, extractPageTitle } from "./client/shared.js";
 export { notionParent, notionProperty } from "./builders.js";
 export {
   blocksToMarkdown,
