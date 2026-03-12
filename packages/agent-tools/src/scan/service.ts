@@ -25,7 +25,7 @@ import type {
 
 /** Minimal AI client interface — satisfied by @hardlydifficult/ai's `AI`. */
 export interface ScanAI {
-  chat(prompt: string): { text(): Promise<string> };
+  chat(prompt: string): { text(): PromiseLike<string> };
 }
 
 /** Minimal repo manager interface — satisfied by RepoManager. */

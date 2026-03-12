@@ -104,6 +104,40 @@ export function normalizeParent(parent: NotionParent | string): {
   };
 }
 
+/**
+ * Extract a Notion page ID from a URL or bare ID string.
+ *
+ * Notion URLs look like:
+ *   https://www.notion.so/workspace/Page-Title-abc123def456...
+ *   https://www.notion.so/abc123def456...
+ * The page ID is the last 32-char hex segment (with or without dashes).
+ */
+export function extractNotionPageId(input: string): string {
+  const trimmed = input.trim();
+
+  if (trimmed.startsWith("http")) {
+    const withoutQuery = trimmed.split("?")[0]?.split("#")[0] ?? trimmed;
+    const segments = withoutQuery.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1] ?? "";
+    const dashlessId = lastSegment.replace(/-/g, "");
+    const match = /([0-9a-f]{32})$/i.exec(dashlessId);
+    if (match) {
+      return formatNotionId(match[1]);
+    }
+  }
+
+  const dashless = trimmed.replace(/-/g, "");
+  if (/^[0-9a-f]{32}$/i.test(dashless)) {
+    return formatNotionId(dashless);
+  }
+
+  return trimmed;
+}
+
+function formatNotionId(id: string): string {
+  return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
+}
+
 /** Extracts the visible page title from a Notion properties map. */
 export function extractPageTitle(properties?: NotionPagePropertyMap): string {
   if (properties === undefined) {

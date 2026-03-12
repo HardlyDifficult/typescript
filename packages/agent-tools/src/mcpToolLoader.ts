@@ -24,7 +24,8 @@ export interface McpTool<TSchema = unknown, TDeps = unknown> {
 export interface McpServerLike {
   registerTool(
     name: string,
-    meta: { title?: string; description: string; inputSchema: unknown },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    meta: Record<string, any>,
     handler: (args: unknown) => Promise<unknown>
   ): void;
 }

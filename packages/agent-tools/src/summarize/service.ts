@@ -7,7 +7,7 @@
 
 /** Minimal AI client interface — satisfied by @hardlydifficult/ai's `AI`. */
 export interface SummarizeAI {
-  chat(prompt: string): { text(): Promise<string> };
+  chat(prompt: string): { text(): PromiseLike<string> };
 }
 
 /** Prompt templates the service needs. Loaded by the caller. */
