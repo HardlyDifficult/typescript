@@ -96,6 +96,12 @@ describe("toMarkdown", () => {
   it("handles empty blocks array", () => {
     expect(toMarkdown([])).toBe("");
   });
+
+  it("returns empty string for unknown block type (default branch)", () => {
+    // Cast to any to inject unknown block type
+    const blocks = [{ type: "unknown-block" }] as unknown as Block[];
+    expect(toMarkdown(blocks)).toBe("");
+  });
 });
 
 describe("toSlackText", () => {
@@ -200,6 +206,11 @@ describe("toSlackText", () => {
   it("supports toSlack alias", () => {
     const blocks: Block[] = [{ type: "text", content: "Hello **world**" }];
     expect(toSlack(blocks)).toBe(toSlackText(blocks));
+  });
+
+  it("returns empty string for unknown block type (default branch)", () => {
+    const blocks = [{ type: "unknown-block" }] as unknown as Block[];
+    expect(toSlackText(blocks)).toBe("");
   });
 });
 
@@ -321,5 +332,10 @@ describe("toPlainText", () => {
 
   it("handles empty blocks array", () => {
     expect(toPlainText([])).toBe("");
+  });
+
+  it("returns empty string for unknown block type (default branch)", () => {
+    const blocks = [{ type: "unknown-block" }] as unknown as Block[];
+    expect(toPlainText(blocks)).toBe("");
   });
 });

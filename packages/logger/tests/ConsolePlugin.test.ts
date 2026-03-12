@@ -147,4 +147,16 @@ describe("ConsolePlugin", () => {
       '[2025-01-15T10:30:00.000Z] INFO: formatted test {"a":1}'
     );
   });
+
+  it("uses console.warn for unknown levels (default branch)", () => {
+    const entry = {
+      level: "unknown" as LogEntry["level"],
+      message: "unknown level",
+      timestamp: "2025-01-15T10:30:00.000Z",
+    };
+    plugin.log(entry);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
 });

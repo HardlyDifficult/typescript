@@ -483,4 +483,36 @@ describe("toDiscordEmbed", () => {
     expect(result.image).toEqual({ url: "https://example.com/img.png" });
     expect(result.footer).toEqual({ text: "Footer info" });
   });
+
+  it("should skip unknown block types (default case, line 78)", () => {
+    const blocks = [
+      // @ts-expect-error intentional unknown block type
+      { type: "unknown-block-type", content: "ignored" },
+      { type: "text", content: "visible" },
+    ] as Block[];
+
+    const result = toDiscordEmbed(blocks);
+
+    // Unknown block is skipped, text block is still rendered
+    expect(result.description).toContain("visible");
+    expect(result.description).not.toContain("ignored");
+  });
+});
+
+describe("toSlackBlocks - edge cases", () => {
+  it("should skip unknown block types (default case, line 186)", () => {
+    const blocks = [
+      // @ts-expect-error intentional unknown block type
+      { type: "unknown-block-xyz", content: "ignored" },
+      { type: "text", content: "visible text" },
+    ] as Block[];
+
+    const result = toSlackBlocks(blocks);
+
+    // Should have only 1 block (the text block), unknown is skipped
+    expect(result).toHaveLength(1);
+    expect((result[0] as { text: { text: string } }).text.text).toBe(
+      "visible text"
+    );
+  });
 });

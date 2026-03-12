@@ -97,6 +97,20 @@ describe("createLogger", () => {
     expect(entry.context).toEqual({ freePercent: 8 });
   });
 
+  it("supports context without scope (exercises the context ?? {} branch)", () => {
+    const logger = createLogger({
+      context: { region: "us-east-1" },
+      console: false,
+    });
+    const plugin = createSpyPlugin();
+    logger.use(plugin);
+
+    logger.info("region test");
+
+    const entry: LogEntry = plugin.log.mock.calls[0][0];
+    expect(entry.context).toEqual({ region: "us-east-1" });
+  });
+
   it("sends warn and error entries to the configured alert sender", () => {
     const sender = vi.fn();
     const logger = createLogger({ alert: sender });

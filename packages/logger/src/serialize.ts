@@ -137,6 +137,7 @@ function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
     case "object":
       break;
     default:
+      // All typeof values are handled above; this branch is unreachable
       return undefined;
   }
 

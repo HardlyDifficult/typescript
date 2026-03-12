@@ -166,7 +166,7 @@ export function parseAgentBrowserCommand(input: Record<string, unknown>): {
 } {
   const command = typeof input.command === "string" ? input.command : "";
   const parts = command.split(" ");
-  const action = parts[0] ?? "run";
+  const action = parts[0];
   const target = parts[1];
   return { action, target };
 }

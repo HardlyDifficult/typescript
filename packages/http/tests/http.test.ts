@@ -103,6 +103,67 @@ describe("readJson", () => {
   });
 });
 
+describe("readBody - additional branches", () => {
+  it("handles Uint8Array chunks", async () => {
+    const emitter = new EventEmitter();
+    (emitter as unknown as IncomingMessage).destroy = () => {
+      emitter.emit("error", new Error("destroyed"));
+    };
+    process.nextTick(() => {
+      // Emit a Uint8Array chunk (not Buffer, not string) to hit line 44
+      emitter.emit("data", new Uint8Array([104, 101, 108, 108, 111])); // "hello"
+      emitter.emit("end");
+    });
+    const req = emitter as unknown as IncomingMessage;
+    const body = await readBody(req);
+    expect(body).toBe("hello");
+  });
+
+  it("ignores data events after done is true (payload too large)", async () => {
+    // After payload too large, subsequent data events are ignored (line 34-36)
+    const emitter = new EventEmitter();
+    let destroyCalled = false;
+    (emitter as unknown as IncomingMessage).destroy = () => {
+      destroyCalled = true;
+      // Don't emit error - request is fully aborted
+    };
+    (emitter as unknown as IncomingMessage).removeListener =
+      emitter.removeListener.bind(emitter);
+
+    process.nextTick(() => {
+      emitter.emit("data", Buffer.from("x".repeat(100)));
+      // This chunk arrives after done=true, should be ignored
+      emitter.emit("data", Buffer.from("more data after rejection"));
+      emitter.emit("end");
+    });
+    const req = emitter as unknown as IncomingMessage;
+    await expect(readBody(req, { maxBytes: 50 })).rejects.toThrow(
+      "Payload too large"
+    );
+    expect(destroyCalled).toBe(true);
+  });
+
+  it("ignores error events after done is true (onError guard, lines 27-29)", async () => {
+    // After rejection (done=true), a subsequent error event should be swallowed (not double-reject)
+    const emitter = new EventEmitter();
+    (emitter as unknown as IncomingMessage).destroy = () => {
+      // simulate destroy triggering a new error event - but we already removed the listener
+      // The new "swallow" listener catches it
+    };
+    (emitter as unknown as IncomingMessage).removeListener =
+      emitter.removeListener.bind(emitter);
+
+    process.nextTick(async () => {
+      // Emit error directly while done=false to hit the onError path normally
+      emitter.emit("error", new Error("first error"));
+      // Emit a second error after done=true - should be swallowed (line 27: if (!done) returns)
+      emitter.emit("error", new Error("second error should be ignored"));
+    });
+    const req = emitter as unknown as IncomingMessage;
+    await expect(readBody(req)).rejects.toThrow("first error");
+  });
+});
+
 describe("sendJson", () => {
   it("sends JSON response with default status and cors origin", () => {
     const mock = createMockResponse();

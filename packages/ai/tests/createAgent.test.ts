@@ -263,6 +263,121 @@ describe("createAgent", () => {
       expect(debugCalls).toContain("Tool call");
       expect(debugCalls).toContain("Tool result");
     });
+
+    it("logs cacheCreationTokens and cacheReadTokens in run() debug (lines 178-183)", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "done",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          inputTokenDetails: {
+            cacheWriteTokens: 80,
+            cacheReadTokens: 40,
+          },
+        },
+      });
+
+      const tracker = createMockTracker();
+      const logger = mockLogger();
+      const agent = createAgent(
+        mockModel() as never,
+        createTestTools(),
+        tracker,
+        logger as never
+      );
+
+      await agent.run([{ role: "user", content: "test" }]);
+
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
+      const completeCall = debugCalls.find(
+        (c) => c[0] === "Agent run complete"
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall![1].cacheCreationTokens).toBe(80);
+      expect(completeCall![1].cacheReadTokens).toBe(40);
+    });
+
+    it("logs outputType=null when tool returns null (covers line 95)", async () => {
+      mockGenerateText.mockImplementationOnce(
+        async (opts: Record<string, unknown>) => {
+          const tools = opts.tools as Record<
+            string,
+            { execute: (args: Record<string, unknown>) => Promise<unknown> }
+          >;
+          await tools.null_tool.execute({});
+          return {
+            text: "done",
+            usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
+          };
+        }
+      );
+
+      const tracker = createMockTracker();
+      const logger = mockLogger();
+      const agent = createAgent(
+        mockModel() as never,
+        {
+          null_tool: {
+            description: "Returns null",
+            inputSchema: z.object({}),
+            execute: async () => null,
+          },
+        },
+        tracker,
+        logger as never
+      );
+
+      await agent.run([{ role: "user", content: "test" }]);
+
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
+      const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
+      expect(toolResultCall).toBeDefined();
+      expect(toolResultCall![1].outputType).toBe("null");
+    });
+
+    it("logs outputType=array when tool returns array (covers line 98)", async () => {
+      mockGenerateText.mockImplementationOnce(
+        async (opts: Record<string, unknown>) => {
+          const tools = opts.tools as Record<
+            string,
+            { execute: (args: Record<string, unknown>) => Promise<unknown> }
+          >;
+          await tools.array_tool.execute({});
+          return {
+            text: "done",
+            usage: { inputTokens: 1, outputTokens: 1, inputTokenDetails: {} },
+          };
+        }
+      );
+
+      const tracker = createMockTracker();
+      const logger = mockLogger();
+      const agent = createAgent(
+        mockModel() as never,
+        {
+          array_tool: {
+            description: "Returns array",
+            inputSchema: z.object({}),
+            execute: async () => [1, 2, 3],
+          },
+        },
+        tracker,
+        logger as never
+      );
+
+      await agent.run([{ role: "user", content: "test" }]);
+
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
+      const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
+      expect(toolResultCall).toBeDefined();
+      expect(toolResultCall![1].outputType).toBe("array");
+    });
   });
 
   describe("stream", () => {

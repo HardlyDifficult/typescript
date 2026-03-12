@@ -953,6 +953,410 @@ describe("StateTracker", () => {
     });
   });
 
+  describe("getDefaultStateDirectory (lines 6-10)", () => {
+    it("uses STATE_TRACKER_DIR env var when set", async () => {
+      const customDir = path.join(testDir, "env-state-dir");
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        process.env.STATE_TRACKER_DIR = customDir;
+        // Creating StateTracker without stateDirectory triggers getDefaultStateDirectory()
+        const tracker = new StateTracker({
+          key: "env-dir-test",
+          default: { x: 1 },
+          // no stateDirectory - uses env var
+        });
+        await tracker.loadAsync();
+        expect(tracker.isPersistent).toBe(true);
+        expect(fs.existsSync(customDir)).toBe(true);
+      } finally {
+        process.env.STATE_TRACKER_DIR = originalEnv;
+      }
+    });
+
+    it("uses os.homedir()/.app-state when STATE_TRACKER_DIR is not set", async () => {
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        delete process.env.STATE_TRACKER_DIR;
+        // Creates tracker that will use the default directory path
+        const tracker = new StateTracker({
+          key: "default-dir-test",
+          default: { x: 1 },
+          // no stateDirectory, no env var - falls to line 10
+        });
+        // We just verify it doesn't throw and uses a valid path
+        // Don't actually call loadAsync (avoids writing to ~/.app-state in tests)
+        const filePath = tracker.getFilePath();
+        const os = await import("os");
+        const path2 = await import("path");
+        expect(filePath).toBe(
+          path2.join(os.homedir(), ".app-state", "default-dir-test.json")
+        );
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.STATE_TRACKER_DIR = originalEnv;
+        } else {
+          delete process.env.STATE_TRACKER_DIR;
+        }
+      }
+    });
+
+    it("uses STATE_TRACKER_DIR env var when empty string falls through to default", async () => {
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        process.env.STATE_TRACKER_DIR = "";
+        // Empty string falls through to line 10 (os.homedir() path)
+        const tracker = new StateTracker({
+          key: "empty-env-test",
+          default: { x: 1 },
+        });
+        const filePath = tracker.getFilePath();
+        const os = await import("os");
+        const path2 = await import("path");
+        expect(filePath).toBe(
+          path2.join(os.homedir(), ".app-state", "empty-env-test.json")
+        );
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.STATE_TRACKER_DIR = originalEnv;
+        } else {
+          delete process.env.STATE_TRACKER_DIR;
+        }
+      }
+    });
+  });
+
+  describe("createFileStorage.read() non-ENOENT error (line 64)", () => {
+    it("re-throws non-ENOENT errors from file reading", async () => {
+      // To trigger a non-ENOENT error, create a directory with the same name as the file
+      // Reading a directory as a file gives EISDIR error
+      const dirAsFile = path.join(testDir, "is-a-dir.json");
+      fs.mkdirSync(dirAsFile); // Create directory where file would be
+
+      const tracker = new StateTracker({
+        key: "is-a-dir",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      // The read will fail with EISDIR (not ENOENT), which re-throws and hits line 64
+      // StateTracker.loadAsync catches this and sets _storageAvailable = false
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+    });
+  });
+
+  describe("saveAsync when storage unavailable", () => {
+    it("returns current state without writing when storage is unavailable (line 377)", async () => {
+      // Use a storage that fails on read so _storageAvailable = false
+      const storage: StateStorage = {
+        async read() {
+          throw new Error("storage unavailable");
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "save-unavailable",
+        default: { count: 5 },
+        storage,
+      });
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+
+      tracker.set({ count: 99 });
+      const result = await tracker.saveAsync();
+
+      // saveAsync returns current state without calling write
+      expect(result).toEqual({ count: 99 });
+      expect(tracker.isPersistent).toBe(false);
+    });
+  });
+
+  describe("envelope value edge cases (line 305-308)", () => {
+    it("falls through to mergeWithDefaults when envelope value is null", async () => {
+      // To get close to line 306: provide an envelope where "value" key exists but value is null.
+      // null !== undefined so goes to line 308 mergeWithDefaults(null)
+      // mergeWithDefaults(null): null !== null is false -> returns null as T
+      // But for an object default, this returns null cast as T (not merged with defaults)
+      const storage: StateStorage = {
+        async read() {
+          return JSON.stringify({ value: null, lastUpdated: "now" });
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "null-envelope",
+        default: { x: 42 },
+        storage,
+      });
+
+      await tracker.loadAsync();
+      // envelope.value is null - mergeWithDefaults(null) returns null since null is not an object
+      expect(tracker.state).toBeNull();
+    });
+
+    it("extracts raw number state from storage (non-envelope number)", async () => {
+      // Test reading a raw number stored by a legacy system (not in envelope format)
+      // JSON.parse("42") = 42, which is not an object, so:
+      // - envelope check fails (not an object)
+      // - legacy merge check fails (not an object or default is not an object)
+      // - returns structuredClone(defaultValue)
+      const storage: StateStorage = {
+        async read() {
+          return "42";
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "raw-number",
+        default: 99,
+        storage,
+      });
+
+      await tracker.loadAsync();
+      // Falls to line 324: return structuredClone(defaultValue) = 99
+      expect(tracker.state).toBe(99);
+    });
+
+    it("returns default when envelope value is undefined (line 306) via JSON.parse mock", async () => {
+      // Line 306 is reached when: "value" in envelope && envelope.value === undefined
+      // Standard JSON.parse cannot produce this state, so we mock JSON.parse temporarily
+      const originalParse = JSON.parse.bind(JSON);
+      const parseSpy = vi
+        .spyOn(JSON, "parse")
+        .mockImplementationOnce((_text: string) => {
+          // Return an object where "value" is present but undefined
+          const result: Record<string, unknown> = { lastUpdated: "now" };
+          result["value"] = undefined;
+          return result;
+        });
+
+      const storage: StateStorage = {
+        async read() {
+          return '{"value":null,"lastUpdated":"now"}'; // actual string (will be replaced by mock)
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "undefined-value-envelope",
+        default: { x: 99 },
+        storage,
+      });
+
+      await tracker.loadAsync();
+
+      parseSpy.mockRestore();
+      // envelope.value === undefined → returns structuredClone(defaultValue)
+      expect(tracker.state).toEqual({ x: 99 });
+    });
+  });
+
+  describe("migration failure (lines 271-280)", () => {
+    it("returns default value when migration.migrate() throws", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-fail",
+        default: { cursor: 0, done: [] as string[] },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      // Write legacy state that will match the migration
+      const fs = await import("fs");
+      const path = await import("path");
+      fs.writeFileSync(
+        path.join(testDir, "migration-fail.json"),
+        JSON.stringify({ offset: 7, completedIds: ["a"] }),
+        "utf-8"
+      );
+
+      const failingMigration = defineStateMigration<
+        { cursor: number; done: string[] },
+        { offset: number; completedIds: string[] }
+      >({
+        name: "fail-migration",
+        isLegacy(input): input is { offset: number; completedIds: string[] } {
+          if (input === null || typeof input !== "object") return false;
+          const rec = input as Record<string, unknown>;
+          return typeof rec.offset === "number";
+        },
+        migrate(_legacy) {
+          throw new Error("migration failed intentionally");
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [failingMigration] });
+
+      // Should fall back to default
+      expect(tracker.state).toEqual({ cursor: 0, done: [] });
+
+      // Should have emitted a warn event
+      const warnEvent = events.find(
+        (e) => e.level === "warn" && e.message.includes("migration failed")
+      );
+      expect(warnEvent).toBeDefined();
+      expect(warnEvent?.context?.["migration"]).toBe("fail-migration");
+    });
+
+    it("uses anonymous migration name when name is not provided", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-anon",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      const fs = await import("fs");
+      const path = await import("path");
+      fs.writeFileSync(
+        path.join(testDir, "migration-anon.json"),
+        JSON.stringify({ offset: 1 }),
+        "utf-8"
+      );
+
+      const anonMigration = defineStateMigration<
+        { cursor: number },
+        { offset: number }
+      >({
+        // no name property
+        isLegacy(input): input is { offset: number } {
+          if (input === null || typeof input !== "object") return false;
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(_legacy) {
+          throw new Error("anon fail");
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [anonMigration] });
+      expect(tracker.state).toEqual({ cursor: 0 });
+
+      const warnEvent = events.find((e) => e.level === "warn");
+      expect(warnEvent?.context?.["migration"]).toBe("anonymous");
+    });
+
+    it("uses anonymous name for successful migration without name (line 267 ?? branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-success-anon",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      const fsMod = await import("fs");
+      const pathMod = await import("path");
+      fsMod.writeFileSync(
+        pathMod.join(testDir, "migration-success-anon.json"),
+        JSON.stringify({ offset: 10 }),
+        "utf-8"
+      );
+
+      const anonSuccessMigration = defineStateMigration<
+        { cursor: number },
+        { offset: number }
+      >({
+        // no name - triggers ?? "anonymous" branch at line 267
+        isLegacy(input): input is { offset: number } {
+          if (input === null || typeof input !== "object") return false;
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(legacy) {
+          return { cursor: legacy.offset };
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [anonSuccessMigration] });
+      expect(tracker.state).toEqual({ cursor: 10 });
+
+      const infoEvent = events.find(
+        (e) => e.level === "info" && e.message.includes("Migrated")
+      );
+      expect(infoEvent?.context?.["migration"]).toBe("anonymous");
+    });
+
+    it("handles non-Error thrown by migration (line 271 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-string-throw",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      const fsMod = await import("fs");
+      const pathMod = await import("path");
+      fsMod.writeFileSync(
+        pathMod.join(testDir, "migration-string-throw.json"),
+        JSON.stringify({ offset: 5 }),
+        "utf-8"
+      );
+
+      const stringThrowMigration = defineStateMigration<
+        { cursor: number },
+        { offset: number }
+      >({
+        name: "string-throw",
+        isLegacy(input): input is { offset: number } {
+          if (input === null || typeof input !== "object") return false;
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(_legacy) {
+          // Throw a non-Error value to hit String(err) branch at line 271
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "migration failed as string";
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [stringThrowMigration] });
+      expect(tracker.state).toEqual({ cursor: 0 }); // falls back to default
+
+      const warnEvent = events.find((e) => e.level === "warn");
+      expect(warnEvent?.context?.["error"]).toBe("migration failed as string");
+    });
+
+    it("returns undefined when no migration matches (line 280)", async () => {
+      const tracker = new StateTracker({
+        key: "migration-no-match",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+      });
+
+      const fs = await import("fs");
+      const path = await import("path");
+      fs.writeFileSync(
+        path.join(testDir, "migration-no-match.json"),
+        JSON.stringify({ value: { cursor: 5 }, lastUpdated: "now" }),
+        "utf-8"
+      );
+
+      // Migration that never matches
+      const nonMatchingMigration = defineStateMigration<
+        { cursor: number },
+        never
+      >({
+        isLegacy(_input): _input is never {
+          return false;
+        },
+        migrate(_legacy: never) {
+          return { cursor: 0 };
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [nonMatchingMigration] });
+      // Falls through to envelope extraction
+      expect(tracker.state).toEqual({ cursor: 5 });
+    });
+  });
+
   describe("StorageAdapter", () => {
     function makeInMemoryAdapter(): StorageAdapter {
       const store = new Map<string, string>();
@@ -1114,6 +1518,64 @@ describe("StateTracker", () => {
       await tracker.saveAsync();
 
       expect(tracker.isPersistent).toBe(false);
+    });
+
+    it("handles non-Error thrown by storage read (line 360 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const storage: StateStorage = {
+        async read() {
+          // Throw a non-Error to hit String(err) at line 360
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "connection refused";
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "read-string-throw",
+        default: { x: 1 },
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+
+      const warnEvent = events.find(
+        (e) => e.level === "warn" && e.message.includes("unavailable")
+      );
+      expect(warnEvent?.context?.["error"]).toBe("connection refused");
+    });
+
+    it("handles non-Error thrown by storage write (line 388 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const storage: StateStorage = {
+        async read() {
+          return null;
+        },
+        async write() {
+          // Throw a non-Error to hit String(err) at line 388
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "write failed";
+        },
+      };
+
+      const tracker = await StateTracker.open({
+        key: "write-string-throw",
+        default: { count: 0 },
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      tracker.set({ count: 5 });
+      await tracker.saveAsync();
+
+      expect(tracker.isPersistent).toBe(false);
+
+      const errorEvent = events.find(
+        (e) => e.level === "error" && e.message.includes("Failed")
+      );
+      expect(errorEvent?.context?.["error"]).toBe("write failed");
     });
   });
 });

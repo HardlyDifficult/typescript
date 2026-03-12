@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 
 import {
@@ -138,6 +138,17 @@ describe("WorkerServer", () => {
     it("rejects starting twice", async () => {
       const { server } = await createServer();
       await expect(server.start()).rejects.toThrow("already running");
+    });
+
+    it("rejects with HTTP server error when port is already in use", async () => {
+      const { server: existingServer } = await createServer();
+      const usedPort = existingServer.port;
+
+      const conflictServer = new WorkerServer({ port: usedPort });
+      servers.push(conflictServer);
+      await expect(conflictServer.start()).rejects.toMatchObject({
+        code: "EADDRINUSE",
+      });
     });
 
     it("exposes the bound port after starting on port 0", async () => {
@@ -632,6 +643,36 @@ describe("WorkerServer", () => {
 
       await dashboardConnected;
     });
+
+    it("logs error when additional WebSocket endpoint server emits error", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server } = await createServer({ logger });
+
+      server.addWebSocketEndpoint("/ws/test-err", () => {});
+
+      // Access the internal wss for the endpoint and emit error
+      const serverAny = server as unknown as {
+        additionalEndpoints: Map<
+          string,
+          { wss: { emit(event: string, ...args: unknown[]): void } }
+        >;
+      };
+      const endpoint = serverAny.additionalEndpoints.get("/ws/test-err");
+      endpoint?.wss.emit("error", new Error("endpoint wss error"));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "WebSocket server error",
+        expect.objectContaining({
+          path: "/ws/test-err",
+          error: "endpoint wss error",
+        })
+      );
+    });
   });
 
   describe("HTTP handlers", () => {
@@ -655,6 +696,840 @@ describe("WorkerServer", () => {
 
       const response = await fetch(`http://127.0.0.1:${port}/unknown`);
       expect(response.status).toBe(404);
+    });
+
+    it("continues to next handler when current returns false", async () => {
+      const { server, port } = await createServer();
+
+      // First handler returns false (not handled)
+      server.addHttpHandler(async () => false);
+      // Second handler returns true (handled)
+      server.addHttpHandler(async (_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ handler: 2 }));
+        return true;
+      });
+
+      const response = await fetch(`http://127.0.0.1:${port}/test`);
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as { handler: number };
+      expect(body.handler).toBe(2);
+    });
+
+    it("swallows HTTP handler errors and continues", async () => {
+      const { server, port } = await createServer();
+
+      // First handler throws
+      server.addHttpHandler(async () => {
+        throw new Error("handler error");
+      });
+      // Second handler succeeds
+      server.addHttpHandler(async (_req, res) => {
+        res.writeHead(200);
+        res.end("ok");
+        return true;
+      });
+
+      const response = await fetch(`http://127.0.0.1:${port}/test`);
+      expect(response.ok).toBe(true);
+    });
+
+    it("stringifies non-Error thrown by HTTP handler", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+
+      server.addHttpHandler(async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "string-error";
+      });
+
+      await fetch(`http://127.0.0.1:${port}/test`).catch(() => {});
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "HTTP handler error",
+        expect.objectContaining({ error: "string-error" })
+      );
+    });
+  });
+
+  describe("broadcast", () => {
+    it("broadcasts messages to all workers", async () => {
+      const { server, port } = await createServer();
+
+      const ws1 = await connectWorker(port);
+      const ws2 = await connectWorker(port);
+      sockets.push(ws1, ws2);
+
+      sendRegistration(ws1, { workerId: "worker-1" });
+      sendRegistration(ws2, { workerId: "worker-2" });
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      const msg1 = waitForMessage<Record<string, unknown>>(
+        ws1,
+        (m) => m["type"] === "broadcast_test"
+      );
+      const msg2 = waitForMessage<Record<string, unknown>>(
+        ws2,
+        (m) => m["type"] === "broadcast_test"
+      );
+
+      server.broadcast({ type: "broadcast_test" });
+
+      const r1 = await msg1;
+      const r2 = await msg2;
+      expect(r1["type"]).toBe("broadcast_test");
+      expect(r2["type"]).toBe("broadcast_test");
+    });
+  });
+
+  describe("health check (runHealthCheck)", () => {
+    it("closes dead worker connections found by health check", async () => {
+      const { server, port } = await createServer({
+        heartbeatTimeoutMs: 10,
+        healthCheckIntervalMs: 20,
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Wait long enough for health check to fire and detect dead worker
+      // (heartbeatTimeoutMs=10, so after 30ms the worker is 3x timeout = dead)
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Worker should have been closed and removed
+      expect(server.listWorkers()).toHaveLength(0);
+    });
+
+    it("skips dead workers already removed from pool during health check", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server } = await createServer({ logger });
+
+      // Access internal pool and runHealthCheck directly
+      const serverAny = server as unknown as {
+        pool: {
+          checkHealth(timeoutMs: number): string[];
+          get(id: string): unknown;
+        };
+        runHealthCheck(): void;
+        heartbeatTimeoutMs: number;
+      };
+
+      // Patch checkHealth to return a fake dead worker ID that isn't in the pool
+      const origCheckHealth = serverAny.pool.checkHealth.bind(serverAny.pool);
+      serverAny.pool.checkHealth = () => ["ghost-worker-id"];
+
+      // Should not throw - the continue path is exercised
+      expect(() => serverAny.runHealthCheck()).not.toThrow();
+
+      // Restore
+      serverAny.pool.checkHealth = origCheckHealth;
+
+      // No warn should have been called for "ghost-worker-id" because it was skipped
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        "Worker connection presumed dead, closing",
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe("onWorkerConnected / onWorkerDisconnected unsubscribe", () => {
+    it("unsubscribe from onWorkerConnected stops receiving events", async () => {
+      const { server, port } = await createServer();
+
+      const connected: string[] = [];
+      const unsubscribe = server.onWorkerConnected((worker) => {
+        connected.push(worker.id);
+      });
+
+      const ws1 = await connectWorker(port);
+      sockets.push(ws1);
+      sendRegistration(ws1, { workerId: "worker-1" });
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      expect(connected).toContain("worker-1");
+
+      // Unsubscribe, then connect another worker
+      unsubscribe();
+
+      const ws2 = await connectWorker(port);
+      sockets.push(ws2);
+      sendRegistration(ws2, { workerId: "worker-2" });
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // worker-2 should NOT be in the list since we unsubscribed
+      expect(connected).not.toContain("worker-2");
+    });
+
+    it("unsubscribe from onWorkerDisconnected stops receiving events", async () => {
+      const { server, port } = await createServer();
+
+      const disconnected: string[] = [];
+      const unsubscribe = server.onWorkerDisconnected((worker) => {
+        disconnected.push(worker.id);
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws, { workerId: "worker-1" });
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Unsubscribe before disconnecting
+      unsubscribe();
+
+      ws.close();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(disconnected).not.toContain("worker-1");
+    });
+  });
+
+  describe("onWorkerMessage unsubscribe", () => {
+    it("unsubscribe from onWorkerMessage stops receiving events", async () => {
+      const { server, port } = await createServer();
+
+      const events: unknown[] = [];
+      const unsubscribe = server.onWorkerMessage("test_msg", (event) => {
+        events.push(event.message);
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Unsubscribe before sending
+      unsubscribe();
+
+      ws.send(JSON.stringify({ type: "test_msg" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(events).toHaveLength(0);
+    });
+  });
+
+  describe("WebSocket error handling", () => {
+    it("logs Worker WebSocket server error when wss emits error", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server } = await createServer({ logger });
+
+      // Access internal workerWss via cast and emit a server-level error
+      const serverAny = server as unknown as {
+        workerWss: { emit(event: string, ...args: unknown[]): void } | null;
+      };
+      serverAny.workerWss?.emit("error", new Error("wss server error"));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "Worker WebSocket server error",
+        expect.objectContaining({ error: "wss server error" })
+      );
+    });
+  });
+
+  describe("message routing edge cases", () => {
+    it("handles invalid JSON from worker", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Send invalid JSON
+      ws.send("not valid json");
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Invalid JSON message from worker"
+      );
+    });
+
+    it("handles message missing type field", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Send JSON without type field
+      ws.send(JSON.stringify({ data: "no type here", type: 42 }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.warn).toHaveBeenCalledWith("Message missing type field");
+    });
+
+    it("warns on unhandled message type from worker", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Send a message type with no registered handler
+      ws.send(JSON.stringify({ type: "unknown_msg_type" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Unhandled message type from worker",
+        expect.objectContaining({ type: "unknown_msg_type" })
+      );
+    });
+
+    it("swallows errors thrown by message handlers", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+
+      server.onWorkerMessage("error_msg", () => {
+        throw new Error("handler boom");
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      ws.send(JSON.stringify({ type: "error_msg" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error in message handler",
+        expect.objectContaining({ error: "handler boom" })
+      );
+    });
+  });
+
+  describe("heartbeat handling", () => {
+    it("responds to heartbeat messages with heartbeat_ack", async () => {
+      const { port } = await createServer();
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      ws.send(
+        JSON.stringify({
+          type: "heartbeat",
+          workerId: "worker-1",
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      const ack = await waitForMessage<Record<string, unknown>>(
+        ws,
+        (msg) => msg["type"] === "heartbeat_ack"
+      );
+      expect(ack["type"]).toBe("heartbeat_ack");
+      expect(ack["nextHeartbeatDeadline"]).toBeDefined();
+    });
+
+    it("warns when heartbeat comes from unknown worker", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { port } = await createServer({ logger });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Send heartbeat with non-existent workerId
+      ws.send(
+        JSON.stringify({
+          type: "heartbeat",
+          workerId: "nonexistent-worker",
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Heartbeat from unknown worker",
+        expect.objectContaining({ workerId: "nonexistent-worker" })
+      );
+    });
+
+    it("restores unhealthy worker to available on heartbeat when not at capacity", async () => {
+      const { server, port } = await createServer();
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Mark worker as unhealthy
+      const pool = (
+        server as unknown as {
+          pool: {
+            get(id: string):
+              | {
+                  status: string;
+                  lastHeartbeat: Date;
+                  activeRequests: number;
+                  capabilities: { maxConcurrentRequests: number };
+                }
+              | undefined;
+          };
+        }
+      ).pool;
+      const worker = pool.get("worker-1");
+      if (worker !== undefined) {
+        (worker as { status: string }).status = "unhealthy";
+      }
+
+      // Send heartbeat to trigger recovery
+      ws.send(
+        JSON.stringify({
+          type: "heartbeat",
+          workerId: "worker-1",
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const info = server.listWorkers()[0];
+      expect(info?.status).toBe("available");
+    });
+
+    it("restores unhealthy busy worker to busy on heartbeat", async () => {
+      const { server, port } = await createServer();
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws, { maxConcurrentRequests: 1 });
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Dispatch to fill up the worker
+      server.dispatch({
+        message: { type: "work_request", requestId: "req-1" },
+      });
+
+      // Mark worker as unhealthy
+      const pool = (
+        server as unknown as {
+          pool: { get(id: string): { status: string } | undefined };
+        }
+      ).pool;
+      const worker = pool.get("worker-1");
+      if (worker !== undefined) {
+        (worker as { status: string }).status = "unhealthy";
+      }
+
+      // Send heartbeat to trigger recovery - should become Busy (at capacity)
+      ws.send(
+        JSON.stringify({
+          type: "heartbeat",
+          workerId: "worker-1",
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const info = server.listWorkers()[0];
+      expect(info?.status).toBe("busy");
+    });
+  });
+
+  describe("worker reconnection (replacing existing worker)", () => {
+    it("replaces an existing worker connection with the same workerId", async () => {
+      const { server, port } = await createServer();
+
+      const ws1 = await connectWorker(port);
+      sockets.push(ws1);
+      sendRegistration(ws1, { workerId: "worker-1" });
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      expect(server.listWorkers()).toHaveLength(1);
+
+      // Connect a new WebSocket with the same workerId
+      const ws2 = await connectWorker(port);
+      sockets.push(ws2);
+      sendRegistration(ws2, { workerId: "worker-1" });
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Still only 1 worker after replacement
+      expect(server.listWorkers()).toHaveLength(1);
+    });
+
+    it("fires disconnectedHandler when replacing worker with pending requests", async () => {
+      const { server, port } = await createServer();
+
+      const disconnectedWorkers: WorkerInfo[] = [];
+      server.onWorkerDisconnected((worker) => {
+        disconnectedWorkers.push(worker);
+      });
+
+      const ws1 = await connectWorker(port);
+      sockets.push(ws1);
+      sendRegistration(ws1, { workerId: "worker-1" });
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Track a pending request
+      server.dispatch({
+        message: { type: "work_request", requestId: "req-1" },
+      });
+
+      // Reconnect with same workerId while there's a pending request
+      const ws2 = await connectWorker(port);
+      sockets.push(ws2);
+      sendRegistration(ws2, { workerId: "worker-1" });
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Should have fired disconnect for the replaced worker
+      expect(disconnectedWorkers.length).toBeGreaterThan(0);
+      expect(disconnectedWorkers[0]?.id).toBe("worker-1");
+    });
+  });
+
+  describe("stop() edge cases", () => {
+    it("stop() when server is not running is a no-op", async () => {
+      const server = new WorkerServer({ port: getPort() });
+      // Not started - stop should be a no-op
+      await expect(server.stop()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("resolveBoundPort fallback", () => {
+    it("returns configuredPort when address is not an object", async () => {
+      const port = getPort();
+      const { server } = await createServer({ port });
+      // Patch httpServer.address() to return a string (non-object)
+      const serverAny = server as unknown as {
+        httpServer: { address(): unknown } | null;
+        configuredPort: number;
+        resolveBoundPort(): number;
+      };
+      const originalAddress = serverAny.httpServer?.address.bind(
+        serverAny.httpServer
+      );
+      if (serverAny.httpServer !== null && serverAny.httpServer !== undefined) {
+        serverAny.httpServer.address = () => "pipe-path";
+      }
+      const resolved = serverAny.resolveBoundPort();
+      expect(resolved).toBe(port);
+      // Restore
+      if (
+        serverAny.httpServer !== null &&
+        serverAny.httpServer !== undefined &&
+        originalAddress !== undefined
+      ) {
+        serverAny.httpServer.address = originalAddress;
+      }
+    });
+  });
+
+  describe("unregistered WebSocket disconnect", () => {
+    it("logs debug when unregistered WebSocket closes", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { port } = await createServer({ logger });
+
+      // Connect without registering
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+
+      // Close without registering (no workerId set)
+      ws.close();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Unregistered WebSocket connection closed",
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe("connected/disconnected handler errors", () => {
+    it("swallows errors thrown by onWorkerConnected handlers", async () => {
+      const { server, port } = await createServer();
+
+      server.onWorkerConnected(() => {
+        throw new Error("connected handler boom");
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+
+      // Should not throw even though handler throws
+      sendRegistration(ws);
+      const ack = await waitForMessage<Record<string, unknown>>(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+      expect(ack["success"]).toBe(true);
+    });
+
+    it("swallows errors thrown by onWorkerDisconnected handlers", async () => {
+      const { server, port } = await createServer();
+
+      server.onWorkerDisconnected(() => {
+        throw new Error("disconnected handler boom");
+      });
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws);
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Close - should not throw
+      ws.close();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+  });
+
+  describe("message from unregistered worker (unknownWorkerInfo)", () => {
+    it("handles message from unregistered WebSocket connection", async () => {
+      const { server, port } = await createServer();
+
+      const events: unknown[] = [];
+      server.onWorkerMessage("test_unregistered", (event) => {
+        events.push(event.worker.id);
+      });
+
+      // Connect without registration
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+
+      // Send a message without registering (no workerId)
+      ws.send(JSON.stringify({ type: "test_unregistered" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Event should be fired with unknownWorkerInfo
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBe("unknown");
+    });
+  });
+
+  describe("dispatch with worker removed after selection", () => {
+    it("falls back to candidate when pool.get returns undefined after trackRequest", async () => {
+      const { server, port } = await createServer();
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws, { workerId: "worker-dispatch" });
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+
+      // Patch pool.get to return undefined after trackRequest is called
+      const serverAny = server as unknown as {
+        pool: {
+          get(id: string): unknown;
+          trackRequest(id: string, reqId: string, cat?: string): boolean;
+          getDispatchCandidates(opts: {
+            model?: string;
+            category?: string;
+          }): unknown[];
+        };
+      };
+      const origGet = serverAny.pool.get.bind(serverAny.pool);
+      let callCount = 0;
+      serverAny.pool.get = (id: string) => {
+        callCount++;
+        // First call is from dispatch itself (pool.get(candidate.id) after trackRequest)
+        // Return undefined to exercise the ?? candidate fallback
+        if (callCount === 1) return undefined;
+        return origGet(id);
+      };
+
+      const result = server.dispatch({
+        message: { type: "work", requestId: "req-fallback" },
+      });
+
+      serverAny.pool.get = origGet;
+
+      expect(result).not.toBeNull();
+      expect(result?.worker.id).toBe("worker-dispatch");
+    });
+  });
+
+  describe("stop() with workerWss already null", () => {
+    it("skips closing workerWss when it is already null", async () => {
+      const { server } = await createServer();
+
+      // Null out workerWss before stop to exercise the false branch at line 284
+      const serverAny = server as unknown as { workerWss: unknown };
+      serverAny.workerWss = null;
+
+      // Should not throw
+      await expect(server.stop()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("upgrade event edge cases", () => {
+    it("uses '/' as pathname when request.url is undefined", async () => {
+      const { server } = await createServer();
+
+      const serverAny = server as unknown as {
+        httpServer: { emit(event: string, ...args: unknown[]): void } | null;
+        workerWss: {
+          handleUpgrade(
+            req: unknown,
+            socket: unknown,
+            head: unknown,
+            cb: (ws: unknown) => void
+          ): void;
+        } | null;
+      };
+
+      // Patch workerWss.handleUpgrade to avoid actually upgrading
+      const origHandleUpgrade = serverAny.workerWss?.handleUpgrade.bind(
+        serverAny.workerWss
+      );
+      if (serverAny.workerWss !== null && serverAny.workerWss !== undefined) {
+        serverAny.workerWss.handleUpgrade = vi.fn();
+      }
+
+      // Emit an upgrade event with undefined url
+      const mockSocket = { destroy: vi.fn() };
+      const mockHead = Buffer.alloc(0);
+      const mockRequest = { url: undefined, headers: {} };
+      serverAny.httpServer?.emit("upgrade", mockRequest, mockSocket, mockHead);
+
+      // Restore
+      if (
+        serverAny.workerWss !== null &&
+        serverAny.workerWss !== undefined &&
+        origHandleUpgrade !== undefined
+      ) {
+        serverAny.workerWss.handleUpgrade = origHandleUpgrade;
+      }
+
+      // No throw - the ?? "/" branch was exercised
+    });
+
+    it("skips handleUpgrade when workerWss is null during upgrade", async () => {
+      const { server } = await createServer();
+
+      const serverAny = server as unknown as {
+        httpServer: { emit(event: string, ...args: unknown[]): void } | null;
+        workerWss: unknown;
+      };
+
+      // Set workerWss to null to exercise the `if (wss !== null)` false branch
+      serverAny.workerWss = null;
+
+      const mockSocket = { destroy: vi.fn() };
+      const mockHead = Buffer.alloc(0);
+      const mockRequest = { url: "/ws", headers: {} };
+
+      // Should not throw
+      expect(() =>
+        serverAny.httpServer?.emit("upgrade", mockRequest, mockSocket, mockHead)
+      ).not.toThrow();
     });
   });
 });

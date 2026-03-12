@@ -336,4 +336,234 @@ describe("watch", () => {
 
     watcher.stop();
   });
+
+  it("returns currentValue when stopped during an in-flight read", async () => {
+    let resolveRead!: (value: string) => void;
+    const read = vi.fn().mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+    const onChange = vi.fn();
+    const watchPromise = watch({ read, onChange, everyMs: 1000 });
+
+    // Stop while read is in-flight, then let the read resolve
+    // We need to use real watcher internals - create a watcher, stop it, then resolve
+    // Since watch() awaits start() which awaits refresh(), we need to stop mid-flight
+    // The Watcher.stop() is called after read() resolves, which marks stopped=true
+    // then readCurrentValue checks if stopped and returns currentValue (line 84)
+
+    // Trick: resolve the read after stopping. We can't get the watcher until
+    // the watchPromise resolves, but we can stop it and then resolve.
+    // Instead: trigger a second read via interval, stop, let that read resolve.
+    resolveRead("initial");
+    const watcher = await watchPromise;
+
+    // Now trigger another in-flight read via interval
+    let resolveSecond!: (value: string) => void;
+    read.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveSecond = resolve;
+        })
+    );
+
+    await vi.advanceTimersByTimeAsync(1000);
+    // read is in-flight; stop the watcher, then resolve the read
+    watcher.stop();
+    resolveSecond("second");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // After stopping, currentValue should still be "initial"
+    expect(watcher.current).toBe("initial");
+  });
+
+  it("JSON.stringify fallback for non-plain objects (class instances) returns true for same JSON", async () => {
+    // Non-plain objects (class instances) with matching JSON representations
+    class MyClass {
+      constructor(public val: number) {}
+      toJSON() {
+        return { val: this.val };
+      }
+    }
+    let callCount = 0;
+    const read = vi.fn().mockImplementation(async () => {
+      callCount++;
+      return new MyClass(callCount <= 2 ? 1 : 2);
+    });
+    const onChange = vi.fn();
+    const watcher = await watch({ read, onChange, everyMs: 1000 });
+
+    // First call triggered onChange (MyClass(1) vs undefined)
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    // Second call: same JSON, onChange should NOT fire (hits try{JSON.stringify} branch)
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    // Third call: different value, onChange fires
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    watcher.stop();
+  });
+
+  it("JSON.stringify fallback returns false for non-stringify-able values", async () => {
+    // Circular objects throw on JSON.stringify - need non-plain, non-primitive objects
+    // to hit the try/catch branch (lines 135-138)
+    class Unserializable {
+      toJSON() {
+        throw new Error("cannot serialize");
+      }
+    }
+
+    let count2 = 0;
+    const read2 = vi.fn().mockImplementation(async () => {
+      count2++;
+      return new Unserializable();
+    });
+    const onChange2 = vi.fn();
+    const watcher2 = await watch({
+      read: read2,
+      onChange: onChange2,
+      everyMs: 1000,
+    });
+    // First read: b=undefined -> isPrimitive(undefined)=true -> returns false -> onChange called
+    // Second read: a=Unserializable, b=Unserializable (not same reference)
+    //   Object.is(a,b) = false
+    //   isPrimitive(a) = false, isPrimitive(b) = false, b !== undefined
+    //   isPlainObjectOrArray(a) = false (has non-Object.prototype)
+    //   So: try { JSON.stringify } -> throws -> catch return false -> onChange called
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange2).toHaveBeenCalledTimes(2); // both reads trigger onChange
+
+    watcher2.stop();
+  });
+
+  it("isPlainObjectOrArray returns false for null-typed non-array non-object", async () => {
+    // Cover: isPrimitive path for b=undefined already covered.
+    // Cover deepEqual: different object entry counts (line 186)
+    let callCount = 0;
+    const read = vi.fn().mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { a: 1 };
+      return { a: 1, b: 2 }; // different number of keys
+    });
+    const onChange = vi.fn();
+    const watcher = await watch({ read, onChange, everyMs: 1000 });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    watcher.stop();
+  });
+
+  it("deepEqual returns false when key missing in b (line 191)", async () => {
+    // Objects with same number of entries but different keys
+    let callCount = 0;
+    const read = vi.fn().mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { a: 1 };
+      // Same number of entries but different key - this is actually covered by entry count check
+      // To hit line 191 (key not in b), we need same-count but different keys
+      // We achieve this by using Object.create(null) trick or just different keys
+      return Object.fromEntries([["b", 1]]); // same size, different key
+    });
+    const onChange = vi.fn();
+    const watcher = await watch({ read, onChange, everyMs: 1000 });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    watcher.stop();
+  });
+
+  it("does not set up interval timer when stopped during initial refresh (line 44 false branch)", async () => {
+    // To cover the false branch of `if (!this.stopped)` at line 44 in start(),
+    // we need this.stopped === true AFTER refresh() completes but BEFORE line 44 runs.
+    // The Watcher class is not exported, but we can access its prototype via an instance.
+    // Strategy: spy on the prototype's refresh() to call this.stop() after each refresh,
+    // so that when start() checks this.stopped at line 44, it finds true.
+    const tempWatcher = await watch({
+      read: vi.fn().mockResolvedValue("tmp"),
+      onChange: vi.fn(),
+      everyMs: 1000,
+    });
+    tempWatcher.stop();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const watcherProto = Object.getPrototypeOf(tempWatcher) as Record<
+      string,
+      any
+    >;
+    const originalRefresh = watcherProto.refresh as () => Promise<unknown>;
+
+    // Wrap refresh() to call stop() on the watcher after the initial read completes.
+    // This causes this.stopped=true so that start() skips setInterval at line 44.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const refreshSpy = vi
+      .spyOn(watcherProto, "refresh")
+      .mockImplementation(async function (this: any) {
+        const result = await originalRefresh.call(this);
+        this.stop();
+        return result;
+      });
+
+    const read = vi.fn().mockResolvedValue("value");
+    const watcher = await watch({ read, onChange: vi.fn(), everyMs: 1000 });
+
+    refreshSpy.mockRestore();
+
+    // No interval was set up (stopped=true at line 44), so advancing time triggers no reads
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(watcher.current).toBe("value");
+  });
+
+  it("isPlainObjectOrArray returns true for arrays (line 152 - Array.isArray branch)", async () => {
+    // When both current and previous are arrays, isPlainObjectOrArray is called with arrays
+    // This hits line 152: return true in isPlainObjectOrArray
+    let callCount = 0;
+    const read = vi.fn().mockImplementation(async () => {
+      callCount++;
+      return callCount <= 2 ? [1, 2, 3] : [1, 2, 4];
+    });
+    const onChange = vi.fn();
+    const watcher = await watch({ read, onChange, everyMs: 1000 });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(1); // same array content
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2); // different array
+
+    watcher.stop();
+  });
+
+  it("isPlainObjectOrArray handles null prototype objects", async () => {
+    // Object.create(null) has null prototype - should be treated as plain
+    let callCount = 0;
+    const read = vi.fn().mockImplementation(async () => {
+      callCount++;
+      const obj = Object.create(null) as Record<string, number>;
+      obj["x"] = callCount <= 2 ? 1 : 2;
+      return obj;
+    });
+    const onChange = vi.fn();
+    const watcher = await watch({ read, onChange, everyMs: 1000 });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(1); // same value, no change
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2); // changed
+
+    watcher.stop();
+  });
 });
