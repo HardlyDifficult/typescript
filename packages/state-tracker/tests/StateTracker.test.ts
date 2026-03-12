@@ -1119,6 +1119,39 @@ describe("StateTracker", () => {
       // Falls to line 324: return structuredClone(defaultValue) = 99
       expect(tracker.state).toBe(99);
     });
+
+    it("returns default when envelope value is undefined (line 306) via JSON.parse mock", async () => {
+      // Line 306 is reached when: "value" in envelope && envelope.value === undefined
+      // Standard JSON.parse cannot produce this state, so we mock JSON.parse temporarily
+      const originalParse = JSON.parse.bind(JSON);
+      const parseSpy = vi
+        .spyOn(JSON, "parse")
+        .mockImplementationOnce((_text: string) => {
+          // Return an object where "value" is present but undefined
+          const result: Record<string, unknown> = { lastUpdated: "now" };
+          result["value"] = undefined;
+          return result;
+        });
+
+      const storage: StateStorage = {
+        async read() {
+          return '{"value":null,"lastUpdated":"now"}'; // actual string (will be replaced by mock)
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "undefined-value-envelope",
+        default: { x: 99 },
+        storage,
+      });
+
+      await tracker.loadAsync();
+
+      parseSpy.mockRestore();
+      // envelope.value === undefined → returns structuredClone(defaultValue)
+      expect(tracker.state).toEqual({ x: 99 });
+    });
   });
 
   describe("migration failure (lines 271-280)", () => {
@@ -1202,6 +1235,84 @@ describe("StateTracker", () => {
 
       const warnEvent = events.find((e) => e.level === "warn");
       expect(warnEvent?.context?.["migration"]).toBe("anonymous");
+    });
+
+    it("uses anonymous name for successful migration without name (line 267 ?? branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-success-anon",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      const fsMod = await import("fs");
+      const pathMod = await import("path");
+      fsMod.writeFileSync(
+        pathMod.join(testDir, "migration-success-anon.json"),
+        JSON.stringify({ offset: 10 }),
+        "utf-8"
+      );
+
+      const anonSuccessMigration = defineStateMigration<
+        { cursor: number },
+        { offset: number }
+      >({
+        // no name - triggers ?? "anonymous" branch at line 267
+        isLegacy(input): input is { offset: number } {
+          if (input === null || typeof input !== "object") return false;
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(legacy) {
+          return { cursor: legacy.offset };
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [anonSuccessMigration] });
+      expect(tracker.state).toEqual({ cursor: 10 });
+
+      const infoEvent = events.find((e) => e.level === "info" && e.message.includes("Migrated"));
+      expect(infoEvent?.context?.["migration"]).toBe("anonymous");
+    });
+
+    it("handles non-Error thrown by migration (line 271 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const tracker = new StateTracker({
+        key: "migration-string-throw",
+        default: { cursor: 0 },
+        stateDirectory: testDir,
+        onEvent: (e) => events.push(e),
+      });
+
+      const fsMod = await import("fs");
+      const pathMod = await import("path");
+      fsMod.writeFileSync(
+        pathMod.join(testDir, "migration-string-throw.json"),
+        JSON.stringify({ offset: 5 }),
+        "utf-8"
+      );
+
+      const stringThrowMigration = defineStateMigration<
+        { cursor: number },
+        { offset: number }
+      >({
+        name: "string-throw",
+        isLegacy(input): input is { offset: number } {
+          if (input === null || typeof input !== "object") return false;
+          return typeof (input as Record<string, unknown>).offset === "number";
+        },
+        migrate(_legacy) {
+          // Throw a non-Error value to hit String(err) branch at line 271
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "migration failed as string";
+        },
+      });
+
+      await tracker.loadAsync({ migrations: [stringThrowMigration] });
+      expect(tracker.state).toEqual({ cursor: 0 }); // falls back to default
+
+      const warnEvent = events.find((e) => e.level === "warn");
+      expect(warnEvent?.context?.["error"]).toBe("migration failed as string");
     });
 
     it("returns undefined when no migration matches (line 280)", async () => {
@@ -1399,6 +1510,60 @@ describe("StateTracker", () => {
       await tracker.saveAsync();
 
       expect(tracker.isPersistent).toBe(false);
+    });
+
+    it("handles non-Error thrown by storage read (line 360 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const storage: StateStorage = {
+        async read() {
+          // Throw a non-Error to hit String(err) at line 360
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "connection refused";
+        },
+        async write() {},
+      };
+
+      const tracker = new StateTracker({
+        key: "read-string-throw",
+        default: { x: 1 },
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+
+      const warnEvent = events.find((e) => e.level === "warn" && e.message.includes("unavailable"));
+      expect(warnEvent?.context?.["error"]).toBe("connection refused");
+    });
+
+    it("handles non-Error thrown by storage write (line 388 String(err) branch)", async () => {
+      const events: StateTrackerEvent[] = [];
+      const storage: StateStorage = {
+        async read() {
+          return null;
+        },
+        async write() {
+          // Throw a non-Error to hit String(err) at line 388
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "write failed";
+        },
+      };
+
+      const tracker = await StateTracker.open({
+        key: "write-string-throw",
+        default: { count: 0 },
+        storage,
+        onEvent: (e) => events.push(e),
+      });
+
+      tracker.set({ count: 5 });
+      await tracker.saveAsync();
+
+      expect(tracker.isPersistent).toBe(false);
+
+      const errorEvent = events.find((e) => e.level === "error" && e.message.includes("Failed"));
+      expect(errorEvent?.context?.["error"]).toBe("write failed");
     });
   });
 });

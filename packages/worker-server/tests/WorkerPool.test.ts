@@ -300,4 +300,108 @@ describe("WorkerPool", () => {
       expect(pool.getCount()).toBe(0);
     });
   });
+
+  describe("releaseRequest edge cases", () => {
+    it("returns false when no worker has the request", () => {
+      pool.add(createWorker());
+      expect(pool.releaseRequest("nonexistent-req")).toBe(false);
+    });
+
+    it("keeps category count non-zero when multiple requests share a category", () => {
+      pool.add(createWorker());
+      pool.trackRequest("worker-1", "req-1", "local");
+      pool.trackRequest("worker-1", "req-2", "local");
+      pool.releaseRequest("req-1");
+
+      // Category count should now be 1 (not deleted)
+      const worker = pool.get("worker-1")!;
+      expect(worker.categoryActiveRequests.get("local")).toBe(1);
+    });
+  });
+
+  describe("send edge cases", () => {
+    it("returns false when websocket is not open", () => {
+      const ws = {
+        readyState: WebSocket.CLOSED,
+        send: vi.fn(),
+        close: vi.fn(),
+      } as unknown as WebSocket;
+      pool.add(createWorker({ websocket: ws }));
+      expect(pool.send("worker-1", { type: "test" })).toBe(false);
+      expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it("returns false when send throws", () => {
+      const ws = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn(() => {
+          throw new Error("boom");
+        }),
+        close: vi.fn(),
+      } as unknown as WebSocket;
+      pool.add(createWorker({ websocket: ws }));
+      expect(pool.send("worker-1", { type: "test" })).toBe(false);
+    });
+  });
+
+  describe("broadcast edge cases", () => {
+    it("skips workers whose websocket is not open", () => {
+      const openWs = createMockSocket();
+      const closedWs = {
+        readyState: WebSocket.CLOSED,
+        send: vi.fn(),
+        close: vi.fn(),
+      } as unknown as WebSocket;
+
+      pool.add(createWorker({ id: "open-worker", websocket: openWs }));
+      pool.add(createWorker({ id: "closed-worker", websocket: closedWs }));
+
+      pool.broadcast({ type: "ping" });
+
+      expect(openWs.send).toHaveBeenCalled();
+      expect(closedWs.send).not.toHaveBeenCalled();
+    });
+
+    it("swallows errors thrown by individual worker sends", () => {
+      const throwingWs = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn(() => {
+          throw new Error("send failed");
+        }),
+        close: vi.fn(),
+      } as unknown as WebSocket;
+
+      pool.add(createWorker({ websocket: throwingWs }));
+      expect(() => pool.broadcast({ type: "ping" })).not.toThrow();
+    });
+  });
+
+  describe("getAvailableSlotCount with non-available workers", () => {
+    it("skips workers that are not Available", () => {
+      pool.add(createWorker({ status: WorkerStatus.Busy }));
+      expect(pool.getAvailableSlotCount("test-model")).toBe(0);
+    });
+  });
+
+  describe("checkHealth with already unhealthy worker", () => {
+    it("does not log again for already unhealthy workers", () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const warnPool = new WorkerPool(logger);
+      const veryStale = new Date(Date.now() - 200_000);
+      const worker = createWorker({
+        lastHeartbeat: veryStale,
+        status: WorkerStatus.Unhealthy,
+      });
+      warnPool.add(worker);
+
+      // Should not log again since already unhealthy
+      warnPool.checkHealth(60_000);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
 });

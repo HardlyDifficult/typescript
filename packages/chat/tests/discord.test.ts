@@ -3407,4 +3407,3 @@ describe("DiscordChatClient", () => {
     });
   });
 });
-});
