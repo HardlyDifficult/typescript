@@ -49,12 +49,13 @@ describe("CLI entry points (require.main === module)", () => {
     expect(result.stderr).toContain("auto-commit-fixes failed");
   });
 
-  it("auto-commit-fixes.js exits 1 with BRANCH set but no git repo", () => {
+  it("auto-commit-fixes.js exits with non-null status when BRANCH set", () => {
     const result = runScript("auto-commit-fixes.js", [], {
       BRANCH: "main",
     });
-    // Should exit 1 (git fails) or succeed with no changes
-    expect(typeof result.status).toBe("number");
+    // git status --short will run; status may be 0 (no changes) or 1 (error)
+    // but it will not be null (no timeout)
+    expect(result.status).not.toBeNull();
   });
 
   it("check-package-metadata.js exits without crashing", () => {

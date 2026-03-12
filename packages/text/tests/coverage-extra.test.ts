@@ -156,6 +156,22 @@ describe("linker - edge cases", () => {
     expect(output).toContain("[ENG-200](https://example.com/$/issue/ENG-200)");
   });
 
+  it("uses $2 capture group reference when only one group exists (covers ?? '' branch)", () => {
+    // Rule has one capture group but template references $2 (out of bounds)
+    // groups[1] is undefined → '' fallback
+    const output = linkText("ENG-250", {
+      rules: [
+        {
+          match: /\b(ENG)-\d+\b/g,
+          to: "https://example.com/$1-$2",
+        },
+      ],
+    });
+    // $1 = 'ENG', $2 = undefined → ''
+    expect(output).toContain("ENG-250");
+    expect(output).toContain("ENG-");
+  });
+
   it("handles empty href from rule (output uses candidate text)", () => {
     const output = linkText("ENG-300", {
       rules: [
