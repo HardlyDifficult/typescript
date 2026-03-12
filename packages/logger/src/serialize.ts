@@ -136,8 +136,6 @@ function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
       return undefined;
     case "object":
       break;
-    default:
-      return undefined;
   }
 
   if (value instanceof Date) {

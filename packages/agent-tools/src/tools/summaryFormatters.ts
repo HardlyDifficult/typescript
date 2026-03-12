@@ -205,7 +205,7 @@ function formatWriteFileSummary(
     if (parsed.chars !== undefined) {
       return `Tool: write_file(${parsed.filename}) - ${formatBytes(parsed.chars)}`;
     }
-    if (parsed.lines !== undefined && parsed.lines !== "") {
+    if (parsed.lines !== undefined) {
       return `Tool: write_file(${parsed.filename}) - lines ${parsed.lines}`;
     }
   }
@@ -304,7 +304,7 @@ function formatCommitSummary(
     return `Tool: commit - no changes`;
   }
 
-  const lastLine = output.split("\n").at(-1) ?? "";
+  const lastLine = output.split("\n").at(-1)!;
   const filesMatch = /^(\d+) files?:/.exec(lastLine);
   if (filesMatch) {
     return `Tool: commit("${title}") - ${filesMatch[1]} files`;

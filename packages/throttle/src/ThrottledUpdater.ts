@@ -50,9 +50,6 @@ export function createThrottledUpdater(
   let stopped = false;
 
   const doUpdate = async (text: string): Promise<void> => {
-    if (stopped) {
-      return;
-    }
     lastUpdateTime = Date.now();
     pendingText = null;
     try {
