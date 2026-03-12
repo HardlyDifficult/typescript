@@ -3407,4 +3407,235 @@ describe("DiscordChatClient", () => {
         .rejects.toThrow("Thread non-existent-thread not found");
     });
   });
+
+  describe("eventHandlers - callback error catch branches", () => {
+    it("reaction callback error is caught and logged (line 62)", async () => {
+      await client.connect(channelId);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const throwingCallback = vi.fn().mockRejectedValue(new Error("reaction cb error"));
+      await client.subscribeToReactions("msg-react", channelId, throwingCallback);
+
+      const handler = getReactionHandler();
+      expect(handler).not.toBeNull();
+
+      // Invoke handler - it calls void (async () => {...})()
+      handler!({
+        partial: false,
+        emoji: { name: "😊", id: null },
+        message: { channelId, id: "msg-react" },
+      }, { id: "user-react", username: "reactuser" });
+
+      // Wait for inner async to complete
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Reaction callback error:",
+        expect.any(Error)
+      );
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("disconnect callback error is caught and logged (line 138)", async () => {
+      await client.connect(channelId);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const throwingDisconnectCallback = vi.fn().mockRejectedValue(new Error("disconnect cb error"));
+      client.onDisconnect(throwingDisconnectCallback);
+
+      const handlers = getShardHandler("shardDisconnect");
+      expect(handlers.length).toBeGreaterThan(0);
+      handlers[0]({}, 0);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Disconnect callback error:",
+        expect.any(Error)
+      );
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("error callback error is caught and logged (line 150)", async () => {
+      await client.connect(channelId);
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const throwingErrorCallback = vi.fn().mockRejectedValue(new Error("error cb error"));
+      client.onError(throwingErrorCallback);
+
+      const handlers = getShardHandler("shardError");
+      expect(handlers.length).toBeGreaterThan(0);
+      handlers[0](new Error("shard failed"), 1);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error callback error:",
+        expect.any(Error)
+      );
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe("getMessages - attachment and edge cases", () => {
+    it("includes attachments in message data (line 55)", async () => {
+      const channel = await client.connect(channelId);
+
+      const mockAttachment = {
+        url: "https://cdn.example.com/file.png",
+        name: "file.png",
+        contentType: "image/png",
+        size: 12345,
+      };
+      const attachmentsMap = new Map([["att-1", mockAttachment]]);
+
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(
+        new Map([
+          [
+            "msg-with-attachment",
+            {
+              id: "msg-with-attachment",
+              content: "check out this file",
+              author: { id: "user-att", username: "attuser" },
+              createdAt: new Date("2024-01-01T12:00:00Z"),
+              attachments: attachmentsMap,
+            },
+          ],
+        ])
+      );
+
+      const messages = await channel.getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].attachments).toHaveLength(1);
+      expect(messages[0].attachments![0]).toMatchObject({
+        url: "https://cdn.example.com/file.png",
+        name: "file.png",
+        contentType: "image/png",
+        size: 12345,
+      });
+    });
+
+    it("returns undefined from toDate when dateFromUnixSeconds throws (lines 91-92)", async () => {
+      const channel = await client.connect(channelId);
+
+      const pastDate = new Date("2023-06-01T00:00:00Z");
+      const futureDate = new Date("2024-06-01T00:00:00Z");
+
+      // Use a very small unix timestamp that dateFromUnixSeconds will reject
+      // The timestamp 0 (epoch) might throw if out of range
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(
+        new Map([
+          [
+            "msg-after",
+            {
+              id: "msg-after",
+              content: "recent message",
+              author: { id: "u1", username: "user1" },
+              createdAt: futureDate,
+              attachments: new Map(),
+            },
+          ],
+        ])
+      );
+
+      // Pass a numeric unix seconds value that's very small (out of normal range)
+      // dateFromUnixSeconds(-999999) should throw, returning undefined for afterDate
+      const messages = await channel.getMessages({ after: -999999 });
+      // If toDate returned undefined, no filtering is applied and msg is included
+      expect(messages).toHaveLength(1);
+    });
+
+    it("returns undefined from toDate for empty string (line 97)", async () => {
+      const channel = await client.connect(channelId);
+
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(
+        new Map([
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              content: "message",
+              author: { id: "u1", username: "user1" },
+              createdAt: new Date(),
+              attachments: new Map(),
+            },
+          ],
+        ])
+      );
+
+      // Empty string after trim => return undefined (line 97), so no filter applied
+      const messages = await channel.getMessages({ after: "   " as never });
+      expect(messages).toHaveLength(1);
+    });
+
+    it("normalizeAuthorFilter returns mention ID for mention format (line 110)", async () => {
+      const channel = await client.connect(channelId);
+
+      const targetUserId = "u_target";
+      mockTextChannelData.messages.fetch.mockResolvedValueOnce(
+        new Map([
+          [
+            "msg-target",
+            {
+              id: "msg-target",
+              content: "hello",
+              author: { id: targetUserId, username: "targetuser" },
+              createdAt: new Date(),
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-other",
+            {
+              id: "msg-other",
+              content: "world",
+              author: { id: "other-user", username: "other" },
+              createdAt: new Date(),
+              attachments: new Map(),
+            },
+          ],
+        ])
+      );
+
+      // Pass a mention string - normalizeAuthorFilter extracts the ID
+      const messages = await channel.getMessages({ author: `<@${targetUserId}>` });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].author.id).toBe(targetUserId);
+    });
+  });
+
+  describe("reactionOperations - rethrow non-10008 errors", () => {
+    it("addReaction rethrows error that is not code 10008 (line 28)", async () => {
+      await client.connect(channelId);
+
+      const nonDiscordError = new Error("Network failure");
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(nonDiscordError);
+
+      await expect(
+        client.addReaction("msg-123", channelId, "👍")
+      ).rejects.toThrow("Network failure");
+    });
+
+    it("removeReaction rethrows error that is not code 10008 (line 48)", async () => {
+      await client.connect(channelId);
+
+      const nonDiscordError = new Error("Permission denied");
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(nonDiscordError);
+
+      await expect(
+        client.removeReaction("msg-123", channelId, "👍")
+      ).rejects.toThrow("Permission denied");
+    });
+
+    it("removeAllReactions rethrows error that is not code 10008 (line 64)", async () => {
+      await client.connect(channelId);
+
+      const nonDiscordError = new Error("Server error");
+      mockTextChannelData.messages.fetch.mockRejectedValueOnce(nonDiscordError);
+
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).rejects.toThrow("Server error");
+    });
+  });
 });

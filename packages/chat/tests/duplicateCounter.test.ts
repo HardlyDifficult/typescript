@@ -163,6 +163,36 @@ describe("tryDeduplicateMessage", () => {
 
     expect(getMessages).toHaveBeenCalledWith({ limit: 1, author: "me" });
   });
+
+  it("returns null when last message has empty content", async () => {
+    const lastMsg: MessageData = {
+      id: "msg-1",
+      channelId: "ch-1",
+      platform: "slack",
+      content: "",
+    };
+    const result = await tryDeduplicateMessage(
+      "hello",
+      vi.fn().mockResolvedValue([lastMsg]),
+      vi.fn()
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when last message has undefined content", async () => {
+    const lastMsg: MessageData = {
+      id: "msg-2",
+      channelId: "ch-1",
+      platform: "slack",
+      // content is intentionally omitted (undefined)
+    };
+    const result = await tryDeduplicateMessage(
+      "hello",
+      vi.fn().mockResolvedValue([lastMsg]),
+      vi.fn()
+    );
+    expect(result).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

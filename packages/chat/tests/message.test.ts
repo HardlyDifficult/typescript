@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, type Mock } from "vitest";
 import { Message, ReplyMessage } from "../src/Message.js";
 import type { MessageOperations } from "../src/Message.js";
+import { PendingMessage } from "../src/PendingMessage.js";
 
 describe("Message", () => {
   const createMockOperations = (): MessageOperations => ({
@@ -657,5 +658,107 @@ describe("Message", () => {
         1440
       );
     });
+  });
+});
+
+describe("ReplyMessage - override methods", () => {
+  const createMockOperations = (): MessageOperations => ({
+    addReaction: vi.fn().mockResolvedValue(undefined),
+    removeReaction: vi.fn().mockResolvedValue(undefined),
+    removeAllReactions: vi.fn().mockResolvedValue(undefined),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    reply: vi.fn().mockResolvedValue({
+      id: "reply-999",
+      channelId: "ch-x",
+      platform: "slack" as const,
+    }),
+    subscribeToReactions: vi.fn().mockReturnValue(() => {}),
+    startThread: vi.fn().mockResolvedValue({
+      id: "thread-1",
+      channelId: "ch-x",
+      platform: "slack" as const,
+    }),
+  });
+
+  it("removeReactions queues after reply resolves", async () => {
+    const ops = createMockOperations();
+    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const replyMsg = msg.reply("hello") as ReplyMessage;
+    replyMsg.removeReactions(["👍"]);
+    await replyMsg.waitForReactions();
+    expect(ops.removeReaction).toHaveBeenCalledWith("reply-999", "ch-x", "👍");
+  });
+
+  it("removeAllReactions queues after reply resolves", async () => {
+    const ops = createMockOperations();
+    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const replyMsg = msg.reply("hello") as ReplyMessage;
+    replyMsg.removeAllReactions();
+    await replyMsg.waitForReactions();
+    expect(ops.removeAllReactions).toHaveBeenCalledWith("reply-999", "ch-x");
+  });
+
+  it("onReaction calls super directly when resolved=true", async () => {
+    const ops = createMockOperations();
+    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const replyMsg = msg.reply("hello") as ReplyMessage;
+    // Wait for resolution so resolved=true
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const handler = vi.fn();
+    // At this point resolved is true, so onReaction should call super directly
+    replyMsg.onReaction(handler);
+    expect(ops.subscribeToReactions).toHaveBeenCalledWith("reply-999", handler);
+  });
+
+  it("waitForReactions waits for both reply and reactions", async () => {
+    const ops = createMockOperations();
+    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const replyMsg = msg.reply("hello") as ReplyMessage;
+    replyMsg.addReactions(["🎉"]);
+    await replyMsg.waitForReactions();
+    expect(ops.addReaction).toHaveBeenCalledWith("reply-999", "ch-x", "🎉");
+  });
+});
+
+describe("PendingMessage - override methods", () => {
+  const createMockOperations = (): MessageOperations => ({
+    addReaction: vi.fn().mockResolvedValue(undefined),
+    removeReaction: vi.fn().mockResolvedValue(undefined),
+    removeAllReactions: vi.fn().mockResolvedValue(undefined),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    reply: vi.fn().mockResolvedValue({
+      id: "reply-x",
+      channelId: "ch-p",
+      platform: "slack" as const,
+    }),
+    subscribeToReactions: vi.fn().mockReturnValue(() => {}),
+    startThread: vi.fn().mockResolvedValue({
+      id: "thread-p",
+      channelId: "ch-p",
+      platform: "slack" as const,
+    }),
+  });
+
+  it("onReaction calls super directly when resolved=true", async () => {
+    const ops = createMockOperations();
+    const postData = { id: "post-1", channelId: "ch-p", platform: "slack" as const };
+    const pending = new PendingMessage(Promise.resolve(postData), ops, "slack");
+    // Wait for the postPromise .then() to run (resolved = true)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const handler = vi.fn();
+    pending.onReaction(handler);
+    // Should have called super.onReaction, which calls subscribeToReactions
+    expect(ops.subscribeToReactions).toHaveBeenCalledWith("post-1", handler);
+  });
+
+  it("waitForReactions waits for post and pending reactions", async () => {
+    const ops = createMockOperations();
+    const postData = { id: "post-2", channelId: "ch-p", platform: "slack" as const };
+    const pending = new PendingMessage(Promise.resolve(postData), ops, "slack");
+    pending.addReactions(["🚀"]);
+    await pending.waitForReactions();
+    expect(ops.addReaction).toHaveBeenCalledWith("post-2", "ch-p", "🚀");
   });
 });

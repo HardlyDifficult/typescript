@@ -113,4 +113,17 @@ describe("findBestMemberMatch", () => {
     const result = findBestMemberMatch([member], "smi");
     expect(result).toBe(member);
   });
+
+  it("skips alias with empty normalized value (mention that normalizes to empty)", () => {
+    // The member has a mention of "@---" which normalizes to "" (all non-alphanumeric)
+    // This exercises the `if (normalizedAlias === "") continue` branch (line 98)
+    const member = makeMember({
+      id: "u_test",
+      username: "testuser",
+      displayName: "Test User",
+      mention: "@---",
+    });
+    const result = findBestMemberMatch([member], "testuser");
+    expect(result).toBe(member);
+  });
 });

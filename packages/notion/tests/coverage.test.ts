@@ -781,6 +781,18 @@ describe("markdown/blocks.ts coverage", () => {
     }
   });
 
+  it("attachChildren to paragraph without existing children", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "paragraph",
+      paragraph: { rich_text: [] },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "paragraph") {
+      expect(block.paragraph.children).toHaveLength(1);
+    }
+  });
+
   it("attachChildren to numbered_list_item", () => {
     const block: NotionBlock = {
       object: "block",
@@ -1398,5 +1410,999 @@ describe("blocksToMarkdown (renderer) coverage", () => {
 
   it("returns empty string for empty blocks array", () => {
     expect(blocksToMd([])).toBe("");
+  });
+
+  it("renders code block with no language (undefined)", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "code",
+      code: {
+        rich_text: [{ type: "text", text: { content: "code" }, plain_text: "code", href: null }],
+        language: undefined as any,
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("```");
+  });
+
+  it("renders image with external url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "image",
+      image: {
+        type: "external",
+        external: { url: "https://example.com/img.png" },
+        caption: [],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("https://example.com/img.png");
+  });
+
+  it("renders image with no caption (undefined)", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "image",
+      image: {
+        type: "external",
+        external: { url: "https://example.com/img.png" },
+      } as any,
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("https://example.com/img.png");
+  });
+
+  it("renders synced_block with no children (undefined)", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "synced_block",
+      synced_block: {},
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("<synced_block>");
+    expect(md).toContain("</synced_block>");
+  });
+
+  it("renders file with external url and no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "file",
+      file: {
+        type: "external",
+        external: { url: "https://example.com/doc.pdf" },
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<file src="https://example.com/doc.pdf"');
+    expect(md).not.toContain("caption");
+  });
+
+  it("renders video with external url and no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "video",
+      video: {
+        type: "external",
+        external: { url: "https://example.com/vid.mp4" },
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<video src="https://example.com/vid.mp4"');
+    expect(md).not.toContain("caption");
+  });
+
+  it("renders audio with external url and no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "audio",
+      audio: {
+        type: "external",
+        external: { url: "https://example.com/sound.mp3" },
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<audio src="https://example.com/sound.mp3"');
+    expect(md).not.toContain("caption");
+  });
+
+  it("renders pdf with external url and no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "pdf",
+      pdf: {
+        type: "external",
+        external: { url: "https://example.com/doc.pdf" },
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<pdf src="https://example.com/doc.pdf"');
+    expect(md).not.toContain("caption");
+  });
+
+  it("renders bookmark with no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "bookmark",
+      bookmark: { url: "https://example.com" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<bookmark src="https://example.com"');
+    expect(md).not.toContain("caption");
+  });
+
+  it("renders embed with no caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "embed",
+      embed: { url: "https://example.com/embed" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<embed src="https://example.com/embed"');
+    expect(md).not.toContain("caption");
+  });
+});
+
+// ========================
+// NotionClient additional coverage
+// ========================
+describe("NotionClient additional coverage", () => {
+  it("archivePage with archived=false", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({ id: "page-123", url: "https://notion.so/page-123" })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.archivePage("page-123", false);
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.archived).toBe(false);
+  });
+
+  it("markdownToBlocks method on instance", () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    const blocks = client.markdownToBlocks("# Hello");
+    expect(blocks[0]?.type).toBe("heading_1");
+  });
+
+  it("blocksToMarkdown method on instance", () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    const blocks: NotionBlock[] = [{ object: "block", type: "divider", divider: {} }];
+    const md = client.blocksToMarkdown(blocks);
+    expect(md).toBe("---");
+  });
+
+  it("NotionClient.buildSectionBlocks static method", () => {
+    const blocks = NotionClient.buildSectionBlocks("My Section", "Body content here");
+    expect(blocks[0]?.type).toBe("heading_2");
+    expect(blocks[1]?.type).toBe("paragraph");
+  });
+
+  it("createPage with page draft using string markdown content triggers block conversion", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ id: "page-1", url: "" }))
+      .mockResolvedValue(makeJsonResponse({ results: [] }));
+
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    // page draft with content string on database parent -> legacy path
+    await client.createPage({
+      parent: notionParent.database("db-123"),
+      title: "My Page",
+      content: "# Hello World",
+    });
+
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("createPage with database parent and string content uses block conversion", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ id: "page-2", url: "" }))
+      .mockResolvedValue(makeJsonResponse({ results: [] }));
+
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    // database_id + string content -> block conversion path
+    await client.createPage(
+      notionParent.database("db-123"),
+      { Name: notionProperty.title("Title") },
+      "# Heading\n\nBody text"
+    );
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.children).toBeDefined();
+    expect(body.children[0]?.type).toBe("heading_1");
+  });
+
+  it("createPage page draft with content+blocks throws", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    await expect(
+      client.createPage({
+        parent: notionParent.page("p-1"),
+        content: "# text",
+        blocks: [{ object: "block", type: "divider", divider: {} }],
+      })
+    ).rejects.toThrow("Provide either content or blocks");
+  });
+
+  it("createPage with propertiesOrContent as renderable (no content arg)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ id: "page-3", url: "" }));
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.createPage(
+      notionParent.page("parent-123"),
+      { toMarkdown: () => "# Renderable" } as any
+    );
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.markdown).toBe("# Renderable");
+  });
+
+  it("createPage with array as second arg (content)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ id: "page-4", url: "" }));
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const blocks: NotionBlock[] = [{ object: "block", type: "divider", divider: {} }];
+    await client.createPage(notionParent.page("parent-123"), blocks as any);
+
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("createPageMarkdown uses markdown endpoint", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({ id: "page-md", url: "https://notion.so/page-md" })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.createPageMarkdown(
+      notionParent.page("parent-123"),
+      "# Hello\n\nBody text",
+      { Name: notionProperty.title("My Page") }
+    );
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.markdown).toBe("# Hello\n\nBody text");
+  });
+
+  it("getPageMeta uses modern API version", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        id: "page-123",
+        url: "https://notion.so/page-123",
+        properties: {},
+        object: "page",
+      })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const meta = await client.getPageMeta("page-123");
+    expect(meta.id).toBe("page-123");
+    expect(mockFetch.mock.calls[0]?.[1]?.headers?.["Notion-Version"]).toBe("2025-09-03");
+  });
+
+  it("getPageBlocks delegates to retrieveBlockChildren", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const blocks = await client.getPageBlocks("page-123");
+    expect(blocks).toEqual([]);
+  });
+
+  it("updatePageMarkdown normalizes legacy page response", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        markdown: "# Updated content",
+        truncated: false,
+        unknown_block_ids: [],
+      })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const result = await client.updatePageMarkdown("page-123", {
+      type: "insert_content",
+      insert_content: { content: "# New content" },
+    });
+
+    expect(result.object).toBe("page_markdown");
+    expect(result.markdown).toBe("# Updated content");
+  });
+
+  it("readPage with fallbackToBlocks=false does not fall back", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(makeJsonResponse({ message: "Unsupported version for markdown" }, 400));
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await expect(
+      client.readPage("page-123", { fallbackToBlocks: false })
+    ).rejects.toThrow("Notion API error 400");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("replacePageMarkdown with empty markdown uses insert_content", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "page",
+          id: "page-123",
+          url: "https://notion.so/page-123",
+          properties: {},
+          markdown: "",
+        })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "page_markdown",
+          id: "page-123",
+          markdown: "# New content",
+          truncated: false,
+          unknown_block_ids: [],
+        })
+      );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.replacePageMarkdown("page-123", "# New content");
+
+    const patchBody = JSON.parse(String(mockFetch.mock.calls[1]?.[1]?.body));
+    expect(patchBody.type).toBe("insert_content");
+  });
+
+  it("replacePageMarkdown with contentRange option", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "page_markdown",
+          id: "page-123",
+          markdown: "# Replaced",
+          truncated: false,
+          unknown_block_ids: [],
+        })
+      );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.updatePage("page-123", "# New content", {
+      replace: true,
+      contentRange: "# Start...# End",
+    });
+
+    const patchBody = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(patchBody.type).toBe("replace_content_range");
+    expect(patchBody.replace_content_range.content_range).toBe("# Start...# End");
+  });
+
+  it("updatePage with after option", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page_markdown",
+        id: "page-123",
+        markdown: "# Some content",
+        truncated: false,
+        unknown_block_ids: [],
+      })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.appendPageMarkdown("page-123", "## Added section", { after: "block-id" });
+
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
+    expect(body.insert_content.after).toBe("block-id");
+  });
+
+  it("readPage with includeTranscript option", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        url: "https://notion.so/page-123",
+        properties: {},
+        markdown: "# Content",
+        truncated: false,
+        unknown_block_ids: [],
+      })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.readPage("page-123", { includeTranscript: true });
+    expect(mockFetch.mock.calls[0]?.[0]).toContain("include_transcript=true");
+  });
+
+  it("getActivityFeed throws when since > until", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    const since = new Date("2026-03-12T12:00:00Z");
+    const until = new Date("2026-03-12T11:00:00Z");
+
+    await expect(
+      client.getActivityFeed({ since, until })
+    ).rejects.toThrow("`since` must be before or equal to `until`");
+  });
+
+  it("getActivityFeed with limit=0 returns empty", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    const result = await client.getActivityFeed({ limit: 0 });
+    expect(result).toEqual([]);
+  });
+
+  it("getActivityFeed with both include flags false returns empty", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    const result = await client.getActivityFeed({ includePages: false, includeComments: false });
+    expect(result).toEqual([]);
+  });
+
+  it("getActivityFeed filters pages with NaN lastEdited and future pages", async () => {
+    const now = Date.now();
+    const recentTime = new Date(now - 10 * 1000).toISOString();
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list",
+        has_more: false,
+        next_cursor: null,
+        results: [
+          {
+            object: "page", id: "page-bad", url: "",
+            last_edited_time: "not-a-date",
+            created_time: recentTime,
+            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "Bad" } }] } },
+          },
+          {
+            object: "page", id: "page-future", url: "",
+            last_edited_time: new Date(now + 10000).toISOString(),
+            created_time: recentTime,
+            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "Future" } }] } },
+          },
+        ],
+      })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const results = await client.getActivityFeed({ since: new Date(now - 60 * 1000) });
+    expect(results.filter(r => r.kind === "page")).toHaveLength(0);
+  });
+
+  it("getActivityFeed with includeComments=false skips comment fetching", async () => {
+    const now = Date.now();
+    const recentTime = new Date(now - 5 * 1000).toISOString();
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list",
+        has_more: false,
+        next_cursor: null,
+        results: [
+          {
+            object: "page", id: "page-1", url: "",
+            last_edited_time: recentTime, created_time: recentTime,
+            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
+          },
+        ],
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    const results = await client.getActivityFeed({
+      since: new Date(now - 60 * 1000),
+      includeComments: false,
+    });
+    expect(results.every(r => r.kind === "page")).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("getActivityFeed skips comments with null eventTime", async () => {
+    const now = Date.now();
+    const recentTime = new Date(now - 5 * 1000).toISOString();
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list", has_more: false, next_cursor: null,
+          results: [
+            {
+              object: "page", id: "page-1", url: "",
+              last_edited_time: recentTime, created_time: recentTime,
+              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list", has_more: false, next_cursor: null,
+          results: [
+            {
+              object: "comment", id: "c-null",
+              parent: { type: "page_id", page_id: "page-1" },
+            },
+          ],
+        })
+      );
+
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const results = await client.getActivityFeed({ since: new Date(now - 60 * 1000), includePages: false });
+    expect(results.filter(r => r.kind === "comment")).toHaveLength(0);
+  });
+
+  it("getActivityFeed skips comments with NaN timestamp", async () => {
+    const now = Date.now();
+    const recentTime = new Date(now - 5 * 1000).toISOString();
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list", has_more: false, next_cursor: null,
+          results: [
+            {
+              object: "page", id: "page-1", url: "",
+              last_edited_time: recentTime, created_time: recentTime,
+              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list", has_more: false, next_cursor: null,
+          results: [
+            {
+              object: "comment", id: "c-bad",
+              parent: { type: "page_id", page_id: "page-1" },
+              created_time: "not-a-date",
+              last_edited_time: "not-a-date",
+            },
+          ],
+        })
+      );
+
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const results = await client.getActivityFeed({ since: new Date(now - 60 * 1000) });
+    expect(results.filter(r => r.kind === "comment")).toHaveLength(0);
+  });
+
+  it("getActivityFeed sort tie-breaking uses eventId", async () => {
+    const now = Date.now();
+    const sameTime = new Date(now - 5 * 1000).toISOString();
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list", has_more: false, next_cursor: null,
+          results: [
+            {
+              object: "page", id: "page-a", url: "", last_edited_time: sameTime, created_time: sameTime,
+              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "A" } }] } },
+            },
+            {
+              object: "page", id: "page-b", url: "", last_edited_time: sameTime, created_time: sameTime,
+              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "B" } }] } },
+            },
+          ],
+        })
+      )
+      .mockResolvedValue(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const results = await client.getActivityFeed({ since: new Date(now - 60 * 1000) });
+    const pageResults = results.filter(r => r.kind === "page");
+    expect(pageResults).toHaveLength(2);
+    expect(pageResults[0]!.eventId < pageResults[1]!.eventId).toBe(true);
+  });
+
+  it("listComments with limit stops early", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list", has_more: false, next_cursor: null,
+        results: [
+          { object: "comment", id: "c1", parent: { type: "page_id", page_id: "p1" }, created_time: "2026-01-01", last_edited_time: "2026-01-01" },
+          { object: "comment", id: "c2", parent: { type: "page_id", page_id: "p1" }, created_time: "2026-01-02", last_edited_time: "2026-01-02" },
+          { object: "comment", id: "c3", parent: { type: "page_id", page_id: "p1" }, created_time: "2026-01-03", last_edited_time: "2026-01-03" },
+        ],
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    const comments = await client.listComments("p1", { limit: 2 });
+    expect(comments).toHaveLength(2);
+  });
+
+  it("searchPages stops at limit", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list", has_more: true, next_cursor: "cursor",
+        results: [
+          { object: "page", id: "p1", url: "", properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } } },
+          { object: "page", id: "p2", url: "", properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P2" } }] } } },
+        ],
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    const results = await client.searchPages("", { limit: 1 });
+    expect(results).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("getRecentlyModified skips pages with null lastEdited", async () => {
+    const now = Date.now();
+    const recentTime = new Date(now - 5 * 60 * 1000).toISOString();
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list", has_more: false, next_cursor: null,
+        results: [
+          {
+            object: "page", id: "no-edit", url: "",
+            last_edited_time: null, created_time: recentTime,
+            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "No Edit" } }] } },
+          },
+          {
+            object: "page", id: "has-edit", url: "",
+            last_edited_time: recentTime, created_time: recentTime,
+            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "With Edit" } }] } },
+          },
+        ],
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const results = await client.getRecentlyModified();
+    expect(results.some(p => p.id === "no-edit")).toBe(false);
+    expect(results.some(p => p.id === "has-edit")).toBe(true);
+  });
+
+  it("retrieveBlockChildren with pagination", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({ object: "list", has_more: true, next_cursor: "cursor-2",
+          results: [{ object: "block", id: "b1", type: "paragraph", paragraph: { rich_text: [] } }] })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+          results: [{ object: "block", id: "b2", type: "paragraph", paragraph: { rich_text: [] } }] })
+      );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+
+    const blocks = await client.retrieveBlockChildren("page-123");
+    expect(blocks).toHaveLength(2);
+  });
+
+  it("retrieveBlockChildren attaches children to various block types", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+          results: [
+            { object: "block", id: "b1", type: "bulleted_list_item", has_children: true, bulleted_list_item: { rich_text: [] } },
+          ] })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+          results: [{ object: "block", id: "inner", type: "paragraph", paragraph: { rich_text: [] } }] })
+      );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const blocks = await client.retrieveBlockChildren("page-123", { recursive: true });
+    expect(blocks[0]?.type).toBe("bulleted_list_item");
+  });
+
+  it("retrieveBlockChildren attaches children to numbered_list_item", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "numbered_list_item", has_children: true, numbered_list_item: { rich_text: [] } }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.retrieveBlockChildren("page-123", { recursive: true });
+  });
+
+  it("retrieveBlockChildren attaches children to to_do", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "to_do", has_children: true, to_do: { rich_text: [], checked: false } }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.retrieveBlockChildren("page-123", { recursive: true });
+  });
+
+  it("retrieveBlockChildren attaches children to quote", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "quote", has_children: true, quote: { rich_text: [] } }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.retrieveBlockChildren("page-123", { recursive: true });
+  });
+
+  it("retrieveBlockChildren attaches children to callout", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "callout", has_children: true, callout: { rich_text: [] } }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.retrieveBlockChildren("page-123", { recursive: true });
+  });
+
+  it("retrieveBlockChildren attaches children to synced_block", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "synced_block", has_children: true, synced_block: {} }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.retrieveBlockChildren("page-123", { recursive: true });
+  });
+
+  it("retrieveBlockChildren attaches children to paragraph", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "paragraph", has_children: true, paragraph: { rich_text: [] } }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const blocks = await client.retrieveBlockChildren("page-123", { recursive: true });
+    expect(blocks[0]?.type).toBe("paragraph");
+  });
+
+  it("retrieveBlockChildren default block type with children (no attachment)", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null,
+        results: [{ object: "block", id: "b1", type: "divider", has_children: true, divider: {} }] }))
+      .mockResolvedValueOnce(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const blocks = await client.retrieveBlockChildren("page-123", { recursive: true });
+    expect(blocks[0]?.type).toBe("divider");
+  });
+
+  it("BaseNotionClient returns empty object for empty response", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve("   "),
+    } as Response);
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    await client.appendBlocks("page-123", []);
+  });
+
+  it("NotionApiError stores status and body", () => {
+    const err = new NotionApiError(404, "Page not found");
+    expect(err.status).toBe(404);
+    expect(err.body).toBe("Page not found");
+    expect(err.name).toBe("NotionApiError");
+    expect(err instanceof NotionApiError).toBe(true);
+  });
+
+  it("NotionClient with explicit apiVersion uses it", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({ id: "page-123", url: "" })
+    );
+    const client = new NotionClient({
+      apiToken: "test-token",
+      apiVersion: "2022-06-28" as any,
+      fetchImpl: mockFetch as typeof fetch,
+    });
+    await client.archivePage("page-123");
+    // Request was made (no error thrown)
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("getActivityFeed throws on invalid since string", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    await expect(
+      client.getActivityFeed({ since: "not-a-date" })
+    ).rejects.toThrow("Invalid since time");
+  });
+
+  it("getActivityFeed throws on invalid until string", async () => {
+    const client = new NotionClient({ apiToken: "test-token" });
+    await expect(
+      client.getActivityFeed({ until: "not-a-date" })
+    ).rejects.toThrow("Invalid until time");
+  });
+
+  it("createPage with >100 blocks triggers appendBlocks for remaining (direct call)", async () => {
+    // Create 101 blocks to exceed MAX_BLOCKS_PER_REQUEST=100
+    const blocks: NotionBlock[] = Array.from({ length: 101 }, () => ({
+      object: "block" as const,
+      type: "divider" as const,
+      divider: {},
+    }));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ id: "page-big", url: "" }))
+      .mockResolvedValueOnce(makeJsonResponse({})); // appendBlocks call
+
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await client.createPage(
+      notionParent.database("db-123"),
+      { Name: notionProperty.title("Title") },
+      blocks
+    );
+
+    // First call: create page with first 100 blocks
+    // Second call: append remaining 1 block
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const appendBody = JSON.parse(String(mockFetch.mock.calls[1]?.[1]?.body));
+    expect(appendBody.children).toHaveLength(1);
+  });
+
+  it("createPage draft with >100 blocks triggers line 123 appendBlocks lambda", async () => {
+    // Create 101 blocks to exceed MAX_BLOCKS_PER_REQUEST=100 via page draft path (line 123)
+    const blocks: NotionBlock[] = Array.from({ length: 101 }, () => ({
+      object: "block" as const,
+      type: "divider" as const,
+      divider: {},
+    }));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse({ id: "page-draft-big", url: "" }))
+      .mockResolvedValueOnce(makeJsonResponse({})); // appendBlocks call
+
+    const client = new NotionClient({
+      apiToken: "test-token",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    // Use the page DRAFT form to hit line 123
+    await client.createPage({
+      parent: notionParent.database("db-123"),
+      title: "Big Page",
+      blocks,
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const appendBody = JSON.parse(String(mockFetch.mock.calls[1]?.[1]?.body));
+    expect(appendBody.children).toHaveLength(1);
+  });
+
+  it("retrieveBlockChildren with has_more=true but null next_cursor stops loop", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "list",
+          has_more: true,
+          next_cursor: null,
+          results: [{ object: "block", id: "b1", type: "divider", divider: {} }],
+        })
+      );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const blocks = await client.retrieveBlockChildren("page-123");
+    expect(blocks).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("searchPages with has_more=true but null next_cursor stops loop", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list",
+        has_more: true,
+        next_cursor: null,
+        results: [
+          { object: "page", id: "p1", url: "", properties: {} },
+        ],
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const results = await client.searchPages("test");
+    expect(results).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("readPage uses content field as fallback for markdown", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        url: "https://notion.so/page-123",
+        properties: {},
+        content: "# Fallback content",
+        // no markdown, no truncated, no unknown_block_ids
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const result = await client.readPage("page-123");
+    expect(result.markdown).toBe("# Fallback content");
+    expect(result.truncated).toBe(false);
+    expect(result.unknownBlockIds).toEqual([]);
+  });
+
+  it("readPage falls back to blocks on content_format error", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({ message: "content_format is invalid" }, 400)
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          object: "page",
+          id: "page-123",
+          url: "https://notion.so/page-123",
+          properties: {},
+        })
+      )
+      .mockResolvedValueOnce(
+        makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] })
+      );
+
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const result = await client.readPage("page-123");
+    expect(result.markdown).toBe("");
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("updatePageMarkdown normalizes legacy response with content field and no truncated/unknown_block_ids", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "page",
+        id: "page-123",
+        content: "# Content from content field",
+        // no truncated, no unknown_block_ids
+      })
+    );
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    const result = await client.updatePageMarkdown("page-123", {
+      type: "insert_content",
+      insert_content: { content: "new" },
+    });
+    expect(result.markdown).toBe("# Content from content field");
+    expect(result.truncated).toBe(false);
+    expect(result.unknown_block_ids).toEqual([]);
+  });
+
+  it("BaseNotionClient handles empty body response from actual request", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(""),
+    } as Response);
+    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
+    // appendBlocks with non-empty blocks calls request
+    const block: NotionBlock = { object: "block", type: "divider", divider: {} };
+    await client.appendBlocks("page-123", [block]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -627,3 +627,15 @@ describe("Thread.stream", () => {
     expect(ops.post).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("StreamingReply - RangeError for invalid maxLength", () => {
+  it("flush throws RangeError when platform has no valid message limit", async () => {
+    const replyFn = vi.fn().mockResolvedValue(undefined);
+    const stream = new StreamingReply(replyFn, "discord", 1000);
+    stream.append("test");
+    // Patch the platform to one with an invalid limit (undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (stream as any).platform = "invalid-platform-xyz";
+    await expect(stream.flush()).rejects.toThrow(RangeError);
+  });
+});
