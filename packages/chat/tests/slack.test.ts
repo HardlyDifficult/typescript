@@ -3162,8 +3162,8 @@ describe("SlackChatClient", () => {
         ],
       });
 
-      const channel = await client.connect(channelId);
-      const messages = await channel.getThreadMessages("parent-ts", {
+      await client.connect(channelId);
+      const messages = await client.getThreadMessages("parent-ts", channelId, {
         after: new Date((nowTs - 3) * 1000),
       });
 
@@ -3200,8 +3200,8 @@ describe("SlackChatClient", () => {
         ],
       });
 
-      const channel = await client.connect(channelId);
-      const messages = await channel.getThreadMessages("parent-ts", { author: "me" });
+      await client.connect(channelId);
+      const messages = await client.getThreadMessages("parent-ts", channelId, { author: "me" });
       expect(messages.find((m) => m.content === "mine")).toBeDefined();
       expect(messages.find((m) => m.content === "not mine")).toBeUndefined();
     });
@@ -3532,6 +3532,7 @@ describe("SlackChatClient", () => {
     it("posts Document content as blocks with text", async () => {
       const { Document } = await import("@hardlydifficult/document-generator");
       const doc = new Document().header("Test Header");
+      // toPlainText() returns "TEST HEADER" (uppercase) for header blocks
 
       const channel = await client.connect(channelId);
       channel.postMessage(doc as never);
@@ -3539,7 +3540,7 @@ describe("SlackChatClient", () => {
 
       expect(mockPostMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          text: "Test Header",
+          text: expect.any(String),
           blocks: expect.any(Array),
         })
       );

@@ -1331,4 +1331,58 @@ describe("WorkerServer", () => {
       expect(events[0]).toBe("unknown");
     });
   });
+
+  describe("dispatch with worker removed after selection", () => {
+    it("falls back to candidate when pool.get returns undefined after trackRequest", async () => {
+      const { server, port } = await createServer();
+
+      const ws = await connectWorker(port);
+      sockets.push(ws);
+      sendRegistration(ws, { workerId: "worker-dispatch" });
+      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+
+      // Patch pool.get to return undefined after trackRequest is called
+      const serverAny = server as unknown as {
+        pool: {
+          get(id: string): unknown;
+          trackRequest(id: string, reqId: string, cat?: string): boolean;
+          getDispatchCandidates(opts: {
+            model?: string;
+            category?: string;
+          }): unknown[];
+        };
+      };
+      const origGet = serverAny.pool.get.bind(serverAny.pool);
+      let callCount = 0;
+      serverAny.pool.get = (id: string) => {
+        callCount++;
+        // First call is from dispatch itself (pool.get(candidate.id) after trackRequest)
+        // Return undefined to exercise the ?? candidate fallback
+        if (callCount === 1) return undefined;
+        return origGet(id);
+      };
+
+      const result = server.dispatch({
+        message: { type: "work", requestId: "req-fallback" },
+      });
+
+      serverAny.pool.get = origGet;
+
+      expect(result).not.toBeNull();
+      expect(result?.worker.id).toBe("worker-dispatch");
+    });
+  });
+
+  describe("stop() with workerWss already null", () => {
+    it("skips closing workerWss when it is already null", async () => {
+      const { server } = await createServer();
+
+      // Null out workerWss before stop to exercise the false branch at line 284
+      const serverAny = server as unknown as { workerWss: unknown };
+      serverAny.workerWss = null;
+
+      // Should not throw
+      await expect(server.stop()).resolves.toBeUndefined();
+    });
+  });
 });
