@@ -20,7 +20,10 @@ function blob(path: string, sha = "abc"): TreeEntry {
 
 describe("diffTree", () => {
   it("detects changed files and affected ancestor dirs", () => {
-    const blobs = [blob("src/index.ts", "new-sha"), blob("src/utils.ts", "same")];
+    const blobs = [
+      blob("src/index.ts", "new-sha"),
+      blob("src/utils.ts", "same"),
+    ];
     const manifest = { "src/index.ts": "old-sha", "src/utils.ts": "same" };
 
     const result = diffTree(blobs, manifest);
@@ -68,10 +71,7 @@ describe("diffTree", () => {
   });
 
   it("sorts staleDirs deepest first, alphabetically within same depth", () => {
-    const blobs = [
-      blob("a/b/c/file.ts", "new"),
-      blob("a/b/other.ts", "new"),
-    ];
+    const blobs = [blob("a/b/c/file.ts", "new"), blob("a/b/other.ts", "new")];
     const manifest = {};
 
     const result = diffTree(blobs, manifest);
@@ -97,7 +97,10 @@ describe("diffTree", () => {
 
 describe("collectDirectories", () => {
   it("collects all ancestor directories from file paths", () => {
-    const dirs = collectDirectories(["src/components/Button.tsx", "src/index.ts"]);
+    const dirs = collectDirectories([
+      "src/components/Button.tsx",
+      "src/index.ts",
+    ]);
 
     expect(dirs).toContain("src/components");
     expect(dirs).toContain("src");
@@ -177,7 +180,9 @@ describe("parseGitHubRepoReference additional edge cases", () => {
 
   it("returns null when repo name becomes empty after stripping .git", () => {
     // rawRepo is ".git" -> after strip -> repo = "" -> returns null
-    expect(parseGitHubRepoReference("https://github.com/owner/.git")).toBeNull();
+    expect(
+      parseGitHubRepoReference("https://github.com/owner/.git")
+    ).toBeNull();
   });
 });
 
@@ -196,17 +201,13 @@ describe("parseGitHubPullRequestReference additional edge cases", () => {
 
   it("returns null when PR number is zero", () => {
     expect(
-      parseGitHubPullRequestReference(
-        "https://github.com/owner/repo/pull/0"
-      )
+      parseGitHubPullRequestReference("https://github.com/owner/repo/pull/0")
     ).toBeNull();
   });
 
   it("returns null when PR number is not an integer", () => {
     expect(
-      parseGitHubPullRequestReference(
-        "https://github.com/owner/repo/pull/abc"
-      )
+      parseGitHubPullRequestReference("https://github.com/owner/repo/pull/abc")
     ).toBeNull();
   });
 });
@@ -294,7 +295,9 @@ describe("fetchWatchedPRs", () => {
 
     await expect(
       fetchWatchedPRs(mockOctokit, undefined, [], true)
-    ).rejects.toThrow("Authenticated username is required when myPRs is enabled");
+    ).rejects.toThrow(
+      "Authenticated username is required when myPRs is enabled"
+    );
   });
 });
 
@@ -403,7 +406,9 @@ describe("PRClient additional coverage", () => {
         listReviews: vi.fn().mockResolvedValue({ data: [] }),
       },
       issues: { listComments: vi.fn().mockResolvedValue({ data: [] }) },
-      checks: { listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }) },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
       graphql: vi.fn().mockResolvedValue({}),
     };
   });
@@ -477,7 +482,10 @@ describe("PRWatcherBase.emitWatcherEvent default branch", () => {
     base.onEvent((e) => events.push(e));
 
     // Force an unknown event type at runtime by casting
-    const unknownEvent = { type: "unknown_type", payload: {} } as unknown as PRWatcherEvent;
+    const unknownEvent = {
+      type: "unknown_type",
+      payload: {},
+    } as unknown as PRWatcherEvent;
 
     // Should not throw
     expect(() => base.callEmit(unknownEvent)).not.toThrow();
@@ -489,10 +497,7 @@ describe("PRWatcherBase.emitWatcherEvent default branch", () => {
 // ─── PRWatcher: fetching guard, push error catch, stalePRThreshold, closed ────
 
 import { PRWatcher } from "../src/PRWatcher.js";
-import type {
-  PullRequest,
-  CheckRun,
-} from "../src/types.js";
+import type { PullRequest, CheckRun } from "../src/types.js";
 
 vi.mock("@octokit/rest", () => ({
   Octokit: vi.fn().mockImplementation(() => mockOctokitForWatcher),
@@ -522,7 +527,9 @@ const mockOctokitForWatcher = {
     getRef: vi.fn(),
   },
   users: {
-    getAuthenticated: vi.fn().mockResolvedValue({ data: { login: "testuser" } }),
+    getAuthenticated: vi
+      .fn()
+      .mockResolvedValue({ data: { login: "testuser" } }),
   },
 } as unknown as import("@octokit/rest").Octokit;
 
@@ -577,16 +584,24 @@ function makeCheckRunForWatcher(overrides: Partial<CheckRun> = {}): CheckRun {
 }
 
 function setupMocksForPR(pr: PullRequest): void {
-  (mockOctokitForWatcher.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+  (
+    mockOctokitForWatcher.pulls.list as ReturnType<typeof vi.fn>
+  ).mockResolvedValue({
     data: [pr],
   });
-  (mockOctokitForWatcher.pulls.listReviews as ReturnType<typeof vi.fn>).mockResolvedValue({
+  (
+    mockOctokitForWatcher.pulls.listReviews as ReturnType<typeof vi.fn>
+  ).mockResolvedValue({
     data: [],
   });
-  (mockOctokitForWatcher.checks.listForRef as ReturnType<typeof vi.fn>).mockResolvedValue({
+  (
+    mockOctokitForWatcher.checks.listForRef as ReturnType<typeof vi.fn>
+  ).mockResolvedValue({
     data: { check_runs: [makeCheckRunForWatcher()] },
   });
-  (mockOctokitForWatcher.issues.listComments as ReturnType<typeof vi.fn>).mockResolvedValue({
+  (
+    mockOctokitForWatcher.issues.listComments as ReturnType<typeof vi.fn>
+  ).mockResolvedValue({
     data: [],
   });
 }
@@ -602,7 +617,9 @@ describe("PRWatcher additional coverage", () => {
     const localOctokit = {
       pulls: {
         list: vi.fn().mockReturnValueOnce(
-          new Promise((res) => { resolveList = res; })
+          new Promise((res) => {
+            resolveList = res;
+          })
         ),
         listReviews: vi.fn().mockResolvedValue({ data: [] }),
         get: vi.fn(),
@@ -641,16 +658,18 @@ describe("PRWatcher additional coverage", () => {
     setupMocksForPR(pr);
 
     // Make git.getRef throw a non-Error to hit line 163
-    (mockOctokitForWatcher.git.getRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-      "string-push-error"
-    );
+    (
+      mockOctokitForWatcher.git.getRef as ReturnType<typeof vi.fn>
+    ).mockRejectedValue("string-push-error");
 
     const errors: Error[] = [];
     const watcher = new PRWatcher(mockOctokitForWatcher, "testuser", {
       repos: ["owner/repo"],
     });
     watcher.onError((e) => errors.push(e));
-    watcher.onPush(() => { /* noop */ });
+    watcher.onPush(() => {
+      /* noop */
+    });
 
     // Harvest branch so branchTracker.check() runs
     // But we need to also handle the fact that the first poll needs to complete,
@@ -698,7 +717,9 @@ describe("PRWatcher additional coverage", () => {
     // handleRemovedPRs will call pulls.get (mocked to fail) then delete
     // After handleRemovedPRs, stalePRThreshold cleanup prunes snapshots with lastSeen < cutoff
     // Since stalePRThresholdMs=0, all previously seen snapshots are stale
-    (localOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (localOctokit.pulls.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [],
+    });
 
     // Access poll via the private method by casting - needed to trigger second poll
     await (watcher as unknown as { poll(): Promise<void> }).poll();
@@ -717,7 +738,8 @@ describe("PRWatcher additional coverage", () => {
 
     const localOctokit = {
       pulls: {
-        list: vi.fn()
+        list: vi
+          .fn()
           .mockResolvedValueOnce({ data: [pr] })
           .mockResolvedValueOnce({ data: [] }),
         get: vi.fn().mockResolvedValue({ data: closedPR }),
@@ -866,7 +888,12 @@ describe("fetchWatchedPRs full path", () => {
       },
     } as unknown as import("@octokit/rest").Octokit;
 
-    const results = await fetchWatchedPRsFull(mockOctokit, undefined, ["owner/repo"], false);
+    const results = await fetchWatchedPRsFull(
+      mockOctokit,
+      undefined,
+      ["owner/repo"],
+      false
+    );
 
     // Both entries have same key so only one is added
     expect(results).toHaveLength(1);
@@ -886,9 +913,15 @@ describe("fetchWatchedPRs full path", () => {
           data: {
             items: [
               // This PR was already fetched via repos loop (same key)
-              { repository_url: "https://api.github.com/repos/owner/repo", number: 42 },
+              {
+                repository_url: "https://api.github.com/repos/owner/repo",
+                number: 42,
+              },
               // New PR not in repos loop
-              { repository_url: "https://api.github.com/repos/owner/repo", number: 99 },
+              {
+                repository_url: "https://api.github.com/repos/owner/repo",
+                number: 99,
+              },
             ],
           },
         }),
@@ -963,14 +996,22 @@ describe("fetchWatchedPRs myPRs: non-matching repository_url skipped", () => {
           data: {
             items: [
               // Non-matching URL — pattern won't match
-              { repository_url: "https://not-github.com/owner/repo", number: 1 },
+              {
+                repository_url: "https://not-github.com/owner/repo",
+                number: 1,
+              },
             ],
           },
         }),
       },
     } as unknown as import("@octokit/rest").Octokit;
 
-    const results = await fetchWatchedPRsFull(mockOctokit, "testuser", [], true);
+    const results = await fetchWatchedPRsFull(
+      mockOctokit,
+      "testuser",
+      [],
+      true
+    );
 
     expect(results).toHaveLength(0);
     expect(mockOctokit.pulls.get).not.toHaveBeenCalled();
@@ -1009,7 +1050,9 @@ describe("PRWatcher stalePRThresholdMs actual pruning", () => {
 
     // Manually backdate the snapshot's lastSeen to simulate stale state
     // Access the private snapshots map
-    const snapshots = (watcher as unknown as { snapshots: Map<string, { lastSeen: number }> }).snapshots;
+    const snapshots = (
+      watcher as unknown as { snapshots: Map<string, { lastSeen: number }> }
+    ).snapshots;
     for (const [, snapshot] of snapshots) {
       snapshot.lastSeen = Date.now() - 1000 * 60 * 60 * 2; // 2 hours ago
     }
@@ -1030,7 +1073,9 @@ describe("PRWatcher stalePRThresholdMs actual pruning", () => {
     expect(watcher2.getWatchedPRs()).toHaveLength(1);
 
     // Backdate lastSeen before second poll
-    const snapshots2 = (watcher2 as unknown as { snapshots: Map<string, { lastSeen: number }> }).snapshots;
+    const snapshots2 = (
+      watcher2 as unknown as { snapshots: Map<string, { lastSeen: number }> }
+    ).snapshots;
     for (const [, snapshot] of snapshots2) {
       snapshot.lastSeen = 0; // epoch — definitely stale
     }
@@ -1141,9 +1186,15 @@ describe("RepoClient additional branch coverage", () => {
           data: { object: { sha: "branch-sha" } },
         }),
         createBlob: vi.fn().mockResolvedValue({ data: { sha: "blob-sha" } }),
-        getCommit: vi.fn().mockResolvedValue({ data: { tree: { sha: "tree-sha" } } }),
-        createTree: vi.fn().mockResolvedValue({ data: { sha: "new-tree-sha" } }),
-        createCommit: vi.fn().mockResolvedValue({ data: { sha: "commit-sha" } }),
+        getCommit: vi
+          .fn()
+          .mockResolvedValue({ data: { tree: { sha: "tree-sha" } } }),
+        createTree: vi
+          .fn()
+          .mockResolvedValue({ data: { sha: "new-tree-sha" } }),
+        createCommit: vi
+          .fn()
+          .mockResolvedValue({ data: { sha: "commit-sha" } }),
         updateRef: vi.fn().mockResolvedValue({}),
       },
     } as unknown as import("@octokit/rest").Octokit;

@@ -34,7 +34,9 @@ describe("GitYamlStore coverage", () => {
 
   function makeGitMock(overrides: Record<string, unknown> = {}) {
     return {
-      branchLocal: vi.fn().mockResolvedValue({ current: "main", all: ["main"] }),
+      branchLocal: vi
+        .fn()
+        .mockResolvedValue({ current: "main", all: ["main"] }),
       checkout: vi.fn().mockResolvedValue(undefined),
       checkoutBranch: vi.fn().mockResolvedValue(undefined),
       checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
@@ -702,11 +704,7 @@ describe("GitYamlStore coverage", () => {
     await mkdir(resultDir, { recursive: true });
 
     await writeFile(path.join(resultDir, "readme.txt"), "not yaml", "utf-8");
-    await writeFile(
-      path.join(resultDir, "dir.yml"),
-      "sha: dir-sha\n",
-      "utf-8"
-    );
+    await writeFile(path.join(resultDir, "dir.yml"), "sha: dir-sha\n", "utf-8");
     await writeFile(
       path.join(resultDir, "valid.yml"),
       "sha: file-sha\n",

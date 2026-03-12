@@ -6,7 +6,12 @@ describe("getToolSummary - extended coverage", () => {
 
   describe("explore", () => {
     it("formats starting phase with single path", () => {
-      const result = getToolSummary("explore", { path: "/src" }, "", "starting");
+      const result = getToolSummary(
+        "explore",
+        { path: "/src" },
+        "",
+        "starting"
+      );
       expect(result).toBe("Tool: explore(/src)");
     });
 
@@ -402,7 +407,12 @@ describe("getToolSummary - extended coverage", () => {
     });
 
     it("formats error phase with no message", () => {
-      const result = getToolSummary("commit", { title: "Fix bug" }, "", "error");
+      const result = getToolSummary(
+        "commit",
+        { title: "Fix bug" },
+        "",
+        "error"
+      );
       expect(result).toBe("Tool: commit - error");
     });
 
@@ -462,9 +472,7 @@ describe("getToolSummary - extended coverage", () => {
         "",
         "starting"
       );
-      expect(result).toBe(
-        "Tool: agent-browser navigate https://example.com"
-      );
+      expect(result).toBe("Tool: agent-browser navigate https://example.com");
     });
 
     it("formats starting phase with action only (no target)", () => {

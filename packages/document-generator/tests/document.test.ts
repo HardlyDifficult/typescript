@@ -680,9 +680,9 @@ describe("Document", () => {
   describe("render() unsupported format (line 445-446)", () => {
     it("throws for unsupported format", () => {
       const document = new Document().text("Hello");
-      expect(() =>
-        document.render("html" as "markdown")
-      ).toThrow("Unsupported output format");
+      expect(() => document.render("html" as "markdown")).toThrow(
+        "Unsupported output format"
+      );
     });
   });
 
@@ -695,7 +695,9 @@ describe("Document", () => {
     });
 
     it("renders only heading for empty list with empty string emptyText", () => {
-      const document = new Document().section("Blockers", [], { emptyText: "" });
+      const document = new Document().section("Blockers", [], {
+        emptyText: "",
+      });
       expect(document.getBlocks()).toEqual([
         { type: "text", content: "**Blockers**" },
       ]);
@@ -704,7 +706,9 @@ describe("Document", () => {
 
   describe("section() with empty string content (lines 217-220)", () => {
     it("renders heading with emptyText when content is empty string and emptyText provided", () => {
-      const document = new Document().section("Status", "", { emptyText: "Nothing to report" });
+      const document = new Document().section("Status", "", {
+        emptyText: "Nothing to report",
+      });
       expect(document.getBlocks()).toEqual([
         { type: "text", content: "**Status**\nNothing to report" },
       ]);
@@ -718,7 +722,9 @@ describe("Document", () => {
     });
 
     it("renders only heading when content is whitespace and emptyText is empty string", () => {
-      const document = new Document().section("Status", "   ", { emptyText: "" });
+      const document = new Document().section("Status", "   ", {
+        emptyText: "",
+      });
       expect(document.getBlocks()).toEqual([
         { type: "text", content: "**Status**" },
       ]);
@@ -729,13 +735,17 @@ describe("Document", () => {
     it("uses apply-style transformers", () => {
       const apply = vi
         .fn()
-        .mockImplementation((value: string) => value.replace("ENG-1", "LINKED"));
+        .mockImplementation((value: string) =>
+          value.replace("ENG-1", "LINKED")
+        );
 
       const document = new Document().text("ENG-1");
       document.linkify({ apply }, { platform: "markdown" });
 
       expect(apply).toHaveBeenCalledWith("ENG-1", { platform: "markdown" });
-      expect(document.getBlocks()).toEqual([{ type: "text", content: "LINKED" }]);
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "LINKED" },
+      ]);
     });
 
     it("throws for invalid link transformer (line 42-44 in Document.ts)", () => {
@@ -750,7 +760,9 @@ describe("Document", () => {
       const linkText = vi.fn().mockReturnValue(undefined);
       const document = new Document().text("hello");
       document.linkify({ linkText });
-      expect(document.getBlocks()).toEqual([{ type: "text", content: "hello" }]);
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "hello" },
+      ]);
     });
 
     it("falls back to original value when apply returns undefined (nullish coalescing branch)", () => {
@@ -758,7 +770,9 @@ describe("Document", () => {
       const apply = vi.fn().mockReturnValue(undefined);
       const document = new Document().text("world");
       document.linkify({ apply });
-      expect(document.getBlocks()).toEqual([{ type: "text", content: "world" }]);
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "world" },
+      ]);
     });
   });
 });

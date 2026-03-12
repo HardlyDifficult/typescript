@@ -304,7 +304,7 @@ function formatCommitSummary(
     return `Tool: commit - no changes`;
   }
 
-  const lastLine = output.split("\n").at(-1) as string;
+  const lastLine = output.split("\n").at(-1)!;
   const filesMatch = /^(\d+) files?:/.exec(lastLine);
   if (filesMatch) {
     return `Tool: commit("${title}") - ${filesMatch[1]} files`;

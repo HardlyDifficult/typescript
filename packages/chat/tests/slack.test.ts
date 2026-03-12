@@ -2768,7 +2768,9 @@ describe("SlackChatClient", () => {
 
   describe("SlackChatClient error callback", () => {
     it("swallows errors from error callbacks that throw", async () => {
-      const throwingErrorCallback = vi.fn().mockRejectedValue(new Error("cb error"));
+      const throwingErrorCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("cb error"));
       client.onError(throwingErrorCallback);
 
       // Get the error handler registered via app.error()
@@ -2776,7 +2778,9 @@ describe("SlackChatClient", () => {
       expect(errorHandler).toBeDefined();
 
       // Invoke the error handler - should not throw even if callback throws
-      await expect(errorHandler(new Error("app error"))).resolves.toBeUndefined();
+      await expect(
+        errorHandler(new Error("app error"))
+      ).resolves.toBeUndefined();
       expect(throwingErrorCallback).toHaveBeenCalled();
     });
 
@@ -2802,54 +2806,64 @@ describe("SlackChatClient", () => {
       client.subscribeToReactions(channelId, throwingCallback);
 
       const handler = getReactionHandler();
-      await expect(handler!({
-        event: {
-          item: { channel: channelId, ts: "1234.567" },
-          user: "U1",
-          reaction: "thumbsup",
-          event_ts: "1234567890.123456",
-        },
-      })).resolves.toBeUndefined();
+      await expect(
+        handler!({
+          event: {
+            item: { channel: channelId, ts: "1234.567" },
+            user: "U1",
+            reaction: "thumbsup",
+            event_ts: "1234567890.123456",
+          },
+        })
+      ).resolves.toBeUndefined();
       expect(throwingCallback).toHaveBeenCalled();
     });
   });
 
   describe("SlackChatClient message callback error", () => {
     it("swallows errors from channel message callbacks that throw", async () => {
-      const throwingCallback = vi.fn().mockRejectedValue(new Error("msg error"));
+      const throwingCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("msg error"));
       const channel = await client.connect(channelId);
       channel.onMessage(throwingCallback);
 
       const handler = getMessageHandler();
-      await expect(handler!({
-        event: {
-          channel: channelId,
-          user: "U1",
-          ts: "1234.567",
-          text: "hello",
-        },
-        context: {},
-      })).resolves.toBeUndefined();
+      await expect(
+        handler!({
+          event: {
+            channel: channelId,
+            user: "U1",
+            ts: "1234.567",
+            text: "hello",
+          },
+          context: {},
+        })
+      ).resolves.toBeUndefined();
       expect(throwingCallback).toHaveBeenCalled();
     });
 
     it("swallows errors from thread message callbacks that throw", async () => {
-      const throwingCallback = vi.fn().mockRejectedValue(new Error("thread msg error"));
+      const throwingCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("thread msg error"));
       const channel = await client.connect(channelId);
       const thread = channel.openThread("parent-ts");
       thread.onReply(throwingCallback);
 
       const handler = getMessageHandler();
-      await expect(handler!({
-        event: {
-          channel: channelId,
-          user: "U1",
-          ts: "reply-ts",
-          thread_ts: "parent-ts",
-          text: "thread reply",
-        },
-        context: {},
-      })).resolves.toBeUndefined();
+      await expect(
+        handler!({
+          event: {
+            channel: channelId,
+            user: "U1",
+            ts: "reply-ts",
+            thread_ts: "parent-ts",
+            text: "thread reply",
+          },
+          context: {},
+        })
+      ).resolves.toBeUndefined();
       expect(throwingCallback).toHaveBeenCalled();
     });
   });
@@ -2891,10 +2905,7 @@ describe("SlackChatClient", () => {
 
     it("skips messages with undefined ts", async () => {
       mockConversationsHistory.mockResolvedValue({
-        messages: [
-          { text: "no ts field" },
-          { ts: "222.222", text: "valid" },
-        ],
+        messages: [{ text: "no ts field" }, { ts: "222.222", text: "valid" }],
       });
       const channel = await client.connect(channelId);
       const messages = await channel.getMessages();
@@ -2950,7 +2961,12 @@ describe("SlackChatClient", () => {
       const nowTs = Math.floor(Date.now() / 1000);
       mockConversationsHistory.mockResolvedValue({
         messages: [
-          { ts: String(nowTs), text: "bot msg", bot_id: "B123", user: undefined },
+          {
+            ts: String(nowTs),
+            text: "bot msg",
+            bot_id: "B123",
+            user: undefined,
+          },
           { ts: String(nowTs - 1), text: "user msg", user: "U1" },
         ],
       });
@@ -2980,7 +2996,12 @@ describe("SlackChatClient", () => {
       const nowTs = Math.floor(Date.now() / 1000);
       mockConversationsHistory.mockResolvedValue({
         messages: [
-          { ts: String(nowTs), text: "from bot", bot_id: "B456", user: undefined },
+          {
+            ts: String(nowTs),
+            text: "from bot",
+            bot_id: "B456",
+            user: undefined,
+          },
           { ts: String(nowTs - 1), text: "user msg", user: "U2" },
         ],
       });
@@ -3010,9 +3031,7 @@ describe("SlackChatClient", () => {
     it("handles messages without user or bot_id (no author)", async () => {
       const nowTs = Math.floor(Date.now() / 1000);
       mockConversationsHistory.mockResolvedValue({
-        messages: [
-          { ts: String(nowTs), text: "no author" },
-        ],
+        messages: [{ ts: String(nowTs), text: "no author" }],
       });
       const channel = await client.connect(channelId);
       const messages = await channel.getMessages();
@@ -3045,7 +3064,9 @@ describe("SlackChatClient", () => {
       const channel = await client.connect(channelId);
       const messages = await channel.getMessages();
       expect(messages[0].attachments).toHaveLength(1);
-      expect(messages[0].attachments![0].url).toBe("https://slack.com/files/test.pdf");
+      expect(messages[0].attachments![0].url).toBe(
+        "https://slack.com/files/test.pdf"
+      );
       expect(messages[0].attachments![0].contentType).toBe("application/pdf");
     });
 
@@ -3103,7 +3124,10 @@ describe("SlackChatClient", () => {
       const channel = await client.connect(channelId);
       await channel.getMessages({ after: Infinity });
       // Infinity is not finite, so oldest should NOT be in the call
-      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      const call =
+        mockConversationsHistory.mock.calls[
+          mockConversationsHistory.mock.calls.length - 1
+        ][0];
       expect(call.oldest).toBeUndefined();
     });
 
@@ -3129,7 +3153,10 @@ describe("SlackChatClient", () => {
       mockConversationsHistory.mockResolvedValue({ messages: [] });
       await client.connect(channelId);
       await client.getMessages(channelId, { after: "not-a-date" });
-      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      const call =
+        mockConversationsHistory.mock.calls[
+          mockConversationsHistory.mock.calls.length - 1
+        ][0];
       expect(call.oldest).toBeUndefined();
     });
 
@@ -3137,9 +3164,7 @@ describe("SlackChatClient", () => {
       const nowMs = Date.now();
       const recentTs = Math.floor(Date.now() / 1000) - 1;
       mockConversationsHistory.mockResolvedValue({
-        messages: [
-          { ts: String(recentTs), text: "recent", user: "U1" },
-        ],
+        messages: [{ ts: String(recentTs), text: "recent", user: "U1" }],
       });
       await client.connect(channelId);
       // Use ms timestamp (> 10^10) for after filter
@@ -3201,7 +3226,9 @@ describe("SlackChatClient", () => {
       });
 
       await client.connect(channelId);
-      const messages = await client.getThreadMessages("parent-ts", channelId, { author: "me" });
+      const messages = await client.getThreadMessages("parent-ts", channelId, {
+        author: "me",
+      });
       expect(messages.find((m) => m.content === "mine")).toBeDefined();
       expect(messages.find((m) => m.content === "not mine")).toBeUndefined();
     });
@@ -3367,7 +3394,7 @@ describe("SlackChatClient", () => {
         event: {
           channel: channelId,
           user: "U1",
-          ts: "Infinity",  // parseFloat("Infinity") is not finite
+          ts: "Infinity", // parseFloat("Infinity") is not finite
         },
         context: {},
       });
@@ -3422,7 +3449,7 @@ describe("SlackChatClient", () => {
       mockConversationsHistory.mockResolvedValue({
         messages: [
           { ts: "111.111", reply_count: 0 },
-          { ts: "222.222" },  // no reply_count
+          { ts: "222.222" }, // no reply_count
         ],
       });
 
@@ -3548,7 +3575,7 @@ describe("SlackChatClient", () => {
 
     it("posts Document with empty plain text using fallback 'Message'", async () => {
       const { Document } = await import("@hardlydifficult/document-generator");
-      const doc = new Document();  // empty document
+      const doc = new Document(); // empty document
 
       const channel = await client.connect(channelId);
       channel.postMessage(doc as never);
@@ -3584,7 +3611,9 @@ describe("SlackChatClient", () => {
       const channel = await client.connect(channelId);
       const thread = await channel.createThread("root message", "thread-name");
 
-      await thread.post("Text", { files: [{ content: "file text", name: "file.txt" }] });
+      await thread.post("Text", {
+        files: [{ content: "file text", name: "file.txt" }],
+      });
 
       expect(mockFilesUploadV2).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -3599,7 +3628,9 @@ describe("SlackChatClient", () => {
       const thread = await channel.createThread("root message", "thread-name");
 
       const buf = Buffer.from("binary content");
-      await thread.post("Text", { files: [{ content: buf, name: "file.bin" }] });
+      await thread.post("Text", {
+        files: [{ content: buf, name: "file.bin" }],
+      });
 
       expect(mockFilesUploadV2).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -3634,7 +3665,9 @@ describe("SlackChatClient", () => {
       mockPostMessage.mockResolvedValueOnce({ ts: undefined });
       const channel = await client.connect(channelId);
       await expect(
-        channel.postMessage(doc, { files: [{ content: "data", name: "file.txt" }] })
+        channel.postMessage(doc, {
+          files: [{ content: "data", name: "file.txt" }],
+        })
       ).rejects.toThrow("Slack API did not return a message timestamp");
     });
 
@@ -3654,7 +3687,10 @@ describe("SlackChatClient", () => {
       mockConversationsHistory.mockResolvedValue({ messages: [] });
       await client.connect(channelId);
       await client.getMessages(channelId, { after: "" as never });
-      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      const call =
+        mockConversationsHistory.mock.calls[
+          mockConversationsHistory.mock.calls.length - 1
+        ][0];
       // Empty string => toSlackTimestamp returns undefined => oldest not set
       expect(call.oldest).toBeUndefined();
     });
@@ -3668,7 +3704,9 @@ describe("SlackChatClient", () => {
         messages: [{ ts: recentTs, text: "msg", user: "U1" }],
       });
       await client.connect(channelId);
-      const messages = await client.getMessages(channelId, { after: NaN as never });
+      const messages = await client.getMessages(channelId, {
+        after: NaN as never,
+      });
       // NaN triggers catch => returns undefined => no afterDate filter => message included
       expect(messages).toHaveLength(1);
     });

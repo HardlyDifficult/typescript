@@ -667,7 +667,10 @@ describe("WorkerServer", () => {
 
       expect(logger.error).toHaveBeenCalledWith(
         "WebSocket server error",
-        expect.objectContaining({ path: "/ws/test-err", error: "endpoint wss error" })
+        expect.objectContaining({
+          path: "/ws/test-err",
+          error: "endpoint wss error",
+        })
       );
     });
   });
@@ -764,8 +767,14 @@ describe("WorkerServer", () => {
 
       sendRegistration(ws1, { workerId: "worker-1" });
       sendRegistration(ws2, { workerId: "worker-2" });
-      await waitForMessage(ws1, (msg) => msg["type"] === "worker_registration_ack");
-      await waitForMessage(ws2, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       const msg1 = waitForMessage<Record<string, unknown>>(
         ws1,
@@ -795,7 +804,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Wait long enough for health check to fire and detect dead worker
       // (heartbeatTimeoutMs=10, so after 30ms the worker is 3x timeout = dead)
@@ -854,7 +866,10 @@ describe("WorkerServer", () => {
       const ws1 = await connectWorker(port);
       sockets.push(ws1);
       sendRegistration(ws1, { workerId: "worker-1" });
-      await waitForMessage(ws1, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       expect(connected).toContain("worker-1");
 
@@ -864,7 +879,10 @@ describe("WorkerServer", () => {
       const ws2 = await connectWorker(port);
       sockets.push(ws2);
       sendRegistration(ws2, { workerId: "worker-2" });
-      await waitForMessage(ws2, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // worker-2 should NOT be in the list since we unsubscribed
       expect(connected).not.toContain("worker-2");
@@ -881,7 +899,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws, { workerId: "worker-1" });
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Unsubscribe before disconnecting
       unsubscribe();
@@ -905,7 +926,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Unsubscribe before sending
       unsubscribe();
@@ -952,7 +976,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Send invalid JSON
       ws.send("not valid json");
@@ -974,7 +1001,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Send JSON without type field
       ws.send(JSON.stringify({ data: "no type here", type: 42 }));
@@ -994,7 +1024,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Send a message type with no registered handler
       ws.send(JSON.stringify({ type: "unknown_msg_type" }));
@@ -1022,7 +1055,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       ws.send(JSON.stringify({ type: "error_msg" }));
       await new Promise((r) => setTimeout(r, 50));
@@ -1041,7 +1077,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       ws.send(
         JSON.stringify({
@@ -1071,7 +1110,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Send heartbeat with non-existent workerId
       ws.send(
@@ -1096,10 +1138,28 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Mark worker as unhealthy
-      const pool = (server as unknown as { pool: { get(id: string): { status: string; lastHeartbeat: Date; activeRequests: number; capabilities: { maxConcurrentRequests: number } } | undefined } }).pool;
+      const pool = (
+        server as unknown as {
+          pool: {
+            get(
+              id: string
+            ):
+              | {
+                  status: string;
+                  lastHeartbeat: Date;
+                  activeRequests: number;
+                  capabilities: { maxConcurrentRequests: number };
+                }
+              | undefined;
+          };
+        }
+      ).pool;
       const worker = pool.get("worker-1");
       if (worker !== undefined) {
         (worker as { status: string }).status = "unhealthy";
@@ -1126,7 +1186,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws, { maxConcurrentRequests: 1 });
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Dispatch to fill up the worker
       server.dispatch({
@@ -1134,7 +1197,11 @@ describe("WorkerServer", () => {
       });
 
       // Mark worker as unhealthy
-      const pool = (server as unknown as { pool: { get(id: string): { status: string } | undefined } }).pool;
+      const pool = (
+        server as unknown as {
+          pool: { get(id: string): { status: string } | undefined };
+        }
+      ).pool;
       const worker = pool.get("worker-1");
       if (worker !== undefined) {
         (worker as { status: string }).status = "unhealthy";
@@ -1163,7 +1230,10 @@ describe("WorkerServer", () => {
       const ws1 = await connectWorker(port);
       sockets.push(ws1);
       sendRegistration(ws1, { workerId: "worker-1" });
-      await waitForMessage(ws1, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       expect(server.listWorkers()).toHaveLength(1);
 
@@ -1171,7 +1241,10 @@ describe("WorkerServer", () => {
       const ws2 = await connectWorker(port);
       sockets.push(ws2);
       sendRegistration(ws2, { workerId: "worker-1" });
-      await waitForMessage(ws2, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Still only 1 worker after replacement
       expect(server.listWorkers()).toHaveLength(1);
@@ -1188,7 +1261,10 @@ describe("WorkerServer", () => {
       const ws1 = await connectWorker(port);
       sockets.push(ws1);
       sendRegistration(ws1, { workerId: "worker-1" });
-      await waitForMessage(ws1, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws1,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Track a pending request
       server.dispatch({
@@ -1199,7 +1275,10 @@ describe("WorkerServer", () => {
       const ws2 = await connectWorker(port);
       sockets.push(ws2);
       sendRegistration(ws2, { workerId: "worker-1" });
-      await waitForMessage(ws2, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws2,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       await new Promise((r) => setTimeout(r, 50));
 
@@ -1301,7 +1380,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Close - should not throw
       ws.close();
@@ -1339,7 +1421,10 @@ describe("WorkerServer", () => {
       const ws = await connectWorker(port);
       sockets.push(ws);
       sendRegistration(ws, { workerId: "worker-dispatch" });
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      await waitForMessage(
+        ws,
+        (msg) => msg["type"] === "worker_registration_ack"
+      );
 
       // Patch pool.get to return undefined after trackRequest is called
       const serverAny = server as unknown as {

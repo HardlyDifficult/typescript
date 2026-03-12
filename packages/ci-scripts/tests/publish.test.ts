@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -103,9 +109,7 @@ describe("publishPackages", () => {
 
       expect(result.published).toEqual([]);
       expect(result.skipped).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "No publishable packages found."
-      );
+      expect(consoleSpy).toHaveBeenCalledWith("No publishable packages found.");
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
       consoleSpy.mockRestore();
@@ -447,10 +451,7 @@ describe("publishPackages", () => {
 
       // Check the beta package.json was updated
       const betaPkg = JSON.parse(
-        readFileSync(
-          join(rootDir, "packages", "beta", "package.json"),
-          "utf-8"
-        )
+        readFileSync(join(rootDir, "packages", "beta", "package.json"), "utf-8")
       ) as { dependencies?: Record<string, string> };
       expect(betaPkg.dependencies?.["@acme/alpha"]).not.toMatch(/^file:/);
     } finally {
@@ -939,7 +940,9 @@ describe("publishPackages", () => {
 
       // beta should be published (initial release)
       // alpha should be skipped
-      const betaPublished = result.published.find((p) => p.name === "@acme/beta");
+      const betaPublished = result.published.find(
+        (p) => p.name === "@acme/beta"
+      );
       expect(betaPublished).toBeDefined();
       const alphaSkipped = result.skipped.find((p) => p.name === "@acme/alpha");
       expect(alphaSkipped).toBeDefined();

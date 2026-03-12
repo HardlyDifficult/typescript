@@ -2963,11 +2963,14 @@ describe("DiscordChatClient", () => {
       const handler = getReactionHandler();
       expect(handler).not.toBeNull();
 
-      await handler!({
-        partial: false,
-        emoji: { name: "👍", id: null },
-        message: { channelId, id: "msg-123" },
-      }, { id: "user-1", username: "user1" });
+      await handler!(
+        {
+          partial: false,
+          emoji: { name: "👍", id: null },
+          message: { channelId, id: "msg-123" },
+        },
+        { id: "user-1", username: "user1" }
+      );
 
       // Should not throw - error was caught internally
     });
@@ -2975,7 +2978,9 @@ describe("DiscordChatClient", () => {
     it("message callback: error in callback is logged but does not throw", async () => {
       const channel = await client.connect(channelId);
 
-      const throwingCallback = vi.fn().mockRejectedValue(new Error("msg error"));
+      const throwingCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("msg error"));
       channel.onMessage(throwingCallback);
 
       const handler = getMessageHandler();
@@ -3034,27 +3039,35 @@ describe("DiscordChatClient", () => {
 
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "old message",
-            author: { id: "user-1", username: "user1" },
-            createdAt: old,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "recent message",
-            author: { id: "user-1", username: "user1" },
-            createdAt: recent,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "old message",
+              author: { id: "user-1", username: "user1" },
+              createdAt: old,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "recent message",
+              author: { id: "user-1", username: "user1" },
+              createdAt: recent,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
       const channel = await client.connect(channelId);
-      const messages = await channel.getMessages({ after: new Date(now.getTime() - 5000) });
+      const messages = await channel.getMessages({
+        after: new Date(now.getTime() - 5000),
+      });
 
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toBe("recent message");
@@ -3067,27 +3080,35 @@ describe("DiscordChatClient", () => {
 
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "old message",
-            author: { id: "user-1", username: "user1" },
-            createdAt: old,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "recent message",
-            author: { id: "user-1", username: "user1" },
-            createdAt: recent,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "old message",
+              author: { id: "user-1", username: "user1" },
+              createdAt: old,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "recent message",
+              author: { id: "user-1", username: "user1" },
+              createdAt: recent,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
       const channel = await client.connect(channelId);
-      const messages = await channel.getMessages({ before: new Date(now.getTime() - 5000) });
+      const messages = await channel.getMessages({
+        before: new Date(now.getTime() - 5000),
+      });
 
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toBe("old message");
@@ -3097,22 +3118,28 @@ describe("DiscordChatClient", () => {
       const now = new Date();
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "from alice",
-            author: { id: "user-alice", username: "alice" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "from bob",
-            author: { id: "user-bob", username: "bob" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "from alice",
+              author: { id: "user-alice", username: "alice" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "from bob",
+              author: { id: "user-bob", username: "bob" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3127,14 +3154,17 @@ describe("DiscordChatClient", () => {
       const now = new Date();
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "from alice",
-            author: { id: "user-alice", username: "alice" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "from alice",
+              author: { id: "user-alice", username: "alice" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3151,22 +3181,28 @@ describe("DiscordChatClient", () => {
 
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "old",
-            author: { id: "user-1", username: "user1" },
-            createdAt: old,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "new",
-            author: { id: "user-1", username: "user1" },
-            createdAt: recent,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "old",
+              author: { id: "user-1", username: "user1" },
+              createdAt: old,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "new",
+              author: { id: "user-1", username: "user1" },
+              createdAt: recent,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3186,27 +3222,35 @@ describe("DiscordChatClient", () => {
 
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "old",
-            author: { id: "user-1", username: "user1" },
-            createdAt: old,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "new",
-            author: { id: "user-1", username: "user1" },
-            createdAt: recent,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "old",
+              author: { id: "user-1", username: "user1" },
+              createdAt: old,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "new",
+              author: { id: "user-1", username: "user1" },
+              createdAt: recent,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
       const channel = await client.connect(channelId);
-      const messages = await channel.getMessages({ after: "2023-01-01T00:00:00Z" });
+      const messages = await channel.getMessages({
+        after: "2023-01-01T00:00:00Z",
+      });
 
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toBe("new");
@@ -3216,14 +3260,17 @@ describe("DiscordChatClient", () => {
       const now = new Date();
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "msg",
-            author: { id: "user-1", username: "user1" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "msg",
+              author: { id: "user-1", username: "user1" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3241,22 +3288,28 @@ describe("DiscordChatClient", () => {
 
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "old",
-            author: { id: "user-1", username: "user1" },
-            createdAt: old,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "new",
-            author: { id: "user-1", username: "user1" },
-            createdAt: recent,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "old",
+              author: { id: "user-1", username: "user1" },
+              createdAt: old,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "new",
+              author: { id: "user-1", username: "user1" },
+              createdAt: recent,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3272,20 +3325,25 @@ describe("DiscordChatClient", () => {
       const now = new Date();
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "msg",
-            author: { id: "user-1", username: "user1" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "msg",
+              author: { id: "user-1", username: "user1" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
       const channel = await client.connect(channelId);
       // Invalid Date
-      const messages = await channel.getMessages({ after: new Date("invalid") });
+      const messages = await channel.getMessages({
+        after: new Date("invalid"),
+      });
 
       expect(messages).toHaveLength(1);
     });
@@ -3295,22 +3353,28 @@ describe("DiscordChatClient", () => {
       // normalizeAuthorFilter lowercases non-mention strings, so use lowercase IDs
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
-          ["msg-1", {
-            id: "msg-1",
-            channelId,
-            content: "from alice",
-            author: { id: "u_alice", username: "alice" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
-          ["msg-2", {
-            id: "msg-2",
-            channelId,
-            content: "from bob",
-            author: { id: "u_bob", username: "bob" },
-            createdAt: now,
-            attachments: new Map(),
-          }],
+          [
+            "msg-1",
+            {
+              id: "msg-1",
+              channelId,
+              content: "from alice",
+              author: { id: "u_alice", username: "alice" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
+          [
+            "msg-2",
+            {
+              id: "msg-2",
+              channelId,
+              content: "from bob",
+              author: { id: "u_bob", username: "bob" },
+              createdAt: now,
+              attachments: new Map(),
+            },
+          ],
         ])
       );
 
@@ -3403,29 +3467,37 @@ describe("DiscordChatClient", () => {
       // Return null for the thread channel fetch
       mockClient.channels.fetch.mockResolvedValueOnce(null);
 
-      await expect(client.deleteThread("non-existent-thread", channelId))
-        .rejects.toThrow("Thread non-existent-thread not found");
+      await expect(
+        client.deleteThread("non-existent-thread", channelId)
+      ).rejects.toThrow("Thread non-existent-thread not found");
     });
   });
 
   describe("eventHandlers - callback error catch branches", () => {
     it("reaction callback error is caught and logged (line 62)", async () => {
       await client.connect(channelId);
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       // subscribeToReactions on DiscordChatClient takes (channelId, callback)
-      const throwingCallback = vi.fn().mockRejectedValue(new Error("reaction cb error"));
+      const throwingCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("reaction cb error"));
       client.subscribeToReactions(channelId, throwingCallback);
 
       const handler = getReactionHandler();
       expect(handler).not.toBeNull();
 
       // Invoke handler - it calls void (async () => {...})()
-      handler!({
-        partial: false,
-        emoji: { name: "😊", id: null },
-        message: { channelId, id: "msg-react" },
-      }, { id: "user-react", username: "reactuser" });
+      handler!(
+        {
+          partial: false,
+          emoji: { name: "😊", id: null },
+          message: { channelId, id: "msg-react" },
+        },
+        { id: "user-react", username: "reactuser" }
+      );
 
       // Wait for inner async to complete
       await new Promise((r) => setTimeout(r, 50));
@@ -3439,9 +3511,13 @@ describe("DiscordChatClient", () => {
 
     it("disconnect callback error is caught and logged (line 138)", async () => {
       await client.connect(channelId);
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
-      const throwingDisconnectCallback = vi.fn().mockRejectedValue(new Error("disconnect cb error"));
+      const throwingDisconnectCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("disconnect cb error"));
       client.onDisconnect(throwingDisconnectCallback);
 
       const handlers = getShardHandler("shardDisconnect");
@@ -3459,9 +3535,13 @@ describe("DiscordChatClient", () => {
 
     it("error callback error is caught and logged (line 150)", async () => {
       await client.connect(channelId);
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
-      const throwingErrorCallback = vi.fn().mockRejectedValue(new Error("error cb error"));
+      const throwingErrorCallback = vi
+        .fn()
+        .mockRejectedValue(new Error("error cb error"));
       client.onError(throwingErrorCallback);
 
       const handlers = getShardHandler("shardError");
@@ -3597,7 +3677,9 @@ describe("DiscordChatClient", () => {
 
       // Call client.getMessages directly to bypass Channel's mention-stripping logic
       // This passes the mention string directly to discord/getMessages.ts normalizeAuthorFilter
-      const messages = await client.getMessages(channelId, { author: `<@${targetUserId}>` });
+      const messages = await client.getMessages(channelId, {
+        author: `<@${targetUserId}>`,
+      });
       expect(messages).toHaveLength(1);
       expect(messages[0].author.id).toBe(targetUserId);
     });

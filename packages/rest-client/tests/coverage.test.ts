@@ -288,9 +288,9 @@ describe("HttpClient error formatting", () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(false);
     mockInstance.get.mockRejectedValue("plain string error");
 
-    await expect(
-      client.get("https://api.test/fail")
-    ).rejects.toBeInstanceOf(NetworkError);
+    await expect(client.get("https://api.test/fail")).rejects.toBeInstanceOf(
+      NetworkError
+    );
   });
 
   // line 125: error.code !== undefined → { code: error.code } (the truthy branch)
@@ -554,7 +554,9 @@ describe("HttpClient error formatting", () => {
   it("retries when error is a NetworkError instance", async () => {
     const networkError = new NetworkError("connection failed");
     vi.mocked(axios.isAxiosError).mockReturnValue(false);
-    const retryClient = new HttpClient({ retry: { maxAttempts: 1, delayMs: 1 } });
+    const retryClient = new HttpClient({
+      retry: { maxAttempts: 1, delayMs: 1 },
+    });
     mockInstance.get
       .mockRejectedValueOnce(networkError)
       .mockResolvedValueOnce({ data: "ok" });
@@ -632,7 +634,9 @@ describe("RestClient additional coverage", () => {
     const noPathConfig = { method: "GET" as const } as never;
     const bound = client.bind(noPathConfig);
     await expect(bound()).rejects.toThrow(ConfigurationError);
-    await expect(bound()).rejects.toThrow("Operation requires either path or url");
+    await expect(bound()).rejects.toThrow(
+      "Operation requires either path or url"
+    );
   });
 
   it("throws ConfigurationError when baseUrl is invalid (line 261)", async () => {
@@ -640,7 +644,9 @@ describe("RestClient additional coverage", () => {
       baseUrl: "not-a-valid-url",
       retry: { maxAttempts: 0, delayMs: 1 },
     });
-    const bound = client.bind(defineOperation({ method: "GET", path: "/test" }));
+    const bound = client.bind(
+      defineOperation({ method: "GET", path: "/test" })
+    );
     await expect(bound()).rejects.toThrow(ConfigurationError);
   });
 
@@ -669,7 +675,9 @@ describe("RestClient additional coverage", () => {
     mockInstance.get.mockResolvedValue({ data: {} });
 
     await client.getNoSlash();
-    expect(mockInstance.get).toHaveBeenCalledWith("https://api.test/v1/users/1");
+    expect(mockInstance.get).toHaveBeenCalledWith(
+      "https://api.test/v1/users/1"
+    );
   });
 
   it("path with leading slash is resolved correctly", async () => {
@@ -680,12 +688,17 @@ describe("RestClient additional coverage", () => {
     mockInstance.get.mockResolvedValue({ data: {} });
 
     await client.getWithSlash();
-    expect(mockInstance.get).toHaveBeenCalledWith("https://api.test/v1/users/1");
+    expect(mockInstance.get).toHaveBeenCalledWith(
+      "https://api.test/v1/users/1"
+    );
   });
 
   it("baseUrl already ending with slash resolves path correctly", async () => {
     const client = createRestClient(
-      { baseUrl: "https://api.test/v1/", retry: { maxAttempts: 0, delayMs: 1 } },
+      {
+        baseUrl: "https://api.test/v1/",
+        retry: { maxAttempts: 0, delayMs: 1 },
+      },
       { getIt: defineOperation({ method: "GET", path: "/users" }) }
     );
     mockInstance.get.mockResolvedValue({ data: [] });

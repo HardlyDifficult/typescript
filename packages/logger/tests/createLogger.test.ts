@@ -98,7 +98,10 @@ describe("createLogger", () => {
   });
 
   it("supports context without scope (exercises the context ?? {} branch)", () => {
-    const logger = createLogger({ context: { region: "us-east-1" }, console: false });
+    const logger = createLogger({
+      context: { region: "us-east-1" },
+      console: false,
+    });
     const plugin = createSpyPlugin();
     logger.use(plugin);
 

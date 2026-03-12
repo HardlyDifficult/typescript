@@ -23,7 +23,9 @@ function createMockClient(events: Array<Record<string, unknown>>) {
   };
 }
 
-function createMockClientWithThrowingSubscribe(events: Array<Record<string, unknown>>) {
+function createMockClientWithThrowingSubscribe(
+  events: Array<Record<string, unknown>>
+) {
   return {
     session: {
       create: vi.fn().mockResolvedValue({ id: "session-1" }),
@@ -526,7 +528,11 @@ describe("runAgent - extended coverage", () => {
     });
 
     const toolFinish = events.find((e) => e.type === "tool-finish");
-    expect(toolFinish).toMatchObject({ type: "tool-finish", output: "", ok: true });
+    expect(toolFinish).toMatchObject({
+      type: "tool-finish",
+      output: "",
+      ok: true,
+    });
   });
 
   it("emits tool-finish with 'Tool error' fallback when state.error is undefined", async () => {
@@ -575,7 +581,11 @@ describe("runAgent - extended coverage", () => {
     });
 
     const toolFinish = events.find((e) => e.type === "tool-finish");
-    expect(toolFinish).toMatchObject({ type: "tool-finish", output: "Tool error", ok: false });
+    expect(toolFinish).toMatchObject({
+      type: "tool-finish",
+      output: "Tool error",
+      ok: false,
+    });
   });
 
   it("does not emit tool event when status is undefined", async () => {
@@ -741,11 +751,13 @@ describe("runAgent - extended coverage", () => {
         abort: vi.fn().mockResolvedValue(true),
       },
       event: {
-        subscribe: vi.fn().mockResolvedValue(
-          createEventStream([
-            { type: "session.idle", properties: { sessionID: "session-1" } },
-          ])
-        ),
+        subscribe: vi
+          .fn()
+          .mockResolvedValue(
+            createEventStream([
+              { type: "session.idle", properties: { sessionID: "session-1" } },
+            ])
+          ),
       },
     };
     vi.mocked(getClient).mockResolvedValue(client);
@@ -770,11 +782,13 @@ describe("runAgent - extended coverage", () => {
         abort: vi.fn().mockResolvedValue(true),
       },
       event: {
-        subscribe: vi.fn().mockResolvedValue(
-          createEventStream([
-            { type: "session.idle", properties: { sessionID: "session-1" } },
-          ])
-        ),
+        subscribe: vi
+          .fn()
+          .mockResolvedValue(
+            createEventStream([
+              { type: "session.idle", properties: { sessionID: "session-1" } },
+            ])
+          ),
       },
     };
     vi.mocked(getClient).mockResolvedValue(client);
@@ -803,11 +817,13 @@ describe("runAgent - extended coverage", () => {
         abort: vi.fn().mockResolvedValue(true),
       },
       event: {
-        subscribe: vi.fn().mockResolvedValue(
-          createEventStream([
-            { type: "session.idle", properties: { sessionID: "session-1" } },
-          ])
-        ),
+        subscribe: vi
+          .fn()
+          .mockResolvedValue(
+            createEventStream([
+              { type: "session.idle", properties: { sessionID: "session-1" } },
+            ])
+          ),
       },
     };
     vi.mocked(getClient).mockResolvedValue(client);
@@ -840,7 +856,9 @@ describe("runAgent - extended coverage", () => {
       signal: abortController.signal,
     });
 
-    expect(addSpy).toHaveBeenCalledWith("abort", expect.any(Function), { once: true });
+    expect(addSpy).toHaveBeenCalledWith("abort", expect.any(Function), {
+      once: true,
+    });
     expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 

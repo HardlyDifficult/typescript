@@ -70,7 +70,13 @@ describe("createRepoSummary with real extractTyped (exercises schema.parse)", ()
     });
 
     const findings = [sampleFinding];
-    const result = await createRepoSummary(deps, "webhooks", "owner/repo", findings, 5);
+    const result = await createRepoSummary(
+      deps,
+      "webhooks",
+      "owner/repo",
+      findings,
+      5
+    );
 
     expect(result.uniqueUseCases).toEqual(["Use case from AI"]);
   });
@@ -150,7 +156,13 @@ describe("createRepoSummary with real extractTyped (exercises schema.parse)", ()
 describe("createRepoSummary", () => {
   it("returns empty summary when there are no findings", async () => {
     const deps = makeDeps();
-    const result = await createRepoSummary(deps, "webhooks", "owner/repo", [], 10);
+    const result = await createRepoSummary(
+      deps,
+      "webhooks",
+      "owner/repo",
+      [],
+      10
+    );
     expect(result).toEqual({
       repo: "owner/repo",
       filesScanned: 10,
@@ -218,7 +230,10 @@ describe("createRepoSummary", () => {
       },
     });
 
-    const findings = [sampleFinding, { ...sampleFinding, description: "Other finding" }];
+    const findings = [
+      sampleFinding,
+      { ...sampleFinding, description: "Other finding" },
+    ];
     const result = await createRepoSummary(
       deps,
       "webhooks",

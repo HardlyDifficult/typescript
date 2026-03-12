@@ -483,7 +483,9 @@ describe("CommandDispatcher", () => {
       id: "msg-001",
       channelId: "ch-001",
       delete: vi.fn().mockResolvedValue(undefined),
-      startThread: vi.fn().mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
+      startThread: vi
+        .fn()
+        .mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
     };
     await dispatcher.handleMessage(msg as never);
 
@@ -495,9 +497,11 @@ describe("CommandDispatcher", () => {
 
   it("createContext functions: send, sendMessage, sendDismissable, sendFile, startThread", async () => {
     const capturedCtx: Record<string, unknown> = {};
-    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
-      capturedCtx.ctx = ctx;
-    });
+    const execute = vi
+      .fn()
+      .mockImplementation(async (ctx: Record<string, unknown>) => {
+        capturedCtx.ctx = ctx;
+      });
     registry.register("meta", { ...makeCommand("help"), execute });
 
     const dispatcher = new CommandDispatcher({
@@ -531,22 +535,28 @@ describe("CommandDispatcher", () => {
     ctx.sendFile("file content", "file.txt", "Optional message");
     expect(channel.postMessage).toHaveBeenCalledWith(
       "Optional message",
-      expect.objectContaining({ files: [expect.objectContaining({ name: "file.txt" })] })
+      expect.objectContaining({
+        files: [expect.objectContaining({ name: "file.txt" })],
+      })
     );
 
     // Test sendFile with Buffer content
     ctx.sendFile(Buffer.from("buf"), "buf.bin");
     expect(channel.postMessage).toHaveBeenCalledWith(
       "",
-      expect.objectContaining({ files: [expect.objectContaining({ name: "buf.bin" })] })
+      expect.objectContaining({
+        files: [expect.objectContaining({ name: "buf.bin" })],
+      })
     );
   });
 
   it("createContext.sendDismissable uses postMessage when no ownerId", async () => {
-    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ctx as any).sendDismissable("message");
-    });
+    const execute = vi
+      .fn()
+      .mockImplementation(async (ctx: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (ctx as any).sendDismissable("message");
+      });
     registry.register("meta", { ...makeCommand("help"), execute });
 
     // No ownerUserId, and message has no author.id to prevent auto-capture
@@ -563,7 +573,9 @@ describe("CommandDispatcher", () => {
       id: "msg-001",
       channelId: "ch-001",
       delete: vi.fn().mockResolvedValue(undefined),
-      startThread: vi.fn().mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
+      startThread: vi
+        .fn()
+        .mockResolvedValue({ id: "thread-001", channelId: "ch-001" }),
     };
     await dispatcher.handleMessage(msg as never);
 
@@ -571,10 +583,12 @@ describe("CommandDispatcher", () => {
   });
 
   it("createContext.startThread adds message to messagesWithThreads", async () => {
-    const execute = vi.fn().mockImplementation(async (ctx: Record<string, unknown>) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ctx as any).startThread("My Thread");
-    });
+    const execute = vi
+      .fn()
+      .mockImplementation(async (ctx: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (ctx as any).startThread("My Thread");
+      });
     registry.register("meta", { ...makeCommand("help"), execute });
 
     const dispatcher = makeDispatcher();

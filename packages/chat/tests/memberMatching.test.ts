@@ -96,14 +96,26 @@ describe("findBestMemberMatch", () => {
   });
 
   it("returns null when ambiguous (two equal-score matches)", () => {
-    const m1 = makeMember({ id: "U1", username: "alice", displayName: "Alice A" });
-    const m2 = makeMember({ id: "U2", username: "alice", displayName: "Alice B" });
+    const m1 = makeMember({
+      id: "U1",
+      username: "alice",
+      displayName: "Alice A",
+    });
+    const m2 = makeMember({
+      id: "U2",
+      username: "alice",
+      displayName: "Alice B",
+    });
     const result = findBestMemberMatch([m1, m2], "alice");
     expect(result).toBeNull();
   });
 
   it("returns null when no member matches", () => {
-    const member = makeMember({ id: "U999", username: "zz_nobody", displayName: "Nobody Z" });
+    const member = makeMember({
+      id: "U999",
+      username: "zz_nobody",
+      displayName: "Nobody Z",
+    });
     const result = findBestMemberMatch([member], "xyznotfound");
     expect(result).toBeNull();
   });

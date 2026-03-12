@@ -34,7 +34,9 @@ describe("runContinuousLoop - additional coverage", () => {
     const runCycle = async (): Promise<void> => {
       runCount++;
       if (runCount === 1) {
-        throw new Error("test error to trigger defaultLogger.error with context");
+        throw new Error(
+          "test error to trigger defaultLogger.error with context"
+        );
       }
       process.emit("SIGTERM");
     };

@@ -288,8 +288,12 @@ describe("createAgent", () => {
 
       await agent.run([{ role: "user", content: "test" }]);
 
-      const debugCalls = logger.debug.mock.calls as Array<[string, Record<string, unknown>]>;
-      const completeCall = debugCalls.find((c) => c[0] === "Agent run complete");
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
+      const completeCall = debugCalls.find(
+        (c) => c[0] === "Agent run complete"
+      );
       expect(completeCall).toBeDefined();
       expect(completeCall![1].cacheCreationTokens).toBe(80);
       expect(completeCall![1].cacheReadTokens).toBe(40);
@@ -327,7 +331,9 @@ describe("createAgent", () => {
 
       await agent.run([{ role: "user", content: "test" }]);
 
-      const debugCalls = logger.debug.mock.calls as Array<[string, Record<string, unknown>]>;
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
       const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
       expect(toolResultCall).toBeDefined();
       expect(toolResultCall![1].outputType).toBe("null");
@@ -365,7 +371,9 @@ describe("createAgent", () => {
 
       await agent.run([{ role: "user", content: "test" }]);
 
-      const debugCalls = logger.debug.mock.calls as Array<[string, Record<string, unknown>]>;
+      const debugCalls = logger.debug.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
       const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
       expect(toolResultCall).toBeDefined();
       expect(toolResultCall![1].outputType).toBe("array");

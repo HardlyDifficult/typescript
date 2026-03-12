@@ -704,7 +704,10 @@ describe("ReplyMessage - override methods", () => {
 
   it("removeReactions queues after reply resolves", async () => {
     const ops = createMockOperations();
-    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const msg = new Message(
+      { id: "msg-1", channelId: "ch-x", platform: "slack" },
+      ops
+    );
     const replyMsg = msg.reply("hello") as ReplyMessage;
     replyMsg.removeReactions(["👍"]);
     await replyMsg.waitForReactions();
@@ -713,7 +716,10 @@ describe("ReplyMessage - override methods", () => {
 
   it("removeAllReactions queues after reply resolves", async () => {
     const ops = createMockOperations();
-    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const msg = new Message(
+      { id: "msg-1", channelId: "ch-x", platform: "slack" },
+      ops
+    );
     const replyMsg = msg.reply("hello") as ReplyMessage;
     replyMsg.removeAllReactions();
     await replyMsg.waitForReactions();
@@ -722,7 +728,10 @@ describe("ReplyMessage - override methods", () => {
 
   it("onReaction calls super directly when resolved=true", async () => {
     const ops = createMockOperations();
-    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const msg = new Message(
+      { id: "msg-1", channelId: "ch-x", platform: "slack" },
+      ops
+    );
     const replyMsg = msg.reply("hello") as ReplyMessage;
     // Wait for resolution so resolved=true
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -734,7 +743,10 @@ describe("ReplyMessage - override methods", () => {
 
   it("waitForReactions waits for both reply and reactions", async () => {
     const ops = createMockOperations();
-    const msg = new Message({ id: "msg-1", channelId: "ch-x", platform: "slack" }, ops);
+    const msg = new Message(
+      { id: "msg-1", channelId: "ch-x", platform: "slack" },
+      ops
+    );
     const replyMsg = msg.reply("hello") as ReplyMessage;
     replyMsg.addReactions(["🎉"]);
     await replyMsg.waitForReactions();
@@ -764,7 +776,11 @@ describe("PendingMessage - override methods", () => {
 
   it("onReaction calls super directly when resolved=true", async () => {
     const ops = createMockOperations();
-    const postData = { id: "post-1", channelId: "ch-p", platform: "slack" as const };
+    const postData = {
+      id: "post-1",
+      channelId: "ch-p",
+      platform: "slack" as const,
+    };
     const pending = new PendingMessage(Promise.resolve(postData), ops, "slack");
     // Wait for the postPromise .then() to run (resolved = true)
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -776,7 +792,11 @@ describe("PendingMessage - override methods", () => {
 
   it("waitForReactions waits for post and pending reactions", async () => {
     const ops = createMockOperations();
-    const postData = { id: "post-2", channelId: "ch-p", platform: "slack" as const };
+    const postData = {
+      id: "post-2",
+      channelId: "ch-p",
+      platform: "slack" as const,
+    };
     const pending = new PendingMessage(Promise.resolve(postData), ops, "slack");
     pending.addReactions(["🚀"]);
     await pending.waitForReactions();

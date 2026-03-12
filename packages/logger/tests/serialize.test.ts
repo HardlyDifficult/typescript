@@ -213,13 +213,19 @@ describe("safeJsonStringify", () => {
   it("handles circular record reference", () => {
     const obj: Record<string, unknown> = { name: "loop" };
     obj.self = obj;
-    const result = JSON.parse(safeJsonStringify(obj)) as Record<string, unknown>;
+    const result = JSON.parse(safeJsonStringify(obj)) as Record<
+      string,
+      unknown
+    >;
     expect(result.self).toBe("[Circular]");
   });
 
   it("omits undefined values from plain objects", () => {
     const obj = { a: 1, b: undefined };
-    const result = JSON.parse(safeJsonStringify(obj)) as Record<string, unknown>;
+    const result = JSON.parse(safeJsonStringify(obj)) as Record<
+      string,
+      unknown
+    >;
     expect(result.a).toBe(1);
     expect("b" in result).toBe(false);
   });
@@ -261,7 +267,10 @@ describe("normalizeContext", () => {
   it("handles Error values in context", () => {
     const error = new Error("oops");
     const ctx = { error };
-    const result = normalizeContext(ctx) as Record<string, Record<string, unknown>>;
+    const result = normalizeContext(ctx) as Record<
+      string,
+      Record<string, unknown>
+    >;
     expect(result.error.name).toBe("Error");
     expect(result.error.message).toBe("oops");
   });

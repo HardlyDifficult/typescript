@@ -250,10 +250,7 @@ describe("analyzePR - additional coverage", () => {
 
   it("ciSummary: CI running with some passed (mixed)", async () => {
     const pr = makePR();
-    const checks = [
-      makeRunningCheck("lint"),
-      makePassedCheck("build"),
-    ];
+    const checks = [makeRunningCheck("lint"), makePassedCheck("build")];
     const client = makeMockClient({ pr, checks });
 
     const result = await analyzePR(client, "owner", "repo", pr, "@bot");
@@ -266,10 +263,7 @@ describe("analyzePR - additional coverage", () => {
 
   it("ciSummary: CI failed with some passed (mixed)", async () => {
     const pr = makePR();
-    const checks = [
-      makeFailedCheck("lint"),
-      makePassedCheck("build"),
-    ];
+    const checks = [makeFailedCheck("lint"), makePassedCheck("build")];
     const client = makeMockClient({ pr, checks });
 
     const result = await analyzePR(client, "owner", "repo", pr, "@bot");
@@ -329,7 +323,11 @@ describe("analyzePR - additional coverage", () => {
   it("waitingOnBot: bot replied but before the last mention (still waiting)", async () => {
     const pr = makePR();
     const comments = [
-      makeComment("cursor-bot", "I've started working on it", "2024-01-01T00:00:00Z"),
+      makeComment(
+        "cursor-bot",
+        "I've started working on it",
+        "2024-01-01T00:00:00Z"
+      ),
       makeComment("dev", "@cursor please fix this too", "2024-01-02T00:00:00Z"),
     ];
     const client = makeMockClient({
@@ -492,9 +490,7 @@ describe("analyzeAll", () => {
     const pr = makePR({ number: 1 });
     const client = makeMockClient({ pr, checks: [makePassedCheck()] });
 
-    const prs: DiscoveredPR[] = [
-      { pr, repoOwner: "owner", repoName: "repo" },
-    ];
+    const prs: DiscoveredPR[] = [{ pr, repoOwner: "owner", repoName: "repo" }];
 
     const hooks = {
       resolveStatus: vi.fn().mockReturnValue("custom"),

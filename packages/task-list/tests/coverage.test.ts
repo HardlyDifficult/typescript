@@ -547,7 +547,10 @@ describe("Project additional coverage", () => {
     });
     const project = new Project(makeProjectSnapshot([baseTaskData], context));
 
-    const result = await project.updateTasks({ status: "Todo" }, { status: "In Progress" });
+    const result = await project.updateTasks(
+      { status: "Todo" },
+      { status: "In Progress" }
+    );
 
     expect(result.count).toBe(1);
     expect(result.updated).toHaveLength(1);
@@ -677,7 +680,9 @@ describe("Task additional coverage", () => {
         })
       ),
     });
-    const task = new Task(makeTaskSnapshot({ ...baseTaskData, labels: [] }, context));
+    const task = new Task(
+      makeTaskSnapshot({ ...baseTaskData, labels: [] }, context)
+    );
 
     await task.tag("NewLabel");
 
@@ -886,7 +891,11 @@ describe("LinearTaskListClient context methods", () => {
     mockFetch.mockResolvedValueOnce(
       graphqlResponse({
         issueUpdate: {
-          issue: { ...linearIssue, title: "New title", description: "New desc" },
+          issue: {
+            ...linearIssue,
+            title: "New title",
+            description: "New desc",
+          },
         },
       })
     );

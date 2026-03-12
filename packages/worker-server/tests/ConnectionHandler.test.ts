@@ -30,9 +30,7 @@ function createMockWs(): WebSocket & { workerId?: string } {
   return ws;
 }
 
-function createWorker(
-  overrides?: Partial<ConnectedWorker>
-): ConnectedWorker {
+function createWorker(overrides?: Partial<ConnectedWorker>): ConnectedWorker {
   return {
     id: "worker-1",
     name: "Test Worker",
@@ -412,11 +410,7 @@ describe("ConnectionHandler", () => {
       expect(() =>
         (
           handler as unknown as {
-            handleDisconnect(
-              ws: WebSocket,
-              code: number,
-              reason: string
-            ): void;
+            handleDisconnect(ws: WebSocket, code: number, reason: string): void;
           }
         ).handleDisconnect(ws, 1000, "error")
       ).not.toThrow();
@@ -791,7 +785,6 @@ describe("ConnectionHandler", () => {
       };
 
       handler.handleConnection(ws);
-
 
       // Trigger error event
       mutableWs.emit("error", new Error("test error"));

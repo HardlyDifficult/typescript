@@ -129,7 +129,9 @@ describe("RepoProcessor.open", () => {
   it("invokes getFileTree and getFileContent wrappers via run() (lines 86-90)", async () => {
     const { RepoProcessor } = await import("../src/index.js");
 
-    const treeFn = vi.fn().mockResolvedValue({ entries: [], rootSha: "root-sha" });
+    const treeFn = vi
+      .fn()
+      .mockResolvedValue({ entries: [], rootSha: "root-sha" });
     const readFn = vi.fn().mockResolvedValue("content");
     repoMock.mockReturnValue({ tree: treeFn, read: readFn });
 

@@ -261,7 +261,11 @@ describe("MACD - NaN close prices trigger isNaN branches in internal EMA", () =>
       makeCandle(104),
       makeCandle(106),
     ];
-    const result = macdIndicator.compute(candles, { fast: 2, slow: 3, signal: 2 });
+    const result = macdIndicator.compute(candles, {
+      fast: 2,
+      slow: 3,
+      signal: 2,
+    });
     expect(result.length).toBe(5);
     // NaN propagates through early values
     expect(isNaN(result[0]!)).toBe(true);
@@ -275,7 +279,11 @@ describe("MACD - NaN close prices trigger isNaN branches in internal EMA", () =>
       makeCandle(104),
       makeCandle(106),
     ];
-    const result = macdSignalIndicator.compute(candles, { fast: 2, slow: 3, signal: 2 });
+    const result = macdSignalIndicator.compute(candles, {
+      fast: 2,
+      slow: 3,
+      signal: 2,
+    });
     expect(result.length).toBe(5);
   });
 });

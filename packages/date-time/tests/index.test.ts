@@ -9,7 +9,9 @@ import {
 
 describe("index re-exports", () => {
   it("re-exports dateFromUnixSeconds", () => {
-    expect(dateFromUnixSeconds(0)).toEqual(new Date("1970-01-01T00:00:00.000Z"));
+    expect(dateFromUnixSeconds(0)).toEqual(
+      new Date("1970-01-01T00:00:00.000Z")
+    );
   });
 
   it("re-exports duration", () => {

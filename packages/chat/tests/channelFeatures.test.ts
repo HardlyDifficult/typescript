@@ -352,7 +352,9 @@ describe("Channel.resolveOptions edge cases", () => {
     expect(() => {
       // @ts-expect-error intentional - testing runtime guard
       new Channel("channel-1", undefined, undefined);
-    }).toThrow("Channel positional constructor requires id, platform, and operations.");
+    }).toThrow(
+      "Channel positional constructor requires id, platform, and operations."
+    );
   });
 });
 
@@ -365,10 +367,15 @@ describe("ChannelBatchHelpers edge cases", () => {
     const adapter = createChannelBatchAdapter(
       "channel-x",
       "slack",
-      vi.fn().mockReturnValue({ then: vi.fn() } as unknown as Message & PromiseLike<Message>),
+      vi
+        .fn()
+        .mockReturnValue({ then: vi.fn() } as unknown as Message &
+          PromiseLike<Message>),
       vi.fn()
     );
-    const result = await (await import("../src/ChannelBatchHelpers.js")).getChannelBatch(adapter, "nonexistent-id");
+    const result = await (
+      await import("../src/ChannelBatchHelpers.js")
+    ).getChannelBatch(adapter, "nonexistent-id");
     expect(result).toBeNull();
   });
 
@@ -376,7 +383,10 @@ describe("ChannelBatchHelpers edge cases", () => {
     const adapter = createChannelBatchAdapter(
       "channel-y",
       "slack",
-      vi.fn().mockReturnValue({ then: vi.fn() } as unknown as Message & PromiseLike<Message>),
+      vi
+        .fn()
+        .mockReturnValue({ then: vi.fn() } as unknown as Message &
+          PromiseLike<Message>),
       vi.fn()
     );
     expect(() =>
@@ -389,7 +399,10 @@ describe("ChannelBatchHelpers edge cases", () => {
     const adapter = createChannelBatchAdapter(
       "channel-y2",
       "slack",
-      vi.fn().mockReturnValue({ then: vi.fn() } as unknown as Message & PromiseLike<Message>),
+      vi
+        .fn()
+        .mockReturnValue({ then: vi.fn() } as unknown as Message &
+          PromiseLike<Message>),
       vi.fn()
     );
     await expect(
@@ -405,7 +418,15 @@ describe("ChannelBatchHelpers edge cases", () => {
       platform: "slack",
     });
     const deleteMessage = vi.fn();
-    const adapter = createChannelBatchAdapter("channel-z", "slack", postMessage as unknown as (content: import("../src/types.js").MessageContent, options?: import("../src/types.js").ChannelMessageOptions) => Message & PromiseLike<Message>, deleteMessage);
+    const adapter = createChannelBatchAdapter(
+      "channel-z",
+      "slack",
+      postMessage as unknown as (
+        content: import("../src/types.js").MessageContent,
+        options?: import("../src/types.js").ChannelMessageOptions
+      ) => Message & PromiseLike<Message>,
+      deleteMessage
+    );
     const result = await withChannelBatchFromArgs(adapter, async (batch) => {
       return batch.id;
     });

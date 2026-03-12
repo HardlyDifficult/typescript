@@ -511,6 +511,8 @@ describe("toSlackBlocks - edge cases", () => {
 
     // Should have only 1 block (the text block), unknown is skipped
     expect(result).toHaveLength(1);
-    expect((result[0] as { text: { text: string } }).text.text).toBe("visible text");
+    expect((result[0] as { text: { text: string } }).text.text).toBe(
+      "visible text"
+    );
   });
 });

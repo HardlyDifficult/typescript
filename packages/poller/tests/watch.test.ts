@@ -425,7 +425,11 @@ describe("watch", () => {
       return new Unserializable();
     });
     const onChange2 = vi.fn();
-    const watcher2 = await watch({ read: read2, onChange: onChange2, everyMs: 1000 });
+    const watcher2 = await watch({
+      read: read2,
+      onChange: onChange2,
+      everyMs: 1000,
+    });
     // First read: b=undefined -> isPrimitive(undefined)=true -> returns false -> onChange called
     // Second read: a=Unserializable, b=Unserializable (not same reference)
     //   Object.is(a,b) = false
@@ -490,17 +494,22 @@ describe("watch", () => {
     tempWatcher.stop();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const watcherProto = Object.getPrototypeOf(tempWatcher) as Record<string, any>;
+    const watcherProto = Object.getPrototypeOf(tempWatcher) as Record<
+      string,
+      any
+    >;
     const originalRefresh = watcherProto.refresh as () => Promise<unknown>;
 
     // Wrap refresh() to call stop() on the watcher after the initial read completes.
     // This causes this.stopped=true so that start() skips setInterval at line 44.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const refreshSpy = vi.spyOn(watcherProto, "refresh").mockImplementation(async function (this: any) {
-      const result = await originalRefresh.call(this);
-      this.stop();
-      return result;
-    });
+    const refreshSpy = vi
+      .spyOn(watcherProto, "refresh")
+      .mockImplementation(async function (this: any) {
+        const result = await originalRefresh.call(this);
+        this.stop();
+        return result;
+      });
 
     const read = vi.fn().mockResolvedValue("value");
     const watcher = await watch({ read, onChange: vi.fn(), everyMs: 1000 });

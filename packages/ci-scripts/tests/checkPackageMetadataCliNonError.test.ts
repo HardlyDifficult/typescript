@@ -16,12 +16,8 @@ vi.mock("fs", async (importOriginal) => {
 });
 
 import * as fsMock from "fs";
-import {
-  runCheckPackageMetadataCli,
-} from "../src/check-package-metadata.js";
-import {
-  runCheckPinnedDependenciesCli,
-} from "../src/check-pinned-deps.js";
+import { runCheckPackageMetadataCli } from "../src/check-package-metadata.js";
+import { runCheckPinnedDependenciesCli } from "../src/check-pinned-deps.js";
 
 describe("CLI non-Error error handling", () => {
   it("runCheckPackageMetadataCli: String(error) when non-Error is thrown", () => {

@@ -127,7 +127,8 @@ describe("readBody - additional branches", () => {
       destroyCalled = true;
       // Don't emit error - request is fully aborted
     };
-    (emitter as unknown as IncomingMessage).removeListener = emitter.removeListener.bind(emitter);
+    (emitter as unknown as IncomingMessage).removeListener =
+      emitter.removeListener.bind(emitter);
 
     process.nextTick(() => {
       emitter.emit("data", Buffer.from("x".repeat(100)));
@@ -136,7 +137,9 @@ describe("readBody - additional branches", () => {
       emitter.emit("end");
     });
     const req = emitter as unknown as IncomingMessage;
-    await expect(readBody(req, { maxBytes: 50 })).rejects.toThrow("Payload too large");
+    await expect(readBody(req, { maxBytes: 50 })).rejects.toThrow(
+      "Payload too large"
+    );
     expect(destroyCalled).toBe(true);
   });
 
@@ -147,7 +150,8 @@ describe("readBody - additional branches", () => {
       // simulate destroy triggering a new error event - but we already removed the listener
       // The new "swallow" listener catches it
     };
-    (emitter as unknown as IncomingMessage).removeListener = emitter.removeListener.bind(emitter);
+    (emitter as unknown as IncomingMessage).removeListener =
+      emitter.removeListener.bind(emitter);
 
     process.nextTick(async () => {
       // Emit error directly while done=false to hit the onError path normally

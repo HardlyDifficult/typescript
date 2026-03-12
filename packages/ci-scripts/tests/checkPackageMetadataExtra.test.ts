@@ -262,6 +262,4 @@ describe("runCheckPackageMetadataCli", () => {
       errorSpy.mockRestore();
     }
   });
-
-
 });

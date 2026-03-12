@@ -77,9 +77,9 @@ describe("checkPinnedDependencies - extra coverage", () => {
       expect(result.issues.some((i) => i.field === "peerDependencies")).toBe(
         true
       );
-      expect(result.issues.some((i) => i.field === "optionalDependencies")).toBe(
-        true
-      );
+      expect(
+        result.issues.some((i) => i.field === "optionalDependencies")
+      ).toBe(true);
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
     }
@@ -220,6 +220,4 @@ describe("runCheckPinnedDependenciesCli", () => {
       errorSpy.mockRestore();
     }
   });
-
-
 });

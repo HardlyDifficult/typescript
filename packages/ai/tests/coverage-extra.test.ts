@@ -231,7 +231,10 @@ describe("createAI - ChatCall.text().then(null) and .zod().then(null) branches",
 
     // Calling .then(null) on zod() result exercises onfulfilled=null branch at line 220
     const { z } = await import("zod");
-    const result = await ai.chat("test").zod(z.object({ name: z.string() })).then(null);
+    const result = await ai
+      .chat("test")
+      .zod(z.object({ name: z.string() }))
+      .then(null);
     // onfulfilled=null → returns data as-is (msg.data from result.output)
     expect(result).toEqual({ name: "Alice" });
   });
@@ -259,7 +262,11 @@ describe("createAI - ask with cache tokens", () => {
 
     const logger = mockLogger();
     const tracker = createMockTracker();
-    const ai = createAI({ model: mockModel() as never, tracker, logger: logger as never });
+    const ai = createAI({
+      model: mockModel() as never,
+      tracker,
+      logger: logger as never,
+    });
 
     await ai.ask("test");
 

@@ -98,12 +98,16 @@ describe("convertMarkdown", () => {
     it("returns content unchanged for bold in unknown platform (default branch line 36)", () => {
       // Cast unknown platform to trigger default branches in switch statements
       const unknownPlatform = "custom" as Parameters<typeof convertMarkdown>[1];
-      expect(convertMarkdown("**bold text**", unknownPlatform)).toBe("bold text");
+      expect(convertMarkdown("**bold text**", unknownPlatform)).toBe(
+        "bold text"
+      );
     });
 
     it("returns content unchanged for italic in unknown platform (default branch line 54)", () => {
       const unknownPlatform = "custom" as Parameters<typeof convertMarkdown>[1];
-      expect(convertMarkdown("*italic text*", unknownPlatform)).toBe("italic text");
+      expect(convertMarkdown("*italic text*", unknownPlatform)).toBe(
+        "italic text"
+      );
     });
 
     it("returns content unchanged for strikethrough in unknown platform (default branch line 68)", () => {

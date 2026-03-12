@@ -16,9 +16,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import {
-  createPRAnalyzer,
-} from "../src/createPRAnalyzer.js";
+import { createPRAnalyzer } from "../src/createPRAnalyzer.js";
 import type {
   CheckRun,
   PullRequest,
@@ -26,11 +24,7 @@ import type {
   PullRequestReview,
   Repository,
 } from "@hardlydifficult/github";
-import type {
-  DiscoveredPR,
-  Logger,
-  PRAnalyzerClient,
-} from "../src/types.js";
+import type { DiscoveredPR, Logger, PRAnalyzerClient } from "../src/types.js";
 
 interface Snapshot {
   readonly pr: PullRequest;
@@ -161,9 +155,9 @@ describe("createPRAnalyzer - additional coverage", () => {
   it("throws for invalid repo configuration string", () => {
     const { client } = makeClient({ snapshots: {} });
 
-    expect(() => createPRAnalyzer({ client, repo: "not-a-valid-repo" })).toThrow(
-      "Invalid repository reference: not-a-valid-repo"
-    );
+    expect(() =>
+      createPRAnalyzer({ client, repo: "not-a-valid-repo" })
+    ).toThrow("Invalid repository reference: not-a-valid-repo");
   });
 
   it("analyze with a DiscoveredPR reference", async () => {

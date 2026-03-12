@@ -34,10 +34,7 @@ describe("buildFileTree - collapseDirs with nested structure", () => {
   });
 
   it("collapses a directory containing only subdirectories (dirs>0)", () => {
-    const paths = [
-      "src/models/user/index.ts",
-      "src/models/post/index.ts",
-    ];
+    const paths = ["src/models/user/index.ts", "src/models/post/index.ts"];
     const result = buildFileTree(paths, {
       format: "plain",
       collapseDirs: ["models"],
@@ -98,9 +95,9 @@ describe("conditionParser - error branches", () => {
   it("throws on mismatched parentheses - wrong close token (line 244)", () => {
     // (a > 1 b - after evaluating inner expr, next token is 'b' not ')'
     // → triggers "Expected closing parenthesis"
-    expect(() =>
-      evaluateCondition("(a > 1 b", { a: 2, b: 1 })
-    ).toThrow("Expected closing parenthesis");
+    expect(() => evaluateCondition("(a > 1 b", { a: 2, b: 1 })).toThrow(
+      "Expected closing parenthesis"
+    );
   });
 
   it("throws on unexpected token (line 251)", () => {
@@ -154,7 +151,9 @@ describe("linker - edge cases", () => {
       linear: "myworkspace",
       for: "discord",
     });
-    expect(output).toBe("[ENG-100](https://linear.app/myworkspace/issue/ENG-100)");
+    expect(output).toBe(
+      "[ENG-100](https://linear.app/myworkspace/issue/ENG-100)"
+    );
   });
 
   it("renders slack format link (covers slack case in formatLink)", () => {
@@ -162,7 +161,9 @@ describe("linker - edge cases", () => {
       linear: "myworkspace",
       for: "slack",
     });
-    expect(output).toBe("<https://linear.app/myworkspace/issue/ENG-111|ENG-111>");
+    expect(output).toBe(
+      "<https://linear.app/myworkspace/issue/ENG-111|ENG-111>"
+    );
   });
 
   it("handles zero-length match in pushSpans (covers lines 123-125 guard)", () => {
@@ -311,7 +312,9 @@ describe("codeBlock - backtick sequences shorter than fence size", () => {
 describe("template - replaceTemplate value undefined", () => {
   it("returns the match placeholder when value is undefined (covers ?? match branch)", () => {
     // Object.prototype.hasOwnProperty returns true for key 'name', but value is undefined
-    const values: Record<string, string> = { name: undefined as unknown as string };
+    const values: Record<string, string> = {
+      name: undefined as unknown as string,
+    };
     const result = replaceTemplate("Hello {{name}}!", values);
     // undefined ?? match → returns the original placeholder text {{name}}
     expect(result).toBe("Hello {{name}}!");

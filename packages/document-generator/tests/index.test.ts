@@ -95,14 +95,35 @@ describe("index.ts exports", () => {
     const code: CodeBlock = { type: "code", content: "c", multiline: false };
     const image: ImageBlock = { type: "image", url: "https://x.com/img.png" };
 
-    const blocks: Block[] = [header, text, list, divider, context, link, code, image];
+    const blocks: Block[] = [
+      header,
+      text,
+      list,
+      divider,
+      context,
+      link,
+      code,
+      image,
+    ];
     expect(toMarkdown(blocks)).toContain("# H");
   });
 
   it("type exports: SectionOptions, FieldOptions, KeyValueOptions, TruncatedListOptions, TimestampOptions", () => {
-    const sectionOpts: SectionOptions = { emptyText: "None", ordered: true, divider: true };
-    const fieldOpts: FieldOptions = { separator: "=", bold: false, emptyText: "N/A" };
-    const kvOpts: KeyValueOptions = { style: "bullet", separator: ":", bold: true };
+    const sectionOpts: SectionOptions = {
+      emptyText: "None",
+      ordered: true,
+      divider: true,
+    };
+    const fieldOpts: FieldOptions = {
+      separator: "=",
+      bold: false,
+      emptyText: "N/A",
+    };
+    const kvOpts: KeyValueOptions = {
+      style: "bullet",
+      separator: ":",
+      bold: true,
+    };
     const truncOpts: TruncatedListOptions<string> = {
       limit: 5,
       format: (s) => s,
@@ -123,7 +144,8 @@ describe("index.ts exports", () => {
   });
 
   it("type exports: DocumentLinkTransform and DocumentLinkifyOptions", () => {
-    const transform: DocumentLinkTransform = (value: string) => value.toUpperCase();
+    const transform: DocumentLinkTransform = (value: string) =>
+      value.toUpperCase();
     const linkifyOpts: DocumentLinkifyOptions = { platform: "slack" };
     const doc = new Document().text("hello");
     doc.linkify(transform, linkifyOpts);
@@ -133,9 +155,7 @@ describe("index.ts exports", () => {
   it("type exports: SectionContent", () => {
     const content1: SectionContent = "text content";
     const content2: SectionContent = ["item1", "item2"];
-    const doc = new Document()
-      .section("S1", content1)
-      .section("S2", content2);
+    const doc = new Document().section("S1", content1).section("S2", content2);
     expect(doc.getBlocks()).toHaveLength(2);
   });
 });

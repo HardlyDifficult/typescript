@@ -990,7 +990,9 @@ describe("StateTracker", () => {
         const filePath = tracker.getFilePath();
         const os = await import("os");
         const path2 = await import("path");
-        expect(filePath).toBe(path2.join(os.homedir(), ".app-state", "default-dir-test.json"));
+        expect(filePath).toBe(
+          path2.join(os.homedir(), ".app-state", "default-dir-test.json")
+        );
       } finally {
         if (originalEnv !== undefined) {
           process.env.STATE_TRACKER_DIR = originalEnv;
@@ -1013,7 +1015,9 @@ describe("StateTracker", () => {
         const filePath = tracker.getFilePath();
         const os = await import("os");
         const path2 = await import("path");
-        expect(filePath).toBe(path2.join(os.homedir(), ".app-state", "empty-env-test.json"));
+        expect(filePath).toBe(
+          path2.join(os.homedir(), ".app-state", "empty-env-test.json")
+        );
       } finally {
         if (originalEnv !== undefined) {
           process.env.STATE_TRACKER_DIR = originalEnv;
@@ -1194,7 +1198,9 @@ describe("StateTracker", () => {
       expect(tracker.state).toEqual({ cursor: 0, done: [] });
 
       // Should have emitted a warn event
-      const warnEvent = events.find((e) => e.level === "warn" && e.message.includes("migration failed"));
+      const warnEvent = events.find(
+        (e) => e.level === "warn" && e.message.includes("migration failed")
+      );
       expect(warnEvent).toBeDefined();
       expect(warnEvent?.context?.["migration"]).toBe("fail-migration");
     });
@@ -1271,7 +1277,9 @@ describe("StateTracker", () => {
       await tracker.loadAsync({ migrations: [anonSuccessMigration] });
       expect(tracker.state).toEqual({ cursor: 10 });
 
-      const infoEvent = events.find((e) => e.level === "info" && e.message.includes("Migrated"));
+      const infoEvent = events.find(
+        (e) => e.level === "info" && e.message.includes("Migrated")
+      );
       expect(infoEvent?.context?.["migration"]).toBe("anonymous");
     });
 
@@ -1533,7 +1541,9 @@ describe("StateTracker", () => {
       await tracker.loadAsync();
       expect(tracker.isPersistent).toBe(false);
 
-      const warnEvent = events.find((e) => e.level === "warn" && e.message.includes("unavailable"));
+      const warnEvent = events.find(
+        (e) => e.level === "warn" && e.message.includes("unavailable")
+      );
       expect(warnEvent?.context?.["error"]).toBe("connection refused");
     });
 
@@ -1562,7 +1572,9 @@ describe("StateTracker", () => {
 
       expect(tracker.isPersistent).toBe(false);
 
-      const errorEvent = events.find((e) => e.level === "error" && e.message.includes("Failed"));
+      const errorEvent = events.find(
+        (e) => e.level === "error" && e.message.includes("Failed")
+      );
       expect(errorEvent?.context?.["error"]).toBe("write failed");
     });
   });

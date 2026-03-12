@@ -413,5 +413,4 @@ describe("SessionTracker", () => {
       expect(found).toBeDefined();
     });
   });
-
 });

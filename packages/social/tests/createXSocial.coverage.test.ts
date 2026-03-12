@@ -278,7 +278,9 @@ describe("createXSocial - additional coverage", () => {
       const social = createSocial({ token: "token" });
       // Call watchLikes with empty options {} - everyMs is undefined
       // This covers the `?? DEFAULT_WATCH_INTERVAL_MS` branch on line 104
-      const iterator = social.watchLikes({ signal: controller.signal })[Symbol.asyncIterator]();
+      const iterator = social
+        .watchLikes({ signal: controller.signal })
+        [Symbol.asyncIterator]();
 
       const nextProm = iterator.next();
 
@@ -317,10 +319,12 @@ describe("createXSocial - additional coverage", () => {
       globalThis.fetch = fetchMock as typeof fetch;
 
       const social = createSocial({ token: "token" });
-      const iterator = social.watchLikes({
-        everyMs: 1000,
-        signal: controller.signal,
-      })[Symbol.asyncIterator]();
+      const iterator = social
+        .watchLikes({
+          everyMs: 1000,
+          signal: controller.signal,
+        })
+        [Symbol.asyncIterator]();
 
       // Signal is already aborted, so watchLikesStream loop should not run
       const result = await iterator.next();
@@ -335,23 +339,23 @@ describe("createXSocial - additional coverage", () => {
 
       const controller = new AbortController();
 
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          json: async () => ({
-            data: [{ id: "seed", text: "tweet" }],
-            includes: { users: [] },
-          }),
-        });
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "seed", text: "tweet" }],
+          includes: { users: [] },
+        }),
+      });
 
       globalThis.fetch = fetchMock as typeof fetch;
 
       const social = createSocial({ token: "token" });
-      const iterator = social.watchLikes({
-        everyMs: 100_000, // Long sleep so timer won't fire naturally
-        signal: controller.signal,
-      })[Symbol.asyncIterator]();
+      const iterator = social
+        .watchLikes({
+          everyMs: 100_000, // Long sleep so timer won't fire naturally
+          signal: controller.signal,
+        })
+        [Symbol.asyncIterator]();
 
       const nextPromise = iterator.next();
 
@@ -390,7 +394,10 @@ describe("createXSocial - additional coverage", () => {
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
-            data: [{ id: "2", text: "new" }, { id: "1", text: "seed" }],
+            data: [
+              { id: "2", text: "new" },
+              { id: "1", text: "seed" },
+            ],
             includes: { users: [] },
           }),
         })
@@ -405,10 +412,12 @@ describe("createXSocial - additional coverage", () => {
       globalThis.fetch = fetchMock as typeof fetch;
 
       const social = createSocial({ token: "token" });
-      const iterator = social.watchLikes({
-        everyMs: 1_000,
-        signal: controller.signal,
-      })[Symbol.asyncIterator]();
+      const iterator = social
+        .watchLikes({
+          everyMs: 1_000,
+          signal: controller.signal,
+        })
+        [Symbol.asyncIterator]();
 
       // Get first notification (seed first, then get new like)
       const firstNext = iterator.next();

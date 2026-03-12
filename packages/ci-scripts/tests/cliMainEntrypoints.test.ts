@@ -10,29 +10,21 @@ import { join } from "path";
 
 import { describe, expect, it } from "vitest";
 
-const DIST_DIR = join(
-  import.meta.dirname ?? __dirname,
-  "..",
-  "dist"
-);
+const DIST_DIR = join(import.meta.dirname ?? __dirname, "..", "dist");
 
 function runScript(
   scriptName: string,
   args: string[] = [],
   env: Record<string, string> = {}
 ): { stdout: string; stderr: string; status: number | null } {
-  const result = spawnSync(
-    "node",
-    [join(DIST_DIR, scriptName), ...args],
-    {
-      encoding: "utf-8",
-      timeout: 10000,
-      env: {
-        PATH: process.env.PATH ?? "",
-        ...env,
-      },
-    }
-  );
+  const result = spawnSync("node", [join(DIST_DIR, scriptName), ...args], {
+    encoding: "utf-8",
+    timeout: 10000,
+    env: {
+      PATH: process.env.PATH ?? "",
+      ...env,
+    },
+  });
 
   return {
     stdout: result.stdout ?? "",

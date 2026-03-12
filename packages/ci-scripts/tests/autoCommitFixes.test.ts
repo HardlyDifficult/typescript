@@ -30,9 +30,7 @@ describe("resolveCiBranch", () => {
   });
 
   it("returns GITHUB_HEAD_REF when BRANCH is not set", () => {
-    expect(resolveCiBranch({ GITHUB_HEAD_REF: "pr-branch" })).toBe(
-      "pr-branch"
-    );
+    expect(resolveCiBranch({ GITHUB_HEAD_REF: "pr-branch" })).toBe("pr-branch");
   });
 
   it("returns GITHUB_REF_NAME as fallback", () => {
@@ -96,14 +94,14 @@ describe("autoCommitFixes", () => {
     let callCount = 0;
     mockExecSync.mockImplementation((command: string) => {
       // git status --short returns non-empty => has changes
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M some-file.ts";
       }
       // git stash push returns "No local changes to save" so we skip stash pop
-      if (
-        typeof command === "string" &&
-        command.includes("git stash push")
-      ) {
+      if (typeof command === "string" && command.includes("git stash push")) {
         return "No local changes to save";
       }
       callCount++;
@@ -124,7 +122,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -139,9 +140,7 @@ describe("autoCommitFixes", () => {
       repository: "owner/repo",
     });
 
-    const remoteCall = execCalls.find((c) =>
-      c.includes("git remote set-url")
-    );
+    const remoteCall = execCalls.find((c) => c.includes("git remote set-url"));
     expect(remoteCall).toContain(
       "https://x-access-token:mytoken@github.com/owner/repo.git"
     );
@@ -151,7 +150,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -185,7 +187,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -200,9 +205,7 @@ describe("autoCommitFixes", () => {
       repository: "owner/repo",
     });
 
-    const remoteCall = execCalls.find((c) =>
-      c.includes("git remote set-url")
-    );
+    const remoteCall = execCalls.find((c) => c.includes("git remote set-url"));
     expect(remoteCall).toBeUndefined();
   });
 
@@ -210,7 +213,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -225,9 +231,7 @@ describe("autoCommitFixes", () => {
       repository: "",
     });
 
-    const remoteCall = execCalls.find((c) =>
-      c.includes("git remote set-url")
-    );
+    const remoteCall = execCalls.find((c) => c.includes("git remote set-url"));
     expect(remoteCall).toBeUndefined();
   });
 
@@ -235,7 +239,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -254,7 +261,10 @@ describe("autoCommitFixes", () => {
     const execCalls: string[] = [];
     mockExecSync.mockImplementation((command: string) => {
       execCalls.push(command as string);
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -274,7 +284,9 @@ describe("autoCommitFixes", () => {
 
     expect(execCalls.some((c) => c.includes("bot@example.com"))).toBe(true);
     expect(execCalls.some((c) => c.includes("MyBot"))).toBe(true);
-    expect(execCalls.some((c) => c.includes("chore: automated fix"))).toBe(true);
+    expect(execCalls.some((c) => c.includes("chore: automated fix"))).toBe(
+      true
+    );
     expect(execCalls.some((c) => c.includes("upstream"))).toBe(true);
   });
 
@@ -282,7 +294,10 @@ describe("autoCommitFixes", () => {
     let pushAttempts = 0;
 
     mockExecSync.mockImplementation((command: string) => {
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {
@@ -322,13 +337,19 @@ describe("autoCommitFixes", () => {
   it("re-throws exec errors when ignoreError is false", async () => {
     // git config (ignoreError=false by default) throws => exec re-throws
     mockExecSync.mockImplementation((command: string) => {
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts"; // has changes
       }
       if (typeof command === "string" && command.includes("git stash push")) {
         return "No local changes to save";
       }
-      if (typeof command === "string" && command.includes("git config --local user.email")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git config --local user.email")
+      ) {
         const err = new Error("git config failed");
         throw err;
       }
@@ -344,10 +365,16 @@ describe("autoCommitFixes", () => {
     // Test the exec function's ignoreError=true code path (line 53: return "")
     // git pull --rebase is called with ignoreError=true
     mockExecSync.mockImplementation((command: string) => {
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return ""; // no changes
       }
-      if (typeof command === "string" && command.includes("git pull --rebase")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git pull --rebase")
+      ) {
         throw new Error("network error");
       }
       return "";
@@ -358,13 +385,19 @@ describe("autoCommitFixes", () => {
     // Actually - in the no-changes path, no pull is called
     // Let me force changes and let the pull throw (ignoreError=true => return "")
     mockExecSync.mockImplementation((command: string) => {
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts"; // has changes
       }
       if (typeof command === "string" && command.includes("git stash push")) {
         return "No local changes to save";
       }
-      if (typeof command === "string" && command.includes("git pull --rebase")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git pull --rebase")
+      ) {
         // With ignoreError=true, exec should return "" and not re-throw
         throw new Error("network error");
       }
@@ -397,7 +430,10 @@ describe("runAutoCommitFixesCli", () => {
 
   it("returns 1 when autoCommitFixes succeeds with rerun required", async () => {
     mockExecSync.mockImplementation((command: string) => {
-      if (typeof command === "string" && command.includes("git status --short")) {
+      if (
+        typeof command === "string" &&
+        command.includes("git status --short")
+      ) {
         return "M file.ts";
       }
       if (typeof command === "string" && command.includes("git stash push")) {

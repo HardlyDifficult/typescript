@@ -5,11 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Import from index.ts to trigger barrel execution
-import {
-  GitYamlStore,
-  RepoProcessor,
-  RepoWatcher,
-} from "../src/index.js";
+import { GitYamlStore, RepoProcessor, RepoWatcher } from "../src/index.js";
 
 import { createRepoProcessorForTests } from "../src/RepoProcessor.js";
 import { resolveStaleDirectories } from "../src/resolveDirectories.js";
@@ -98,11 +94,13 @@ describe("RepoWatcher additional coverage", () => {
     return d;
   }
 
-  function makeWatcherProcessor(opts: {
-    shouldFail?: boolean;
-    failCount?: number;
-    rootShas?: string[];
-  } = {}) {
+  function makeWatcherProcessor(
+    opts: {
+      shouldFail?: boolean;
+      failCount?: number;
+      rootShas?: string[];
+    } = {}
+  ) {
     const { shouldFail = false, failCount = 1, rootShas = ["sha-1"] } = opts;
     let callCount = 0;
     let failsLeft = failCount;
@@ -133,7 +131,10 @@ describe("RepoWatcher additional coverage", () => {
     const onError = vi.fn();
     const stateDir = await makeTempDir();
     const processor = makeWatcherProcessor({ shouldFail: true });
-    const watcher = await processor.watch({ stateDirectory: stateDir, onError });
+    const watcher = await processor.watch({
+      stateDirectory: stateDir,
+      onError,
+    });
 
     await expect(watcher.runNow()).rejects.toThrow("run failed");
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
@@ -143,7 +144,10 @@ describe("RepoWatcher additional coverage", () => {
     const onError = vi.fn();
     const stateDir = await makeTempDir();
     const processor = makeWatcherProcessor({ shouldFail: true });
-    const watcher = await processor.watch({ stateDirectory: stateDir, onError });
+    const watcher = await processor.watch({
+      stateDirectory: stateDir,
+      onError,
+    });
 
     watcher.handlePush("new-sha");
 
