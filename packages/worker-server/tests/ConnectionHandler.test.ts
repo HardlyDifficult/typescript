@@ -426,6 +426,37 @@ describe("ConnectionHandler", () => {
         expect.objectContaining({ error: "disconnect handler error" })
       );
     });
+
+    it("stringifies non-Error thrown by disconnected handler on disconnect", () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { handler, pool } = createHandler({ logger });
+
+      handler.onWorkerDisconnected(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "non-error string";
+      });
+
+      const ws = createMockWs();
+      const worker = createWorker({ id: "w-str-err" });
+      pool.add(worker);
+      (ws as unknown as { workerId?: string }).workerId = "w-str-err";
+
+      (
+        handler as unknown as {
+          handleDisconnect(ws: WebSocket, code: number, reason: string): void;
+        }
+      ).handleDisconnect(ws, 1000, "done");
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error in disconnected handler",
+        expect.objectContaining({ error: "non-error string" })
+      );
+    });
   });
 
   describe("handleRegistration edge cases", () => {
@@ -601,6 +632,90 @@ describe("ConnectionHandler", () => {
         expect.objectContaining({ error: "disconnected handler boom" })
       );
     });
+
+    it("stringifies non-Error thrown by connected handler during registration", () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { handler } = createHandler({ logger });
+
+      handler.onWorkerConnected(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 42;
+      });
+
+      const ws = createMockWs();
+      sendMessage(handler, ws, {
+        type: "worker_registration",
+        workerId: "w-nonErr",
+        workerName: "W",
+        capabilities: {
+          models: [
+            {
+              modelId: "m1",
+              displayName: "M1",
+              maxContextTokens: 8192,
+              maxOutputTokens: 4096,
+              supportsStreaming: true,
+            },
+          ],
+          maxConcurrentRequests: 1,
+        },
+      });
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error in connected handler",
+        expect.objectContaining({ error: "42" })
+      );
+    });
+
+    it("stringifies non-Error thrown by disconnected handler during reconnection", () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { handler, pool } = createHandler({ logger });
+
+      handler.onWorkerDisconnected(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 99;
+      });
+
+      const existingWorker = createWorker({
+        id: "w-nonErr2",
+        pendingRequests: new Set(["req-z"]),
+      });
+      pool.add(existingWorker);
+
+      const newWs = createMockWs();
+      sendMessage(handler, newWs, {
+        type: "worker_registration",
+        workerId: "w-nonErr2",
+        workerName: "W2",
+        capabilities: {
+          models: [
+            {
+              modelId: "m1",
+              displayName: "M1",
+              maxContextTokens: 8192,
+              maxOutputTokens: 4096,
+              supportsStreaming: true,
+            },
+          ],
+          maxConcurrentRequests: 1,
+        },
+      });
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "Error in disconnected handler",
+        expect.objectContaining({ error: "99" })
+      );
+    });
   });
 
   describe("handleHeartbeat edge cases", () => {
@@ -677,9 +792,79 @@ describe("ConnectionHandler", () => {
 
       handler.handleConnection(ws);
 
+
       // Trigger error event
       mutableWs.emit("error", new Error("test error"));
       // Should not throw
+    });
+  });
+
+  describe("constructor without logger", () => {
+    it("uses NO_OP_LOGGER when no logger is provided", () => {
+      // Should not throw - exercises the `logger ?? NO_OP_LOGGER` branch
+      const pool = new WorkerPool();
+      const handler = new ConnectionHandler(
+        pool,
+        { heartbeatTimeoutMs: 60_000, heartbeatIntervalMs: 15_000 },
+        () => ({ complete: vi.fn(), fail: vi.fn() })
+      );
+      const ws = createMockWs();
+      expect(() => sendRawMessage(handler, ws, "not json")).not.toThrow();
+    });
+  });
+
+  describe("onMessage with existing handler set", () => {
+    it("adds second handler to existing set without creating new Set", () => {
+      const { handler } = createHandler();
+      const cb1 = vi.fn();
+      const cb2 = vi.fn();
+      handler.onMessage("my-type", cb1);
+      // Second registration for same type should reuse existing Set
+      handler.onMessage("my-type", cb2);
+
+      const ws = createMockWs();
+      sendMessage(handler, ws, { type: "my-type" });
+
+      expect(cb1).toHaveBeenCalledOnce();
+      expect(cb2).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("handleRegistration with missing authToken in message", () => {
+    it("rejects when message has no authToken but server expects one", () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { handler } = createHandler({ authToken: "secret", logger });
+
+      const ws = createMockWs();
+      // Send registration without authToken field (exercises `?? ""` branch)
+      sendMessage(handler, ws, {
+        type: "worker_registration",
+        workerId: "w1",
+        workerName: "W",
+        // no authToken
+        capabilities: {
+          models: [
+            {
+              modelId: "m1",
+              displayName: "M1",
+              maxContextTokens: 8192,
+              maxOutputTokens: 4096,
+              supportsStreaming: true,
+            },
+          ],
+          maxConcurrentRequests: 1,
+        },
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Worker registration rejected: invalid auth token",
+        expect.any(Object)
+      );
     });
   });
 });

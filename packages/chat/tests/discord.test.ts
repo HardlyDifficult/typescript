@@ -2853,24 +2853,24 @@ describe("DiscordChatClient", () => {
 
   describe("connect() - no client user", () => {
     it("throws when client.user is null after login", async () => {
-      const clientWithNoUser = {
-        ...mockClient,
-        user: null,
-      };
-      // Temporarily override the Client mock to return a client with no user
-      const { Client } = await import("discord.js");
-      const OriginalClient = Client;
+      // Make the mock client have user: null after login
+      const originalUser = mockClient.user;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (Client as any).mockImplementationOnce(() => clientWithNoUser);
-      clientWithNoUser.login.mockResolvedValueOnce("token");
-      clientWithNoUser.channels.fetch.mockResolvedValueOnce(
+      (mockClient as any).user = null;
+      mockClient.login.mockResolvedValueOnce("token");
+      mockClient.channels.fetch.mockResolvedValueOnce(
         Object.assign(new MockTextChannel(), mockTextChannelData)
       );
 
-      const testClient = new DiscordChatClient(config);
-      await expect(testClient.connect(channelId)).rejects.toThrow(
-        "Discord client user was not available after login"
-      );
+      try {
+        const testClient = new DiscordChatClient(config);
+        await expect(testClient.connect(channelId)).rejects.toThrow(
+          "Discord client user was not available after login"
+        );
+      } finally {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mockClient as any).user = originalUser;
+      }
     });
   });
 
@@ -3292,13 +3292,14 @@ describe("DiscordChatClient", () => {
 
     it("filters messages by mention ID", async () => {
       const now = new Date();
+      // normalizeAuthorFilter lowercases non-mention strings, so use lowercase IDs
       mockTextChannelData.messages.fetch.mockResolvedValueOnce(
         new Map([
           ["msg-1", {
             id: "msg-1",
             channelId,
             content: "from alice",
-            author: { id: "U_ALICE", username: "alice" },
+            author: { id: "u_alice", username: "alice" },
             createdAt: now,
             attachments: new Map(),
           }],
@@ -3306,7 +3307,7 @@ describe("DiscordChatClient", () => {
             id: "msg-2",
             channelId,
             content: "from bob",
-            author: { id: "U_BOB", username: "bob" },
+            author: { id: "u_bob", username: "bob" },
             createdAt: now,
             attachments: new Map(),
           }],
@@ -3314,7 +3315,8 @@ describe("DiscordChatClient", () => {
       );
 
       const channel = await client.connect(channelId);
-      const messages = await channel.getMessages({ author: "<@U_ALICE>" });
+      // Channel.getMessages extracts the mention ID and passes it down
+      const messages = await channel.getMessages({ author: "<@u_alice>" });
 
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toBe("from alice");
@@ -3323,9 +3325,8 @@ describe("DiscordChatClient", () => {
 
   describe("updateMessage with Document content", () => {
     it("sends embed when content is a Document", async () => {
-      // Import Document builder
-      const { DocumentBuilder } = await import("@hardlydifficult/document-generator");
-      const doc = new DocumentBuilder().addHeader("Title").build();
+      const { Document } = await import("@hardlydifficult/document-generator");
+      const doc = new Document().header("Title");
 
       const channel = await client.connect(channelId);
       const message = channel.postMessage("initial");
@@ -3341,57 +3342,57 @@ describe("DiscordChatClient", () => {
 
   describe("reactionOperations - unknown message errors", () => {
     it("addReaction ignores unknown message error (code 10008)", async () => {
-      const unknownMsgError = { code: 10008, message: "Unknown Message" };
+      await client.connect(channelId);
+      const unknownMsgError = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(unknownMsgError);
 
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage("Test");
-      await waitForMessage(message);
-
-      // Should not throw
-      message.addReactions(["👍"]);
-      await waitForMessage(message);
+      // Direct call - should not throw (error is swallowed)
+      await expect(
+        client.addReaction("msg-123", channelId, "👍")
+      ).resolves.toBeUndefined();
     });
 
     it("removeReaction ignores unknown message error (code 10008)", async () => {
-      const unknownMsgError = { code: 10008, message: "Unknown Message" };
+      await client.connect(channelId);
+      const unknownMsgError = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(unknownMsgError);
 
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage("Test");
-      await waitForMessage(message);
-
-      message.removeReactions(["👍"]);
-      await waitForMessage(message);
+      await expect(
+        client.removeReaction("msg-123", channelId, "👍")
+      ).resolves.toBeUndefined();
     });
 
     it("removeAllReactions ignores unknown message error (code 10008)", async () => {
-      const unknownMsgError = { code: 10008, message: "Unknown Message" };
+      await client.connect(channelId);
+      const unknownMsgError = Object.assign(new Error("Unknown Message"), {
+        code: 10008,
+      });
       mockTextChannelData.messages.fetch.mockRejectedValueOnce(unknownMsgError);
 
-      const channel = await client.connect(channelId);
-      const message = channel.postMessage("Test");
-      await waitForMessage(message);
-
-      message.removeAllReactions();
-      await waitForMessage(message);
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).resolves.toBeUndefined();
     });
   });
 
   describe("buildMessagePayload - Document with no embed content", () => {
     it("sends zero-width space when Document has no renderable blocks", async () => {
-      const { DocumentBuilder } = await import("@hardlydifficult/document-generator");
+      const { Document } = await import("@hardlydifficult/document-generator");
       // Build a doc with no title, no description, no image, no footer
       // An empty document should produce no embed content
-      const doc = new DocumentBuilder().build();
+      const doc = new Document();
 
       const channel = await client.connect(channelId);
-      channel.postMessage(doc);
-      await waitFor(() => mockTextChannelData.send.mock.calls.length > 0);
+      const msg = channel.postMessage(doc);
+      await waitForMessage(msg);
 
-      const sentArg = mockTextChannelData.send.mock.calls[0][0];
-      // When doc has no embed content, content should be zero-width space
-      expect(sentArg.content).toBe("\u200B");
+      expect(mockTextChannelData.send).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "\u200B" })
+      );
     });
   });
 

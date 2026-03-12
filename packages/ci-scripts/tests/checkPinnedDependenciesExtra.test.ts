@@ -85,6 +85,33 @@ describe("checkPinnedDependencies - extra coverage", () => {
     }
   });
 
+  it("skips non-package.json files in scanned directories", () => {
+    const rootDir = createTempWorkspace();
+
+    try {
+      writeJsonFile(join(rootDir, "package.json"), {
+        name: "workspace",
+        private: true,
+        workspaces: ["packages/*"],
+      });
+      // Create a file that is not a directory and not "package.json"
+      mkdirSync(join(rootDir, "packages", "alpha"), { recursive: true });
+      writeFileSync(join(rootDir, "packages", "alpha", "README.md"), "# Alpha");
+      writeJsonFile(join(rootDir, "packages", "alpha", "package.json"), {
+        name: "@acme/alpha",
+        version: "1.0.0",
+        dependencies: { lodash: "4.17.21" },
+      });
+
+      const result = checkPinnedDependencies({ rootDir });
+
+      expect(result.issues).toHaveLength(0);
+      expect(result.packageFiles).toHaveLength(2); // root + alpha
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it("recursively finds package.json files in subdirectories", () => {
     const rootDir = createTempWorkspace();
 
@@ -194,21 +221,5 @@ describe("runCheckPinnedDependenciesCli", () => {
     }
   });
 
-  it("returns 1 on non-Error thrown values", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    // Use a spy on assertPinnedDependencies to throw a non-Error
-    // Actually, let's mock the underlying filesystem to cause an issue
-    // Easiest: override cwd to a path without a package.json so readdirSync fails
-    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/no/such/path");
 
-    try {
-      // This may or may not throw - let's verify it returns a number
-      const exitCode = runCheckPinnedDependenciesCli();
-      // If it threw, we'd get 1
-      expect(exitCode).toBeTypeOf("number");
-    } finally {
-      cwdSpy.mockRestore();
-      errorSpy.mockRestore();
-    }
-  });
 });

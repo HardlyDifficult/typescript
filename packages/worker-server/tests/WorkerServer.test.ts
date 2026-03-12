@@ -140,6 +140,17 @@ describe("WorkerServer", () => {
       await expect(server.start()).rejects.toThrow("already running");
     });
 
+    it("rejects with HTTP server error when port is already in use", async () => {
+      const { server: existingServer } = await createServer();
+      const usedPort = existingServer.port;
+
+      const conflictServer = new WorkerServer({ port: usedPort });
+      servers.push(conflictServer);
+      await expect(conflictServer.start()).rejects.toMatchObject({
+        code: "EADDRINUSE",
+      });
+    });
+
     it("exposes the bound port after starting on port 0", async () => {
       const { server } = await createServer({ port: 0 });
       expect(server.port).toBeGreaterThan(0);
@@ -632,6 +643,33 @@ describe("WorkerServer", () => {
 
       await dashboardConnected;
     });
+
+    it("logs error when additional WebSocket endpoint server emits error", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server } = await createServer({ logger });
+
+      server.addWebSocketEndpoint("/ws/test-err", () => {});
+
+      // Access the internal wss for the endpoint and emit error
+      const serverAny = server as unknown as {
+        additionalEndpoints: Map<
+          string,
+          { wss: { emit(event: string, ...args: unknown[]): void } }
+        >;
+      };
+      const endpoint = serverAny.additionalEndpoints.get("/ws/test-err");
+      endpoint?.wss.emit("error", new Error("endpoint wss error"));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "WebSocket server error",
+        expect.objectContaining({ path: "/ws/test-err", error: "endpoint wss error" })
+      );
+    });
   });
 
   describe("HTTP handlers", () => {
@@ -692,6 +730,28 @@ describe("WorkerServer", () => {
       const response = await fetch(`http://127.0.0.1:${port}/test`);
       expect(response.ok).toBe(true);
     });
+
+    it("stringifies non-Error thrown by HTTP handler", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server, port } = await createServer({ logger });
+
+      server.addHttpHandler(async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "string-error";
+      });
+
+      await fetch(`http://127.0.0.1:${port}/test`).catch(() => {});
+
+      expect(logger.error).toHaveBeenCalledWith(
+        "HTTP handler error",
+        expect.objectContaining({ error: "string-error" })
+      );
+    });
   });
 
   describe("broadcast", () => {
@@ -743,6 +803,42 @@ describe("WorkerServer", () => {
 
       // Worker should have been closed and removed
       expect(server.listWorkers()).toHaveLength(0);
+    });
+
+    it("skips dead workers already removed from pool during health check", async () => {
+      const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const { server } = await createServer({ logger });
+
+      // Access internal pool and runHealthCheck directly
+      const serverAny = server as unknown as {
+        pool: {
+          checkHealth(timeoutMs: number): string[];
+          get(id: string): unknown;
+        };
+        runHealthCheck(): void;
+        heartbeatTimeoutMs: number;
+      };
+
+      // Patch checkHealth to return a fake dead worker ID that isn't in the pool
+      const origCheckHealth = serverAny.pool.checkHealth.bind(serverAny.pool);
+      serverAny.pool.checkHealth = () => ["ghost-worker-id"];
+
+      // Should not throw - the continue path is exercised
+      expect(() => serverAny.runHealthCheck()).not.toThrow();
+
+      // Restore
+      serverAny.pool.checkHealth = origCheckHealth;
+
+      // No warn should have been called for "ghost-worker-id" because it was skipped
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        "Worker connection presumed dead, closing",
+        expect.any(Object)
+      );
     });
   });
 
@@ -822,28 +918,24 @@ describe("WorkerServer", () => {
   });
 
   describe("WebSocket error handling", () => {
-    it("handles WebSocket errors on worker connection", async () => {
+    it("logs Worker WebSocket server error when wss emits error", async () => {
       const logger = {
         debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const { port } = await createServer({ logger });
+      const { server } = await createServer({ logger });
 
-      const ws = await connectWorker(port);
-      sockets.push(ws);
-      sendRegistration(ws);
-      await waitForMessage(ws, (msg) => msg["type"] === "worker_registration_ack");
+      // Access internal workerWss via cast and emit a server-level error
+      const serverAny = server as unknown as {
+        workerWss: { emit(event: string, ...args: unknown[]): void } | null;
+      };
+      serverAny.workerWss?.emit("error", new Error("wss server error"));
 
-      // Force an error event on the socket
-      ws.emit("error", new Error("test socket error"));
-
-      await new Promise((r) => setTimeout(r, 50));
-      // Logger should have captured the error
       expect(logger.error).toHaveBeenCalledWith(
-        "Worker WebSocket error",
-        expect.objectContaining({ error: "test socket error" })
+        "Worker WebSocket server error",
+        expect.objectContaining({ error: "wss server error" })
       );
     });
   });
@@ -1129,8 +1221,28 @@ describe("WorkerServer", () => {
     it("returns configuredPort when address is not an object", async () => {
       const port = getPort();
       const { server } = await createServer({ port });
-      // The server is running, so port should match configured
-      expect(server.port).toBe(port);
+      // Patch httpServer.address() to return a string (non-object)
+      const serverAny = server as unknown as {
+        httpServer: { address(): unknown } | null;
+        configuredPort: number;
+        resolveBoundPort(): number;
+      };
+      const originalAddress = serverAny.httpServer?.address.bind(
+        serverAny.httpServer
+      );
+      if (serverAny.httpServer !== null && serverAny.httpServer !== undefined) {
+        serverAny.httpServer.address = () => "pipe-path";
+      }
+      const resolved = serverAny.resolveBoundPort();
+      expect(resolved).toBe(port);
+      // Restore
+      if (
+        serverAny.httpServer !== null &&
+        serverAny.httpServer !== undefined &&
+        originalAddress !== undefined
+      ) {
+        serverAny.httpServer.address = originalAddress;
+      }
     });
   });
 

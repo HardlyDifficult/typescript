@@ -2,24 +2,17 @@
  * Additional tests to cover remaining uncovered lines in the AI package.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { z } from "zod";
-import type { AITracker, Usage, ToolMap } from "../src/types.js";
+import type { AITracker, Usage } from "../src/types.js";
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const mockGenerateText = vi.fn();
 const mockStreamText = vi.fn();
 
-// We need to capture compiled tool defs for tool execute testing
-const capturedToolDefs: Array<{ execute: (args: Record<string, unknown>) => Promise<unknown> }> = [];
-
 vi.mock("ai", () => ({
   generateText: (...args: unknown[]) => mockGenerateText(...args),
   streamText: (...args: unknown[]) => mockStreamText(...args),
-  tool: (def: { description: string; inputSchema: unknown; execute: (args: Record<string, unknown>) => Promise<unknown> }) => {
-    capturedToolDefs.push(def);
-    return def;
-  },
+  tool: (def: unknown) => def,
   stepCountIs: (n: number) => ({ type: "stepCount", count: n }),
   Output: {
     object: ({ schema }: { schema: unknown }) => ({ type: "object", schema }),
@@ -201,6 +194,152 @@ describe("createAgent - getTrackedPrompt without user messages", () => {
     );
 
     await agent.run([]);
+    expect(tracker.calls[0].prompt).toBe("");
+  });
+});
+
+// ─── createAI - ChatCall .then(null) false branch (lines 197-220) ────────────
+
+describe("createAI - ChatCall.text().then(null) and .zod().then(null) branches", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("chat().text().then(null) returns the text unchanged (line 197-199 false branch)", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: "hello world",
+      usage: { inputTokens: 5, outputTokens: 3, inputTokenDetails: {} },
+    });
+
+    const tracker = createMockTracker();
+    const ai = createAI({ model: mockModel() as never, tracker });
+
+    // Calling .then(null) exercises the onfulfilled=null branch
+    const result = await ai.chat("test").text().then(null);
+    expect(result).toBe("hello world");
+  });
+
+  it("chat().zod().then(null) returns the data unchanged (line 220-222 false branch)", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: '{"name":"Alice"}',
+      output: { name: "Alice" },
+      usage: { inputTokens: 5, outputTokens: 3, inputTokenDetails: {} },
+    });
+
+    const tracker = createMockTracker();
+    const ai = createAI({ model: mockModel() as never, tracker });
+
+    // Calling .then(null) on zod() result exercises onfulfilled=null branch at line 220
+    const { z } = await import("zod");
+    const result = await ai.chat("test").zod(z.object({ name: z.string() })).then(null);
+    // onfulfilled=null → returns data as-is (msg.data from result.output)
+    expect(result).toEqual({ name: "Alice" });
+  });
+});
+
+// ─── createAI - ask() with cache tokens in response ──────────────────────────
+
+describe("createAI - ask with cache tokens", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("logs cacheCreationTokens and cacheReadTokens in ask() debug (lines 150-155)", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: "response",
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        inputTokenDetails: {
+          cacheWriteTokens: 100,
+          cacheReadTokens: 50,
+        },
+      },
+    });
+
+    const logger = mockLogger();
+    const tracker = createMockTracker();
+    const ai = createAI({ model: mockModel() as never, tracker, logger: logger as never });
+
+    await ai.ask("test");
+
+    const debugCalls = (logger.debug.mock.calls as unknown[][]).filter(
+      (c) => c[0] === "AI response"
+    );
+    expect(debugCalls[0][1]).toHaveProperty("cacheCreationTokens", 100);
+    expect(debugCalls[0][1]).toHaveProperty("cacheReadTokens", 50);
+  });
+});
+
+// ─── createAgent - stream with cache tokens ───────────────────────────────────
+
+describe("createAgent - stream with cache tokens (lines 249-254)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("logs cacheCreationTokens and cacheReadTokens in agent stream debug", async () => {
+    mockStreamText.mockReturnValueOnce({
+      fullStream: (async function* () {
+        yield { type: "text-delta", text: "hi" };
+      })(),
+      usage: Promise.resolve({
+        inputTokens: 10,
+        outputTokens: 5,
+        inputTokenDetails: {
+          cacheWriteTokens: 75,
+          cacheReadTokens: 30,
+        },
+      }),
+    });
+
+    const logger = mockLogger();
+    const tracker = createMockTracker();
+    const agent = createAgent(
+      mockModel() as never,
+      {},
+      tracker,
+      logger as never
+    );
+
+    await agent.stream([{ role: "user" as const, content: "test" }], () => {});
+
+    const debugCalls = (logger.debug.mock.calls as unknown[][]).filter(
+      (c) => c[0] === "Agent stream complete"
+    );
+    expect(debugCalls[0][1]).toHaveProperty("cacheCreationTokens", 75);
+    expect(debugCalls[0][1]).toHaveProperty("cacheReadTokens", 30);
+  });
+});
+
+// ─── createStream - empty messages (line 55 false branch) ────────────────────
+
+describe("runStream - empty messages array (line 55 false branch)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses empty string as prompt when messages array is empty", async () => {
+    mockStreamText.mockReturnValueOnce({
+      textStream: (async function* () {
+        yield "ok";
+      })(),
+      usage: Promise.resolve({
+        inputTokens: 1,
+        outputTokens: 1,
+        inputTokenDetails: {},
+      }),
+    });
+
+    const tracker = createMockTracker();
+    await runStream(
+      mockModel() as never,
+      tracker,
+      mockLogger() as never,
+      [],
+      () => {}
+    );
+
     expect(tracker.calls[0].prompt).toBe("");
   });
 });

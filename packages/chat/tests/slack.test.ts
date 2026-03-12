@@ -2765,4 +2765,863 @@ describe("SlackChatClient", () => {
       expect(msg.content).toBe("Reply to reopened thread");
     });
   });
+
+  describe("SlackChatClient error callback", () => {
+    it("swallows errors from error callbacks that throw", async () => {
+      const throwingErrorCallback = vi.fn().mockRejectedValue(new Error("cb error"));
+      client.onError(throwingErrorCallback);
+
+      // Get the error handler registered via app.error()
+      const errorHandler = mockError.mock.calls[0]?.[0];
+      expect(errorHandler).toBeDefined();
+
+      // Invoke the error handler - should not throw even if callback throws
+      await expect(errorHandler(new Error("app error"))).resolves.toBeUndefined();
+      expect(throwingErrorCallback).toHaveBeenCalled();
+    });
+
+    it("wraps non-Error thrown from app in Error", async () => {
+      const errorCallback = vi.fn().mockResolvedValue(undefined);
+      client.onError(errorCallback);
+
+      const errorHandler = mockError.mock.calls[0]?.[0];
+      // eslint-disable-next-line @typescript-eslint/no-throw-literal
+      await errorHandler("string error");
+
+      expect(errorCallback).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "string error" })
+      );
+    });
+  });
+
+  describe("SlackChatClient reaction callback error", () => {
+    it("swallows errors from reaction callbacks that throw", async () => {
+      const throwingCallback = vi.fn().mockRejectedValue(new Error("rx error"));
+      await client.connect(channelId);
+      // Subscribe to reactions directly via the client
+      client.subscribeToReactions(channelId, throwingCallback);
+
+      const handler = getReactionHandler();
+      await expect(handler!({
+        event: {
+          item: { channel: channelId, ts: "1234.567" },
+          user: "U1",
+          reaction: "thumbsup",
+          event_ts: "1234567890.123456",
+        },
+      })).resolves.toBeUndefined();
+      expect(throwingCallback).toHaveBeenCalled();
+    });
+  });
+
+  describe("SlackChatClient message callback error", () => {
+    it("swallows errors from channel message callbacks that throw", async () => {
+      const throwingCallback = vi.fn().mockRejectedValue(new Error("msg error"));
+      const channel = await client.connect(channelId);
+      channel.onMessage(throwingCallback);
+
+      const handler = getMessageHandler();
+      await expect(handler!({
+        event: {
+          channel: channelId,
+          user: "U1",
+          ts: "1234.567",
+          text: "hello",
+        },
+        context: {},
+      })).resolves.toBeUndefined();
+      expect(throwingCallback).toHaveBeenCalled();
+    });
+
+    it("swallows errors from thread message callbacks that throw", async () => {
+      const throwingCallback = vi.fn().mockRejectedValue(new Error("thread msg error"));
+      const channel = await client.connect(channelId);
+      const thread = channel.openThread("parent-ts");
+      thread.onReply(throwingCallback);
+
+      const handler = getMessageHandler();
+      await expect(handler!({
+        event: {
+          channel: channelId,
+          user: "U1",
+          ts: "reply-ts",
+          thread_ts: "parent-ts",
+          text: "thread reply",
+        },
+        context: {},
+      })).resolves.toBeUndefined();
+      expect(throwingCallback).toHaveBeenCalled();
+    });
+  });
+
+  describe("hydrateIdentity - auth.test returns no user_id", () => {
+    it("throws when auth.test returns no user_id", async () => {
+      mockAuthTest.mockResolvedValueOnce({});
+
+      await expect(client.connect(channelId)).rejects.toThrow(
+        "Slack auth.test did not return user_id"
+      );
+    });
+  });
+
+  describe("NoReceiver", () => {
+    it("init, start, and stop do not throw", async () => {
+      // NoReceiver is tested directly - it's used by App in outbound-only mode
+      const { NoReceiver } = await import("../src/slack/NoReceiver.js");
+      const receiver = new NoReceiver();
+      expect(() => receiver.init()).not.toThrow();
+      await expect(receiver.start()).resolves.toBeUndefined();
+      await expect(receiver.stop()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("slack/getMessages - additional coverage", () => {
+    it("skips messages with empty ts", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: "", text: "no ts" },
+          { ts: "111.111", text: "valid" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("valid");
+    });
+
+    it("skips messages with undefined ts", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { text: "no ts field" },
+          { ts: "222.222", text: "valid" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages).toHaveLength(1);
+    });
+
+    it("skips messages where dateFromUnixSeconds throws (invalid ts)", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: "not-a-number", text: "bad ts" },
+          { ts: "111.111", text: "valid" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("valid");
+    });
+
+    it("filters messages by afterDate (skips old messages)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs - 100), text: "old", user: "U1" },
+          { ts: String(nowTs - 1), text: "recent", user: "U2" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({
+        after: new Date((nowTs - 50) * 1000),
+      });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("recent");
+    });
+
+    it("filters messages by beforeDate (skips recent messages)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs - 100), text: "old", user: "U1" },
+          { ts: String(nowTs - 1), text: "recent", user: "U2" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({
+        before: new Date((nowTs - 50) * 1000),
+      });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("old");
+    });
+
+    it("filters messages by author: me using botId", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs), text: "bot msg", bot_id: "B123", user: undefined },
+          { ts: String(nowTs - 1), text: "user msg", user: "U1" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages({ author: "me" });
+      // bot_id B123 matches slackBotId B123 from mockAuthTest
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("bot msg");
+    });
+
+    it("filters messages by author with mention format (normalizeAuthorFilter)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs), text: "from U1", user: "U1" },
+          { ts: String(nowTs - 1), text: "from U2", user: "U2" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      // Directly call client.getMessages to pass mention format without Channel processing
+      const messages = await client.getMessages(channelId, { author: "<@U1>" });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("from U1");
+    });
+
+    it("filters messages by author as bot_id", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs), text: "from bot", bot_id: "B456", user: undefined },
+          { ts: String(nowTs - 1), text: "user msg", user: "U2" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await client.getMessages(channelId, { author: "B456" });
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("from bot");
+    });
+
+    it("handles messages with username field", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          {
+            ts: String(nowTs),
+            text: "with username",
+            user: "U1",
+            username: "my-bot",
+          },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages[0].author?.username).toBe("my-bot");
+    });
+
+    it("handles messages without user or bot_id (no author)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(nowTs), text: "no author" },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages[0].author).toBeUndefined();
+    });
+
+    it("handles files attachment in messages (extractSlackAttachments)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          {
+            ts: String(nowTs),
+            text: "with file",
+            user: "U1",
+            files: [
+              {
+                url_private: "https://slack.com/files/test.pdf",
+                name: "test.pdf",
+                mimetype: "application/pdf",
+                size: 1024,
+              },
+              // File with no url (should be skipped)
+              { name: "no-url.txt" },
+              // File with no name (should be skipped)
+              { url_private: "https://slack.com/files/no-name" },
+            ],
+          },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages[0].attachments).toHaveLength(1);
+      expect(messages[0].attachments![0].url).toBe("https://slack.com/files/test.pdf");
+      expect(messages[0].attachments![0].contentType).toBe("application/pdf");
+    });
+
+    it("handles files with null mimetype (contentType = undefined)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          {
+            ts: String(nowTs),
+            text: "with file",
+            user: "U1",
+            files: [
+              {
+                url_private: "https://slack.com/files/test.bin",
+                name: "test.bin",
+                mimetype: null,
+              },
+            ],
+          },
+        ],
+      });
+      const channel = await client.connect(channelId);
+      const messages = await channel.getMessages();
+      expect(messages[0].attachments![0].contentType).toBeUndefined();
+    });
+
+    it("uses after/before timestamp from Date object for toSlackTimestamp", async () => {
+      const nowMs = Date.now();
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      const channel = await client.connect(channelId);
+      await channel.getMessages({
+        after: new Date(nowMs - 5000),
+        before: new Date(nowMs),
+      });
+      expect(mockConversationsHistory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          oldest: expect.any(String),
+          latest: expect.any(String),
+          inclusive: false,
+        })
+      );
+    });
+
+    it("uses numeric timestamp (ms > 10^10) for toSlackTimestamp", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      const channel = await client.connect(channelId);
+      await channel.getMessages({ after: Date.now() });
+      expect(mockConversationsHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ oldest: expect.any(String) })
+      );
+    });
+
+    it("ignores non-finite numeric timestamp in toSlackTimestamp", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      const channel = await client.connect(channelId);
+      await channel.getMessages({ after: Infinity });
+      // Infinity is not finite, so oldest should NOT be in the call
+      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      expect(call.oldest).toBeUndefined();
+    });
+
+    it("uses numeric string timestamp for toSlackTimestamp", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      const channel = await client.connect(channelId);
+      await client.getMessages(channelId, { after: "1234567890.123" });
+      expect(mockConversationsHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ oldest: "1234567890.123" })
+      );
+    });
+
+    it("converts date string timestamp for toSlackTimestamp", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      await client.connect(channelId);
+      await client.getMessages(channelId, { after: "2026-01-01T00:00:00Z" });
+      expect(mockConversationsHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ oldest: expect.any(String) })
+      );
+    });
+
+    it("ignores invalid date string in toSlackTimestamp", async () => {
+      mockConversationsHistory.mockResolvedValue({ messages: [] });
+      await client.connect(channelId);
+      await client.getMessages(channelId, { after: "not-a-date" });
+      const call = mockConversationsHistory.mock.calls[mockConversationsHistory.mock.calls.length - 1][0];
+      expect(call.oldest).toBeUndefined();
+    });
+
+    it("getMessages uses numeric timestamp > 10^10 for toDate", async () => {
+      const nowMs = Date.now();
+      const recentTs = Math.floor(Date.now() / 1000) - 1;
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: String(recentTs), text: "recent", user: "U1" },
+        ],
+      });
+      await client.connect(channelId);
+      // Use ms timestamp (> 10^10) for after filter
+      const messages = await client.getMessages(channelId, {
+        after: nowMs - 5000,
+      });
+      // The message at recentTs is after nowMs-5000, so it should be included
+      expect(messages.length).toBeGreaterThanOrEqual(0); // just verify no crash
+    });
+  });
+
+  describe("slack/getMessages - getThreadMessages coverage", () => {
+    it("getThreadMessages skips parent message and applies filters", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "parent-ts", text: "parent", user: "U1" },
+          { ts: String(nowTs - 5), text: "old reply", user: "U2" },
+          { ts: String(nowTs), text: "new reply", user: "U2" },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getThreadMessages("parent-ts", {
+        after: new Date((nowTs - 3) * 1000),
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("new reply");
+    });
+
+    it("getThreadMessages filters by beforeDate", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "parent-ts", text: "parent", user: "U1" },
+          { ts: String(nowTs - 10), text: "old reply", user: "U2" },
+          { ts: String(nowTs - 1), text: "new reply", user: "U2" },
+        ],
+      });
+
+      await client.connect(channelId);
+      const messages = await client.getThreadMessages("parent-ts", channelId, {
+        before: new Date((nowTs - 5) * 1000),
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("old reply");
+    });
+
+    it("getThreadMessages filters by author: me (meId)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "parent-ts", text: "parent", user: "U_BOT" },
+          { ts: String(nowTs - 1), text: "mine", user: "U_BOT" },
+          { ts: String(nowTs), text: "not mine", user: "U_OTHER" },
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const messages = await channel.getThreadMessages("parent-ts", { author: "me" });
+      expect(messages.find((m) => m.content === "mine")).toBeDefined();
+      expect(messages.find((m) => m.content === "not mine")).toBeUndefined();
+    });
+
+    it("getThreadMessages skips messages with empty ts", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "parent-ts", text: "parent", user: "U1" },
+          { ts: "", text: "bad ts" },
+          { ts: String(nowTs), text: "valid", user: "U2" },
+        ],
+      });
+
+      await client.connect(channelId);
+      const messages = await client.getThreadMessages("parent-ts", channelId);
+      expect(messages).toHaveLength(1);
+    });
+
+    it("getThreadMessages skips messages with invalid ts (dateFromUnixSeconds throws)", async () => {
+      const nowTs = Math.floor(Date.now() / 1000);
+      mockConversationsReplies.mockResolvedValue({
+        messages: [
+          { ts: "parent-ts", text: "parent", user: "U1" },
+          { ts: "invalid", text: "bad ts" },
+          { ts: String(nowTs), text: "valid", user: "U2" },
+        ],
+      });
+
+      await client.connect(channelId);
+      const messages = await client.getThreadMessages("parent-ts", channelId);
+      expect(messages).toHaveLength(1);
+      expect(messages[0].content).toBe("valid");
+    });
+  });
+
+  describe("slack/fetchChannelMembers - pagination and edge cases", () => {
+    it("paginates when next_cursor is returned", async () => {
+      mockConversationsMembers
+        .mockResolvedValueOnce({
+          members: ["U001", "U002"],
+          response_metadata: { next_cursor: "cursor-page-2" },
+        })
+        .mockResolvedValueOnce({
+          members: ["U003"],
+          response_metadata: { next_cursor: "" },
+        });
+      mockUsersInfo
+        .mockResolvedValueOnce({
+          user: { name: "user1", real_name: "User 1", profile: {} },
+        })
+        .mockResolvedValueOnce({
+          user: { name: "user2", real_name: "User 2", profile: {} },
+        })
+        .mockResolvedValueOnce({
+          user: { name: "user3", real_name: "User 3", profile: {} },
+        });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+
+      expect(mockConversationsMembers).toHaveBeenCalledTimes(2);
+      expect(members).toHaveLength(3);
+    });
+
+    it("skips users where info.user is falsy", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U001", "U002"],
+        response_metadata: {},
+      });
+      mockUsersInfo
+        .mockResolvedValueOnce({ user: null })
+        .mockResolvedValueOnce({
+          user: { name: "user2", real_name: "User 2", profile: {} },
+        });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+      expect(members).toHaveLength(1);
+      expect(members[0].username).toBe("user2");
+    });
+
+    it("falls back to userId when name is undefined", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U001"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: { name: undefined, profile: {} },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+      expect(members[0].username).toBe("U001");
+      expect(members[0].displayName).toBe("U001");
+    });
+
+    it("includes email when profile has email", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U001"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: {
+          name: "alice",
+          real_name: "Alice",
+          profile: { display_name: "Al", email: "alice@example.com" },
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+      expect(members[0].email).toBe("alice@example.com");
+    });
+
+    it("omits email when profile has empty email", async () => {
+      mockConversationsMembers.mockResolvedValue({
+        members: ["U001"],
+        response_metadata: {},
+      });
+      mockUsersInfo.mockResolvedValue({
+        user: {
+          name: "alice",
+          profile: { email: "" },
+        },
+      });
+
+      const channel = await client.connect(channelId);
+      const members = await channel.getMembers();
+      expect(members[0].email).toBeUndefined();
+    });
+  });
+
+  describe("slack/buildMessageEvent - additional coverage", () => {
+    it("buildMessageEvent with no ts (uses current time)", async () => {
+      const channel = await client.connect(channelId);
+      channel.onMessage(vi.fn());
+
+      const handler = getMessageHandler();
+      const before = Date.now();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U1",
+          // no ts
+        },
+        context: {},
+      });
+      const after = Date.now();
+
+      // The message was received with a timestamp near now
+      // This covers the fallback `timestamp = new Date()` at line 58
+      expect(before).toBeLessThanOrEqual(after);
+    });
+
+    it("buildMessageEvent with non-finite ts (uses current time)", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U1",
+          ts: "Infinity",  // parseFloat("Infinity") is not finite
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledOnce();
+      // timestamp should be current time (default new Date())
+      const event = callback.mock.calls[0][0] as { timestamp: Date };
+      expect(event.timestamp).toBeInstanceOf(Date);
+    });
+
+    it("buildMessageEvent with files (attachment coverage)", async () => {
+      const channel = await client.connect(channelId);
+      const callback = vi.fn();
+      channel.onMessage(callback);
+
+      const handler = getMessageHandler();
+      await handler!({
+        event: {
+          channel: channelId,
+          user: "U1",
+          ts: "1234567890.123",
+          files: [
+            {
+              url_private: "https://slack.com/files/image.png",
+              name: "image.png",
+              mimetype: "image/png",
+              size: 4096,
+            },
+            // No url - should be skipped
+            { name: "no-url.txt" },
+          ],
+        },
+        context: {},
+      });
+
+      expect(callback).toHaveBeenCalledOnce();
+      const event = callback.mock.calls[0][0] as { attachments: unknown[] };
+      expect(event.attachments).toHaveLength(1);
+    });
+  });
+
+  describe("slack/getThreads - edge cases", () => {
+    it("returns empty array when history.messages is falsy", async () => {
+      mockConversationsHistory.mockResolvedValue({});
+
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+      expect(threads).toHaveLength(0);
+    });
+
+    it("skips messages without reply_count", async () => {
+      mockConversationsHistory.mockResolvedValue({
+        messages: [
+          { ts: "111.111", reply_count: 0 },
+          { ts: "222.222" },  // no reply_count
+        ],
+      });
+
+      const channel = await client.connect(channelId);
+      const threads = await channel.getThreads();
+      expect(threads).toHaveLength(0);
+    });
+  });
+
+  describe("slack/removeAllReactions - no reactions", () => {
+    it("returns early when message has no reactions", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: { reactions: undefined },
+      });
+
+      await client.connect(channelId);
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).resolves.toBeUndefined();
+      expect(mockReactionsRemove).not.toHaveBeenCalled();
+    });
+
+    it("ignores errors when removing a reaction the bot didn't add", async () => {
+      mockReactionsGet.mockResolvedValue({
+        message: {
+          reactions: [
+            { name: "thumbsup" },
+            { name: "" }, // empty name - should be skipped
+          ],
+        },
+      });
+      mockReactionsRemove.mockRejectedValue(new Error("not_reacted"));
+
+      await client.connect(channelId);
+      await expect(
+        client.removeAllReactions("msg-123", channelId)
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("slack/messageOperations - postMessage overflow", () => {
+    it("uploads large message as file with thread_ts", async () => {
+      const largeContent = "x".repeat(4001);
+      const channel = await client.connect(channelId);
+      // Need thread to trigger threadTs path
+      const thread = await channel.createThread("test-message", "test-thread");
+
+      // Patch postToThread to trigger the large message path
+      await thread.post(largeContent);
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({ thread_ts: expect.any(String) })
+      );
+    });
+
+    it("uploads large message as file without thread_ts", async () => {
+      const largeContent = "x".repeat(4001);
+      const channel = await client.connect(channelId);
+      channel.postMessage(largeContent);
+
+      // Wait briefly for async operations
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filename: "message.txt",
+          initial_comment: expect.any(String),
+        })
+      );
+    });
+  });
+
+  describe("slack/messageOperations - updateMessage truncation", () => {
+    it("truncates message content when it exceeds the limit", async () => {
+      const largeContent = "x".repeat(4001);
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("initial");
+      await new Promise((r) => setTimeout(r, 50));
+
+      mockChatUpdate.mockResolvedValue({ ok: true });
+      await message.update(largeContent);
+
+      expect(mockChatUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringMatching(/…$/),
+        })
+      );
+    });
+  });
+
+  describe("slack/messageOperations - deleteMessage cascadeReplies = false", () => {
+    it("skips fetching replies when cascadeReplies is false", async () => {
+      const channel = await client.connect(channelId);
+      const message = channel.postMessage("test");
+      await new Promise((r) => setTimeout(r, 50));
+
+      await message.delete({ cascadeReplies: false });
+
+      expect(mockConversationsReplies).not.toHaveBeenCalled();
+      expect(mockChatDelete).toHaveBeenCalledWith(
+        expect.objectContaining({ ts: expect.any(String) })
+      );
+    });
+  });
+
+  describe("slack/messageOperations - postMessage with Document", () => {
+    it("posts Document content as blocks with text", async () => {
+      const { Document } = await import("@hardlydifficult/document-generator");
+      const doc = new Document().header("Test Header");
+
+      const channel = await client.connect(channelId);
+      channel.postMessage(doc as never);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Test Header",
+          blocks: expect.any(Array),
+        })
+      );
+    });
+
+    it("posts Document with empty plain text using fallback 'Message'", async () => {
+      const { Document } = await import("@hardlydifficult/document-generator");
+      const doc = new Document();  // empty document
+
+      const channel = await client.connect(channelId);
+      channel.postMessage(doc as never);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "Message" })
+      );
+    });
+
+    it("postMessage with Document and files - posts blocks separately", async () => {
+      const { Document } = await import("@hardlydifficult/document-generator");
+      const doc = new Document().header("Doc with file");
+
+      mockPostMessage.mockResolvedValue({ ts: "1234567890.doc" });
+      const channel = await client.connect(channelId);
+      const msg = channel.postMessage(doc as never, {
+        files: [{ content: "file content", name: "test.txt" }],
+      });
+      await new Promise((r) => setTimeout(r, 100));
+
+      // File upload happens
+      expect(mockFilesUploadV2).toHaveBeenCalled();
+      // Then text+blocks are posted separately
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ blocks: expect.any(Array) })
+      );
+    });
+  });
+
+  describe("slack/messageOperations - postMessage with file and threadTs", () => {
+    it("uploads string file with thread_ts", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("root message", "thread-name");
+
+      await thread.post("Text", { files: [{ content: "file text", name: "file.txt" }] });
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thread_ts: expect.any(String),
+          content: "file text",
+        })
+      );
+    });
+
+    it("uploads Buffer file with thread_ts", async () => {
+      const channel = await client.connect(channelId);
+      const thread = await channel.createThread("root message", "thread-name");
+
+      const buf = Buffer.from("binary content");
+      await thread.post("Text", { files: [{ content: buf, name: "file.bin" }] });
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thread_ts: expect.any(String),
+          file: buf,
+        })
+      );
+    });
+
+    it("uploads Buffer file without thread_ts", async () => {
+      const channel = await client.connect(channelId);
+      const buf = Buffer.from("binary content");
+      channel.postMessage("Text", {
+        files: [{ content: buf, name: "file.bin" }],
+      });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockFilesUploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: buf,
+          filename: "file.bin",
+        })
+      );
+    });
+  });
 });

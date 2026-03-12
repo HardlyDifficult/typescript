@@ -103,6 +103,42 @@ describe("WorkerPool", () => {
       ]);
     });
 
+    it("excludes non-Available workers from dispatch candidates", () => {
+      pool.add(createWorker({ status: WorkerStatus.Busy }));
+      expect(pool.getDispatchCandidates({ model: "test-model" })).toEqual([]);
+    });
+
+    it("excludes workers at full capacity from dispatch candidates", () => {
+      pool.add(createWorker({ activeRequests: 2 })); // maxConcurrentRequests is 2
+      expect(pool.getDispatchCandidates({ model: "test-model" })).toEqual([]);
+    });
+
+    it("returns candidates when category has no limit defined", () => {
+      pool.add(
+        createWorker({
+          capabilities: {
+            models: [
+              {
+                modelId: "test-model",
+                displayName: "Test",
+                maxContextTokens: 8192,
+                maxOutputTokens: 4096,
+                supportsStreaming: true,
+              },
+            ],
+            maxConcurrentRequests: 5,
+            concurrencyLimits: { other: 2 },
+          },
+        })
+      );
+      // "local" category has no limit defined, so worker should be included
+      const candidates = pool.getDispatchCandidates({
+        model: "test-model",
+        category: "local",
+      });
+      expect(candidates).toHaveLength(1);
+    });
+
     it("respects category limits when building candidates", () => {
       pool.add(
         createWorker({
@@ -383,6 +419,18 @@ describe("WorkerPool", () => {
     });
   });
 
+  describe("getAvailableCount", () => {
+    it("returns 0 when no workers exist", () => {
+      expect(pool.getAvailableCount()).toBe(0);
+    });
+
+    it("counts only Available workers", () => {
+      pool.add(createWorker({ id: "w1", status: WorkerStatus.Available }));
+      pool.add(createWorker({ id: "w2", status: WorkerStatus.Busy }));
+      expect(pool.getAvailableCount()).toBe(1);
+    });
+  });
+
   describe("checkHealth with already unhealthy worker", () => {
     it("does not log again for already unhealthy workers", () => {
       const logger = {
@@ -402,6 +450,69 @@ describe("WorkerPool", () => {
       // Should not log again since already unhealthy
       warnPool.checkHealth(60_000);
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cloneCapabilities with metadata", () => {
+    it("includes metadata when capabilities.metadata is set", () => {
+      const worker = createWorker({
+        capabilities: {
+          models: [
+            {
+              modelId: "test-model",
+              displayName: "Test",
+              maxContextTokens: 8192,
+              maxOutputTokens: 4096,
+              supportsStreaming: true,
+            },
+          ],
+          maxConcurrentRequests: 2,
+          metadata: { region: "us-east-1" },
+        },
+      });
+      pool.add(worker);
+      const info = pool.getWorkerInfoList()[0];
+      expect(info.capabilities.metadata).toEqual({ region: "us-east-1" });
+    });
+  });
+
+  describe("releaseRequest with missing category count", () => {
+    it("handles case where category count is not in map (uses ?? 0 fallback)", () => {
+      pool.add(createWorker());
+      pool.trackRequest("worker-1", "req-1", "local");
+
+      // Manually corrupt the categoryActiveRequests to simulate missing entry
+      const worker = pool.get("worker-1")!;
+      worker.categoryActiveRequests.delete("local");
+
+      // releaseRequest should not throw (uses ?? 0 fallback)
+      expect(() => pool.releaseRequest("req-1")).not.toThrow();
+    });
+  });
+
+  describe("getAvailableSlotCount with category having no active requests", () => {
+    it("returns full category slots when category has no active requests yet (uses ?? 0 fallback)", () => {
+      pool.add(
+        createWorker({
+          capabilities: {
+            models: [
+              {
+                modelId: "test-model",
+                displayName: "Test",
+                maxContextTokens: 8192,
+                maxOutputTokens: 4096,
+                supportsStreaming: true,
+              },
+            ],
+            maxConcurrentRequests: 5,
+            concurrencyLimits: { local: 3 },
+          },
+          categoryActiveRequests: new Map(), // empty - no active requests
+        })
+      );
+
+      // Should return 3 (the category limit) since there are 0 active in category
+      expect(pool.getAvailableSlotCount("test-model", "local")).toBe(3);
     });
   });
 });

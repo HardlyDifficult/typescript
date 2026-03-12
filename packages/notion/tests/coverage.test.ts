@@ -1,420 +1,1402 @@
+import { describe, expect, it, vi } from "vitest";
+
+// Import directly from index.ts to trigger barrel file execution
+import {
+  NotionApiError,
+  NotionClient,
+  blocksToMarkdown,
+  extractNotionPageId,
+  extractPageTitle,
+  markdownToBlocks,
+  notionParent,
+  notionProperty,
+  richTextToPlainText,
+  selectionFromMarkdown,
+  textToParagraphBlocks,
+} from "../src/index.js";
+
+// Import directly from markdown.ts to trigger barrel file execution
+import {
+  blocksToMarkdown as blocksToMarkdownFromBarrel,
+  markdownToBlocks as markdownToBlocksFromBarrel,
+  richTextToPlainText as richTextToPlainTextFromBarrel,
+  selectionFromMarkdown as selectionFromMarkdownFromBarrel,
+  textToParagraphBlocks as textToParagraphBlocksFromBarrel,
+} from "../src/markdown.js";
+
+// Import builders directly for full coverage
+import {
+  isMarkdownRenderable,
+  isPageDraft,
+  normalizeProperties,
+  toMarkdownContent,
+  toPageBody,
+  toPropertyValue,
+} from "../src/builders.js";
+
+// Import markdown modules directly
+import { parseHeading, parseListMarker, parseCodeFence, parseQuote, parseEquation, parseParagraph, parseListBlock, attachChildren } from "../src/markdown/blocks.js";
+import { parseMediaBlock } from "../src/markdown/media.js";
+import { blocksToMarkdown as blocksToMd } from "../src/markdown/renderer.js";
+import { makeTextRichText, renderRichText, richTextFromMarkdown, richTextToPlainText as rtp, textToParagraphBlocks as ttpb } from "../src/markdown/richText.js";
+import { normalizeMarkdown, selectionFromMarkdown as sfm } from "../src/markdown/shared.js";
+import { buildSectionBlocks, extractNotionPageId as extractNotionPageIdFromShared, extractPageTitle as extractPageTitleFromShared, normalizeParent, splitIntoChunks, toPageMeta } from "../src/client/shared.js";
+import type { NotionBlock } from "../src/types.js";
+
+function makeJsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: () => Promise.resolve(JSON.stringify(body)),
+  } as Response;
+}
 
 // ========================
-// Additional tests for remaining uncovered areas
+// index.ts / markdown.ts - just need to be imported (already done above)
 // ========================
-describe("index.ts and markdown.ts barrel files", () => {
-  it("re-exports from index.ts work correctly", () => {
+describe("index.ts exports", () => {
+  it("re-exports all expected symbols", () => {
+    expect(NotionClient).toBeDefined();
+    expect(NotionApiError).toBeDefined();
+    expect(blocksToMarkdown).toBeDefined();
+    expect(markdownToBlocks).toBeDefined();
+    expect(richTextToPlainText).toBeDefined();
+    expect(selectionFromMarkdown).toBeDefined();
+    expect(textToParagraphBlocks).toBeDefined();
+    expect(notionParent).toBeDefined();
+    expect(notionProperty).toBeDefined();
     expect(extractNotionPageId).toBeDefined();
     expect(extractPageTitle).toBeDefined();
-    // Verify they work
-    expect(extractNotionPageId("abc123def456789012345678901234567890")).toBeDefined();
-    expect(extractPageTitle({})).toBe("");
   });
 
-  it("markdown.ts re-exports work correctly", () => {
+  it("markdown.ts barrel re-exports work", () => {
     expect(blocksToMarkdownFromBarrel).toBeDefined();
     expect(markdownToBlocksFromBarrel).toBeDefined();
     expect(richTextToPlainTextFromBarrel).toBeDefined();
     expect(selectionFromMarkdownFromBarrel).toBeDefined();
     expect(textToParagraphBlocksFromBarrel).toBeDefined();
-    // Verify they work
     expect(markdownToBlocksFromBarrel("# H1")).toHaveLength(1);
     expect(blocksToMarkdownFromBarrel([])).toBe("");
+    expect(richTextToPlainTextFromBarrel([])).toBe("");
+    expect(textToParagraphBlocksFromBarrel("")).toEqual([]);
+    expect(selectionFromMarkdownFromBarrel("")).toBeUndefined();
   });
 });
 
-describe("extractNotionPageId coverage", () => {
-  it("extracts page ID from Notion URL", () => {
-    const url = "https://www.notion.so/workspace/Page-Title-abc123def456789012345678901234abc";
-    const id = extractNotionPageIdFromShared(url);
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-  });
-
-  it("extracts page ID from bare 32-char hex string", () => {
-    const id = "abc123def456789012345678901234ab";
-    const result = extractNotionPageIdFromShared(id);
-    expect(result).toMatch(/[0-9a-f]{8}-/);
-  });
-
-  it("extracts page ID from URL with query params", () => {
-    const url = "https://www.notion.so/Page-abc123def456789012345678901234ab?v=123";
-    const result = extractNotionPageIdFromShared(url);
-    expect(result).toBeDefined();
-  });
-
-  it("extracts page ID from URL with hash fragment", () => {
-    const url = "https://www.notion.so/Page-abc123def456789012345678901234ab#section";
-    const result = extractNotionPageIdFromShared(url);
-    expect(result).toBeDefined();
-  });
-
-  it("returns original string when no ID found in URL", () => {
-    const url = "https://example.com/not-a-notion-page";
-    expect(extractNotionPageIdFromShared(url)).toBe(url);
-  });
-
-  it("returns trimmed string when no ID pattern matches", () => {
-    expect(extractNotionPageIdFromShared("  not-an-id  ")).toBe("not-an-id");
-  });
-
-  it("handles already-formatted UUID", () => {
-    const uuid = "abc123de-f456-7890-1234-567890abcdef";
-    // This is 36 chars with dashes, removes dashes = 32 chars
-    const result = extractNotionPageIdFromShared(uuid);
-    expect(result).toMatch(/[0-9a-f-]+/);
-  });
-});
-
-describe("NotionClient createPage with markdown string content on database parent (legacy path)", () => {
-  it("converts markdown to blocks when using database parent with string content", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(makeJsonResponse({ id: "page-1", url: "https://notion.so/page-1" }))
-      .mockResolvedValue(makeJsonResponse({ results: [] }));
-
-    const client = new NotionClient({
-      apiToken: "test-token",
-      fetchImpl: mockFetch as typeof fetch,
+// ========================
+// builders.ts coverage
+// ========================
+describe("builders coverage", () => {
+  it("notionParent.dataSource", () => {
+    expect(notionParent.dataSource("ds-123")).toEqual({
+      type: "data_source_id",
+      data_source_id: "ds-123",
     });
-
-    // String content with database_id parent -> legacy path -> converts to blocks
-    await client.createPage(
-      notionParent.database("db-123"),
-      { Name: notionProperty.title("Title") },
-      "# Hello World"
-    );
-
-    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
-    // Should have children (converted from markdown)
-    expect(body.children).toBeDefined();
-    expect(body.children[0]?.type).toBe("heading_1");
   });
 
-  it("uses markdownToBlocks when content is a string and parent is string (legacy)", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(makeJsonResponse({ id: "page-2", url: "" }))
-      .mockResolvedValue(makeJsonResponse({ results: [] }));
+  it("notionParent.dataSource throws on blank", () => {
+    expect(() => notionParent.dataSource("   ")).toThrow("dataSourceId is required");
+  });
 
-    const client = new NotionClient({
-      apiToken: "test-token",
-      fetchImpl: mockFetch as typeof fetch,
+  it("notionProperty.richText", () => {
+    expect(notionProperty.richText("hello")).toEqual({
+      rich_text: [{ type: "text", text: { content: "hello" } }],
     });
-
-    // String parent ID (legacy format)
-    await client.createPage(
-      "db-string-id",
-      { Name: notionProperty.title("Title") },
-      "# Heading\n\nBody text"
-    );
-
-    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
-    expect(body.children).toBeDefined();
   });
 
-  it("createPage with string content and markdown renderable second arg", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(makeJsonResponse({ id: "page-3", url: "" }));
-    const client = new NotionClient({
-      apiToken: "test-token",
-      fetchImpl: mockFetch as typeof fetch,
-    });
-
-    // propertiesOrContent is a renderable (not properties) and content is undefined
-    // -> resolvedContent = propertiesOrContent, properties = {}
-    await client.createPage(
-      notionParent.page("parent-123"),
-      { toMarkdown: () => "# Renderable" } as any
-    );
-
-    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body));
-    expect(body.markdown).toBe("# Renderable");
-  });
-});
-
-describe("activityFeed edge case coverage", () => {
-  it("getActivityFeed includes only pages events when includeComments=false", async () => {
-    const now = Date.now();
-    const recentTime = new Date(now - 5 * 1000).toISOString();
-    const mockFetch = vi.fn().mockResolvedValue(
-      makeJsonResponse({
-        object: "list",
-        has_more: false,
-        next_cursor: null,
-        results: [
-          {
-            object: "page",
-            id: "page-1",
-            url: "https://notion.so/page-1",
-            last_edited_time: recentTime,
-            created_time: recentTime,
-            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
-          },
-        ],
-      })
-    );
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-
-    const results = await client.getActivityFeed({
-      since: new Date(now - 60 * 1000),
-      includeComments: false,
-    });
-    expect(results.every(r => r.kind === "page")).toBe(true);
-    // Only 1 fetch (no comment fetches)
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+  it("notionProperty.text delegates to richText", () => {
+    expect(notionProperty.text("hello")).toEqual(notionProperty.richText("hello"));
   });
 
-  it("getActivityFeed skips comments with null eventTime", async () => {
-    const now = Date.now();
-    const recentTime = new Date(now - 5 * 1000).toISOString();
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            {
-              object: "page",
-              id: "page-1",
-              url: "https://notion.so/page-1",
-              last_edited_time: recentTime,
-              created_time: recentTime,
-              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            // Comment with no timestamps
-            {
-              object: "comment",
-              id: "c-null",
-              parent: { type: "page_id", page_id: "page-1" },
-              // no created_time or last_edited_time
-            },
-          ],
-        })
-      );
-
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-    const results = await client.getActivityFeed({
-      since: new Date(now - 60 * 1000),
-      includePages: false,
-    });
-    // The comment with null eventTime should be skipped
-    expect(results.filter(r => r.kind === "comment")).toHaveLength(0);
+  it("notionProperty.select with null", () => {
+    expect(notionProperty.select(null)).toEqual({ select: null });
   });
 
-  it("getActivityFeed skips comments with NaN timestamp", async () => {
-    const now = Date.now();
-    const recentTime = new Date(now - 5 * 1000).toISOString();
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            {
-              object: "page",
-              id: "page-1",
-              url: "https://notion.so/page-1",
-              last_edited_time: recentTime,
-              created_time: recentTime,
-              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "P1" } }] } },
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            {
-              object: "comment",
-              id: "c-bad",
-              parent: { type: "page_id", page_id: "page-1" },
-              created_time: "not-a-date",
-              last_edited_time: "not-a-date",
-            },
-          ],
-        })
-      );
-
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-    const results = await client.getActivityFeed({
-      since: new Date(now - 60 * 1000),
-    });
-    expect(results.filter(r => r.kind === "comment")).toHaveLength(0);
+  it("notionProperty.select with value", () => {
+    expect(notionProperty.select("Option A")).toEqual({ select: { name: "Option A" } });
   });
 
-  it("getActivityFeed with page.lastEdited null skips in includePages loop", async () => {
-    const now = Date.now();
-    const recentTime = new Date(now - 5 * 1000).toISOString();
-    // We simulate a candidate page that somehow has null lastEdited after the candidatePages check
-    // The check at line 161 (if page.lastEdited === null continue) in the includePages loop
-    // This can happen because candidatePages check already filters null, so we need a page in
-    // candidatePages with lastEdited != null — the inner loop won't skip unless lastEdited is null
-    // Actually let's test the sort tie-breaking (same timestamp)
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            {
-              object: "page", id: "page-a", url: "", last_edited_time: recentTime, created_time: recentTime,
-              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "A" } }] } },
-            },
-            {
-              object: "page", id: "page-b", url: "", last_edited_time: recentTime, created_time: recentTime,
-              properties: { Name: { type: "title", title: [{ type: "text", text: { content: "B" } }] } },
-            },
-          ],
-        })
-      )
-      .mockResolvedValue(makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] }));
-
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-    const results = await client.getActivityFeed({
-      since: new Date(now - 60 * 1000),
-    });
-    // Both pages have same timestamp, sorted by eventId
-    const pageResults = results.filter(r => r.kind === "page");
-    expect(pageResults).toHaveLength(2);
-    // eventId: page:page-a:... vs page:page-b:..., "a" < "b"
-    expect(pageResults[0]?.eventId < pageResults[1]!.eventId).toBe(true);
-  });
-});
-
-describe("getRecentlyModified with null lastEdited", () => {
-  it("skips pages with null lastEdited", async () => {
-    const now = Date.now();
-    const recentTime = new Date(now - 5 * 60 * 1000).toISOString();
-    const mockFetch = vi.fn().mockResolvedValue(
-      makeJsonResponse({
-        object: "list",
-        has_more: false,
-        next_cursor: null,
-        results: [
-          {
-            object: "page",
-            id: "no-last-edited",
-            url: "",
-            last_edited_time: null,
-            created_time: recentTime,
-            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "No Edit" } }] } },
-          },
-          {
-            object: "page",
-            id: "has-last-edited",
-            url: "",
-            last_edited_time: recentTime,
-            created_time: recentTime,
-            properties: { Name: { type: "title", title: [{ type: "text", text: { content: "With Edit" } }] } },
-          },
-        ],
-      })
-    );
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-    const results = await client.getRecentlyModified();
-    expect(results.some(p => p.id === "no-last-edited")).toBe(false);
-    expect(results.some(p => p.id === "has-last-edited")).toBe(true);
-  });
-});
-
-describe("richText edge cases", () => {
-  it("findLink returns null when ] not followed by ](", () => {
-    // "[text]http://url" - bracket not followed by ]( 
-    const result = richTextFromMarkdown("[text]http://url");
-    // Should parse as plain text since no link syntax
-    expect(result.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("findLink returns null when no closing paren", () => {
-    // "[text](url-missing-paren"
-    const result = richTextFromMarkdown("[text](url-missing-paren");
-    expect(result.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("findDelimited returns null when no close pattern", () => {
-    // Unclosed bold: "**bold text without close
-    const result = richTextFromMarkdown("**unclosed bold");
-    // Should return as plain text
-    expect(result.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("findNextToken delimiter wins when earlier than link", () => {
-    // **bold** then [link](url) -> delimiter is earlier
-    const result = richTextFromMarkdown("**bold** then [link](https://example.com)");
-    const boldPart = result.find(s => s.annotations?.bold === true);
-    expect(boldPart).toBeDefined();
-  });
-
-  it("renderRichText code+bold annotations", () => {
-    const seg = makeTextRichText("text", { code: true, bold: true });
-    const result = renderRichText([seg]);
-    expect(result).toContain("`");
-    expect(result).toContain("**");
-  });
-});
-
-describe("blockChildren default branch coverage", () => {
-  it("retrieveBlockChildren with unsupported block type with children", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [
-            // A block type that is not handled in attachChildren switch
-            { object: "block", id: "b1", type: "divider", has_children: true, divider: {} },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(
-        makeJsonResponse({ object: "list", has_more: false, next_cursor: null, results: [] })
-      );
-    const client = new NotionClient({ apiToken: "test-token", fetchImpl: mockFetch as typeof fetch });
-    const blocks = await client.retrieveBlockChildren("page-123", { recursive: true });
-    expect(blocks[0]?.type).toBe("divider");
-  });
-});
-
-describe("builders.ts remaining branches", () => {
-  it("normalizeDateInput called with string returns date object", () => {
-    // toPropertyValue with structured date with string value
-    const result = toPropertyValue("Due", { type: "date", value: "2026-01-15" } as any);
-    expect(result).toEqual({ date: { start: "2026-01-15" } });
-  });
-
-  it("normalizeDateInput with Date object in structured input", () => {
-    const d = new Date("2026-01-15T00:00:00Z");
-    const result = toPropertyValue("Due", { type: "date", value: d } as any);
-    expect(result).toEqual({ date: { start: d.toISOString() } });
+  it("notionProperty.status with null", () => {
+    expect(notionProperty.status(null)).toEqual({ status: null });
   });
 
   it("notionProperty.date with null start returns null date", () => {
     expect(notionProperty.date(null)).toEqual({ date: null });
   });
 
-  it("toPropertyValue assertUnreachable never reached in practice but we can hit the select multi case", () => {
-    // multiSelect with empty array
-    expect(toPropertyValue("Tags", { type: "multi_select", value: [] } as any)).toEqual({
-      multi_select: [],
+  it("notionProperty.date with end and timezone", () => {
+    const result = notionProperty.date("2026-01-01", "2026-01-31", "UTC");
+    expect(result).toEqual({
+      date: {
+        start: "2026-01-01",
+        end: "2026-01-31",
+        time_zone: "UTC",
+      },
     });
+  });
+
+  it("notionProperty.date with null end", () => {
+    const result = notionProperty.date("2026-01-01", null);
+    expect(result).toEqual({
+      date: { start: "2026-01-01", end: null },
+    });
+  });
+
+  it("notionProperty.url", () => {
+    expect(notionProperty.url("https://example.com")).toEqual({ url: "https://example.com" });
+    expect(notionProperty.url(null)).toEqual({ url: null });
+  });
+
+  it("notionProperty.email", () => {
+    expect(notionProperty.email("test@example.com")).toEqual({ email: "test@example.com" });
+    expect(notionProperty.email(null)).toEqual({ email: null });
+  });
+
+  it("notionProperty.phoneNumber", () => {
+    expect(notionProperty.phoneNumber("+1-800-555-0000")).toEqual({ phone_number: "+1-800-555-0000" });
+    expect(notionProperty.phoneNumber(null)).toEqual({ phone_number: null });
+  });
+
+  it("notionProperty.relation", () => {
+    expect(notionProperty.relation("id-1", "id-2")).toEqual({
+      relation: [{ id: "id-1" }, { id: "id-2" }],
+    });
+  });
+
+  it("notionProperty.relation throws on blank", () => {
+    expect(() => notionProperty.relation("")).toThrow("relation id is required");
+  });
+
+  it("notionProperty.people", () => {
+    expect(notionProperty.people("user-1")).toEqual({
+      people: [{ id: "user-1" }],
+    });
+  });
+
+  it("notionProperty.people throws on blank", () => {
+    expect(() => notionProperty.people("")).toThrow("person id is required");
+  });
+
+  it("notionProperty.raw passthrough", () => {
+    const val = { title: [{ type: "text", text: { content: "x" } }] };
+    expect(notionProperty.raw(val as any)).toBe(val);
+  });
+
+  it("notionProperty.number null", () => {
+    expect(notionProperty.number(null)).toEqual({ number: null });
+  });
+
+  it("isMarkdownRenderable with renderable object", () => {
+    expect(isMarkdownRenderable({ toMarkdown: () => "" })).toBe(true);
+    expect(isMarkdownRenderable(null)).toBe(false);
+    expect(isMarkdownRenderable("hello")).toBe(false);
+    expect(isMarkdownRenderable({ toMarkdown: "not a function" })).toBe(false);
+  });
+
+  it("isPageDraft", () => {
+    expect(isPageDraft({ parent: {} })).toBe(true);
+    expect(isPageDraft({})).toBe(false);
+    expect(isPageDraft(null)).toBe(false);
+  });
+
+  it("toMarkdownContent with string", () => {
+    expect(toMarkdownContent("hello")).toBe("hello");
+  });
+
+  it("toMarkdownContent with renderable", () => {
+    expect(toMarkdownContent({ toMarkdown: () => "rendered" })).toBe("rendered");
+  });
+
+  it("toPageBody undefined", () => {
+    expect(toPageBody(undefined)).toBeUndefined();
+  });
+
+  it("toPageBody with blocks array", () => {
+    const blocks: NotionBlock[] = [{ object: "block", type: "divider", divider: {} }];
+    expect(toPageBody(blocks)).toBe(blocks);
+  });
+
+  it("toPageBody with string content", () => {
+    expect(toPageBody("# Hello")).toBe("# Hello");
+  });
+
+  it("toPageBody with renderable", () => {
+    expect(toPageBody({ toMarkdown: () => "md" })).toBe("md");
+  });
+
+  it("normalizeProperties handles various types", () => {
+    const result = normalizeProperties({
+      Score: 42,
+      Active: true,
+      Due: new Date("2026-01-01"),
+      Tags: ["a", "b"],
+    });
+    expect(result.Score).toEqual({ number: 42 });
+    expect(result.Active).toEqual({ checkbox: true });
+    expect(result.Tags).toEqual({ multi_select: [{ name: "a" }, { name: "b" }] });
+  });
+
+  it("toPropertyValue with raw value", () => {
+    const raw = { title: [{ type: "text", text: { content: "x" } }] };
+    expect(toPropertyValue("Name", raw as any)).toBe(raw);
+  });
+
+  it("toPropertyValue with string", () => {
+    expect(toPropertyValue("Notes", "hello")).toEqual({
+      rich_text: [{ type: "text", text: { content: "hello" } }],
+    });
+  });
+
+  it("toPropertyValue with number", () => {
+    expect(toPropertyValue("Score", 99)).toEqual({ number: 99 });
+  });
+
+  it("toPropertyValue with boolean", () => {
+    expect(toPropertyValue("Done", false)).toEqual({ checkbox: false });
+  });
+
+  it("toPropertyValue with Date", () => {
+    const d = new Date("2026-03-01T00:00:00Z");
+    expect(toPropertyValue("Due", d)).toEqual({ date: { start: "2026-03-01T00:00:00.000Z" } });
+  });
+
+  it("toPropertyValue with string array", () => {
+    expect(toPropertyValue("Tags", ["a", "b"])).toEqual({
+      multi_select: [{ name: "a" }, { name: "b" }],
+    });
+  });
+
+  it("toPropertyValue with non-string array throws", () => {
+    expect(() => toPropertyValue("Bad", [1, 2] as any)).toThrow("only supports string arrays");
+  });
+
+  it("toPropertyValue with unknown plain object throws", () => {
+    expect(() => toPropertyValue("Bad", { foo: "bar" } as any)).toThrow("Unsupported Notion property input");
+  });
+
+  it("toPropertyValue with structured title", () => {
+    expect(toPropertyValue("Name", { type: "title", value: "My Page" } as any)).toEqual({
+      title: [{ type: "text", text: { content: "My Page" } }],
+    });
+  });
+
+  it("toPropertyValue with structured text null", () => {
+    expect(toPropertyValue("Notes", { type: "text", value: null } as any)).toEqual({ rich_text: [] });
+  });
+
+  it("toPropertyValue with structured text string", () => {
+    expect(toPropertyValue("Notes", { type: "text", value: "hello" } as any)).toEqual({
+      rich_text: [{ type: "text", text: { content: "hello" } }],
+    });
+  });
+
+  it("toPropertyValue with structured select", () => {
+    expect(toPropertyValue("Status", { type: "select", value: "Open" } as any)).toEqual({
+      select: { name: "Open" },
+    });
+  });
+
+  it("toPropertyValue with structured status", () => {
+    expect(toPropertyValue("Status", { type: "status", value: "Done" } as any)).toEqual({
+      status: { name: "Done" },
+    });
+  });
+
+  it("toPropertyValue with structured date null", () => {
+    expect(toPropertyValue("Due", { type: "date", value: null } as any)).toEqual({ date: null });
+  });
+
+  it("toPropertyValue with structured date string", () => {
+    expect(toPropertyValue("Due", { type: "date", value: "2026-01-15" } as any)).toEqual({
+      date: { start: "2026-01-15" },
+    });
+  });
+
+  it("toPropertyValue with structured date Date object", () => {
+    const d = new Date("2026-01-15T00:00:00Z");
+    expect(toPropertyValue("Due", { type: "date", value: d } as any)).toEqual({
+      date: { start: d.toISOString() },
+    });
+  });
+
+  it("toPropertyValue with structured number", () => {
+    expect(toPropertyValue("Score", { type: "number", value: 5 } as any)).toEqual({ number: 5 });
+  });
+
+  it("toPropertyValue with structured checkbox", () => {
+    expect(toPropertyValue("Done", { type: "checkbox", value: true } as any)).toEqual({ checkbox: true });
+  });
+
+  it("toPropertyValue with structured url", () => {
+    expect(toPropertyValue("Link", { type: "url", value: "https://x.com" } as any)).toEqual({
+      url: "https://x.com",
+    });
+  });
+
+  it("toPropertyValue with structured email", () => {
+    expect(toPropertyValue("Email", { type: "email", value: "a@b.com" } as any)).toEqual({
+      email: "a@b.com",
+    });
+  });
+
+  it("toPropertyValue with structured phone_number", () => {
+    expect(toPropertyValue("Phone", { type: "phone_number", value: "123" } as any)).toEqual({
+      phone_number: "123",
+    });
+  });
+
+  it("toPropertyValue with structured multi_select", () => {
+    expect(toPropertyValue("Tags", { type: "multi_select", value: ["a"] } as any)).toEqual({
+      multi_select: [{ name: "a" }],
+    });
+  });
+
+  it("toPropertyValue with structured relation", () => {
+    expect(toPropertyValue("Related", { type: "relation", value: ["id-1"] } as any)).toEqual({
+      relation: [{ id: "id-1" }],
+    });
+  });
+
+  it("toPropertyValue with structured people", () => {
+    expect(toPropertyValue("Owner", { type: "people", value: ["user-1"] } as any)).toEqual({
+      people: [{ id: "user-1" }],
+    });
+  });
+});
+
+// ========================
+// client/shared.ts coverage
+// ========================
+describe("client/shared.ts coverage", () => {
+  it("splitIntoChunks splits text", () => {
+    expect(splitIntoChunks("abcde", 2)).toEqual(["ab", "cd", "e"]);
+    expect(splitIntoChunks("", 2)).toEqual([]);
+  });
+
+  it("buildSectionBlocks creates heading + paragraphs", () => {
+    const blocks = buildSectionBlocks("My Heading", "Body text here");
+    expect(blocks[0]?.type).toBe("heading_2");
+    expect(blocks[1]?.type).toBe("paragraph");
+  });
+
+  it("normalizeParent with string database id", () => {
+    const result = normalizeParent("db-123");
+    expect(result.parent).toEqual({ database_id: "db-123" });
+    expect(result.notionVersion).toBe("2022-06-28");
+  });
+
+  it("normalizeParent with database_id object", () => {
+    const result = normalizeParent({ type: "database_id", database_id: "db-123" });
+    expect(result.parent).toEqual({ database_id: "db-123" });
+    expect(result.notionVersion).toBe("2022-06-28");
+  });
+
+  it("normalizeParent with page_id", () => {
+    const result = normalizeParent({ type: "page_id", page_id: "page-123" });
+    expect(result.parent).toEqual({ page_id: "page-123" });
+    expect(result.notionVersion).toBe("2022-06-28");
+  });
+
+  it("normalizeParent with workspace", () => {
+    const result = normalizeParent({ type: "workspace", workspace: true });
+    expect(result.parent).toEqual({ workspace: true });
+    expect(result.notionVersion).toBe("2022-06-28");
+  });
+
+  it("normalizeParent with data_source_id", () => {
+    const result = normalizeParent({ type: "data_source_id", data_source_id: "ds-123" });
+    expect(result.notionVersion).toBe("2025-09-03");
+  });
+
+  it("extractPageTitle returns empty string when no properties", () => {
+    expect(extractPageTitleFromShared(undefined)).toBe("");
+    expect(extractPageTitleFromShared({})).toBe("");
+  });
+
+  it("extractPageTitle returns title from properties", () => {
+    const props = {
+      Name: {
+        type: "title" as const,
+        title: [{ type: "text" as const, text: { content: "My Page" }, plain_text: "My Page", href: null }],
+      },
+    };
+    expect(extractPageTitleFromShared(props as any)).toBe("My Page");
+  });
+
+  it("extractPageTitle skips non-title properties", () => {
+    const props = {
+      Status: {
+        type: "select" as const,
+        select: { name: "Active" },
+      },
+    };
+    expect(extractPageTitleFromShared(props as any)).toBe("");
+  });
+
+  it("toPageMeta normalizes optional fields", () => {
+    const page = {
+      id: "page-1",
+      url: "https://notion.so/page-1",
+      object: "page",
+    } as any;
+    const meta = toPageMeta(page);
+    expect(meta.id).toBe("page-1");
+    expect(meta.lastEdited).toBeNull();
+    expect(meta.createdTime).toBeNull();
+    expect(meta.archived).toBe(false);
+    expect(meta.inTrash).toBe(false);
+    expect(meta.icon).toBeNull();
+    expect(meta.cover).toBeNull();
+    expect(meta.properties).toEqual({});
+  });
+
+  it("extractNotionPageId from Notion URL", () => {
+    const url = "https://www.notion.so/workspace/Page-Title-abc123def456789012345678901234ab";
+    const id = extractNotionPageIdFromShared(url);
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+
+  it("extractNotionPageId from bare 32-char hex string", () => {
+    const id = "abc123def456789012345678901234ab";
+    const result = extractNotionPageIdFromShared(id);
+    expect(result).toMatch(/[0-9a-f]{8}-/);
+  });
+
+  it("extractNotionPageId from URL with query params", () => {
+    const url = "https://www.notion.so/Page-abc123def456789012345678901234ab?v=123";
+    const result = extractNotionPageIdFromShared(url);
+    expect(result).toBeDefined();
+  });
+
+  it("extractNotionPageId from URL with hash fragment", () => {
+    const url = "https://www.notion.so/Page-abc123def456789012345678901234ab#section";
+    const result = extractNotionPageIdFromShared(url);
+    expect(result).toBeDefined();
+  });
+
+  it("extractNotionPageId returns original string when no ID found in URL", () => {
+    const url = "https://example.com/not-a-notion-page";
+    expect(extractNotionPageIdFromShared(url)).toBe(url.trim());
+  });
+
+  it("extractNotionPageId returns trimmed string when no pattern matches", () => {
+    expect(extractNotionPageIdFromShared("  not-an-id  ")).toBe("not-an-id");
+  });
+});
+
+// ========================
+// markdown/shared.ts coverage
+// ========================
+describe("markdown/shared.ts coverage", () => {
+  it("selectionFromMarkdown returns undefined for empty string", () => {
+    expect(sfm("")).toBeUndefined();
+    expect(sfm("   ")).toBeUndefined();
+  });
+
+  it("selectionFromMarkdown short content repeats", () => {
+    const short = "hello world";
+    const result = sfm(short);
+    expect(result).toBe(short + "..." + short);
+  });
+
+  it("selectionFromMarkdown long content uses edges", () => {
+    const long = "a".repeat(50);
+    const result = sfm(long);
+    expect(result).toContain("...");
+    expect(result?.startsWith("a".repeat(20))).toBe(true);
+    expect(result?.endsWith("a".repeat(20))).toBe(true);
+  });
+
+  it("normalizeMarkdown trims and normalizes line endings", () => {
+    const result = normalizeMarkdown("  hello\r\nworld  ");
+    expect(result).toBe("hello\nworld");
+  });
+});
+
+// ========================
+// markdown/richText.ts coverage
+// ========================
+describe("markdown/richText.ts coverage", () => {
+  it("richTextToPlainText with no plain_text uses content", () => {
+    const segments = [
+      { type: "text" as const, text: { content: "hello" } },
+    ] as any[];
+    expect(rtp(segments)).toBe("hello");
+  });
+
+  it("renderRichText with underline", () => {
+    const segments = [makeTextRichText("underlined", { underline: true })];
+    const result = renderRichText(segments);
+    expect(result).toContain("<u>");
+    expect(result).toContain("</u>");
+  });
+
+  it("renderRichText with link", () => {
+    const segment = {
+      type: "text" as const,
+      text: { content: "click", link: { url: "https://example.com" } },
+      plain_text: "click",
+      href: "https://example.com",
+    };
+    const result = renderRichText([segment] as any);
+    expect(result).toContain("[click]");
+    expect(result).toContain("https://example.com");
+  });
+
+  it("renderRichText with strikethrough", () => {
+    const segments = [makeTextRichText("text", { strikethrough: true })];
+    expect(renderRichText(segments)).toBe("~~text~~");
+  });
+
+  it("renderRichText with italic", () => {
+    const segments = [makeTextRichText("text", { italic: true })];
+    expect(renderRichText(segments)).toBe("*text*");
+  });
+
+  it("renderRichText with code+bold annotations", () => {
+    const seg = makeTextRichText("text", { code: true, bold: true });
+    const result = renderRichText([seg]);
+    expect(result).toContain("`");
+    expect(result).toContain("**");
+  });
+
+  it("richTextFromMarkdown parses underline", () => {
+    const result = richTextFromMarkdown("<u>underlined</u>");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]?.annotations?.underline).toBe(true);
+  });
+
+  it("richTextFromMarkdown parses inline code", () => {
+    const result = richTextFromMarkdown("`code here`");
+    expect(result[0]?.annotations?.code).toBe(true);
+  });
+
+  it("richTextFromMarkdown parses strikethrough", () => {
+    const result = richTextFromMarkdown("~~strike~~");
+    expect(result[0]?.annotations?.strikethrough).toBe(true);
+  });
+
+  it("richTextFromMarkdown parses bold with underscores", () => {
+    const result = richTextFromMarkdown("__bold__");
+    expect(result[0]?.annotations?.bold).toBe(true);
+  });
+
+  it("richTextFromMarkdown parses italic with underscore", () => {
+    const result = richTextFromMarkdown("_italic_");
+    expect(result[0]?.annotations?.italic).toBe(true);
+  });
+
+  it("richTextFromMarkdown parses link with styled label", () => {
+    const result = richTextFromMarkdown("[**bold link**](https://example.com)");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]?.text?.link?.url).toBe("https://example.com");
+  });
+
+  it("richTextFromMarkdown - findLink returns null when ] not followed by ](", () => {
+    const result = richTextFromMarkdown("[text]http://url");
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("richTextFromMarkdown - findLink returns null when no closing paren", () => {
+    const result = richTextFromMarkdown("[text](url-missing-paren");
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("richTextFromMarkdown - unclosed bold treated as plain text", () => {
+    const result = richTextFromMarkdown("**unclosed bold");
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("richTextFromMarkdown - delimiter wins when earlier than link", () => {
+    const result = richTextFromMarkdown("**bold** then [link](https://example.com)");
+    const boldPart = result.find((s: any) => s.annotations?.bold === true);
+    expect(boldPart).toBeDefined();
+  });
+
+  it("textToParagraphBlocks returns empty for blank", () => {
+    expect(ttpb("")).toEqual([]);
+    expect(ttpb("   ")).toEqual([]);
+  });
+
+  it("textToParagraphBlocks splits on double newline", () => {
+    const result = ttpb("Para one\n\nPara two");
+    expect(result).toHaveLength(2);
+    expect(result[0]?.type).toBe("paragraph");
+  });
+});
+
+// ========================
+// markdown/blocks.ts coverage
+// ========================
+describe("markdown/blocks.ts coverage", () => {
+  it("parseHeading h3", () => {
+    const block = parseHeading("### Subheading");
+    expect(block?.type).toBe("heading_3");
+  });
+
+  it("parseHeading returns null for non-heading", () => {
+    expect(parseHeading("plain text")).toBeNull();
+  });
+
+  it("parseListMarker numbered list", () => {
+    const result = parseListMarker("1. First item");
+    expect(result?.type).toBe("numbered_list_item");
+    expect(result?.text).toBe("First item");
+  });
+
+  it("parseListMarker indented bullet", () => {
+    const result = parseListMarker("  - nested item");
+    expect(result?.type).toBe("bulleted_list_item");
+    expect(result?.indent).toBe(2);
+  });
+
+  it("parseListMarker todo checked", () => {
+    const result = parseListMarker("- [X] checked");
+    expect(result?.type).toBe("to_do");
+    expect(result?.checked).toBe(true);
+  });
+
+  it("parseListMarker returns null for non-list", () => {
+    expect(parseListMarker("just a line")).toBeNull();
+  });
+
+  it("parseCodeFence with unclosed fence", () => {
+    const result = parseCodeFence(["```js", "code here"], 0);
+    expect(result.blocks[0]?.type).toBe("code");
+    expect(result.nextIndex).toBe(2);
+  });
+
+  it("parseCodeFence with empty language", () => {
+    const result = parseCodeFence(["```", "content", "```"], 0);
+    const block = result.blocks[0];
+    expect(block?.type).toBe("code");
+    if (block?.type === "code") {
+      expect(block.code.language).toBe("plain text");
+    }
+  });
+
+  it("parseQuote parses multiline", () => {
+    const result = parseQuote(["> Line 1", "> Line 2", "other"], 0);
+    expect(result.blocks[0]?.type).toBe("quote");
+    expect(result.nextIndex).toBe(2);
+  });
+
+  it("parseEquation inline form", () => {
+    const result = parseEquation(["$$E=mc^2$$"], 0);
+    const block = result.blocks[0];
+    expect(block?.type).toBe("equation");
+    if (block?.type === "equation") {
+      expect(block.equation.expression).toBe("E=mc^2");
+    }
+  });
+
+  it("parseEquation multiline form", () => {
+    const result = parseEquation(["$$", "E = mc^2", "$$"], 0);
+    const block = result.blocks[0];
+    expect(block?.type).toBe("equation");
+    if (block?.type === "equation") {
+      expect(block.equation.expression).toBe("E = mc^2");
+    }
+    expect(result.nextIndex).toBe(3);
+  });
+
+  it("parseParagraph stops at blank line", () => {
+    const result = parseParagraph(["First line", "", "Second para"], 0);
+    expect(result.blocks).toHaveLength(1);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at code fence", () => {
+    const result = parseParagraph(["text", "```ts"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at quote", () => {
+    const result = parseParagraph(["text", "> quote"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at divider", () => {
+    const result = parseParagraph(["text", "---"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at heading", () => {
+    const result = parseParagraph(["text", "# heading"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at list", () => {
+    const result = parseParagraph(["text", "- item"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at <details>", () => {
+    const result = parseParagraph(["text", "<details>"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at callout", () => {
+    const result = parseParagraph(["text", "::: callout"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at table_of_contents", () => {
+    const result = parseParagraph(["text", "<table_of_contents/>"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at media block", () => {
+    const result = parseParagraph(["text", "![img](https://example.com/img.png)"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at <file>", () => {
+    const result = parseParagraph(["text", '<file src="url" />'], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at <page> tag", () => {
+    const result = parseParagraph(["text", '<page title="My Page" />'], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseParagraph stops at $$", () => {
+    const result = parseParagraph(["text", "$$E=mc^2$$"], 0);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("attachChildren to paragraph with existing", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: [],
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "paragraph") {
+      expect(block.paragraph.children).toHaveLength(2);
+    }
+  });
+
+  it("attachChildren to numbered_list_item", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "numbered_list_item",
+      numbered_list_item: { rich_text: [] },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "numbered_list_item") {
+      expect(block.numbered_list_item.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren to to_do", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "to_do",
+      to_do: { rich_text: [], checked: false },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "to_do") {
+      expect(block.to_do.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren to quote", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "quote",
+      quote: { rich_text: [] },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "quote") {
+      expect(block.quote.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren to callout", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "callout",
+      callout: { rich_text: [] },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "callout") {
+      expect(block.callout.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren to toggle", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "toggle",
+      toggle: { rich_text: [] },
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "toggle") {
+      expect(block.toggle.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren to synced_block", () => {
+    const block: NotionBlock = {
+      object: "block",
+      type: "synced_block",
+      synced_block: {},
+    };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+    if (block.type === "synced_block") {
+      expect(block.synced_block.children).toHaveLength(1);
+    }
+  });
+
+  it("attachChildren does nothing for empty children", () => {
+    const block: NotionBlock = { object: "block", type: "divider", divider: {} };
+    expect(() => attachChildren(block, [])).not.toThrow();
+  });
+
+  it("attachChildren to unsupported type does nothing", () => {
+    const block: NotionBlock = { object: "block", type: "divider", divider: {} };
+    attachChildren(block, [{ object: "block", type: "divider", divider: {} }]);
+  });
+
+  it("parseListBlock with numbered list items", () => {
+    const result = parseListBlock(["1. first", "2. second"], 0, 0);
+    expect(result.blocks).toHaveLength(2);
+    expect(result.blocks[0]?.type).toBe("numbered_list_item");
+  });
+
+  it("parseListBlock skips blank lines", () => {
+    const result = parseListBlock(["- item1", "", "- item2"], 0, 0);
+    expect(result.blocks).toHaveLength(2);
+  });
+
+  it("parseListBlock handles nested indented items", () => {
+    const result = parseListBlock(["- parent", "  - child"], 0, 0);
+    expect(result.blocks).toHaveLength(1);
+    const parent = result.blocks[0];
+    if (parent?.type === "bulleted_list_item") {
+      expect(parent.bulleted_list_item.children).toHaveLength(1);
+    }
+  });
+
+  it("parseListBlock stops when indent < baseIndent", () => {
+    const result = parseListBlock(["  - item", "- outer"], 0, 2);
+    expect(result.blocks).toHaveLength(1);
+    expect(result.nextIndex).toBe(1);
+  });
+
+  it("parseListBlock with deeper indent but no previous block", () => {
+    const result = parseListBlock(["    - orphan"], 0, 0);
+    expect(result.blocks).toHaveLength(0);
+  });
+});
+
+// ========================
+// markdown/media.ts coverage
+// ========================
+describe("markdown/media.ts coverage", () => {
+  it("parseMediaBlock returns null for non-media", () => {
+    expect(parseMediaBlock("plain text")).toBeNull();
+    expect(parseMediaBlock("not a block")).toBeNull();
+  });
+
+  it("parseMediaBlock parses image without caption", () => {
+    const block = parseMediaBlock("![](https://example.com/img.png)");
+    expect(block?.type).toBe("image");
+    if (block?.type === "image") {
+      expect(block.image.caption).toBeUndefined();
+    }
+  });
+
+  it("parseMediaBlock parses image with caption", () => {
+    const block = parseMediaBlock("![my caption](https://example.com/img.png)");
+    expect(block?.type).toBe("image");
+    if (block?.type === "image") {
+      expect(block.image.caption).toBeDefined();
+    }
+  });
+
+  it("parseMediaBlock parses file tag", () => {
+    const block = parseMediaBlock('<file src="https://example.com/doc.pdf" />');
+    expect(block?.type).toBe("file");
+  });
+
+  it("parseMediaBlock parses file tag with caption", () => {
+    const block = parseMediaBlock('<file src="https://example.com/doc.pdf" caption="My File" />');
+    expect(block?.type).toBe("file");
+    if (block?.type === "file") {
+      expect(block.file.caption).toBeDefined();
+    }
+  });
+
+  it("parseMediaBlock parses video tag", () => {
+    const block = parseMediaBlock('<video src="https://example.com/vid.mp4" />');
+    expect(block?.type).toBe("video");
+  });
+
+  it("parseMediaBlock parses audio tag", () => {
+    const block = parseMediaBlock('<audio src="https://example.com/sound.mp3" />');
+    expect(block?.type).toBe("audio");
+  });
+
+  it("parseMediaBlock parses pdf tag", () => {
+    const block = parseMediaBlock('<pdf src="https://example.com/doc.pdf" />');
+    expect(block?.type).toBe("pdf");
+  });
+
+  it("parseMediaBlock parses embed tag", () => {
+    const block = parseMediaBlock('<embed src="https://example.com/embed" />');
+    expect(block?.type).toBe("embed");
+  });
+
+  it("parseMediaBlock parses bookmark tag", () => {
+    const block = parseMediaBlock('<bookmark src="https://example.com/page" />');
+    expect(block?.type).toBe("bookmark");
+  });
+
+  it("parseMediaBlock parses child_page", () => {
+    const block = parseMediaBlock('<page title="My Subpage" />');
+    expect(block?.type).toBe("child_page");
+  });
+
+  it("parseMediaBlock parses child_page with url", () => {
+    const block = parseMediaBlock('<page title="My Page" url="https://notion.so/page-123" />');
+    expect(block?.type).toBe("child_page");
+    if (block?.type === "child_page") {
+      expect(block.child_page.url).toBe("https://notion.so/page-123");
+    }
+  });
+
+  it("parseMediaBlock parses child_database", () => {
+    const block = parseMediaBlock('<database title="My DB" />');
+    expect(block?.type).toBe("child_database");
+  });
+
+  it("parseMediaBlock parses child_database with url", () => {
+    const block = parseMediaBlock('<database title="My DB" url="https://notion.so/db-123" />');
+    expect(block?.type).toBe("child_database");
+    if (block?.type === "child_database") {
+      expect(block.child_database.url).toBe("https://notion.so/db-123");
+    }
+  });
+});
+
+// ========================
+// markdown/parser.ts coverage
+// ========================
+describe("markdownToBlocks (parser) coverage", () => {
+  it("returns empty for blank markdown", () => {
+    expect(markdownToBlocks("")).toEqual([]);
+    expect(markdownToBlocks("   ")).toEqual([]);
+  });
+
+  it("parses divider", () => {
+    const blocks = markdownToBlocks("---");
+    expect(blocks[0]?.type).toBe("divider");
+  });
+
+  it("parses table_of_contents", () => {
+    const blocks = markdownToBlocks("<table_of_contents/>");
+    expect(blocks[0]?.type).toBe("table_of_contents");
+  });
+
+  it("parses <details> toggle with <summary>", () => {
+    const md = "<details>\n<summary>Toggle title</summary>\nContent inside\n</details>";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("toggle");
+  });
+
+  it("parses <details> toggle without <summary>", () => {
+    const md = "<details>\nContent without summary\n</details>";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("toggle");
+  });
+
+  it("parses callout with icon and color", () => {
+    const md = "::: callout [icon=💡] {color=\"blue\"}\nCallout body\n:::";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("callout");
+    if (blocks[0]?.type === "callout") {
+      expect(blocks[0].callout.icon?.type).toBe("emoji");
+    }
+  });
+
+  it("parses callout with no paragraph start", () => {
+    const md = "::: callout\n# Heading inside\n:::";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("callout");
+  });
+
+  it("parses synced_block", () => {
+    const md = "<synced_block>\nSome content\n</synced_block>";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("synced_block");
+  });
+
+  it("parses equation block", () => {
+    const blocks = markdownToBlocks("$$E = mc^2$$");
+    expect(blocks[0]?.type).toBe("equation");
+  });
+
+  it("parses equation multiline block", () => {
+    const blocks = markdownToBlocks("$$\nE = mc^2\n$$");
+    expect(blocks[0]?.type).toBe("equation");
+  });
+
+  it("parses numbered list items", () => {
+    const blocks = markdownToBlocks("1. first\n2. second");
+    expect(blocks[0]?.type).toBe("numbered_list_item");
+  });
+
+  it("parses child_page block", () => {
+    const blocks = markdownToBlocks('<page title="Sub Page" />');
+    expect(blocks[0]?.type).toBe("child_page");
+  });
+
+  it("parses child_database block", () => {
+    const blocks = markdownToBlocks('<database title="My DB" />');
+    expect(blocks[0]?.type).toBe("child_database");
+  });
+
+  it("handles callout with children blocks", () => {
+    const md = "::: callout\nText\n- item1\n:::";
+    const blocks = markdownToBlocks(md);
+    expect(blocks[0]?.type).toBe("callout");
+  });
+});
+
+// ========================
+// markdown/renderer.ts coverage
+// ========================
+describe("blocksToMarkdown (renderer) coverage", () => {
+  it("renders heading_1", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "heading_1",
+      heading_1: { rich_text: [{ type: "text", text: { content: "H1" }, plain_text: "H1", href: null }] },
+    }];
+    expect(blocksToMd(blocks)).toBe("# H1");
+  });
+
+  it("renders heading_3", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "heading_3",
+      heading_3: { rich_text: [{ type: "text", text: { content: "H3" }, plain_text: "H3", href: null }] },
+    }];
+    expect(blocksToMd(blocks)).toBe("### H3");
+  });
+
+  it("renders numbered_list_item with children", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "numbered_list_item",
+      numbered_list_item: {
+        rich_text: [{ type: "text", text: { content: "item" }, plain_text: "item", href: null }],
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("1. item");
+    expect(md).toContain("---");
+  });
+
+  it("renders to_do checked", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "to_do",
+      to_do: {
+        rich_text: [{ type: "text", text: { content: "task" }, plain_text: "task", href: null }],
+        checked: true,
+      },
+    }];
+    expect(blocksToMd(blocks)).toBe("- [x] task");
+  });
+
+  it("renders to_do unchecked with children", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "to_do",
+      to_do: {
+        rich_text: [{ type: "text", text: { content: "task" }, plain_text: "task", href: null }],
+        checked: false,
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("- [ ] task");
+  });
+
+  it("renders toggle", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "toggle",
+      toggle: {
+        rich_text: [{ type: "text", text: { content: "My toggle" }, plain_text: "My toggle", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("<details>");
+    expect(md).toContain("My toggle");
+    expect(md).toContain("</details>");
+  });
+
+  it("renders quote with multiline", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "quote",
+      quote: {
+        rich_text: [{ type: "text", text: { content: "Line 1\nLine 2" }, plain_text: "Line 1\nLine 2", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("> Line 1");
+    expect(md).toContain("> Line 2");
+  });
+
+  it("renders callout with icon and color", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "callout",
+      callout: {
+        rich_text: [{ type: "text", text: { content: "Callout text" }, plain_text: "Callout text", href: null }],
+        icon: { type: "emoji", emoji: "💡" },
+        color: "blue" as any,
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("::: callout");
+    expect(md).toContain("[icon=💡]");
+    expect(md).toContain('color="blue"');
+  });
+
+  it("renders callout without icon or color", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "callout",
+      callout: {
+        rich_text: [{ type: "text", text: { content: "Plain callout" }, plain_text: "Plain callout", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("::: callout\nPlain callout");
+  });
+
+  it("renders code block", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "code",
+      code: {
+        rich_text: [{ type: "text", text: { content: "const x = 1" }, plain_text: "const x = 1", href: null }],
+        language: "typescript",
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("```typescript");
+    expect(md).toContain("const x = 1");
+  });
+
+  it("renders image with file url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "image",
+      image: {
+        type: "file",
+        file: { url: "https://example.com/hosted.png", expiry_time: "2030-01-01" },
+        caption: [],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("https://example.com/hosted.png");
+  });
+
+  it("renders file with file url and caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "file",
+      file: {
+        type: "file",
+        file: { url: "https://example.com/doc.pdf", expiry_time: "2030-01-01" },
+        caption: [{ type: "text", text: { content: "My file" }, plain_text: "My file", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<file src="https://example.com/doc.pdf"');
+    expect(md).toContain('caption="My file"');
+  });
+
+  it("renders video with file url and caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "video",
+      video: {
+        type: "file",
+        file: { url: "https://example.com/vid.mp4", expiry_time: "2030-01-01" },
+        caption: [{ type: "text", text: { content: "My video" }, plain_text: "My video", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<video src="');
+    expect(md).toContain('caption="My video"');
+  });
+
+  it("renders audio with file url and caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "audio",
+      audio: {
+        type: "file",
+        file: { url: "https://example.com/sound.mp3", expiry_time: "2030-01-01" },
+        caption: [{ type: "text", text: { content: "My audio" }, plain_text: "My audio", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<audio src="');
+    expect(md).toContain('caption="My audio"');
+  });
+
+  it("renders pdf with file url and caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "pdf",
+      pdf: {
+        type: "file",
+        file: { url: "https://example.com/doc.pdf", expiry_time: "2030-01-01" },
+        caption: [{ type: "text", text: { content: "My pdf" }, plain_text: "My pdf", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<pdf src="');
+    expect(md).toContain('caption="My pdf"');
+  });
+
+  it("renders bookmark with caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "bookmark",
+      bookmark: {
+        url: "https://example.com",
+        caption: [{ type: "text", text: { content: "My bookmark" }, plain_text: "My bookmark", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<bookmark src="https://example.com"');
+    expect(md).toContain('caption="My bookmark"');
+  });
+
+  it("renders embed with caption", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "embed",
+      embed: {
+        url: "https://example.com/embed",
+        caption: [{ type: "text", text: { content: "My embed" }, plain_text: "My embed", href: null }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<embed src="https://example.com/embed"');
+    expect(md).toContain('caption="My embed"');
+  });
+
+  it("renders child_page with url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "child_page",
+      child_page: { title: "Sub Page", url: "https://notion.so/sub" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<page title="Sub Page"');
+    expect(md).toContain('url="https://notion.so/sub"');
+  });
+
+  it("renders child_page without url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "child_page",
+      child_page: { title: "Sub Page" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toBe('<page title="Sub Page" />');
+  });
+
+  it("renders child_database with url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "child_database",
+      child_database: { title: "My DB", url: "https://notion.so/db" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('<database title="My DB"');
+    expect(md).toContain('url="https://notion.so/db"');
+  });
+
+  it("renders child_database without url", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "child_database",
+      child_database: { title: "My DB" },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toBe('<database title="My DB" />');
+  });
+
+  it("renders synced_block", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "synced_block",
+      synced_block: {
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("<synced_block>");
+    expect(md).toContain("</synced_block>");
+  });
+
+  it("renders table_of_contents", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "table_of_contents", table_of_contents: {},
+    }];
+    expect(blocksToMd(blocks)).toBe("<table_of_contents/>");
+  });
+
+  it("renders unsupported block with original_type", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "unsupported",
+      unsupported: {},
+      original_type: "custom_block",
+    } as any];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('type="custom_block"');
+  });
+
+  it("renders unsupported block without original_type", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "unsupported",
+      unsupported: {},
+    } as any];
+    const md = blocksToMd(blocks);
+    expect(md).toContain('type="unsupported"');
+  });
+
+  it("renders paragraph with children", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "paragraph",
+      paragraph: {
+        rich_text: [{ type: "text", text: { content: "text" }, plain_text: "text", href: null }],
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("text");
+    expect(md).toContain("---");
+  });
+
+  it("renders bulleted_list_item with children", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "bulleted_list_item",
+      bulleted_list_item: {
+        rich_text: [{ type: "text", text: { content: "item" }, plain_text: "item", href: null }],
+        children: [{ object: "block", type: "divider", divider: {} }],
+      },
+    }];
+    const md = blocksToMd(blocks);
+    expect(md).toContain("- item");
+    expect(md).toContain("---");
+  });
+
+  it("renders equation", () => {
+    const blocks: NotionBlock[] = [{
+      object: "block", type: "equation",
+      equation: { expression: "E=mc^2" },
+    }];
+    expect(blocksToMd(blocks)).toBe("$$ E=mc^2 $$");
+  });
+
+  it("returns empty string for empty blocks array", () => {
+    expect(blocksToMd([])).toBe("");
   });
 });

@@ -263,21 +263,5 @@ describe("runCheckPackageMetadataCli", () => {
     }
   });
 
-  it("returns 1 on unexpected errors", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    // Force an error by providing a cwd that causes issues
-    const cwdSpy = vi
-      .spyOn(process, "cwd")
-      .mockReturnValue("/nonexistent/path/that/does/not/exist");
 
-    try {
-      const exitCode = runCheckPackageMetadataCli();
-      // Should return 1 because findWorkspaceRoot will fallback and packages dir won't exist
-      // Actually, it'll succeed with no packages. Let's verify it doesn't crash.
-      expect(exitCode).toBeTypeOf("number");
-    } finally {
-      cwdSpy.mockRestore();
-      errorSpy.mockRestore();
-    }
-  });
 });

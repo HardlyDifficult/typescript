@@ -264,6 +264,37 @@ describe("createAgent", () => {
       expect(debugCalls).toContain("Tool result");
     });
 
+    it("logs cacheCreationTokens and cacheReadTokens in run() debug (lines 178-183)", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "done",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          inputTokenDetails: {
+            cacheWriteTokens: 80,
+            cacheReadTokens: 40,
+          },
+        },
+      });
+
+      const tracker = createMockTracker();
+      const logger = mockLogger();
+      const agent = createAgent(
+        mockModel() as never,
+        createTestTools(),
+        tracker,
+        logger as never
+      );
+
+      await agent.run([{ role: "user", content: "test" }]);
+
+      const debugCalls = logger.debug.mock.calls as Array<[string, Record<string, unknown>]>;
+      const completeCall = debugCalls.find((c) => c[0] === "Agent run complete");
+      expect(completeCall).toBeDefined();
+      expect(completeCall![1].cacheCreationTokens).toBe(80);
+      expect(completeCall![1].cacheReadTokens).toBe(40);
+    });
+
     it("logs outputType=null when tool returns null (covers line 95)", async () => {
       mockGenerateText.mockImplementationOnce(
         async (opts: Record<string, unknown>) => {
