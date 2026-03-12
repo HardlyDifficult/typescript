@@ -26,4 +26,11 @@ describe("dateFromUnixSeconds", () => {
       "dateFromUnixSeconds(...) requires a finite numeric value"
     );
   });
+
+  it("throws for overflow value that produces an invalid Date", () => {
+    // Number.MAX_VALUE is finite, but MAX_VALUE * 1000 = Infinity, making the Date invalid
+    expect(() => dateFromUnixSeconds(Number.MAX_VALUE)).toThrow(
+      "Invalid Unix timestamp in seconds"
+    );
+  });
 });

@@ -507,6 +507,91 @@ describe("TaskWatcher extra coverage", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Project.ts — line 97 branch (no statuses — statuses[0] is undefined)
+// ---------------------------------------------------------------------------
+
+describe("Project.createTask with no statuses", () => {
+  it("uses empty string for statusId when statuses array is empty", async () => {
+    const context = createMockContext({
+      createTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
+    });
+    const emptySnapshot: ProjectSnapshot = {
+      info: { id: "p1", name: "Empty", url: "https://example.com/p1" },
+      statuses: [], // no statuses
+      labels,
+      tasks: [],
+      context,
+    };
+    const project = new Project(emptySnapshot);
+
+    await project.createTask({ title: "No status task" });
+
+    expect(context.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: "" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task.ts — line 76 branch (label not found in context.labels — falls back to labelName)
+// ---------------------------------------------------------------------------
+
+describe("Task.tag when label id not in context.labels", () => {
+  it("uses labelName as fallback when labels list does not contain the resolved id", async () => {
+    // resolveLabelId returns an id that doesn't exist in context.labels
+    const context = createMockContext({
+      resolveLabelId: vi.fn().mockReturnValue("unknown-id"),
+      updateTask: vi.fn().mockResolvedValue(
+        makeTaskSnapshot({
+          ...baseTaskData,
+          labels: [{ id: "unknown-id", name: "NewLabel", color: "" }],
+        })
+      ),
+    });
+    // context.labels does NOT contain "unknown-id"
+    const task = new Task(makeTaskSnapshot(baseTaskData, context));
+
+    await task.tag("NewLabel");
+
+    // The canonical label name would fall back to "NewLabel" (the labelName argument)
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: expect.arrayContaining(["unknown-id"]) })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task.ts — lines 97-99 (untag() with some labels remaining)
+// ---------------------------------------------------------------------------
+
+describe("Task.untag with remaining labels", () => {
+  it("untag() keeps labels not in the remove list that exist on the task", async () => {
+    // Task has both Bug and Feature labels; we only remove Bug
+    // So Feature label (.map().filter()) should pass through
+    const taskDataWithBothLabels: TaskData = {
+      ...baseTaskData,
+      labels: [labels[0]!, labels[1]!], // Bug and Feature
+    };
+    const context = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(
+        makeTaskSnapshot({
+          ...taskDataWithBothLabels,
+          labels: [labels[1]!], // Feature remains
+        })
+      ),
+    });
+    const task = new Task(makeTaskSnapshot(taskDataWithBothLabels, context));
+
+    // untag only Bug — Feature should remain
+    await task.untag("Bug");
+
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ labelIds: ["l2"] }) // Feature's id
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task.ts — applySnapshot with undefined priority (lines 97-99 in constructor)
 // ---------------------------------------------------------------------------
 
@@ -832,6 +917,50 @@ describe("LinearTaskListClient extra coverage", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("createTask without description, labels, or priority", async () => {
+    const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: { ...linearProject, issues: { nodes: [] } },
+        team: teamData,
+      })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issueCreate: { issue: linearIssue } })
+    );
+
+    const project = await client.getProject("proj-1");
+    const task = await project.createTask({ title: "Minimal task" });
+
+    expect(task.title).toBe("Fix");
+    const body = JSON.parse(
+      (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(body.variables.input.description).toBeUndefined();
+    expect(body.variables.input.labelIds).toBeUndefined();
+    expect(body.variables.input.priority).toBeUndefined();
+  });
+
+  it("updateTask without title — only status", async () => {
+    const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issue: linearIssue, team: teamData })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issueUpdate: { issue: { ...linearIssue, state: { id: "ws2" } } } })
+    );
+
+    const task = await client.getTask("ISS-1");
+    await task.update({ status: "Done" });
+
+    const body = JSON.parse(
+      (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(body.variables.input.title).toBeUndefined();
+    expect(body.variables.input.stateId).toBe("ws2");
+  });
+
   it("context.fetchTask is called via task.refresh()", async () => {
     const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
     // getTask
@@ -960,7 +1089,7 @@ describe("TrelloTaskListClient extra coverage", () => {
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
     const project = await client.getProject("board-1");
-    const label = await project.createLabel("Feature", "blue");
+    const label = await project.createLabel("Feature", { color: "blue" });
 
     expect(label.name).toBe("Feature");
     expect(label.color).toBe("blue");
@@ -1037,6 +1166,44 @@ describe("TrelloTaskListClient extra coverage", () => {
   it("fetchTask re-throws non-404 errors", async () => {
     mockFetch.mockResolvedValueOnce(errorResponse(500, "Internal Server Error"));
     await expect(client.getTask("card-1")).rejects.toBeInstanceOf(TaskListApiError);
+  });
+
+  it("createTask without description or labels", async () => {
+    // getProject
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([]));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+    // createTask
+    mockFetch.mockResolvedValueOnce(jsonResponse({ ...trelloCard, id: "card-3", name: "Simple task" }));
+
+    const project = await client.getProject("board-1");
+    const task = await project.createTask({ title: "Simple task" });
+
+    expect(task.title).toBe("Simple task");
+    const body = JSON.parse(
+      (mockFetch.mock.calls[4]![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["desc"]).toBeUndefined();
+    expect(body["idLabels"]).toBeUndefined();
+  });
+
+  it("updateTask without title - only status change", async () => {
+    // getTask
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+    // updateTask
+    mockFetch.mockResolvedValueOnce(jsonResponse({ ...trelloCard, idList: "list-2" }));
+
+    const task = await client.getTask("card-1");
+    await task.update({ status: "Done" });
+
+    const body = JSON.parse(
+      (mockFetch.mock.calls[3]![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["name"]).toBeUndefined();
+    expect(body["idList"]).toBe("list-2");
   });
 
   it("context.fetchTask is called via task.refresh()", async () => {

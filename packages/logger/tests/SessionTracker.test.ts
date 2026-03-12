@@ -321,6 +321,19 @@ describe("SessionTracker", () => {
       expect(noTracker.list()).toEqual([]);
     });
 
+    it("skips malformed JSON lines in list() without dropping the session", () => {
+      // Write a session with one valid and one invalid line
+      tracker.append("list-sess", { type: "session_start", data: { a: 1 } });
+      const sessionsDir = join(tempDir, "sessions");
+      appendFileSync(join(sessionsDir, "list-sess.jsonl"), "not valid json\n");
+
+      const sessions = tracker.list();
+      const found = sessions.find((s) => s.sessionId === "list-sess");
+      expect(found).toBeDefined();
+      // Only the valid line was counted
+      expect(found!.entryCount).toBe(1);
+    });
+
     it("uses birthtime as startedAt when file has no entries", () => {
       // Write a file with no valid JSON lines so entries.length === 0
       const sessionsDir = join(tempDir, "sessions");

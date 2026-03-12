@@ -7,38 +7,65 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-// We need vi.mock hoisted to the top of the file before any imports
+// vi.hoisted runs before imports and before vi.mock factories
+const { actuals } = vi.hoisted(() => {
+  const actuals: {
+    readFileSync?: typeof import("node:fs").readFileSync;
+    unlinkSync?: typeof import("node:fs").unlinkSync;
+    statSync?: typeof import("node:fs").statSync;
+    readdirSync?: typeof import("node:fs").readdirSync;
+  } = {};
+  return { actuals };
+});
+
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
+  actuals.readFileSync = actual.readFileSync;
+  actuals.unlinkSync = actual.unlinkSync;
+  actuals.statSync = actual.statSync;
+  actuals.readdirSync = actual.readdirSync;
   return {
     ...actual,
     readFileSync: vi.fn(actual.readFileSync),
     unlinkSync: vi.fn(actual.unlinkSync),
     statSync: vi.fn(actual.statSync),
+    readdirSync: vi.fn(actual.readdirSync),
   };
 });
 
 import { SessionTracker } from "../src/SessionTracker.js";
 import * as fsMocked from "node:fs";
 
-// Capture original implementations for restoring in individual tests
-// These are captured after mock is set up but they call through to actual
-const origReadFileSync = fsMocked.readFileSync;
-const origUnlinkSync = fsMocked.unlinkSync;
-const origStatSync = fsMocked.statSync;
-
 describe("SessionTracker fs-error paths (mocked)", () => {
   afterEach(() => {
-    vi.mocked(fsMocked.readFileSync).mockImplementation(origReadFileSync as never);
-    vi.mocked(fsMocked.unlinkSync).mockImplementation(origUnlinkSync as never);
-    vi.mocked(fsMocked.statSync).mockImplementation(origStatSync as never);
+    // Restore implementations to passthrough after each test
+    if (actuals.readFileSync !== undefined) {
+      vi.mocked(fsMocked.readFileSync).mockImplementation(
+        actuals.readFileSync as never
+      );
+    }
+    if (actuals.unlinkSync !== undefined) {
+      vi.mocked(fsMocked.unlinkSync).mockImplementation(
+        actuals.unlinkSync as never
+      );
+    }
+    if (actuals.statSync !== undefined) {
+      vi.mocked(fsMocked.statSync).mockImplementation(
+        actuals.statSync as never
+      );
+    }
+    if (actuals.readdirSync !== undefined) {
+      vi.mocked(fsMocked.readdirSync).mockImplementation(
+        actuals.readdirSync as never
+      );
+    }
   });
 
   it("read() returns empty array when readFileSync throws after existsSync returns true", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "session-tracker-err-"));
     try {
       const tracker = new SessionTracker({ stateDirectory: tempDir });
-      // Write a session file directly (uses appendFileSync which passes through)
+      // Write a session file directly
       const sessDir = join(tempDir, "sessions");
       appendFileSync(join(sessDir, "err-sess.jsonl"), "");
 
@@ -50,7 +77,6 @@ describe("SessionTracker fs-error paths (mocked)", () => {
       const result = tracker.read("err-sess");
       expect(result).toEqual([]);
     } finally {
-      vi.mocked(fsMocked.readFileSync).mockImplementation(origReadFileSync as never);
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -70,7 +96,6 @@ describe("SessionTracker fs-error paths (mocked)", () => {
       const result = tracker.delete("del-err");
       expect(result).toBe(false);
     } finally {
-      vi.mocked(fsMocked.unlinkSync).mockImplementation(origUnlinkSync as never);
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -83,6 +108,7 @@ describe("SessionTracker fs-error paths (mocked)", () => {
       appendFileSync(join(sessDir, "good-sess.jsonl"), "");
       appendFileSync(join(sessDir, "bad-sess.jsonl"), "");
 
+      const actualStat = actuals.statSync!;
       vi.mocked(fsMocked.statSync).mockImplementation(
         (...args: Parameters<typeof fsMocked.statSync>) => {
           const p = String(args[0]);
@@ -90,7 +116,7 @@ describe("SessionTracker fs-error paths (mocked)", () => {
             throw new Error("EACCES: permission denied");
           }
           // @ts-expect-error spread args
-          return origStatSync(...args);
+          return actualStat(...args);
         }
       );
 
@@ -98,7 +124,25 @@ describe("SessionTracker fs-error paths (mocked)", () => {
       expect(sessions.some((s) => s.sessionId === "good-sess")).toBe(true);
       expect(sessions.some((s) => s.sessionId === "bad-sess")).toBe(false);
     } finally {
-      vi.mocked(fsMocked.statSync).mockImplementation(origStatSync as never);
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("list() returns empty array when readdirSync throws (outer catch)", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "session-tracker-rdir-"));
+    try {
+      const tracker = new SessionTracker({ stateDirectory: tempDir });
+      // Create the sessions directory so existsSync passes
+      appendFileSync(join(tempDir, "sessions", "any.jsonl"), "");
+
+      // Make readdirSync throw
+      vi.mocked(fsMocked.readdirSync).mockImplementation(() => {
+        throw new Error("EACCES: permission denied");
+      });
+
+      const result = tracker.list();
+      expect(result).toEqual([]);
+    } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });

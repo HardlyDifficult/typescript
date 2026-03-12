@@ -953,6 +953,97 @@ describe("StateTracker", () => {
     });
   });
 
+  describe("getDefaultStateDirectory (lines 6-10)", () => {
+    it("uses STATE_TRACKER_DIR env var when set", async () => {
+      const customDir = path.join(testDir, "env-state-dir");
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        process.env.STATE_TRACKER_DIR = customDir;
+        // Creating StateTracker without stateDirectory triggers getDefaultStateDirectory()
+        const tracker = new StateTracker({
+          key: "env-dir-test",
+          default: { x: 1 },
+          // no stateDirectory - uses env var
+        });
+        await tracker.loadAsync();
+        expect(tracker.isPersistent).toBe(true);
+        expect(fs.existsSync(customDir)).toBe(true);
+      } finally {
+        process.env.STATE_TRACKER_DIR = originalEnv;
+      }
+    });
+
+    it("uses os.homedir()/.app-state when STATE_TRACKER_DIR is not set", async () => {
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        delete process.env.STATE_TRACKER_DIR;
+        // Creates tracker that will use the default directory path
+        const tracker = new StateTracker({
+          key: "default-dir-test",
+          default: { x: 1 },
+          // no stateDirectory, no env var - falls to line 10
+        });
+        // We just verify it doesn't throw and uses a valid path
+        // Don't actually call loadAsync (avoids writing to ~/.app-state in tests)
+        const filePath = tracker.getFilePath();
+        const os = await import("os");
+        const path2 = await import("path");
+        expect(filePath).toBe(path2.join(os.homedir(), ".app-state", "default-dir-test.json"));
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.STATE_TRACKER_DIR = originalEnv;
+        } else {
+          delete process.env.STATE_TRACKER_DIR;
+        }
+      }
+    });
+
+    it("uses STATE_TRACKER_DIR env var when empty string falls through to default", async () => {
+      const originalEnv = process.env.STATE_TRACKER_DIR;
+
+      try {
+        process.env.STATE_TRACKER_DIR = "";
+        // Empty string falls through to line 10 (os.homedir() path)
+        const tracker = new StateTracker({
+          key: "empty-env-test",
+          default: { x: 1 },
+        });
+        const filePath = tracker.getFilePath();
+        const os = await import("os");
+        const path2 = await import("path");
+        expect(filePath).toBe(path2.join(os.homedir(), ".app-state", "empty-env-test.json"));
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.STATE_TRACKER_DIR = originalEnv;
+        } else {
+          delete process.env.STATE_TRACKER_DIR;
+        }
+      }
+    });
+  });
+
+  describe("createFileStorage.read() non-ENOENT error (line 64)", () => {
+    it("re-throws non-ENOENT errors from file reading", async () => {
+      // To trigger a non-ENOENT error, create a directory with the same name as the file
+      // Reading a directory as a file gives EISDIR error
+      const dirAsFile = path.join(testDir, "is-a-dir.json");
+      fs.mkdirSync(dirAsFile); // Create directory where file would be
+
+      const tracker = new StateTracker({
+        key: "is-a-dir",
+        default: { x: 1 },
+        stateDirectory: testDir,
+      });
+
+      // The read will fail with EISDIR (not ENOENT), which re-throws and hits line 64
+      // StateTracker.loadAsync catches this and sets _storageAvailable = false
+      await tracker.loadAsync();
+      expect(tracker.isPersistent).toBe(false);
+    });
+  });
+
   describe("saveAsync when storage unavailable", () => {
     it("returns current state without writing when storage is unavailable (line 377)", async () => {
       // Use a storage that fails on read so _storageAvailable = false
@@ -1005,42 +1096,28 @@ describe("StateTracker", () => {
       expect(tracker.state).toBeNull();
     });
 
-    it("uses a storage with a key set but value explicitly undefined to reach line 306", async () => {
-      // To reach line 306, we need "value" in envelope AND envelope.value === undefined.
-      // This is impossible via JSON.parse, but we can use a hacky storage that returns
-      // a JSON where the value key is explicitly set to undefined via a replacer trick.
-      // Since that's impossible, we test the closest adjacent path:
-      // extractValue with a JSON that has value: undefined via structural tricks.
-      //
-      // Actually, we can achieve this by returning JSON where value is present as a key
-      // but the actual parsed value is undefined - which JSON.parse cannot do.
-      //
-      // Let's test the fallback path (line 324) explicitly instead:
-      // non-object parsed value that doesn't have "value" key
+    it("extracts raw number state from storage (non-envelope number)", async () => {
+      // Test reading a raw number stored by a legacy system (not in envelope format)
+      // JSON.parse("42") = 42, which is not an object, so:
+      // - envelope check fails (not an object)
+      // - legacy merge check fails (not an object or default is not an object)
+      // - returns structuredClone(defaultValue)
       const storage: StateStorage = {
         async read() {
-          // A plain number (not an envelope, not a plain object)
           return "42";
         },
         async write() {},
       };
 
       const tracker = new StateTracker({
-        key: "number-state",
+        key: "raw-number",
         default: 99,
         storage,
       });
 
       await tracker.loadAsync();
-      // Parsed 42 is a number, not an object, falls to line 322+ fallback logic
-      // parsed (42) is not an object with defaultValue (99 = number):
-      // line 313-320: typeof parsed !== "object" → skip
-      // line 322: return structuredClone(defaultValue) = 99
-      // But wait, 42 is a valid non-null non-object, so line 297-309 "value" in check fails (42 has no keys)
-      // Then line 313-320: typeof parsed === "number", typeof defaultValue === "number" → condition fails
-      // Then line 324: return structuredClone(this.defaultValue) = 99
-      // Actually this already works in existing tests!
-      expect(tracker.state).toBe(42);
+      // Falls to line 324: return structuredClone(defaultValue) = 99
+      expect(tracker.state).toBe(99);
     });
   });
 

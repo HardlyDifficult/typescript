@@ -702,6 +702,29 @@ describe("Document", () => {
     });
   });
 
+  describe("section() with empty string content (lines 217-220)", () => {
+    it("renders heading with emptyText when content is empty string and emptyText provided", () => {
+      const document = new Document().section("Status", "", { emptyText: "Nothing to report" });
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "**Status**\nNothing to report" },
+      ]);
+    });
+
+    it("renders only heading when content is empty string and no emptyText", () => {
+      const document = new Document().section("Status", "");
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "**Status**" },
+      ]);
+    });
+
+    it("renders only heading when content is whitespace and emptyText is empty string", () => {
+      const document = new Document().section("Status", "   ", { emptyText: "" });
+      expect(document.getBlocks()).toEqual([
+        { type: "text", content: "**Status**" },
+      ]);
+    });
+  });
+
   describe("linkify() with apply-style transformer (line 38-41 in Document.ts)", () => {
     it("uses apply-style transformers", () => {
       const apply = vi
@@ -720,6 +743,22 @@ describe("Document", () => {
       expect(() =>
         document.linkify({} as Parameters<typeof document.linkify>[0])
       ).toThrow("Invalid link transformer");
+    });
+
+    it("falls back to original value when linkText returns undefined (nullish coalescing branch)", () => {
+      // linkText returns undefined → falls back to value via ?? value (line 36 branch)
+      const linkText = vi.fn().mockReturnValue(undefined);
+      const document = new Document().text("hello");
+      document.linkify({ linkText });
+      expect(document.getBlocks()).toEqual([{ type: "text", content: "hello" }]);
+    });
+
+    it("falls back to original value when apply returns undefined (nullish coalescing branch)", () => {
+      // apply returns undefined → falls back to value via ?? value (line 40 branch)
+      const apply = vi.fn().mockReturnValue(undefined);
+      const document = new Document().text("world");
+      document.linkify({ apply });
+      expect(document.getBlocks()).toEqual([{ type: "text", content: "world" }]);
     });
   });
 });
