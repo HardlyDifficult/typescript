@@ -425,4 +425,60 @@ describe("TypingController.clear with active interval", () => {
     controller.begin();
     controller.clear();
   });
+
+  it("interval callback sends typing when refCount > 0 (line 26)", () => {
+    vi.useFakeTimers();
+    const sendTyping = vi.fn().mockResolvedValue(undefined);
+    const controller = new TypingController(sendTyping);
+    controller.begin();
+    // sendTyping called once from begin()
+    expect(sendTyping).toHaveBeenCalledTimes(1);
+    // Advance timers by 8000ms to trigger the setInterval callback (line 26)
+    vi.advanceTimersByTime(8000);
+    // Now the interval callback fires, refCount > 0, sendTyping called again
+    expect(sendTyping).toHaveBeenCalledTimes(2);
+    controller.clear();
+    vi.useRealTimers();
+  });
+});
+
+describe("MessageBatch - edge cases", () => {
+  beforeEach(() => {
+    resetBatchStore();
+  });
+
+  it("messages getter returns [] when snapshot is null (line 100)", async () => {
+    const operations = createMockOperations();
+    const channel = new Channel({
+      id: "channel-mb",
+      platform: "slack",
+      operations,
+    });
+    const batch = await channel.beginBatch({ key: "mb-test" });
+    // Reset the store to make snapshot null
+    resetBatchStore();
+    // Now batch.messages should return []
+    expect(batch.messages).toEqual([]);
+  });
+
+  it("skips empty message id in batch post (line 117, Slack file upload)", async () => {
+    const operations = createMockOperations();
+    // Make postMessage return a message with id: "" (like Slack file upload)
+    vi.mocked(operations.postMessage).mockResolvedValueOnce({
+      id: "",
+      channelId: "channel-mb2",
+      platform: "slack",
+    });
+    const channel = new Channel({
+      id: "channel-mb2",
+      platform: "slack",
+      operations,
+    });
+    const batch = await channel.beginBatch({ key: "mb-file-test" });
+    const pending = batch.post("file message");
+    // Wait for the post to complete
+    await new Promise((r) => setTimeout(r, 20));
+    // Message with empty id should NOT be tracked in batch
+    expect(batch.messages).toHaveLength(0);
+  });
 });

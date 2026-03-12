@@ -3628,12 +3628,14 @@ describe("SlackChatClient", () => {
     it("throws when postMessage with blocks returns no ts (line 114)", async () => {
       const { Document } = await import("@hardlydifficult/document-generator");
       const doc = new Document().header("Test Header");
-      // Make postMessage return no ts
+      // Line 114 is in the files path: when files + blocks (Document), postMessage returns no ts
+      // The file upload is successful but the accompanying blocks post returns no ts
+      mockFilesUploadV2.mockResolvedValue(undefined);
       mockPostMessage.mockResolvedValueOnce({ ts: undefined });
       const channel = await client.connect(channelId);
-      await expect(channel.postMessage(doc)).rejects.toThrow(
-        "Slack API did not return a message timestamp"
-      );
+      await expect(
+        channel.postMessage(doc, { files: [{ content: "data", name: "file.txt" }] })
+      ).rejects.toThrow("Slack API did not return a message timestamp");
     });
 
     it("throws when plain text postMessage returns no ts (line 155)", async () => {
@@ -3658,16 +3660,16 @@ describe("SlackChatClient", () => {
     });
 
     it("toDate returns undefined when dateFromUnixSeconds throws (line 174)", async () => {
-      // A very small number (negative) that would be out of valid unix seconds range
-      // so dateFromUnixSeconds throws
-      const pastTs = String(Date.now() / 1000 - 1);
+      // NaN is a number but dateFromUnixSeconds(NaN) throws "requires a finite numeric value"
+      // toDate: typeof NaN === "number", NaN > 10^10 is false, so tries dateFromUnixSeconds
+      // which throws => catch returns undefined => no filter applied
+      const recentTs = String(Date.now() / 1000 - 1);
       mockConversationsHistory.mockResolvedValue({
-        messages: [{ ts: pastTs, text: "msg", user: "U1" }],
+        messages: [{ ts: recentTs, text: "msg", user: "U1" }],
       });
       await client.connect(channelId);
-      // Use -999999 as after: it's a small unix seconds value, dateFromUnixSeconds throws
-      // => toDate returns undefined => no after filter => message is included
-      const messages = await client.getMessages(channelId, { after: -999999 });
+      const messages = await client.getMessages(channelId, { after: NaN as never });
+      // NaN triggers catch => returns undefined => no afterDate filter => message included
       expect(messages).toHaveLength(1);
     });
   });

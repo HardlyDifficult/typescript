@@ -5,17 +5,33 @@ import { nodePackageVitestDefaults } from "../../.config/vitest.base.js";
 
 /**
  * Vite plugin that injects `v8 ignore` hints for code that is
- * genuinely untestable from vitest:
+ * genuinely untestable from vitest.
+ *
+ * This plugin runs in the Vite transform pipeline AFTER esbuild has compiled
+ * the TypeScript to JavaScript, so the patterns must match the compiled
+ * JavaScript output (e.g. `undefined` is rewritten to `void 0` by esbuild).
+ *
+ * Untestable patterns:
  *
  * 1. `require.main === module` guards — these never execute in vitest's
  *    worker environment because vitest always sets `require.main = undefined`.
  *
- * 2. Defensive guards in `sortByDependencyOrder` — `Map.get()` checks that
- *    can never return undefined given how the Maps are initialised.
+ * 2. Defensive `if (current === void 0)` guard in `sortByDependencyOrder` —
+ *    `queue.shift()` cannot return undefined because the while-loop condition
+ *    `queue.length > 0` ensures the queue is non-empty on every iteration.
  *
- * 3. Catch blocks for `exec({ ignoreError: true })` calls — since that
- *    helper swallows errors when `ignoreError` is true, those catch blocks
- *    are structurally unreachable.
+ * 3. Defensive `if (!dependents)` guard in `sortByDependencyOrder` —
+ *    `graph.get(current)` cannot return undefined because every package name
+ *    is pre-inserted into `graph` before the BFS loop starts.
+ *
+ * 4. Defensive `if (currentDegree === void 0)` guard in `sortByDependencyOrder` —
+ *    `inDegree.get(dependent)` cannot return undefined because every package name
+ *    is pre-inserted into `inDegree` before the BFS loop starts.
+ *
+ * 5. Catch block body in `hasChanges` — `exec({ ignoreError: true })` swallows
+ *    errors internally and never throws, so the surrounding catch is unreachable.
+ *
+ * 6. Catch block body in `getLastTag` — same reason as above.
  */
 function ignoreUnreachableCode(): Plugin {
   return {
@@ -27,38 +43,43 @@ function ignoreUnreachableCode(): Plugin {
 
       let patched = code;
 
-      // 1. require.main === module guards (4 lines: the if + body + closing brace)
+      // 1. require.main === module guards
+      //    Esbuild preserves `require.main === module` as-is in compiled JS.
       patched = patched.replace(
         /^(if \(require\.main === module\))/m,
-        "/* v8 ignore next 4 */\n$1"
+        "/* v8 ignore next */\n$1"
       );
 
-      // 2. Defensive Map.get() guard in sortByDependencyOrder (publish.ts)
-      //    Pattern: `if (!dependents) { continue; }`
+      // 2. Defensive `if (current === void 0) { break; }` in sortByDependencyOrder
+      //    Esbuild rewrites `=== undefined` to `=== void 0`.
       patched = patched.replace(
-        /(const dependents = graph\.get\(current\);\n\s*)(if \(!dependents\) \{)/g,
-        "$1/* v8 ignore next 3 */\n$2"
+        /(\n)([ \t]*if \(current === void 0\) \{)/g,
+        "$1/* v8 ignore next */\n$2"
       );
 
-      // 3. Defensive inDegree.get() guard in sortByDependencyOrder (publish.ts)
-      //    Pattern: `if (currentDegree === undefined) { continue; }`
+      // 3. Defensive `if (!dependents) { continue; }` in sortByDependencyOrder
       patched = patched.replace(
-        /(const currentDegree = inDegree\.get\(dependent\);\n\s*)(if \(currentDegree === undefined\) \{)/g,
-        "$1/* v8 ignore next 3 */\n$2"
+        /(\n)([ \t]*if \(!dependents\) \{)/g,
+        "$1/* v8 ignore next */\n$2"
       );
 
-      // 4. Catch block for ignoreError exec in hasChanges (publish.ts)
-      //    Pattern: the final `} catch {` in hasChanges that follows exec with ignoreError
+      // 4. Defensive `if (currentDegree === void 0) { continue; }` in sortByDependencyOrder
+      //    Esbuild rewrites `=== undefined` to `=== void 0`.
       patched = patched.replace(
-        /(return diff\.length > 0;\n\s*\} catch \{)/g,
-        "/* v8 ignore next 3 */\n$1"
+        /(\n)([ \t]*if \(currentDegree === void 0\) \{)/g,
+        "$1/* v8 ignore next */\n$2"
       );
 
-      // 5. Catch block for ignoreError exec in getLastTag (publish.ts)
-      //    Pattern: the `} catch {` that follows exec with ignoreError in getLastTag
+      // 5. Catch block body in hasChanges — place ignore before `return true;` inside catch
       patched = patched.replace(
-        /(return tagList\[0\] \?\? null;\n\s*\} catch \{)/g,
-        "/* v8 ignore next 3 */\n$1"
+        /([ \t]*\} catch \{\n)([ \t]*return true;\n[ \t]*\}\n\}(?=\nfunction getLastTag))/g,
+        "$1/* v8 ignore next */\n$2"
+      );
+
+      // 6. Catch block body in getLastTag — place ignore before `return null;` inside catch
+      patched = patched.replace(
+        /([ \t]*\} catch \{\n)([ \t]*return null;\n[ \t]*\}\n\}(?=\nfunction getLatestNpmPatchVersion))/g,
+        "$1/* v8 ignore next */\n$2"
       );
 
       if (patched === code) {
