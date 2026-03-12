@@ -20,20 +20,20 @@ export function isWithinWorkingHours(config: WorkingHoursConfig): boolean {
   const { startHour, endHour, timezone } = config;
 
   const now = new Date();
-  const timeInTimezone = new Intl.DateTimeFormat('en-US', {
+  const timeInTimezone = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
-    hour: 'numeric',
+    hour: "numeric",
     hour12: false,
   }).format(now);
 
   const currentHour = parseInt(timeInTimezone, 10);
 
-  const dayInTimezone = new Intl.DateTimeFormat('en-US', {
+  const dayInTimezone = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
-    weekday: 'short',
+    weekday: "short",
   }).format(now);
 
-  const isWeekend = dayInTimezone === 'Sat' || dayInTimezone === 'Sun';
+  const isWeekend = dayInTimezone === "Sat" || dayInTimezone === "Sun";
   if (isWeekend) {
     return false;
   }
@@ -63,7 +63,11 @@ export function matchesWorkPattern(
     return true;
   }
 
-  if (patterns.repoNameContains.some((pattern) => repoLower.includes(pattern.toLowerCase()))) {
+  if (
+    patterns.repoNameContains.some((pattern) =>
+      repoLower.includes(pattern.toLowerCase())
+    )
+  ) {
     return true;
   }
 

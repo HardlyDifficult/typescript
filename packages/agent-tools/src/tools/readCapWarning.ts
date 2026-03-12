@@ -20,14 +20,14 @@ const DEFAULT_THRESHOLD = 8;
  */
 export function withReadCapWarning(
   tools: ToolMap,
-  threshold: number = DEFAULT_THRESHOLD,
+  threshold: number = DEFAULT_THRESHOLD
 ): ToolMap {
-  const readTool = tools.read_file;
-  const writeTool = tools.write_file;
-
-  if (!readTool || !writeTool) {
+  if (!("read_file" in tools) || !("write_file" in tools)) {
     return tools;
   }
+
+  const readTool = tools.read_file;
+  const writeTool = tools.write_file;
 
   let readsSinceLastWrite = 0;
 
@@ -41,10 +41,7 @@ export function withReadCapWarning(
       execute: async (input: Record<string, unknown>) => {
         readsSinceLastWrite++;
         let result = await originalReadExecute(input);
-        if (
-          readsSinceLastWrite >= threshold &&
-          typeof result === "string"
-        ) {
+        if (readsSinceLastWrite >= threshold && typeof result === "string") {
           result = `[Warning: You have read ${String(readsSinceLastWrite)} files without making any edits. Start writing code now.]\n\n${result}`;
         }
         return result;
@@ -52,7 +49,7 @@ export function withReadCapWarning(
     },
     write_file: {
       ...writeTool,
-      execute: async (input: Record<string, unknown>) => {
+      execute: (input: Record<string, unknown>) => {
         readsSinceLastWrite = 0;
         return originalWriteExecute(input);
       },
