@@ -1,4 +1,6 @@
 export { safeCompare } from "./safeCompare.js";
+export { verifyHmacSignature } from "./hmac.js";
+export type { VerifyHmacSignatureOptions } from "./hmac.js";
 export { json, readBody, readJson, sendJson, MAX_BODY_BYTES } from "./http.js";
 export type { ReadBodyOptions, SendJsonOptions } from "./http.js";
 export { loadFileRouter } from "./fileRouter.js";
