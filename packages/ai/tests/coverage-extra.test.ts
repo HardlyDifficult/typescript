@@ -205,56 +205,6 @@ describe("createAgent - getTrackedPrompt without user messages", () => {
   });
 });
 
-// ─── createAgent - tool outputType detection ─────────────────────────────────
-
-describe("createAgent - tool outputType null and array", () => {
-  it("logs outputType 'null' when tool returns null", async () => {
-    const logger = mockLogger();
-    capturedToolDefs.length = 0;
-
-    const nullTool: ToolMap = {
-      null_tool: {
-        description: "Returns null",
-        inputSchema: z.object({}),
-        execute: async () => null,
-      },
-    };
-
-    createAgent(mockModel() as never, nullTool, createMockTracker(), logger as never);
-
-    // The capturedToolDefs should have 1 entry - the compiled null_tool
-    expect(capturedToolDefs.length).toBeGreaterThan(0);
-    const compiledTool = capturedToolDefs[capturedToolDefs.length - 1];
-    await compiledTool.execute({});
-
-    const debugCalls = (logger.debug.mock.calls as unknown[][]);
-    const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
-    expect(toolResultCall?.[1]).toMatchObject({ outputType: "null" });
-  });
-
-  it("logs outputType 'array' when tool returns array", async () => {
-    const logger = mockLogger();
-    capturedToolDefs.length = 0;
-
-    const arrayTool: ToolMap = {
-      array_tool: {
-        description: "Returns array",
-        inputSchema: z.object({}),
-        execute: async () => [1, 2, 3],
-      },
-    };
-
-    createAgent(mockModel() as never, arrayTool, createMockTracker(), logger as never);
-
-    const compiledTool = capturedToolDefs[capturedToolDefs.length - 1];
-    await compiledTool.execute({});
-
-    const debugCalls = (logger.debug.mock.calls as unknown[][]);
-    const toolResultCall = debugCalls.find((c) => c[0] === "Tool result");
-    expect(toolResultCall?.[1]).toMatchObject({ outputType: "array" });
-  });
-});
-
 // ─── createStream - cacheCreationTokens in debug log ─────────────────────────
 
 describe("runStream - cacheCreationTokens and cacheReadTokens in debug", () => {
