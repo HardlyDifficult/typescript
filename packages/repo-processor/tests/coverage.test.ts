@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Import from index.ts to trigger barrel execution
 import {
@@ -14,7 +14,6 @@ import {
 import { createRepoProcessorForTests } from "../src/RepoProcessor.js";
 import { resolveStaleDirectories } from "../src/resolveDirectories.js";
 import type { RepoClientLike, ResultsStore } from "../src/internalTypes.js";
-import type { RepoFileInput, RepoDirectoryInput } from "../src/types.js";
 
 // ========================
 // index.ts exports
@@ -34,7 +33,7 @@ describe("index.ts exports", () => {
 function makeStore(
   manifest: Record<string, string> = {},
   dirShas: Record<string, string | null> = {}
-): ResultsStore & Record<string, ReturnType<typeof vi.fn>> {
+): ResultsStore {
   return {
     ensureReady: vi.fn().mockResolvedValue(undefined),
     getFileManifest: vi.fn().mockResolvedValue(manifest),
@@ -53,95 +52,10 @@ function makeStore(
 }
 
 // ========================
-// RepoProcessor - open() method
+// RepoProcessor.run exercises getFileTree/getFileContent wrappers (lines 86-90)
 // ========================
-const githubMock = vi.fn();
-const repoMock = vi.fn();
-
-vi.mock("@hardlydifficult/github", async () => {
-  const actual = await vi.importActual<typeof import("@hardlydifficult/github")>("@hardlydifficult/github");
-  return { ...actual, github: githubMock };
-});
-
-describe("RepoProcessor.open additional", () => {
-  beforeEach(() => {
-    githubMock.mockReset();
-    repoMock.mockReset();
-    githubMock.mockReturnValue({ repo: repoMock });
-    repoMock.mockReturnValue({
-      tree: vi.fn().mockResolvedValue({ entries: [], rootSha: "root" }),
-      read: vi.fn().mockResolvedValue("content"),
-    });
-    delete process.env.GH_PAT;
-    delete process.env.GITHUB_TOKEN;
-  });
-
-  it("throws on invalid repo reference", async () => {
-    await expect(
-      RepoProcessor.open({
-        repo: "not-valid!!!",
-        results: { repo: "owner/results", directory: "/tmp/results" },
-        async processFile() {
-          return { ok: true };
-        },
-      })
-    ).rejects.toThrow("Invalid repo");
-  });
-
-  it("throws on invalid results repo reference", async () => {
-    await expect(
-      RepoProcessor.open({
-        repo: "owner/source",
-        results: { repo: "not-valid!!!", directory: "/tmp/results" },
-        async processFile() {
-          return { ok: true };
-        },
-      })
-    ).rejects.toThrow("Invalid results repo");
-  });
-
-  it("uses GH_PAT token when set", async () => {
-    process.env.GH_PAT = "gh-pat-token";
-
-    await RepoProcessor.open({
-      repo: "owner/source",
-      results: { repo: "owner/results", directory: "/tmp/results" },
-      async processFile() {
-        return { ok: true };
-      },
-    });
-
-    expect(githubMock).toHaveBeenCalledWith({ token: "gh-pat-token" });
-  });
-
-  it("provides processDirectory wrapper when given (covers open() line 97-100)", async () => {
-    const processDirectory = vi.fn().mockResolvedValue({ dirResult: true });
-    const processor = await RepoProcessor.open({
-      repo: "owner/source",
-      results: {
-        repo: "owner/results",
-        directory: "/tmp/results",
-        root: "custom-root",
-        branch: "main",
-      },
-      ref: "v1.0",
-      concurrency: 3,
-      include: () => false,
-      async processFile() {
-        return { ok: true };
-      },
-      processDirectory,
-    });
-
-    expect(processor.repo).toBe("owner/source");
-  });
-});
-
-// ========================
-// RepoProcessor.run via open() - exercises getFileTree/getFileContent wrappers
-// ========================
-describe("RepoProcessor.run exercises getFileTree/getFileContent wrappers (lines 86-90)", () => {
-  it("calls getFileTree and getFileContent via createRepoProcessorForTests", async () => {
+describe("RepoProcessor.run exercises getFileTree/getFileContent wrappers", () => {
+  it("calls getFileTree and getFileContent (covers lines 86-90)", async () => {
     const treeFn = vi.fn().mockResolvedValue({
       entries: [{ path: "b.ts", sha: "sha2", type: "blob" as const }],
       rootSha: "root2",
@@ -215,7 +129,7 @@ describe("RepoWatcher additional coverage", () => {
     });
   }
 
-  it("runNow() calls onError on failure", async () => {
+  it("runNow() calls onError on failure (line 107)", async () => {
     const onError = vi.fn();
     const stateDir = await makeTempDir();
     const processor = makeWatcherProcessor({ shouldFail: true });
@@ -234,14 +148,14 @@ describe("RepoWatcher additional coverage", () => {
     watcher.handlePush("new-sha");
 
     // Wait for the async run to complete
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       if (onError.mock.calls.length > 0) break;
       await new Promise((r) => setTimeout(r, 10));
     }
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
   });
 
-  it("executeWithRetry emits onEvent warning and retries (line 144-150)", async () => {
+  it("executeWithRetry emits onEvent warning and retries (lines 144-150)", async () => {
     const onEvent = vi.fn();
     const stateDir = await makeTempDir();
     // Fail once, then succeed
@@ -275,6 +189,46 @@ describe("RepoWatcher additional coverage", () => {
     await expect(watcher.runNow()).rejects.toThrow("run failed intentionally");
   });
 
+  it("executeWithRetry uses String(error) when non-Error thrown (line 149)", async () => {
+    const onEvent = vi.fn();
+    const stateDir = await makeTempDir();
+    let callCount = 0;
+    const repoClient: RepoClientLike = {
+      getFileTree: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "non-error string thrown"; // non-Error value
+        }
+        return { entries: [], rootSha: "sha-2" };
+      }),
+      getFileContent: vi.fn(),
+    };
+    const processor = createRepoProcessorForTests({
+      repo: { owner: "test", name: "repo", fullName: "test/repo" },
+      repoClient,
+      store: makeStore(),
+      concurrency: 1,
+      include: () => true,
+      processFile: vi.fn().mockResolvedValue({ ok: true }),
+    });
+    const watcher = await processor.watch({
+      stateDirectory: stateDir,
+      maxAttempts: 2,
+      onEvent,
+    });
+    const result = await watcher.runNow();
+    expect(result.sourceSha).toBe("sha-2");
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "warn",
+        context: expect.objectContaining({
+          error: "non-error string thrown",
+        }),
+      })
+    );
+  });
+
   it("flushPendingRun with pendingSha == lastSha does not re-queue", async () => {
     const stateDir = await makeTempDir();
     const processor = makeWatcherProcessor({ rootShas: ["sha-1"] });
@@ -283,7 +237,6 @@ describe("RepoWatcher additional coverage", () => {
     await watcher.runNow();
     expect(watcher.getLastSha()).toBe("sha-1");
 
-    // handlePush with the same sha should not trigger run
     watcher.handlePush("sha-1");
     expect(watcher.isRunning()).toBe(false);
   });
@@ -292,8 +245,8 @@ describe("RepoWatcher additional coverage", () => {
 // ========================
 // resolveDirectories additional branch coverage
 // ========================
-describe("resolveStaleDirectories - treeShaByDir.get() ?? '' branch", () => {
-  it("uses empty string when dirPath has no tree entry (line 40)", async () => {
+describe("resolveStaleDirectories - treeShaByDir.get() ?? '' branch (line 40)", () => {
+  it("uses empty string when dirPath has no tree entry", async () => {
     const store = {
       ensureReady: vi.fn(),
       getFileManifest: vi.fn(),

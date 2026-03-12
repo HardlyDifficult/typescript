@@ -759,6 +759,226 @@ describe("publishPackages", () => {
       consoleSpy.mockRestore();
     }
   });
+
+  it("handles package with external (non-workspace) dependencies", () => {
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1.0.0", {
+        dependencies: { lodash: "4.17.21" }, // external dep — not in workspace
+      });
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          return "";
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          throw new Error("not found");
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      // Alpha should be published; lodash dep doesn't affect sorting
+      expect(result.published).toHaveLength(1);
+      expect(result.published[0]?.name).toBe("@acme/alpha");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("handles diamond dependency (newDegree > 0 before reaching 0)", () => {
+    // gamma depends on BOTH alpha AND beta (diamond pattern).
+    // gamma's inDegree = 2. When alpha is processed, gamma's degree: 2→1 (false branch
+    // of `if (newDegree === 0)`). When beta is processed, gamma's degree: 1→0 (true branch).
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      // alpha and beta: no workspace deps → inDegree=0
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1.0.0");
+      createPublicPackage(rootDir, "beta", "@acme/beta", "1.0.0");
+      // gamma depends on both alpha and beta → inDegree=2
+      createPublicPackage(rootDir, "gamma", "@acme/gamma", "1.0.0", {
+        dependencies: { "@acme/alpha": "1.0.0", "@acme/beta": "1.0.0" },
+      });
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          return "";
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          throw new Error("not found");
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      // gamma must be published after both alpha and beta
+      expect(result.published).toHaveLength(3);
+      const names = result.published.map((p) => p.name);
+      expect(names.indexOf("@acme/gamma")).toBeGreaterThan(
+        names.indexOf("@acme/alpha")
+      );
+      expect(names.indexOf("@acme/gamma")).toBeGreaterThan(
+        names.indexOf("@acme/beta")
+      );
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("handles package with malformed version (no minor/patch parts)", () => {
+    // Version "1" has no minor or patch — triggers the `?? "0"` fallbacks
+    // in version parsing code.
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1");
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          return "";
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          throw new Error("not found");
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      // Should publish with version "1.0.0" (using defaults for missing parts)
+      expect(result.published).toHaveLength(1);
+      expect(result.published[0]?.version).toBe("1.0.0");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("skips package and tracks its npm version for dependency resolution", () => {
+    // When a package is skipped but has a matching npm version,
+    // it should be tracked in publishedVersions (covers the `latestVersion !== null` true branch).
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      // alpha is skipped (unchanged) but has an npm version that matches 1.0.x
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1.0.0");
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          return "acme-alpha-v1.0.0"; // Has a tag → check for changes
+        }
+        if (typeof command === "string" && command.includes("git diff")) {
+          return ""; // No changes → skipped
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          return '["1.0.0"]'; // npm has version 1.0.0 (matches 1.0.x)
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      // Alpha should be skipped but its npm version tracked
+      expect(result.skipped).toHaveLength(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Tracked existing version")
+      );
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("handles file: reference to unpublished dependency (no version in publishedVersions)", () => {
+    // When a package's file: dependency was NOT published in this run,
+    // publishedVersions.get(depName) returns undefined, so the false branch
+    // of `if (newVersion !== undefined && newVersion !== "")` is taken.
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      // beta has a file: reference to alpha, but alpha is skipped (not published)
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1.0.0");
+      createPublicPackage(rootDir, "beta", "@acme/beta", "1.0.0", {
+        dependencies: { "@acme/alpha": "file:../alpha" },
+      });
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          // alpha has a tag (so it's skipped as unchanged)
+          if ((command as string).includes('"acme-alpha')) {
+            return "acme-alpha-v1.0.0";
+          }
+          return ""; // beta: no tag (initial release)
+        }
+        if (typeof command === "string" && command.includes("git diff")) {
+          return ""; // alpha: no changes → skipped
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          throw new Error("not found");
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      // beta should be published (initial release)
+      // alpha should be skipped
+      const betaPublished = result.published.find((p) => p.name === "@acme/beta");
+      expect(betaPublished).toBeDefined();
+      const alphaSkipped = result.skipped.find((p) => p.name === "@acme/alpha");
+      expect(alphaSkipped).toBeDefined();
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("publishes with existing npm patch version (latestNpmVersion not null)", () => {
+    // Covers the `if (latestNpmVersion !== null)` true branch by having npm
+    // return an existing version matching the package's major.minor.
+    const rootDir = createTempDir();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      createRootPackageJson(rootDir);
+      createPublicPackage(rootDir, "alpha", "@acme/alpha", "1.0.0");
+
+      mockExecSync.mockImplementation((command: string) => {
+        if (typeof command === "string" && command.includes("git tag -l")) {
+          return ""; // No previous tag → initial release
+        }
+        if (typeof command === "string" && command.includes("npm view")) {
+          // npm has 1.0.3 already → next publish should be 1.0.4
+          return '["1.0.0","1.0.1","1.0.2","1.0.3"]';
+        }
+        return "";
+      });
+
+      const result = publishPackages({ rootDir });
+
+      expect(result.published).toHaveLength(1);
+      expect(result.published[0]?.version).toBe("1.0.4");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      consoleSpy.mockRestore();
+    }
+  });
 });
 
 describe("runPublishCli", () => {
