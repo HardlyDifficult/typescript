@@ -1147,9 +1147,7 @@ describe("WorkerServer", () => {
       const pool = (
         server as unknown as {
           pool: {
-            get(
-              id: string
-            ):
+            get(id: string):
               | {
                   status: string;
                   lastHeartbeat: Date;

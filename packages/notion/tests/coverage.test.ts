@@ -2109,16 +2109,14 @@ describe("NotionClient additional coverage", () => {
   });
 
   it("getPageBlocks delegates to retrieveBlockChildren", async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(
-        makeJsonResponse({
-          object: "list",
-          has_more: false,
-          next_cursor: null,
-          results: [],
-        })
-      );
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeJsonResponse({
+        object: "list",
+        has_more: false,
+        next_cursor: null,
+        results: [],
+      })
+    );
     const client = new NotionClient({
       apiToken: "test-token",
       fetchImpl: mockFetch as typeof fetch,
