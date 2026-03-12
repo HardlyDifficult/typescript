@@ -476,37 +476,40 @@ describe("watch", () => {
     watcher.stop();
   });
 
-  it("does not set up interval timer when stopped during initial read via onChange (line 44 false branch)", async () => {
-    // To test the false branch at line 44 (if !this.stopped after initial refresh),
-    // stop() must be called INSIDE the onChange callback which fires during the initial
-    // read, before start() checks this.stopped at line 44.
-    //
-    // We use a mutable stopFn reference that onChange will call.
-    // The stopFn is set when we intercept the watcher via the read function itself
-    // using a trick: the first time read() is called, we register a thenable on
-    // the watchPromise to capture the watcher. But watchPromise hasn't resolved yet.
-    //
-    // Instead, we create a "proxy" stop function that onChange can call:
-    // since onChange fires synchronously within readCurrentValue() BEFORE start()
-    // checks this.stopped, we need the handle available in onChange.
-    //
-    // The key trick: pass a mutable ref object to onChange. Register a ".then()"
-    // on watchPromise to populate the ref. The ref is captured by onChange's closure.
-    // Since onChange fires while start() is still running (not yet complete),
-    // watchPromise's .then() fires AFTER start() completes - too late.
-    //
-    // The only working approach: make the isEqual function call stop() via a side
-    // channel. But we'd need to access the watcher from isEqual.
-    //
-    // In practice, this branch (stopped=true when start() checks line 44) is only
-    // reachable if stop() is called from within onChange. Since we cannot get the
-    // watcher handle before the initial read completes, we test the closest behavior:
-    // that stop() correctly prevents interval setup even if called immediately after.
+  it("does not set up interval timer when stopped during initial refresh (line 44 false branch)", async () => {
+    // To cover the false branch of `if (!this.stopped)` at line 44 in start(),
+    // we need this.stopped === true AFTER refresh() completes but BEFORE line 44 runs.
+    // The Watcher class is not exported, but we can access its prototype via an instance.
+    // Strategy: spy on the prototype's refresh() to call this.stop() after each refresh,
+    // so that when start() checks this.stopped at line 44, it finds true.
+    const tempWatcher = await watch({
+      read: vi.fn().mockResolvedValue("tmp"),
+      onChange: vi.fn(),
+      everyMs: 1000,
+    });
+    tempWatcher.stop();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const watcherProto = Object.getPrototypeOf(tempWatcher) as Record<string, any>;
+    const originalRefresh = watcherProto.refresh as () => Promise<unknown>;
+
+    // Wrap refresh() to call stop() on the watcher after the initial read completes.
+    // This causes this.stopped=true so that start() skips setInterval at line 44.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const refreshSpy = vi.spyOn(watcherProto, "refresh").mockImplementation(async function (this: any) {
+      const result = await originalRefresh.call(this);
+      this.stop();
+      return result;
+    });
+
     const read = vi.fn().mockResolvedValue("value");
     const watcher = await watch({ read, onChange: vi.fn(), everyMs: 1000 });
-    watcher.stop();
+
+    refreshSpy.mockRestore();
+
+    // No interval was set up (stopped=true at line 44), so advancing time triggers no reads
     await vi.advanceTimersByTimeAsync(5000);
-    expect(read).toHaveBeenCalledTimes(1); // timer was set but cleared by stop()
+    expect(read).toHaveBeenCalledTimes(1);
     expect(watcher.current).toBe("value");
   });
 
