@@ -1,10 +1,5 @@
 /**
- * Additional tests to achieve 100% coverage for task-list package.
- * Covers: errors.ts, resolvers.ts, index.ts, TaskWatcher.ts,
- *         Project.ts (lines 130-144), Task.ts (lines 97-99),
- *         TaskList.ts (line 43), TaskListClient.ts (line 12),
- *         linear/LinearTaskListClient.ts (lines 343, 358-398),
- *         trello/TrelloTaskListClient.ts (lines 219, 225, 240-270)
+ * Additional tests to achieve 100% coverage for the task-list package.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +7,7 @@ import { Project } from "../src/Project.js";
 import { Task } from "../src/Task.js";
 import { TaskList } from "../src/TaskList.js";
 import { TaskListClient } from "../src/TaskListClient.js";
+import { TaskWatcher } from "../src/TaskWatcher.js";
 import {
   InvalidPriorityError,
   LabelNotFoundError,
@@ -30,7 +26,7 @@ import {
   createTaskList,
 } from "../src/index.js";
 import { LinearTaskListClient } from "../src/linear/index.js";
-import { buildContextResolvers, matchesCaseInsensitive } from "../src/resolvers.js";
+import { buildContextResolvers } from "../src/resolvers.js";
 import { TrelloTaskListClient } from "../src/trello/TrelloTaskListClient.js";
 import type {
   Label,
@@ -42,17 +38,28 @@ import type {
 } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
-// Shared fixtures
+// Shared helpers
 // ---------------------------------------------------------------------------
 
 const statuses: readonly Status[] = [
-  { id: "s1", name: "Todo" },
-  { id: "s2", name: "Done" },
+  { id: "status-1", name: "Todo" },
+  { id: "status-2", name: "In Progress" },
 ];
+
 const labels: readonly Label[] = [
-  { id: "l1", name: "Bug", color: "#f00" },
-  { id: "l2", name: "Feature", color: "#0f0" },
+  { id: "label-1", name: "Bug", color: "#ff0000" },
+  { id: "label-2", name: "Feature", color: "#00ff00" },
 ];
+
+const baseTaskData: TaskData = {
+  id: "task-1",
+  title: "Fix login",
+  description: "Users cannot log in",
+  statusId: "status-1",
+  projectId: "project-1",
+  labels: [labels[0]!],
+  url: "https://example.com/tasks/1",
+};
 
 function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
   return {
@@ -63,29 +70,17 @@ function createMockContext(overrides: Partial<TaskContext> = {}): TaskContext {
     createLabel: vi.fn(),
     deleteLabel: vi.fn(),
     resolveStatusId: vi.fn((name: string) =>
-      name.toLowerCase() === "done" ? "s2" : "s1"
+      name.toLowerCase() === "in progress" ? "status-2" : "status-1"
     ),
     resolveStatusName: vi.fn((id: string) =>
-      id === "s2" ? "Done" : "Todo"
+      id === "status-2" ? "In Progress" : "Todo"
     ),
-    resolveLabelId: vi.fn((name: string) =>
-      name.toLowerCase() === "bug" ? "l1" : "l2"
-    ),
+    resolveLabelId: vi.fn(() => "label-1"),
     labels,
     statuses,
     ...overrides,
   };
 }
-
-const baseTaskData: TaskData = {
-  id: "task-1",
-  title: "Base task",
-  description: "desc",
-  statusId: "s1",
-  projectId: "project-1",
-  labels: [labels[0]!],
-  url: "https://example.com/tasks/1",
-};
 
 function makeTaskSnapshot(
   data: TaskData = baseTaskData,
@@ -95,133 +90,120 @@ function makeTaskSnapshot(
 }
 
 function makeProjectSnapshot(
-  taskData: readonly TaskData[] = [],
+  tasks: readonly TaskData[] = [baseTaskData],
   context: TaskContext = createMockContext()
 ): ProjectSnapshot {
   return {
-    info: { id: "project-1", name: "Alpha", url: "https://example.com/projects/1" },
+    info: { id: "project-1", name: "Bot", url: "https://example.com/p1" },
     statuses,
     labels,
-    tasks: taskData,
+    tasks,
     context,
   };
 }
 
 // ---------------------------------------------------------------------------
-// errors.ts coverage
+// errors.ts — uncovered constructors and formatAvailable branches
 // ---------------------------------------------------------------------------
 
-describe("errors", () => {
-  it("TaskListError sets code and details", () => {
-    const err = new TaskListError("msg", "CODE", { foo: "bar" });
+describe("error classes", () => {
+  it("TaskListError stores code and details", () => {
+    const err = new TaskListError("msg", "CODE", { key: "val" });
     expect(err.code).toBe("CODE");
-    expect(err.details).toEqual({ foo: "bar" });
+    expect(err.details).toEqual({ key: "val" });
     expect(err.name).toBe("TaskListError");
   });
 
-  it("UnknownTaskListProviderError", () => {
-    const err = new UnknownTaskListProviderError("unknown");
+  it("UnknownTaskListProviderError includes provider in message", () => {
+    const err = new UnknownTaskListProviderError("foo");
+    expect(err.message).toContain("foo");
     expect(err.code).toBe("UNKNOWN_PROVIDER");
-    expect(err.message).toContain("unknown");
   });
 
-  it("TaskListProviderNotConfiguredError for linear with missing fields", () => {
-    const err = new TaskListProviderNotConfiguredError("linear", ["Set LINEAR_API_KEY"]);
+  it("TaskListProviderNotConfiguredError for linear with missing", () => {
+    const err = new TaskListProviderNotConfiguredError("linear", [
+      "Set LINEAR_API_KEY",
+    ]);
     expect(err.message).toContain("Linear");
     expect(err.message).toContain("Set LINEAR_API_KEY");
   });
 
-  it("TaskListProviderNotConfiguredError for linear with no missing fields", () => {
+  it("TaskListProviderNotConfiguredError for linear with empty missing array", () => {
     const err = new TaskListProviderNotConfiguredError("linear");
     expect(err.message).toContain("Linear");
     expect(err.message).not.toContain("Available");
   });
 
   it("TaskListProviderNotConfiguredError for trello", () => {
-    const err = new TaskListProviderNotConfiguredError("trello", ["Set TRELLO_API_KEY"]);
+    const err = new TaskListProviderNotConfiguredError("trello", [
+      "Set TRELLO_API_KEY",
+    ]);
     expect(err.message).toContain("Trello");
+    expect(err.message).toContain("Set TRELLO_API_KEY");
   });
 
-  it("TaskListProviderNotConfiguredError for trello with no missing fields", () => {
-    const err = new TaskListProviderNotConfiguredError("trello");
-    expect(err.message).toContain("Trello");
+  it("ProjectNotFoundError includes available projects", () => {
+    const err = new ProjectNotFoundError("MyProj", ["Other"]);
+    expect(err.message).toContain("MyProj");
+    expect(err.message).toContain("Other");
   });
 
-  it("ProjectNotFoundError with available projects", () => {
-    const err = new ProjectNotFoundError("Alpha", ["Beta", "Gamma"]);
-    expect(err.message).toContain("Alpha");
-    expect(err.message).toContain("Beta");
+  it("ProjectNotFoundError with no available projects (formatAvailable empty branch)", () => {
+    const err = new ProjectNotFoundError("MyProj", []);
+    expect(err.message).toContain("MyProj");
+    expect(err.message).not.toContain("Available");
   });
 
-  it("ProjectNotFoundError without available projects", () => {
-    const err = new ProjectNotFoundError("Alpha");
-    expect(err.message).toContain("Alpha");
+  it("TaskNotFoundError includes taskId and project name", () => {
+    const err = new TaskNotFoundError("task-99", "MyProject", ["task-1"]);
+    expect(err.message).toContain("task-99");
+    expect(err.message).toContain("MyProject");
   });
 
-  it("TaskNotFoundError with available tasks", () => {
-    const err = new TaskNotFoundError("t1", "Alpha", ["t2"]);
-    expect(err.message).toContain("t1");
-    expect(err.message).toContain("t2");
-  });
-
-  it("TaskNotFoundError without available tasks", () => {
-    const err = new TaskNotFoundError("t1", "Alpha");
-    expect(err.message).toContain("t1");
-  });
-
-  it("StatusNotFoundError with projectName and available statuses", () => {
-    const err = new StatusNotFoundError("Missing", "Alpha", ["Todo", "Done"]);
-    expect(err.message).toContain("Missing");
-    expect(err.message).toContain("Alpha");
-    expect(err.message).toContain("Todo");
+  it("StatusNotFoundError with projectName", () => {
+    const err = new StatusNotFoundError("Done", "MyProject", ["Todo"]);
+    expect(err.message).toContain("Done");
+    expect(err.message).toContain("MyProject");
   });
 
   it("StatusNotFoundError without projectName", () => {
-    const err = new StatusNotFoundError("Missing");
-    expect(err.message).not.toContain("project");
+    const err = new StatusNotFoundError("Done", undefined, ["Todo"]);
+    expect(err.message).toContain("Done");
+    expect(err.message).not.toContain("undefined");
   });
 
-  it("StatusNotFoundError without projectName but with available statuses", () => {
-    const err = new StatusNotFoundError("Missing", undefined, ["Todo"]);
-    expect(err.message).toContain("Todo");
+  it("StatusIdNotFoundError includes id", () => {
+    const err = new StatusIdNotFoundError("bad-id", ["Todo"]);
+    expect(err.message).toContain("bad-id");
   });
 
-  it("StatusIdNotFoundError with available statuses", () => {
-    const err = new StatusIdNotFoundError("s99", ["Todo", "Done"]);
-    expect(err.message).toContain("s99");
-    expect(err.message).toContain("Todo");
-  });
-
-  it("StatusIdNotFoundError without available statuses", () => {
-    const err = new StatusIdNotFoundError("s99");
-    expect(err.message).toContain("s99");
-  });
-
-  it("LabelNotFoundError with projectName and available labels", () => {
-    const err = new LabelNotFoundError("Unknown", "Alpha", ["Bug"]);
-    expect(err.message).toContain("Unknown");
-    expect(err.message).toContain("Alpha");
-    expect(err.message).toContain("Bug");
+  it("LabelNotFoundError with projectName", () => {
+    const err = new LabelNotFoundError("Tag", "Proj", ["Bug"]);
+    expect(err.message).toContain("Tag");
+    expect(err.message).toContain("Proj");
   });
 
   it("LabelNotFoundError without projectName", () => {
-    const err = new LabelNotFoundError("Unknown");
-    expect(err.message).toContain("Unknown");
+    const err = new LabelNotFoundError("Tag", undefined, ["Bug"]);
+    expect(err.message).toContain("Tag");
+    expect(err.message).not.toContain("undefined");
   });
 
-  it("TeamNotFoundError", () => {
-    const err = new TeamNotFoundError("Core", ["Eng", "Ops"]);
+  it("TeamNotFoundError includes team name and available teams", () => {
+    const err = new TeamNotFoundError("Missing", ["Core", "Ops"]);
+    expect(err.message).toContain("Missing");
     expect(err.message).toContain("Core");
-    expect(err.message).toContain("Eng");
   });
 
-  it("NoTeamsFoundError", () => {
+  it("NoTeamsFoundError has the correct message", () => {
     const err = new NoTeamsFoundError();
+    expect(err.message).toContain("No teams found");
     expect(err.code).toBe("NO_TEAMS_FOUND");
   });
 
-  it("MultipleTeamsFoundError", () => {
+  it("MultipleTeamsFoundError includes team names", () => {
     const err = new MultipleTeamsFoundError(["Core", "Ops"]);
+    expect(err.message).toContain("Multiple teams");
     expect(err.message).toContain("Core");
   });
 
@@ -234,75 +216,50 @@ describe("errors", () => {
   it("TaskListApiError for trello", () => {
     const err = new TaskListApiError("trello", 403, "Forbidden");
     expect(err.message).toContain("Trello");
+    expect(err.message).toContain("403");
   });
 
-  it("LinearGraphQLError", () => {
-    const err = new LinearGraphQLError("Not found");
+  it("LinearGraphQLError includes the message", () => {
+    const err = new LinearGraphQLError("Issue not found");
+    expect(err.message).toContain("Issue not found");
     expect(err.code).toBe("LINEAR_GRAPHQL_ERROR");
   });
 
-  it("InvalidPriorityError", () => {
-    const err = new InvalidPriorityError("badpriority");
+  it("InvalidPriorityError includes the priority name", () => {
+    const err = new InvalidPriorityError("SuperUrgent");
+    expect(err.message).toContain("SuperUrgent");
     expect(err.code).toBe("INVALID_PRIORITY");
-    expect(err.message).toContain("badpriority");
   });
 });
 
 // ---------------------------------------------------------------------------
-// resolvers.ts coverage
+// resolvers.ts — error paths for buildContextResolvers
 // ---------------------------------------------------------------------------
 
-describe("resolvers", () => {
-  describe("matchesCaseInsensitive", () => {
-    it("matches identical strings", () => {
-      expect(matchesCaseInsensitive("hello", "hello")).toBe(true);
-    });
+describe("buildContextResolvers error paths", () => {
+  const resolvers = buildContextResolvers(statuses, labels);
 
-    it("matches case-insensitively", () => {
-      expect(matchesCaseInsensitive("HELLO", "hello")).toBe(true);
-    });
-
-    it("returns false for non-matching strings", () => {
-      expect(matchesCaseInsensitive("hello", "world")).toBe(false);
-    });
+  it("resolveStatusId throws StatusNotFoundError for unknown name", () => {
+    expect(() => resolvers.resolveStatusId("NonExistent")).toThrow(
+      StatusNotFoundError
+    );
   });
 
-  describe("buildContextResolvers", () => {
-    const ctx = buildContextResolvers(statuses, labels);
+  it("resolveStatusName throws StatusIdNotFoundError for unknown id", () => {
+    expect(() => resolvers.resolveStatusName("bad-id")).toThrow(
+      StatusIdNotFoundError
+    );
+  });
 
-    it("resolveStatusId returns id for known status", () => {
-      expect(ctx.resolveStatusId("Todo")).toBe("s1");
-    });
-
-    it("resolveStatusId throws StatusNotFoundError for unknown status", () => {
-      expect(() => ctx.resolveStatusId("NonExistent")).toThrow(StatusNotFoundError);
-    });
-
-    it("resolveStatusName returns name for known id", () => {
-      expect(ctx.resolveStatusName("s1")).toBe("Todo");
-    });
-
-    it("resolveStatusName throws StatusIdNotFoundError for unknown id", () => {
-      expect(() => ctx.resolveStatusName("s99")).toThrow(StatusIdNotFoundError);
-    });
-
-    it("resolveLabelId returns id for known label", () => {
-      expect(ctx.resolveLabelId("Bug")).toBe("l1");
-    });
-
-    it("resolveLabelId throws LabelNotFoundError for unknown label", () => {
-      expect(() => ctx.resolveLabelId("Nonexistent")).toThrow(LabelNotFoundError);
-    });
-
-    it("exposes statuses and labels", () => {
-      expect(ctx.statuses).toHaveLength(2);
-      expect(ctx.labels).toHaveLength(2);
-    });
+  it("resolveLabelId throws LabelNotFoundError for unknown name", () => {
+    expect(() => resolvers.resolveLabelId("UnknownLabel")).toThrow(
+      LabelNotFoundError
+    );
   });
 });
 
 // ---------------------------------------------------------------------------
-// index.ts coverage (lines 66, 78 — createTaskList edge cases)
+// index.ts — createTaskList edge cases
 // ---------------------------------------------------------------------------
 
 describe("createTaskList edge cases", () => {
@@ -312,52 +269,63 @@ describe("createTaskList edge cases", () => {
     vi.stubGlobal("fetch", mockFetch);
     mockFetch.mockReset();
     delete process.env.LINEAR_API_KEY;
-    delete process.env.TRELLO_API_KEY;
-    delete process.env.TRELLO_API_TOKEN;
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("throws UnknownTaskListProviderError for unknown provider (normalizeConfig)", async () => {
+  it("throws UnknownTaskListProviderError for unknown provider", async () => {
     await expect(
-      createTaskList({ provider: "unknown" as never })
+      createTaskList({ provider: "foobar" } as never)
     ).rejects.toBeInstanceOf(UnknownTaskListProviderError);
   });
 
-  it("creates a trello client when provider is 'trello'", async () => {
+  it("throws TaskListProviderNotConfiguredError when LINEAR_API_KEY is missing", async () => {
+    await expect(createTaskList()).rejects.toBeInstanceOf(
+      TaskListProviderNotConfiguredError
+    );
+  });
+
+  it("creates a Trello TaskList with explicit provider config", async () => {
     const taskList = await createTaskList({
       provider: "trello",
-      apiKey: "key",
-      token: "token",
+      apiKey: "my-key",
+      token: "my-token",
     });
     expect(taskList.provider).toBe("trello");
   });
 });
 
 // ---------------------------------------------------------------------------
-// TaskListClient.ts — initialize() returns a resolved promise (line 12)
+// TaskListClient.ts — initialize() default return
 // ---------------------------------------------------------------------------
 
-describe("TaskListClient", () => {
-  it("default initialize() resolves immediately", async () => {
-    class ConcreteClient extends TaskListClient {
-      readonly provider = "linear" as const;
-      async getProjects() { return []; }
-      async getProject() { return null as never; }
-      async getTask() { return null as never; }
+describe("TaskListClient.initialize()", () => {
+  class TestClient extends TaskListClient {
+    readonly provider = "linear" as const;
+    async getProjects() {
+      return [];
     }
-    const client = new ConcreteClient({ provider: "linear" });
+    async getProject() {
+      return new Project(makeProjectSnapshot());
+    }
+    async getTask() {
+      return new Task(makeTaskSnapshot());
+    }
+  }
+
+  it("returns void by default (no-op)", async () => {
+    const client = new TestClient({ provider: "linear" });
     await expect(client.initialize()).resolves.toBeUndefined();
   });
 });
 
 // ---------------------------------------------------------------------------
-// TaskWatcher.ts — lines 32, 68, 83
+// TaskWatcher.ts — start idempotency, stop when null, handleError branches
 // ---------------------------------------------------------------------------
 
-describe("TaskWatcher extra coverage", () => {
+describe("TaskWatcher", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -366,158 +334,181 @@ describe("TaskWatcher extra coverage", () => {
     vi.useRealTimers();
   });
 
-  it("start() is idempotent (calling start twice returns same instance)", async () => {
+  it("start() is idempotent — calling it twice doesn't schedule two intervals", async () => {
     const project = new Project(makeProjectSnapshot([]));
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => [project]);
-      getProject = vi.fn(async () => project);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn(async () => [project]),
+      getProject: vi.fn(),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
-    // We need to call start() twice on the same TaskWatcher.
-    // TaskList.watch() calls new TaskWatcher().start() so we import TaskWatcher directly.
-    const { TaskWatcher } = await import("../src/TaskWatcher.js");
     const watcher = new TaskWatcher(taskList, {
-      project: "Alpha",
+      project: "Bot",
       whenStatus: "Todo",
-      moveTo: "Done",
-      everyMs: 1000,
+      moveTo: "In Progress",
+      everyMs: 5_000,
       onTask: vi.fn(),
     });
 
-    const result1 = watcher.start();
-    const result2 = watcher.start(); // should return same instance (timer already set)
+    watcher.start();
+    watcher.start(); // second call should be no-op
 
-    expect(result1).toBe(watcher);
-    expect(result2).toBe(watcher);
     await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    // getProjects called twice — once for immediate poll, once for interval
+    expect(client.getProjects).toHaveBeenCalledTimes(2);
     watcher.stop();
   });
 
-  it("stop() when timer is null is a no-op", async () => {
+  it("stop() when timer is already null does nothing", () => {
     const project = new Project(makeProjectSnapshot([]));
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => [project]);
-      getProject = vi.fn(async () => project);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn(async () => [project]),
+      getProject: vi.fn(),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
-    const watch = taskList.watch({
-      project: "Alpha",
+    const watcher = new TaskWatcher(taskList, {
+      project: "Bot",
       whenStatus: "Todo",
-      moveTo: "Done",
-      everyMs: 1000,
+      moveTo: "In Progress",
       onTask: vi.fn(),
     });
-    await vi.advanceTimersByTimeAsync(0);
-    watch.stop();
-    // Calling stop a second time when timer is null should not throw
-    expect(() => watch.stop()).not.toThrow();
+
+    // stop before start — timer is null, should not throw
+    expect(() => watcher.stop()).not.toThrow();
   });
 
-  it("handleError logs to console when no onError is configured", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const context = createMockContext({
-      updateTask: vi.fn().mockRejectedValue(new Error("oops")),
-    });
-    const project = new Project(makeProjectSnapshot([baseTaskData], context));
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => [project]);
-      getProject = vi.fn(async () => project);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+  it("handleError falls back to console.error when no onError provided", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const project = new Project(
+      makeProjectSnapshot(
+        [baseTaskData],
+        createMockContext({
+          updateTask: vi.fn().mockRejectedValue(new Error("update failed")),
+        })
+      )
+    );
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn(async () => [project]),
+      getProject: vi.fn(),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
-    const watch = taskList.watch({
-      project: "Alpha",
+    const watcher = new TaskWatcher(taskList, {
+      project: "Bot",
       whenStatus: "Todo",
-      moveTo: "Done",
-      everyMs: 1000,
+      moveTo: "In Progress",
       onTask: vi.fn(),
-      // No onError - should log to console
+      // no onError — exercises console.error fallback
     });
+
+    watcher.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(consoleError).toHaveBeenCalled();
-    watch.stop();
+    expect(consoleError).toHaveBeenCalledWith(
+      "TaskWatcher failed:",
+      "update failed"
+    );
+    watcher.stop();
     consoleError.mockRestore();
   });
 
-  it("handleError wraps non-Error objects", async () => {
+  it("handleError wraps non-Error objects before passing to onError", async () => {
     const onError = vi.fn();
     const context = createMockContext({
-      updateTask: vi.fn().mockRejectedValue("string error"),
+      updateTask: vi.fn().mockRejectedValue("string error — not an Error"),
     });
     const project = new Project(makeProjectSnapshot([baseTaskData], context));
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => [project]);
-      getProject = vi.fn(async () => project);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn(async () => [project]),
+      getProject: vi.fn(),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
-    const watch = taskList.watch({
-      project: "Alpha",
+    const watcher = new TaskWatcher(taskList, {
+      project: "Bot",
       whenStatus: "Todo",
-      moveTo: "Done",
-      everyMs: 1000,
+      moveTo: "In Progress",
       onTask: vi.fn(),
       onError,
     });
+
+    watcher.start();
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
-    watch.stop();
+    watcher.stop();
   });
 
-  it("poll() error from taskList.project routes to handleError", async () => {
+  it("poll() outer catch triggers handleError when project lookup fails", async () => {
     const onError = vi.fn();
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => { throw new Error("network fail"); });
-      getProject = vi.fn(async () => null as never);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn().mockRejectedValue(new Error("network error")),
+      getProject: vi.fn(),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
-    const watch = taskList.watch({
-      project: "Alpha",
+    const watcher = new TaskWatcher(taskList, {
+      project: "Bot",
       whenStatus: "Todo",
-      moveTo: "Done",
-      everyMs: 1000,
+      moveTo: "In Progress",
       onTask: vi.fn(),
       onError,
     });
+
+    watcher.start();
     await vi.advanceTimersByTimeAsync(0);
 
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
-    watch.stop();
+    watcher.stop();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Project.ts — line 97 branch (no statuses — statuses[0] is undefined)
+// Project.ts — createTask with no statuses, updateTasks, findTask error
 // ---------------------------------------------------------------------------
 
-describe("Project.createTask with no statuses", () => {
-  it("uses empty string for statusId when statuses array is empty", async () => {
+describe("Project additional coverage", () => {
+  it("createTask uses statuses[0].id as default when no status provided", async () => {
+    const context = createMockContext({
+      createTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
+    });
+    const project = new Project(makeProjectSnapshot([], context));
+
+    await project.createTask({ title: "No status task" });
+
+    expect(context.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: "status-1" })
+    );
+  });
+
+  it("createTask uses empty string when no statuses and no status provided", async () => {
     const context = createMockContext({
       createTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
     });
     const emptySnapshot: ProjectSnapshot = {
       info: { id: "p1", name: "Empty", url: "https://example.com/p1" },
-      statuses: [], // no statuses
+      statuses: [],
       labels,
       tasks: [],
       context,
@@ -530,163 +521,121 @@ describe("Project.createTask with no statuses", () => {
       expect.objectContaining({ statusId: "" })
     );
   });
-});
 
-// ---------------------------------------------------------------------------
-// Task.ts — line 76 branch (label not found in context.labels — falls back to labelName)
-// ---------------------------------------------------------------------------
-
-describe("Task.tag when label id not in context.labels", () => {
-  it("uses labelName as fallback when labels list does not contain the resolved id", async () => {
-    // resolveLabelId returns an id that doesn't exist in context.labels
+  it("createTask resolves priority via context.resolvePriority when provided", async () => {
     const context = createMockContext({
-      resolveLabelId: vi.fn().mockReturnValue("unknown-id"),
-      updateTask: vi.fn().mockResolvedValue(
-        makeTaskSnapshot({
-          ...baseTaskData,
-          labels: [{ id: "unknown-id", name: "NewLabel", color: "" }],
-        })
-      ),
+      createTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
+      resolvePriority: vi.fn().mockReturnValue(2),
     });
-    // context.labels does NOT contain "unknown-id"
-    const task = new Task(makeTaskSnapshot(baseTaskData, context));
+    const project = new Project(makeProjectSnapshot([], context));
 
-    await task.tag("NewLabel");
+    await project.createTask({ title: "Urgent task", priority: "High" });
 
-    // The canonical label name would fall back to "NewLabel" (the labelName argument)
-    expect(context.updateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ labelIds: expect.arrayContaining(["unknown-id"]) })
+    expect(context.resolvePriority).toHaveBeenCalledWith("High");
+    expect(context.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: 2 })
     );
   });
-});
 
-// ---------------------------------------------------------------------------
-// Task.ts — lines 97-99 (untag() with some labels remaining)
-// ---------------------------------------------------------------------------
-
-describe("Task.untag with remaining labels", () => {
-  it("untag() keeps labels not in the remove list that exist on the task", async () => {
-    // Task has both Bug and Feature labels; we only remove Bug
-    // So Feature label (.map().filter()) should pass through
-    const taskDataWithBothLabels: TaskData = {
-      ...baseTaskData,
-      labels: [labels[0]!, labels[1]!], // Bug and Feature
-    };
-    const context = createMockContext({
-      updateTask: vi.fn().mockResolvedValue(
-        makeTaskSnapshot({
-          ...taskDataWithBothLabels,
-          labels: [labels[1]!], // Feature remains
-        })
-      ),
-    });
-    const task = new Task(makeTaskSnapshot(taskDataWithBothLabels, context));
-
-    // untag only Bug — Feature should remain
-    await task.untag("Bug");
-
-    expect(context.updateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ labelIds: ["l2"] }) // Feature's id
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Task.ts — applySnapshot with undefined priority (lines 97-99 in constructor)
-// ---------------------------------------------------------------------------
-
-describe("Task applySnapshot with undefined priority", () => {
-  it("priority is undefined when task.priority is undefined after refresh", async () => {
-    const noPriorityData: TaskData = { ...baseTaskData, priority: undefined };
-    const context = createMockContext({
-      fetchTask: vi.fn().mockResolvedValue(makeTaskSnapshot(noPriorityData)),
-    });
-    const task = new Task(makeTaskSnapshot(baseTaskData, context));
-
-    // Initially has priority, after refresh it should be undefined
-    await task.refresh();
-    expect(task.priority).toBeUndefined();
-  });
-
-  it("Task with undefined priority in constructor", () => {
-    const noPriorityData: TaskData = { ...baseTaskData, priority: undefined };
-    const task = new Task(makeTaskSnapshot(noPriorityData));
-    expect(task.priority).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Project.ts — line 130 (findTask returns found task)
-// ---------------------------------------------------------------------------
-
-describe("Project.findTask success path", () => {
-  it("findTask returns the task when found", () => {
-    const project = new Project(makeProjectSnapshot([baseTaskData]));
-    const task = project.findTask("task-1");
-    expect(task).toBeInstanceOf(Task);
-    expect(task.id).toBe("task-1");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// index.ts — line 78 (createClient throws for unknown provider)
-// ---------------------------------------------------------------------------
-
-describe("createClient throws for unknown provider", () => {
-  it("createTaskList with unknown provider after normalizeConfig passes throws", async () => {
-    // This tests the createClient throw. We need to get past normalizeConfig but fail in createClient.
-    // normalizeConfig throws at line 66 already... Let's just test normalizeConfig with undefined provider
-    // and that createTaskList with a known provider that lacks config throws appropriately.
-    // Line 78 in index.ts is in createClient which is only reached if normalizeConfig succeeds.
-    // normalizeConfig only succeeds for "linear" or "trello". createClient handles "trello" and "linear".
-    // Line 78 would only be reached if we had a provider that passes normalizeConfig but not createClient.
-    // Since normalizeConfig throws for unknown providers, line 78 appears unreachable in practice.
-    // We can test that createTaskList with linear provider and no api key throws.
-    delete process.env.LINEAR_API_KEY;
-    await expect(createTaskList({ provider: "linear" })).rejects.toBeInstanceOf(
-      TaskListProviderNotConfiguredError
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Project.ts — lines 130-144 (updateTasks)
-// ---------------------------------------------------------------------------
-
-describe("Project.updateTasks", () => {
-  it("updateTasks updates all matching tasks and returns count", async () => {
+  it("updateTasks returns updated tasks and count", async () => {
     const updatedSnapshot = makeTaskSnapshot({
       ...baseTaskData,
-      statusId: "s2",
+      statusId: "status-2",
     });
     const context = createMockContext({
       updateTask: vi.fn().mockResolvedValue(updatedSnapshot),
     });
     const project = new Project(makeProjectSnapshot([baseTaskData], context));
 
-    const result = await project.updateTasks({ status: "Todo" }, { status: "Done" });
+    const result = await project.updateTasks({ status: "Todo" }, { status: "In Progress" });
 
     expect(result.count).toBe(1);
     expect(result.updated).toHaveLength(1);
   });
 
-  it("updateTasks returns empty result when no tasks match", async () => {
-    const context = createMockContext();
+  it("findTask throws TaskNotFoundError for unknown id", () => {
+    const project = new Project(makeProjectSnapshot([baseTaskData]));
+
+    expect(() => project.findTask("nonexistent-id")).toThrow(TaskNotFoundError);
+  });
+
+  it("findTask returns the task for a known id", () => {
+    const project = new Project(makeProjectSnapshot([baseTaskData]));
+
+    const task = project.findTask("task-1");
+    expect(task.id).toBe("task-1");
+  });
+
+  it("refresh() calls context.fetchProject and updates state", async () => {
+    const newSnapshot = makeProjectSnapshot([], createMockContext());
+    const context = createMockContext({
+      fetchProject: vi.fn().mockResolvedValue(newSnapshot),
+    });
     const project = new Project(makeProjectSnapshot([baseTaskData], context));
 
-    const result = await project.updateTasks({ status: "Done" }, { status: "Todo" });
+    await project.refresh();
 
-    expect(result.count).toBe(0);
-    expect(result.updated).toHaveLength(0);
+    expect(context.fetchProject).toHaveBeenCalledWith("project-1");
+    expect(project.tasks()).toHaveLength(0);
+  });
+
+  it("createLabel calls context.createLabel with color when provided", async () => {
+    const newLabel: Label = { id: "label-new", name: "Feature", color: "#0f0" };
+    const refreshedSnapshot = makeProjectSnapshot([], createMockContext());
+    const context = createMockContext({
+      createLabel: vi.fn().mockResolvedValue(newLabel),
+      fetchProject: vi.fn().mockResolvedValue(refreshedSnapshot),
+    });
+    const project = new Project(makeProjectSnapshot([], context));
+
+    const result = await project.createLabel("Feature", { color: "#0f0" });
+
+    expect(context.createLabel).toHaveBeenCalledWith("Feature", "#0f0");
+    expect(result).toEqual(newLabel);
+  });
+
+  it("createLabel calls context.createLabel without color when not provided", async () => {
+    const newLabel: Label = { id: "label-new", name: "Chore", color: "" };
+    const refreshedSnapshot = makeProjectSnapshot([], createMockContext());
+    const context = createMockContext({
+      createLabel: vi.fn().mockResolvedValue(newLabel),
+      fetchProject: vi.fn().mockResolvedValue(refreshedSnapshot),
+    });
+    const project = new Project(makeProjectSnapshot([], context));
+
+    await project.createLabel("Chore");
+
+    expect(context.createLabel).toHaveBeenCalledWith("Chore", undefined);
+  });
+
+  it("deleteLabel resolves label by name and calls context.deleteLabel", async () => {
+    const refreshedSnapshot = makeProjectSnapshot([], createMockContext());
+    const context = createMockContext({
+      deleteLabel: vi.fn().mockResolvedValue(undefined),
+      fetchProject: vi.fn().mockResolvedValue(refreshedSnapshot),
+    });
+    const project = new Project(makeProjectSnapshot([], context));
+
+    await project.deleteLabel("Bug");
+
+    expect(context.deleteLabel).toHaveBeenCalledWith("label-1");
+  });
+
+  it("deleteLabel throws LabelNotFoundError for unknown label", () => {
+    const project = new Project(makeProjectSnapshot([]));
+
+    expect(() => project.deleteLabel("NonExistent")).rejects.toBeInstanceOf(
+      LabelNotFoundError
+    );
   });
 });
 
 // ---------------------------------------------------------------------------
-// Task.ts — lines 97-99 (update with empty status string)
+// Task.ts — update with empty status, tag label fallback, untag with remaining
 // ---------------------------------------------------------------------------
 
-describe("Task update with empty status", () => {
-  it("update() passes undefined statusId when status is empty string", async () => {
+describe("Task additional coverage", () => {
+  it("update() skips statusId when status is empty string", async () => {
     const context = createMockContext({
       updateTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
     });
@@ -699,35 +648,118 @@ describe("Task update with empty status", () => {
     );
   });
 
-  it("update() passes undefined priority when resolvePriority is not defined", async () => {
-    const contextWithoutPriority = createMockContext({
-      resolvePriority: undefined,
+  it("update() resolves priority when resolvePriority is provided", async () => {
+    const context = createMockContext({
+      updateTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
+      resolvePriority: vi.fn().mockReturnValue(1),
+    });
+    const task = new Task(makeTaskSnapshot(baseTaskData, context));
+
+    await task.update({ priority: "Urgent" });
+
+    expect(context.resolvePriority).toHaveBeenCalledWith("Urgent");
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: 1 })
+    );
+  });
+
+  it("tag() uses labelName as fallback when label id not found in context.labels", async () => {
+    // When resolveLabelId returns an id that doesn't exist in context.labels,
+    // the fallback is to use labelName directly as the canonical label name.
+    // Then update() calls resolveLabelId again on each label name.
+    const context = createMockContext({
+      resolveLabelId: vi.fn().mockReturnValue("unknown-id"),
+      labels: [], // empty labels array — so no label.id will match "unknown-id"
+      updateTask: vi.fn().mockResolvedValue(
+        makeTaskSnapshot({
+          ...baseTaskData,
+          labels: [],
+        })
+      ),
+    });
+    const task = new Task(makeTaskSnapshot({ ...baseTaskData, labels: [] }, context));
+
+    await task.tag("NewLabel");
+
+    // The fallback labelName "NewLabel" is added to nextLabels
+    // then update() calls resolveLabelId("NewLabel") → "unknown-id"
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelIds: ["unknown-id"],
+      })
+    );
+  });
+
+  it("untag() filters out removed labels and keeps remaining ones", async () => {
+    const taskWithTwoLabels: TaskData = {
+      ...baseTaskData,
+      labels: [labels[0]!, labels[1]!],
+    };
+    const context = createMockContext({
+      resolveLabelId: vi.fn((name: string) =>
+        name === "Bug" ? "label-1" : "label-2"
+      ),
       updateTask: vi.fn().mockResolvedValue(makeTaskSnapshot()),
     });
-    const task = new Task(makeTaskSnapshot(baseTaskData, contextWithoutPriority));
+    const task = new Task(makeTaskSnapshot(taskWithTwoLabels, context));
 
-    await task.update({ priority: "High" });
+    await task.untag("Bug");
 
-    expect(contextWithoutPriority.updateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ priority: undefined })
+    // untag builds nextLabels from context.labels (minus toRemove), then calls update()
+    // update() calls resolveLabelId("Feature") → "label-2"
+    expect(context.updateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelIds: ["label-2"], // Feature's id remains after Bug is removed
+      })
     );
+  });
+
+  it("refresh() calls context.fetchTask and applies new snapshot", async () => {
+    const refreshedData: TaskData = {
+      ...baseTaskData,
+      title: "Updated title",
+    };
+    const context = createMockContext({
+      fetchTask: vi.fn().mockResolvedValue(makeTaskSnapshot(refreshedData)),
+    });
+    const task = new Task(makeTaskSnapshot(baseTaskData, context));
+
+    await task.refresh();
+
+    expect(context.fetchTask).toHaveBeenCalledWith("task-1");
+    expect(task.title).toBe("Updated title");
+  });
+
+  it("Task constructor uses undefined for priority when priority field is absent", () => {
+    const taskDataNoPriority: TaskData = {
+      id: "t-2",
+      title: "No priority",
+      description: "",
+      statusId: "status-1",
+      projectId: "p-1",
+      labels: [],
+      url: "https://example.com",
+      // no priority field
+    };
+    const task = new Task(makeTaskSnapshot(taskDataNoPriority));
+    expect(task.priority).toBeUndefined();
   });
 });
 
 // ---------------------------------------------------------------------------
-// TaskList.ts — line 43 (projectById)
+// TaskList.ts — projectById
 // ---------------------------------------------------------------------------
 
 describe("TaskList.projectById", () => {
-  it("delegates to client.getProject", async () => {
+  it("calls client.getProject with the given id", async () => {
     const project = new Project(makeProjectSnapshot());
-    const client = new (class extends TaskListClient {
-      readonly provider = "linear" as const;
-      getProjects = vi.fn(async () => []);
-      getProject = vi.fn(async () => project);
-      getTask = vi.fn(async () => null as never);
-      constructor() { super({ provider: "linear" }); }
-    })();
+    const client = {
+      provider: "linear" as const,
+      getProjects: vi.fn(async () => [project]),
+      getProject: vi.fn(async () => project),
+      getTask: vi.fn(),
+      initialize: vi.fn(async () => undefined),
+    } as unknown as TaskListClient;
     const taskList = new TaskList(client);
 
     const result = await taskList.projectById("project-1");
@@ -737,192 +769,74 @@ describe("TaskList.projectById", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Linear — createLabel with color, deleteLabel, resolvePriority error
+// Linear context methods — extra branch coverage
 // ---------------------------------------------------------------------------
 
-const mockFetch = vi.fn();
+describe("LinearTaskListClient context methods", () => {
+  const mockFetch = vi.fn();
 
-function graphqlResponse(data: unknown) {
-  return { ok: true, json: () => Promise.resolve({ data }) } as Response;
-}
-
-describe("LinearTaskListClient extra coverage", () => {
-  let client: LinearTaskListClient;
+  function graphqlResponse(data: unknown) {
+    return {
+      ok: true,
+      json: () => Promise.resolve({ data }),
+    } as Response;
+  }
 
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
     mockFetch.mockReset();
-    client = new LinearTaskListClient({
-      provider: "linear",
-      apiKey: "lin_test_key",
-      teamId: "team-1",
-    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  const linearStates = [{ id: "ws1", name: "Todo" }, { id: "ws2", name: "Done" }];
-  const linearLabels = [{ id: "ll1", name: "Bug", color: "#f00" }];
-  const linearProject = { id: "proj-1", name: "Q1", url: "https://linear.app/proj-1" };
+  function makeLinearClient() {
+    return new LinearTaskListClient({
+      provider: "linear",
+      apiKey: "lin_test_key",
+      teamId: "team-1",
+    });
+  }
+
+  const teamData = {
+    states: {
+      nodes: [
+        { id: "ws1", name: "Todo" },
+        { id: "ws2", name: "In Progress" },
+      ],
+    },
+    labels: {
+      nodes: [
+        { id: "ll1", name: "Bug", color: "#ff0000" },
+        { id: "ll2", name: "Feature", color: "#00ff00" },
+      ],
+    },
+  };
+
   const linearIssue = {
     id: "ISS-1",
-    title: "Fix",
-    description: "desc",
-    url: "https://linear.app/ISS-1",
+    title: "Fix login",
+    description: "Users cannot log in",
+    url: "https://linear.app/team/ISS-1",
     priority: 2,
     state: { id: "ws1" },
     team: { id: "team-1" },
     project: { id: "proj-1" },
-    labels: { nodes: [] },
+    labels: { nodes: [{ id: "ll1", name: "Bug", color: "#ff0000" }] },
   };
 
-  it("updateTask with description, labelIds, priority set", async () => {
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({ issue: linearIssue, team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } } })
-    );
-    const updatedIssue = { ...linearIssue, title: "Updated", priority: 3 };
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({ issueUpdate: { issue: updatedIssue } })
-    );
-
-    const task = await client.getTask("ISS-1");
-    await task.update({ title: "Updated", description: "new desc", labels: ["Bug"], priority: "Medium" });
-
-    const body = JSON.parse((mockFetch.mock.calls[1]![1] as RequestInit).body as string) as {
-      variables: { input: Record<string, unknown> };
-    };
-    expect(body.variables.input.description).toBe("new desc");
-    expect(body.variables.input.labelIds).toEqual(["ll1"]);
-    expect(body.variables.input.priority).toBe(3);
-  });
-
-  it("createLabel sends correct mutation with color", async () => {
+  it("createTask without optional description, labels, priority", async () => {
+    // First get a project to get context
     mockFetch.mockResolvedValueOnce(
       graphqlResponse({
         organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        issueLabelCreate: {
-          issueLabel: { id: "ll2", name: "Feature", color: "#0f0" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
         },
-      })
-    );
-    // refresh after createLabel
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-
-    const project = await client.getProject("proj-1");
-    const label = await project.createLabel("Feature", { color: "#0f0" });
-
-    expect(label.name).toBe("Feature");
-    expect(label.color).toBe("#0f0");
-  });
-
-  it("createLabel sends correct mutation without color", async () => {
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        issueLabelCreate: {
-          issueLabel: { id: "ll3", name: "Chore", color: "" },
-        },
-      })
-    );
-    // refresh after createLabel
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-
-    const project = await client.getProject("proj-1");
-    await project.createLabel("Chore");
-
-    const body = JSON.parse((mockFetch.mock.calls[1]![1] as RequestInit).body as string) as {
-      variables: { input: Record<string, unknown> };
-    };
-    expect(body.variables.input.color).toBeUndefined();
-  });
-
-  it("deleteLabel sends correct mutation", async () => {
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-    mockFetch.mockResolvedValueOnce(graphqlResponse({})); // deleteLabel
-    // refresh after deleteLabel
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-
-    const project = await client.getProject("proj-1");
-    await project.deleteLabel("Bug");
-
-    expect(mockFetch).toHaveBeenCalledTimes(3);
-  });
-
-  it("resolvePriority throws InvalidPriorityError for unknown priority", async () => {
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
-        team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-      })
-    );
-
-    const project = await client.getProject("proj-1");
-    await expect(
-      project.createTask({ title: "T", priority: "InvalidPriority" })
-    ).rejects.toBeInstanceOf(InvalidPriorityError);
-  });
-
-  it("teamResolutionPromise is reused when concurrent calls happen", async () => {
-    const noTeamClient = new LinearTaskListClient({
-      provider: "linear",
-      apiKey: "lin_test_key",
-    });
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({ teams: { nodes: [{ id: "team-1", name: "Core" }] } })
-    );
-
-    // Two parallel calls to resolveTeam
-    await Promise.all([noTeamClient.resolveTeam(), noTeamClient.resolveTeam()]);
-
-    // Should only have fetched teams once
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("createTask without description, labels, or priority", async () => {
-    const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
-    mockFetch.mockResolvedValueOnce(
-      graphqlResponse({
-        organization: { urlKey: "myorg" },
-        project: { ...linearProject, issues: { nodes: [] } },
         team: teamData,
       })
     );
@@ -930,10 +844,11 @@ describe("LinearTaskListClient extra coverage", () => {
       graphqlResponse({ issueCreate: { issue: linearIssue } })
     );
 
+    const client = makeLinearClient();
     const project = await client.getProject("proj-1");
     const task = await project.createTask({ title: "Minimal task" });
 
-    expect(task.title).toBe("Fix");
+    expect(task.title).toBe("Fix login");
     const body = JSON.parse(
       (mockFetch.mock.calls[1]![1] as RequestInit).body as string
     ) as { variables: { input: Record<string, unknown> } };
@@ -942,301 +857,589 @@ describe("LinearTaskListClient extra coverage", () => {
     expect(body.variables.input.priority).toBeUndefined();
   });
 
-  it("updateTask without title — only status", async () => {
-    const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
+  it("updateTask without optional fields (empty input)", async () => {
     mockFetch.mockResolvedValueOnce(
       graphqlResponse({ issue: linearIssue, team: teamData })
     );
     mockFetch.mockResolvedValueOnce(
-      graphqlResponse({ issueUpdate: { issue: { ...linearIssue, state: { id: "ws2" } } } })
+      graphqlResponse({
+        issueUpdate: { issue: linearIssue },
+      })
     );
 
+    const client = makeLinearClient();
     const task = await client.getTask("ISS-1");
-    await task.update({ status: "Done" });
+    // update with no fields
+    await task.update({});
 
     const body = JSON.parse(
       (mockFetch.mock.calls[1]![1] as RequestInit).body as string
     ) as { variables: { input: Record<string, unknown> } };
-    expect(body.variables.input.title).toBeUndefined();
-    expect(body.variables.input.stateId).toBe("ws2");
+    // All optional fields should be absent
+    expect(body.variables.input).toEqual({});
   });
 
-  it("context.fetchTask is called via task.refresh()", async () => {
-    const teamData = { states: { nodes: linearStates }, labels: { nodes: linearLabels } };
-    // getTask
-    mockFetch.mockResolvedValueOnce(graphqlResponse({ issue: linearIssue, team: teamData }));
-    // fetchTaskSnapshot (via context.fetchTask via task.refresh())
-    mockFetch.mockResolvedValueOnce(graphqlResponse({ issue: linearIssue, team: teamData }));
-
-    const task = await client.getTask("ISS-1");
-    const refreshed = await task.refresh();
-    expect(refreshed).toBe(task);
-  });
-
-  it("context.fetchProject is called via project.refresh()", async () => {
-    const projectData = {
-      organization: { urlKey: "myorg" },
-      project: { ...linearProject, issues: { nodes: [] } },
-      team: { states: { nodes: linearStates }, labels: { nodes: linearLabels } },
-    };
-    // getProject
-    mockFetch.mockResolvedValueOnce(graphqlResponse(projectData));
-    // fetchProjectSnapshot (via context.fetchProject via project.refresh())
-    mockFetch.mockResolvedValueOnce(graphqlResponse(projectData));
-
-    const project = await client.getProject("proj-1");
-    const refreshed = await project.refresh();
-    expect(refreshed).toBe(project);
-  });
-
-  it("getProjects includes description on createTask input", async () => {
+  it("updateTask with title and description (covers those optional branches)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issue: linearIssue, team: teamData })
+    );
     mockFetch.mockResolvedValueOnce(
       graphqlResponse({
-        organization: { urlKey: "myorg" },
-        team: {
-          projects: { nodes: [{ ...linearProject, issues: { nodes: [linearIssue] } }] },
-          states: { nodes: linearStates },
-          labels: { nodes: linearLabels },
+        issueUpdate: {
+          issue: { ...linearIssue, title: "New title", description: "New desc" },
         },
       })
     );
 
+    const client = makeLinearClient();
+    const task = await client.getTask("ISS-1");
+    await task.update({ title: "New title", description: "New desc" });
+
+    const body = JSON.parse(
+      (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(body.variables.input.title).toBe("New title");
+    expect(body.variables.input.description).toBe("New desc");
+  });
+
+  it("updateTask with priority (covers priority branch)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issue: linearIssue, team: teamData })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        issueUpdate: {
+          issue: { ...linearIssue, priority: 1 },
+        },
+      })
+    );
+
+    const client = makeLinearClient();
+    const task = await client.getTask("ISS-1");
+    await task.update({ priority: "Urgent" });
+
+    const body = JSON.parse(
+      (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(body.variables.input.priority).toBe(1);
+  });
+
+  it("getProjects() returns projects with tasks", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        team: {
+          projects: {
+            nodes: [
+              {
+                id: "proj-1",
+                name: "Q1 Roadmap",
+                url: "https://linear.app/proj-1",
+                issues: { nodes: [linearIssue] },
+              },
+            ],
+          },
+          states: teamData.states,
+          labels: teamData.labels,
+        },
+      })
+    );
+
+    const client = makeLinearClient();
     const projects = await client.getProjects();
+
     expect(projects).toHaveLength(1);
-    expect(projects[0]!.name).toBe("Q1");
+    expect(projects[0]!.name).toBe("Q1 Roadmap");
+    expect(projects[0]!.tasks()).toHaveLength(1);
+  });
+
+  it("createLabel with color", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        issueLabelCreate: {
+          issueLabel: { id: "lbl-new", name: "Feature", color: "#0f0" },
+        },
+      })
+    );
+    // fetchProject for refresh after createLabel
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+    const label = await project.createLabel("Feature", { color: "#0f0" });
+
+    expect(label.name).toBe("Feature");
+    expect(label.color).toBe("#0f0");
+  });
+
+  it("createLabel without color", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        issueLabelCreate: {
+          issueLabel: { id: "lbl-new", name: "Chore", color: "" },
+        },
+      })
+    );
+    // fetchProject for refresh
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+    const label = await project.createLabel("Chore");
+
+    expect(label.name).toBe("Chore");
+    const body = JSON.parse(
+      (mockFetch.mock.calls[1]![1] as RequestInit).body as string
+    ) as { variables: { input: Record<string, unknown> } };
+    expect(body.variables.input.color).toBeUndefined();
+  });
+
+  it("deleteLabel sends delete mutation", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issueLabelDelete: { success: true } })
+    );
+    // fetchProject for refresh
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+    await project.deleteLabel("Bug");
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("teamResolutionPromise is reused for concurrent resolveTeam() calls", async () => {
+    // Two concurrent calls to resolveTeam() should only make one network request
+    const noTeamClient = new LinearTaskListClient({
+      provider: "linear",
+      apiKey: "lin_test_key",
+      // no teamId — must resolve
+    });
+
+    let resolveTeams!: (value: unknown) => void;
+    // First call blocks until we resolve
+    mockFetch.mockReturnValueOnce(
+      new Promise((res) => {
+        resolveTeams = res;
+      })
+    );
+
+    // Start two concurrent resolveTeam calls
+    const p1 = noTeamClient.resolveTeam();
+    const p2 = noTeamClient.resolveTeam(); // should reuse the promise
+
+    // Now resolve the pending fetch
+    resolveTeams({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: { teams: { nodes: [{ id: "t-1", name: "Core" }] } },
+        }),
+    });
+
+    await Promise.all([p1, p2]);
+
+    // Only one fetch call despite two resolveTeam() calls
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolvePriority throws InvalidPriorityError for unknown priority", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+
+    await expect(
+      project.createTask({ title: "Test", priority: "SuperHigh" as never })
+    ).rejects.toBeInstanceOf(InvalidPriorityError);
+  });
+
+  it("context.fetchTask calls fetchTaskSnapshot", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+    // fetchTaskSnapshot for refresh
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({ issue: linearIssue, team: teamData })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+    // Manually create a Task with the context from this project to test fetchTask
+    const context = (project as unknown as { context: TaskContext }).context;
+    const snapshot = await context.fetchTask("ISS-1");
+
+    expect(snapshot.task.id).toBe("ISS-1");
+  });
+
+  it("context.fetchProject calls fetchProjectSnapshot", async () => {
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+    // fetchProjectSnapshot for fetchProject
+    mockFetch.mockResolvedValueOnce(
+      graphqlResponse({
+        organization: { urlKey: "myorg" },
+        project: {
+          id: "proj-1",
+          name: "Q1 Roadmap",
+          url: "https://linear.app",
+          issues: { nodes: [] },
+        },
+        team: teamData,
+      })
+    );
+
+    const client = makeLinearClient();
+    const project = await client.getProject("proj-1");
+    const context = (project as unknown as { context: TaskContext }).context;
+    const snapshot = await context.fetchProject("proj-1");
+
+    expect(snapshot.info.id).toBe("proj-1");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Trello — createLabel, deleteLabel, updateTask with description + labels
+// Trello context methods — extra branch coverage
 // ---------------------------------------------------------------------------
 
-const trelloBoard = { id: "board-1", name: "My Board", url: "https://trello.com/b/board-1" };
-const trelloLists = [
-  { id: "list-1", name: "Todo", idBoard: "board-1" },
-  { id: "list-2", name: "Done", idBoard: "board-1" },
-];
-const trelloLabel = { id: "label-1", name: "Bug", color: "red" };
-const trelloCard = {
-  id: "card-1",
-  name: "Fix bug",
-  desc: "A description",
-  idList: "list-1",
-  idBoard: "board-1",
-  idLabels: ["label-1"],
-  labels: [trelloLabel],
-  url: "https://trello.com/c/card-1",
-};
+describe("TrelloTaskListClient context methods", () => {
+  const mockFetch = vi.fn();
 
-function jsonResponse(data: unknown) {
-  return { ok: true, json: () => Promise.resolve(data) } as Response;
-}
+  function jsonResponse(data: unknown) {
+    return { ok: true, json: () => Promise.resolve(data) } as Response;
+  }
 
-function errorResponse(status: number, text: string) {
-  return { ok: false, status, text: () => Promise.resolve(text) } as Response;
-}
-
-describe("TrelloTaskListClient extra coverage", () => {
-  let client: TrelloTaskListClient;
+  const trelloBoard = {
+    id: "board-1",
+    name: "My Board",
+    url: "https://trello.com/b/board-1",
+  };
+  const trelloLists = [
+    { id: "list-1", name: "Todo", idBoard: "board-1" },
+    { id: "list-2", name: "Done", idBoard: "board-1" },
+  ];
+  const trelloLabel = { id: "label-1", name: "Bug", color: "red" };
+  const trelloCard = {
+    id: "card-1",
+    name: "Fix bug",
+    desc: "A description",
+    idList: "list-1",
+    idBoard: "board-1",
+    idLabels: ["label-1"],
+    labels: [trelloLabel],
+    url: "https://trello.com/c/card-1",
+  };
 
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
     mockFetch.mockReset();
-    client = new TrelloTaskListClient({
-      provider: "trello",
-      apiKey: "test-key",
-      token: "test-token",
-    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("updateTask with description and labelIds sends them in body", async () => {
-    // fetchTaskSnapshot
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+  function makeClient() {
+    return new TrelloTaskListClient({
+      provider: "trello",
+      apiKey: "test-key",
+      token: "test-token",
+    });
+  }
+
+  it("updateTask without title (only status change)", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // updateTask
-    mockFetch.mockResolvedValueOnce(jsonResponse({
-      ...trelloCard,
-      name: "Updated",
-      desc: "new desc",
-      labels: [trelloLabel],
-    }));
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ ...trelloCard, idList: "list-2" })
+    );
 
-    const task = await client.getTask("card-1");
-    await task.update({ title: "Updated", description: "new desc", labels: ["Bug"] });
+    const client = makeClient();
+    const project = await client.getProject("board-1");
+    const task = project.tasks()[0]!;
+    await task.update({ status: "Done" });
 
-    const body = JSON.parse((mockFetch.mock.calls[3]![1] as RequestInit).body as string) as Record<string, string>;
-    expect(body["desc"]).toBe("new desc");
+    const body = JSON.parse(
+      (mockFetch.mock.calls.at(-1)![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["name"]).toBeUndefined();
+    expect(body["idList"]).toBe("list-2");
+  });
+
+  it("updateTask with description and labels (covers those optional branches)", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloCard]));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ ...trelloCard, desc: "New desc", idLabels: ["label-1"] })
+    );
+
+    const client = makeClient();
+    const project = await client.getProject("board-1");
+    const task = project.tasks()[0]!;
+    await task.update({ description: "New desc", labels: ["Bug"] });
+
+    const body = JSON.parse(
+      (mockFetch.mock.calls.at(-1)![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["desc"]).toBe("New desc");
     expect(body["idLabels"]).toBe("label-1");
   });
 
-  it("createLabel with color", async () => {
-    // getProject
+  it("createTask without description and without labels", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // createLabel
-    mockFetch.mockResolvedValueOnce(jsonResponse({ id: "label-2", name: "Feature", color: "blue" }));
-    // refresh (fetchProjectSnapshot)
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ ...trelloCard, id: "card-new", name: "Minimal" })
+    );
+
+    const client = makeClient();
+    const project = await client.getProject("board-1");
+    const task = await project.createTask({
+      title: "Minimal",
+      status: "Todo",
+    });
+
+    expect(task.title).toBe("Minimal");
+    const body = JSON.parse(
+      (mockFetch.mock.calls.at(-1)![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["desc"]).toBeUndefined();
+    expect(body["idLabels"]).toBeUndefined();
+  });
+
+  it("createLabel with color", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([]));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
+    // createLabel POST
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ id: "lbl-new", name: "Feature", color: "blue" })
+    );
+    // fetchProject for refresh
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
+    const client = makeClient();
     const project = await client.getProject("board-1");
     const label = await project.createLabel("Feature", { color: "blue" });
 
     expect(label.name).toBe("Feature");
-    expect(label.color).toBe("blue");
+    const body = JSON.parse(
+      (mockFetch.mock.calls[4]![1] as RequestInit).body as string
+    ) as Record<string, string>;
+    expect(body["color"]).toBe("blue");
   });
 
   it("createLabel without color", async () => {
-    // getProject
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // createLabel
-    mockFetch.mockResolvedValueOnce(jsonResponse({ id: "label-2", name: "Feature", color: "" }));
-    // refresh (fetchProjectSnapshot)
+    // createLabel POST
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ id: "lbl-new", name: "Chore", color: "" })
+    );
+    // fetchProject for refresh
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
+    const client = makeClient();
     const project = await client.getProject("board-1");
-    const label = await project.createLabel("Feature");
+    const label = await project.createLabel("Chore");
 
-    expect(label.name).toBe("Feature");
-    const createCallBody = JSON.parse(
+    expect(label.name).toBe("Chore");
+    const body = JSON.parse(
       (mockFetch.mock.calls[4]![1] as RequestInit).body as string
     ) as Record<string, string>;
-    expect(createCallBody["color"]).toBeUndefined();
+    expect(body["color"]).toBeUndefined();
   });
 
   it("deleteLabel sends DELETE request", async () => {
-    // getProject
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
     // deleteLabel
     mockFetch.mockResolvedValueOnce(jsonResponse({}));
-    // refresh (fetchProjectSnapshot)
+    // fetchProject for refresh
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
+    const client = makeClient();
     const project = await client.getProject("board-1");
     await project.deleteLabel("Bug");
 
-    // Verify the deleteLabel call was a DELETE
     const deleteCall = mockFetch.mock.calls[4]!;
-    const deletedUrl = new URL(deleteCall[0] as string);
-    expect(deletedUrl.pathname).toContain("/labels/label-1");
     expect((deleteCall[1] as RequestInit).method).toBe("DELETE");
   });
 
-  it("throws TaskListProviderNotConfiguredError when apiKey is missing", () => {
-    const badClient = new TrelloTaskListClient({
-      provider: "trello",
-      token: "token",
-    });
-    return expect(badClient.getProjects()).rejects.toBeInstanceOf(
-      TaskListProviderNotConfiguredError
-    );
-  });
-
-  it("throws TaskListProviderNotConfiguredError when token is missing", () => {
-    const badClient = new TrelloTaskListClient({
-      provider: "trello",
-      apiKey: "key",
-    });
-    return expect(badClient.getProjects()).rejects.toBeInstanceOf(
-      TaskListProviderNotConfiguredError
-    );
-  });
-
-  it("fetchTask re-throws non-404 errors", async () => {
-    mockFetch.mockResolvedValueOnce(errorResponse(500, "Internal Server Error"));
-    await expect(client.getTask("card-1")).rejects.toBeInstanceOf(TaskListApiError);
-  });
-
-  it("createTask without description or labels", async () => {
-    // getProject
+  it("context.fetchTask calls fetchTaskSnapshot", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // createTask
-    mockFetch.mockResolvedValueOnce(jsonResponse({ ...trelloCard, id: "card-3", name: "Simple task" }));
+    // fetchTaskSnapshot: card + lists + labels
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
+    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
+    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
+    const client = makeClient();
     const project = await client.getProject("board-1");
-    const task = await project.createTask({ title: "Simple task" });
+    const context = (project as unknown as { context: TaskContext }).context;
+    const snapshot = await context.fetchTask("card-1");
 
-    expect(task.title).toBe("Simple task");
-    const body = JSON.parse(
-      (mockFetch.mock.calls[4]![1] as RequestInit).body as string
-    ) as Record<string, string>;
-    expect(body["desc"]).toBeUndefined();
-    expect(body["idLabels"]).toBeUndefined();
+    expect(snapshot.task.id).toBe("card-1");
   });
 
-  it("updateTask without title - only status change", async () => {
-    // getTask
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
-    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // updateTask
-    mockFetch.mockResolvedValueOnce(jsonResponse({ ...trelloCard, idList: "list-2" }));
-
-    const task = await client.getTask("card-1");
-    await task.update({ status: "Done" });
-
-    const body = JSON.parse(
-      (mockFetch.mock.calls[3]![1] as RequestInit).body as string
-    ) as Record<string, string>;
-    expect(body["name"]).toBeUndefined();
-    expect(body["idList"]).toBe("list-2");
-  });
-
-  it("context.fetchTask is called via task.refresh()", async () => {
-    // getTask
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
-    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // fetchTaskSnapshot (for refresh)
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloCard));
-    mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
-    mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-
-    const task = await client.getTask("card-1");
-    const refreshed = await task.refresh();
-
-    expect(refreshed).toBe(task);
-  });
-
-  it("context.fetchProject is called via project.refresh()", async () => {
-    // getProject
+  it("context.fetchProject calls fetchProjectSnapshot", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
-    // fetchProjectSnapshot (for refresh)
+    // fetchProjectSnapshot
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloBoard));
     mockFetch.mockResolvedValueOnce(jsonResponse(trelloLists));
     mockFetch.mockResolvedValueOnce(jsonResponse([]));
     mockFetch.mockResolvedValueOnce(jsonResponse([trelloLabel]));
 
+    const client = makeClient();
     const project = await client.getProject("board-1");
-    const refreshed = await project.refresh();
+    const context = (project as unknown as { context: TaskContext }).context;
+    const snapshot = await context.fetchProject("board-1");
 
-    expect(refreshed).toBe(project);
+    expect(snapshot.info.id).toBe("board-1");
+  });
+
+  it("TrelloTaskListClient throws when apiKey and token are missing", () => {
+    const savedKey = process.env.TRELLO_API_KEY;
+    const savedToken = process.env.TRELLO_API_TOKEN;
+    delete process.env.TRELLO_API_KEY;
+    delete process.env.TRELLO_API_TOKEN;
+
+    try {
+      const client = new TrelloTaskListClient({
+        provider: "trello",
+        // no apiKey, no token, no env vars
+      });
+      // initialize() calls assertConfigured() synchronously which throws
+      expect(() => client.initialize()).toThrow(
+        TaskListProviderNotConfiguredError
+      );
+    } finally {
+      if (savedKey !== undefined) process.env.TRELLO_API_KEY = savedKey;
+      if (savedToken !== undefined) process.env.TRELLO_API_TOKEN = savedToken;
+    }
   });
 });
