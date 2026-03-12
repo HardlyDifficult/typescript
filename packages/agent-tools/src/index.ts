@@ -89,6 +89,7 @@ export {
   parseReadFileOutput,
   parseSearchFilesOutput,
   parseWriteFileOutput,
+  withReadCapWarning,
 } from "./tools";
 
 // Agent runner types

@@ -19,4 +19,5 @@ export {
 } from "./summaryFormatters.js";
 export type { AnnotationProvider, FileSystem } from "./types.js";
 export { createWriteTools } from "./write.js";
+export { withReadCapWarning } from "./readCapWarning.js";
 export { runVerification } from "./verify.js";
