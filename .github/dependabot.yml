@@ -6,10 +6,10 @@ updates:
       interval: weekly
     versioning-strategy: increase
     cooldown:
-      default: 7
-      semver-patch: 7
-      semver-minor: 7
-      semver-major: 7
+      default-days: 7
+      semver-patch-days: 7
+      semver-minor-days: 7
+      semver-major-days: 7
     groups:
       all-updates:
         patterns:
