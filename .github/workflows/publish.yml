@@ -23,6 +23,9 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
+      - name: Upgrade npm
+        run: npm install -g npm@11.10.0
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
