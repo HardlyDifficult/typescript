@@ -19,10 +19,10 @@
     "@octokit/rest": "22.0.1"
   },
   "devDependencies": {
-    "@types/node": "25.3.5",
-    "typescript": "5.9.3",
-    "vitest": "4.0.18",
-    "@vitest/coverage-v8": "4.0.18"
+    "@types/node": "25.6.0",
+    "typescript": "6.0.2",
+    "vitest": "4.1.4",
+    "@vitest/coverage-v8": "4.1.4"
   },
   "type": "commonjs",
   "engines": {
