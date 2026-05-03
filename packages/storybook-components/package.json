@@ -16,23 +16,23 @@
     "clean": "node --eval \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('storybook-static', { recursive: true, force: true })\""
   },
   "dependencies": {
-    "lightweight-charts": "5.1.0",
-    "react": ">=19.2.4",
-    "react-dom": ">=19.2.4",
+    "lightweight-charts": "5.2.0",
+    "react": ">=19.2.5",
+    "react-dom": ">=19.2.5",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1"
   },
   "devDependencies": {
-    "@storybook/react-vite": "10.2.16",
-    "@tailwindcss/vite": "4.2.1",
+    "@storybook/react-vite": "10.3.5",
+    "@tailwindcss/vite": "4.2.4",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "5.1.4",
-    "agent-browser": "0.16.3",
-    "storybook": "10.2.16",
-    "tailwindcss": "4.2.1",
-    "typescript": "5.9.3",
-    "vite": "7.3.1"
+    "@vitejs/plugin-react": "6.0.1",
+    "agent-browser": "0.26.0",
+    "storybook": "10.3.5",
+    "tailwindcss": "4.2.4",
+    "typescript": "6.0.3",
+    "vite": "8.0.10"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

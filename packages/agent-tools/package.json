@@ -18,15 +18,15 @@
     "@hardlydifficult/ai": "file:../ai",
     "@hardlydifficult/text": "file:../text",
     "@hardlydifficult/throttle": "file:../throttle",
-    "@opencode-ai/sdk": "1.2.21",
-    "simple-git": "3.32.3",
-    "tinyglobby": "0.2.15",
+    "@opencode-ai/sdk": "1.14.25",
+    "simple-git": "3.36.0",
+    "tinyglobby": "0.2.16",
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@types/node": "25.3.5",
-    "typescript": "5.9.3",
-    "vitest": "4.0.18"
+    "@types/node": "25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5"
   },
   "engines": {
     "node": ">=20.19.0"
