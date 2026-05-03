@@ -16,17 +16,17 @@
   },
   "dependencies": {
     "@hardlydifficult/date-time": "file:../date-time",
-    "axios": "1.13.6"
+    "axios": "1.15.2"
   },
   "peerDependencies": {
     "zod": ">=3.0.0"
   },
   "devDependencies": {
-    "@types/node": "25.3.5",
-    "typescript": "5.9.3",
-    "vitest": "4.0.18",
+    "@types/node": "25.6.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5",
     "zod": "4.3.6",
-    "@vitest/coverage-v8": "4.0.18"
+    "@vitest/coverage-v8": "4.1.5"
   },
   "engines": {
     "node": ">=20.19.0"
